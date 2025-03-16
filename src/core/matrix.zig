@@ -90,15 +90,15 @@ pub fn Matrix(comptime rows_n_in: comptime_int, comptime cols_n_in: comptime_int
             return vec;
         }
 
-        pub fn getSubMat(self: *const Self, comptime rows: usize, comptime cols: usize, row_start: usize, col_start: usize) Matrix(rows, cols, ElemType) {
+        pub fn getSubMat(self: *const Self, row_start: usize, col_start: usize, comptime rows: usize, comptime cols: usize) Matrix(rows, cols, ElemType) {
             // TODO: make this bounds check?
             var sub_mat = Matrix(rows, cols, ElemType).initZeros();
 
-            const row_end: usize = row_start+rows;
-            const col_end: usize = col_start+cols;
+            const row_end: usize = row_start + rows;
+            const col_end: usize = col_start + cols;
             for (row_start..row_end) |rr| {
                 for (col_start..col_end) |cc| {
-                    sub_mat.set(rr-row_start, cc-col_start, self.get(rr, cc));
+                    sub_mat.set(rr - row_start, cc - col_start, self.get(rr, cc));
                 }
             }
 
@@ -274,10 +274,43 @@ pub const Mat33Ops = struct {
 };
 
 const Mat44Ops = struct {
-    // pub fn det(ElemType: type, mat: Mat44T(ElemType)) ElemType {
+    pub fn det(ElemType: type, mat: Mat44T(ElemType)) ElemType {
+        const mat_a = mat.getSubMat(0, 0, 2, 2);
+        const mat_b = mat.getSubMat(0, 2, 2, 2);
+        const mat_c = mat.getSubMat(2, 0, 2, 2);
+        const mat_d = mat.getSubMat(2, 2, 2, 2);
 
-    // }
+        const det_a = Mat22Ops.det(ElemType, mat_a);
+        const det_b = Mat22Ops.det(ElemType, mat_b);
+        const det_c = Mat22Ops.det(ElemType, mat_c);
+        const det_d = Mat22Ops.det(ElemType, mat_d);
+
+        const adj_a = Mat22Ops.adj(ElemType, mat_a);
+        const adj_d = Mat22Ops.adj(ElemType, mat_d);
+
+        const adj_ab = adj_a.multMat(mat_b);
+        const adj_dc = adj_d.multMat(mat_c);
+        const adj_ab_dc = adj_ab.multMat(adj_dc);
+
+        return det_a * det_d + det_b * det_c - adj_ab_dc.trace();
+    }
 };
+
+test "Mat44Ops.det" {
+    const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
+    const mat0 = Mat44f.initSlice(&m0);
+
+    var det_exp: EType = 0;
+
+    try expectEqual(det_exp, Mat44Ops.det(EType, mat0));
+
+    const m1 = [_]EType{ 1, 2, 1, 2, 3, 1, 1, 3, 3, 1, 2, 3, 2, 1, 2, 1 };
+    const mat1 = Mat44f.initSlice(&m1);
+
+    det_exp = 6;
+
+    try expectEqual(det_exp, Mat44Ops.det(EType, mat1));
+}
 
 test "Mat22f.getRowVec" {
     const m0 = [_]EType{ 1, 2, 3, 4 };
@@ -456,12 +489,26 @@ test "Mat33f.getSubMat" {
     const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     const mat0 = Mat33f.initSlice(&m0);
 
-    const m1 = [_]EType{ 5,6,8,9 };
-    const mat_exp = Mat22f.initSlice(&m1);
+    const m1 = [_]EType{ 5, 6, 8, 9 };
+    var mat_exp = Mat22f.initSlice(&m1);
 
-    try expectEqual(mat_exp, mat0.getSubMat(2,2,1,1));
+    try expectEqual(mat_exp, mat0.getSubMat(1, 1, 2, 2));
+
+    const m2 = [_]EType{ 2, 3, 5, 6 };
+    mat_exp = Mat22f.initSlice(&m2);
+
+    try expectEqual(mat_exp, mat0.getSubMat(0, 1, 2, 2));
+
+    const m3 = [_]EType{ 1, 2, 4, 5 };
+    mat_exp = Mat22f.initSlice(&m3);
+
+    try expectEqual(mat_exp, mat0.getSubMat(0, 0, 2, 2));
+
+    const m5 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    const mat_exp33 = Mat33f.initSlice(&m5);
+
+    try expectEqual(mat_exp33, mat0.getSubMat(0, 0, 3, 3));
 }
-
 
 //------------------------------------------------------------------------------
 
