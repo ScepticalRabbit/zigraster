@@ -275,6 +275,7 @@ pub const Mat33Ops = struct {
 
 const Mat44Ops = struct {
     pub fn det(ElemType: type, mat: Mat44T(ElemType)) ElemType {
+        // Split the 4x4 into sub matrices M44 = [(A,B),(C,D)]
         const mat_a = mat.getSubMat(0, 0, 2, 2);
         const mat_b = mat.getSubMat(0, 2, 2, 2);
         const mat_c = mat.getSubMat(2, 0, 2, 2);
@@ -292,25 +293,74 @@ const Mat44Ops = struct {
         const adj_dc = adj_d.multMat(mat_c);
         const adj_ab_dc = adj_ab.multMat(adj_dc);
 
+        // det(M44) = det(A)*det(D) + det(B)*det(C) - trace((adj(A)B)(adj(D)C))
         return det_a * det_d + det_b * det_c - adj_ab_dc.trace();
     }
+
+    pub fn insertMat22(ElemType: type, mat44: *Mat44T(ElemType), mat22: Mat22T(ElemType), row_start: usize, col_start: usize) void {
+        mat44.set(0 + row_start, 0 + col_start, mat22.get(0, 0));
+        mat44.set(0 + row_start, 1 + col_start, mat22.get(0, 1));
+        mat44.set(1 + row_start, 0 + col_start, mat22.get(1, 0));
+        mat44.set(1 + row_start, 1 + col_start, mat22.get(1, 1));
+    }
+
+    pub fn inv(ElemType: type, mat: Mat44T(ElemType)) Mat44T(ElemType) {
+        // Split the 4x4 into sub matrices M44 = [(A,B),(C,D)]
+        const mat_a = mat.getSubMat(0, 0, 2, 2);
+        const mat_b = mat.getSubMat(0, 2, 2, 2);
+        const mat_c = mat.getSubMat(2, 0, 2, 2);
+        const mat_d = mat.getSubMat(2, 2, 2, 2);
+
+        // Calculate the determinant and keep each step for later calcs
+        const det_a = Mat22Ops.det(ElemType, mat_a);
+        const det_b = Mat22Ops.det(ElemType, mat_b);
+        const det_c = Mat22Ops.det(ElemType, mat_c);
+        const det_d = Mat22Ops.det(ElemType, mat_d);
+
+        const adj_a = Mat22Ops.adj(ElemType, mat_a);
+        const adj_d = Mat22Ops.adj(ElemType, mat_d);
+
+        const adj_ab = adj_a.multMat(mat_b);
+        const adj_dc = adj_d.multMat(mat_c);
+        const adj_ab_dc = adj_ab.multMat(adj_dc);
+
+        const det_m: ElemType = det_a * det_d + det_b * det_c - adj_ab_dc.trace();
+
+        // Now calculate the 2x2 sub matrices of the inverse
+        var inv_a = mat_a.multScalar(det_d);
+        const b_adj_dc = mat_b.multMat(adj_dc);
+        inv_a = inv_a.subtract(b_adj_dc);
+        inv_a = Mat22Ops.adj(ElemType, inv_a);
+
+        var inv_b = mat_c.multScalar(det_b);
+        const adj_ab_adj = Mat22Ops.adj(ElemType, adj_ab);
+        const d_adj_ab_adj = mat_d.multMat(adj_ab_adj);
+        inv_b = inv_b.subtract(d_adj_ab_adj);
+        inv_b = Mat22Ops.adj(ElemType, inv_b);
+
+        var inv_c = mat_b.multScalar(det_c);
+        const adj_dc_adj = Mat22Ops.adj(ElemType, adj_dc);
+        const a_adj_dc_adj = mat_a.multMat(adj_dc_adj);
+        inv_c = inv_c.subtract(a_adj_dc_adj);
+        inv_c = Mat22Ops.adj(ElemType, inv_c);
+
+        var inv_d = mat_d.multScalar(det_a);
+        const c_adj_ab = mat_c.multMat(adj_ab);
+        inv_d = inv_d.subtract(c_adj_ab);
+        inv_d = Mat22Ops.adj(ElemType, inv_d);
+
+        // Build the 4x4 matrix from the 4 sub matrices
+        var mat_inv: Mat44T(ElemType) = Mat44T(ElemType).initIdentity();
+
+        Mat44Ops.insertMat22(ElemType, &mat_inv, inv_a, 0, 0);
+        Mat44Ops.insertMat22(ElemType, &mat_inv, inv_b, 0, 2);
+        Mat44Ops.insertMat22(ElemType, &mat_inv, inv_c, 2, 0);
+        Mat44Ops.insertMat22(ElemType, &mat_inv, inv_d, 2, 2);
+
+        mat_inv = mat_inv.multScalar(1 / det_m);
+        return mat_inv;
+    }
 };
-
-test "Mat44Ops.det" {
-    const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
-    const mat0 = Mat44f.initSlice(&m0);
-
-    var det_exp: EType = 0;
-
-    try expectEqual(det_exp, Mat44Ops.det(EType, mat0));
-
-    const m1 = [_]EType{ 1, 2, 1, 2, 3, 1, 1, 3, 3, 1, 2, 3, 2, 1, 2, 1 };
-    const mat1 = Mat44f.initSlice(&m1);
-
-    det_exp = 6;
-
-    try expectEqual(det_exp, Mat44Ops.det(EType, mat1));
-}
 
 test "Mat22f.getRowVec" {
     const m0 = [_]EType{ 1, 2, 3, 4 };
@@ -581,4 +631,43 @@ test "Mat33Ops.inv" {
     const mat_exp = Mat33f.initSlice(&m2);
 
     try expectEqual(mat_exp, Mat33Ops.inv(EType, mat1));
+}
+
+//------------------------------------------------------------------------------
+test "Mat44Ops.det" {
+    const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
+    const mat0 = Mat44f.initSlice(&m0);
+
+    var det_exp: EType = 0;
+
+    try expectEqual(det_exp, Mat44Ops.det(EType, mat0));
+
+    const m1 = [_]EType{ 1, 2, 1, 2, 3, 1, 1, 3, 3, 1, 2, 3, 2, 1, 2, 1 };
+    const mat1 = Mat44f.initSlice(&m1);
+
+    det_exp = 6;
+
+    try expectEqual(det_exp, Mat44Ops.det(EType, mat1));
+}
+
+test "Mat44Ops.insertMat22" {
+    var mat0 = Mat44f.initZeros();
+    const mat1 = Mat22f.initOnes();
+
+    const m2 = [_]EType{ 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0 };
+    const mat_exp = Mat44f.initSlice(&m2);
+
+    Mat44Ops.insertMat22(EType, &mat0, mat1, 1, 1);
+
+    try expectEqual(mat_exp, mat0);
+}
+
+test "Mat44Ops.inv" {
+    const m0 = [_]EType{ 0, 2, 0, 2, 2, 1, 1, 2, 2, 1, 2, 2, 2, 1, 2, 1 };
+    const mat0 = Mat44f.initSlice(&m0);
+
+    const m1 = [_]EType{ -0.25, 1, -1, 0.5, 0.5, 0, -1, 1, 0, -1, 1, 0, 0, 0, 1, -1 };
+    const mat_exp = Mat44f.initSlice(&m1);
+
+    try expectEqual(mat_exp, Mat44Ops.inv(EType, mat0));
 }
