@@ -71,32 +71,34 @@ pub fn Matrix(comptime rows_n_in: comptime_int, comptime cols_n_in: comptime_int
             self.elems[(row * cols_n) + col] = val;
         }
 
-        pub fn getRowVec(self: *const Self, row: usize) Vector(cols_n,ElemType) {
+        pub fn getRowVec(self: *const Self, row: usize) Vector(cols_n, ElemType) {
             // TODO: make this bounds check?
-            const start: usize = row*cols_n;
+            const start: usize = row * cols_n;
             const end: usize = start + cols_n;
             const row_slice: []const ElemType = self.elems[start..end];
-            const vec = Vector(cols_n,ElemType).initSlice(row_slice);
+            const vec = Vector(cols_n, ElemType).initSlice(row_slice);
             return vec;
         }
 
-        pub fn getColVec(self: *const Self, col: usize) Vector(rows_n,ElemType) {
+        pub fn getColVec(self: *const Self, col: usize) Vector(rows_n, ElemType) {
             // TODO: make this bounds check?
             var col_vec: [rows_n]ElemType = undefined;
             for (0..rows_n) |rr| {
-                col_vec[rr] = self.get(rr,col);
+                col_vec[rr] = self.get(rr, col);
             }
-            const vec = Vector(rows_n,ElemType).initSlice(&col_vec);
+            const vec = Vector(rows_n, ElemType).initSlice(&col_vec);
             return vec;
         }
 
-        pub fn getSubMat(self: *const Self, comptime rows: usize, comptime cols: usize, row_start: usize, col_start: usize) Matrix(rows,cols,ElemType) {
+        pub fn getSubMat(self: *const Self, comptime rows: usize, comptime cols: usize, row_start: usize, col_start: usize) Matrix(rows, cols, ElemType) {
             // TODO: make this bounds check?
-            const sub_mat = Matrix(rows,cols,ElemType).initZeros();
+            var sub_mat = Matrix(rows, cols, ElemType).initZeros();
 
-            for (row_start..rows) |rr| {
-                for (col_start..cols) |cc| {
-                    sub_mat.set(rr,cc,self.get(rr,cc));
+            const row_end: usize = row_start+rows;
+            const col_end: usize = col_start+cols;
+            for (row_start..row_end) |rr| {
+                for (col_start..col_end) |cc| {
+                    sub_mat.set(rr-row_start, cc-col_start, self.get(rr, cc));
                 }
             }
 
@@ -121,7 +123,7 @@ pub fn Matrix(comptime rows_n_in: comptime_int, comptime cols_n_in: comptime_int
 
             // TODO: fix this for non-square matrices
             for (0..rows_n) |ii| {
-                trace_out += self.get(ii,ii);
+                trace_out += self.get(ii, ii);
             }
 
             return trace_out;
@@ -274,7 +276,6 @@ pub const Mat33Ops = struct {
 const Mat44Ops = struct {
     // pub fn det(ElemType: type, mat: Mat44T(ElemType)) ElemType {
 
-
     // }
 };
 
@@ -282,7 +283,7 @@ test "Mat22f.getRowVec" {
     const m0 = [_]EType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
-    const v0 = [_]EType{3,4};
+    const v0 = [_]EType{ 3, 4 };
     const vec_exp = Vec2f.initSlice(&v0);
 
     try expectEqual(vec_exp, mat0.getRowVec(1));
@@ -292,7 +293,7 @@ test "Mat22f.getColVec" {
     const m0 = [_]EType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
-    const v0 = [_]EType{1,3};
+    const v0 = [_]EType{ 1, 3 };
     const vec_exp = Vec2f.initSlice(&v0);
 
     try expectEqual(vec_exp, mat0.getColVec(0));
@@ -430,17 +431,39 @@ test "Mat33f.subtract" {
     try expectEqual(mat_exp, mat0.subtract(mat1));
 }
 
+//------------------------------------------------------------------------------
 test "Mat33f.getRowVec" {
+    const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    const mat0 = Mat33f.initSlice(&m0);
 
+    const v0 = [_]EType{ 4, 5, 6 };
+    const vec_exp = Vec3f.initSlice(&v0);
+
+    try expectEqual(vec_exp, mat0.getRowVec(1));
 }
 
 test "Mat33f.getColVec" {
+    const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    const mat0 = Mat33f.initSlice(&m0);
 
+    const v0 = [_]EType{ 2, 5, 8 };
+    const vec_exp = Vec3f.initSlice(&v0);
+
+    try expectEqual(vec_exp, mat0.getColVec(1));
 }
 
 test "Mat33f.getSubMat" {
+    const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    const mat0 = Mat33f.initSlice(&m0);
 
+    const m1 = [_]EType{ 5,6,8,9 };
+    const mat_exp = Mat22f.initSlice(&m1);
+
+    try expectEqual(mat_exp, mat0.getSubMat(2,2,1,1));
 }
+
+
+//------------------------------------------------------------------------------
 
 test "Mat33f.transpose" {
     const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
@@ -510,5 +533,5 @@ test "Mat33Ops.inv" {
     const m2 = [_]EType{ 0.4, -0.1, -0.1, -0.1, 0.4, -0.1, -0.1, -0.1, 0.4 };
     const mat_exp = Mat33f.initSlice(&m2);
 
-    try expectEqual(mat_exp, Mat33Ops.inv(EType,mat1));
+    try expectEqual(mat_exp, Mat33Ops.inv(EType, mat1));
 }
