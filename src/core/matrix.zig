@@ -274,6 +274,9 @@ pub const Mat33Ops = struct {
 };
 
 const Mat44Ops = struct {
+    // See this blog for the maths for below:
+    //https://lxjk.github.io/2017/09/03/Fast-4x4-Matrix-Inverse-with-SSE-SIMD-Explained.html
+
     pub fn det(ElemType: type, mat: Mat44T(ElemType)) ElemType {
         // Split the 4x4 into sub matrices M44 = [(A,B),(C,D)]
         const mat_a = mat.getSubMat(0, 0, 2, 2);

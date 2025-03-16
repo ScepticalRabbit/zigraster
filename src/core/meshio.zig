@@ -1,19 +1,21 @@
 const std = @import("std");
+const Vec3f = @import("vector.zig").Vec3f;
 
-const Coords = struct {
-    x: []f64,
-    y: []f64,
-    z: []f64,
-    len: usize,
-};
+// pub const Coords = struct {
+//     pts: []Vec3f,
+//     // x: []f64,
+//     // y: []f64,
+//     // z: []f64,
+//     len: usize,
+// };
 
-const Connect = struct {
+pub const Connect = struct {
     nodes_per_elem: u8,
     elem_n: usize,
     table: []usize,
 };
 
-const Field = struct {
+pub const Field = struct {
     time_n: usize,
     coord_n: usize,
     data: []f64,
@@ -44,7 +46,7 @@ pub fn readCsvToList(allocator: std.mem.Allocator, path: []const u8) !std.ArrayL
     return lines;
 }
 
-pub fn parseCoords(csv_lines: *const std.ArrayList([]const u8), coords: *Coords) !void {
+pub fn parseCoords(csv_lines: *const std.ArrayList([]const u8), coords: *[]Vec3f) !void {
     const num_coords: u8 = 3;
     var num_count: u8 = 0;
 
@@ -56,15 +58,17 @@ pub fn parseCoords(csv_lines: *const std.ArrayList([]const u8), coords: *Coords)
             const num: f64 = try std.fmt.parseFloat(f64, num_str);
 
             //print("num_count={}, num={d}\n", .{num_count,num});
-
             if (num_count == 0) {
-                coords.x[ii] = num;
+                coords.*[ii].set(0,num);
+                //coords.x[ii] = num;
                 //print("coords.x[{}] = {d}\n", .{ii,coords.x[ii]});
             } else if (num_count == 1) {
-                coords.y[ii] = num;
+                coords.*[ii].set(1,num);
+                //coords.y[ii] = num;
                 //print("coords.y[{}] = {d}\n", .{ii,coords.y[ii]});
             } else if (num_count == 2) {
-                coords.z[ii] = num;
+                coords.*[ii].set(2,num);
+                //coords.z[ii] = num;
                 //print("coords.z[{}] = {d}\n", .{ii,coords.z[ii]});
             }
 
