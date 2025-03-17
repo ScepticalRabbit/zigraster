@@ -29,10 +29,10 @@ pub fn main() !void {
 
     //--------------------------------------------------------------------------
     // MEMORY ALLOCATORS
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    var arena = std.heap.ArenaAllocator.init(gpa.allocator());
+    const page_alloc = std.heap.page_allocator;
+    //var page_alloc = std.heap.PageAllocator(std.heap.page_allocator);
+    var arena = std.heap.ArenaAllocator.init(page_alloc);
     defer arena.deinit();
-    const gpa_alloc = gpa.allocator();
     const arena_alloc = arena.allocator();
 
     //--------------------------------------------------------------------------
@@ -46,7 +46,7 @@ pub fn main() !void {
 
     // Read the csv file into an array list
     time_start = try Instant.now();
-    var lines = try meshio.readCsvToList(gpa_alloc, path_coords);
+    var lines = try meshio.readCsvToList(page_alloc, path_coords);
     time_end = try Instant.now();
     const time_read_coords: f64 = @floatFromInt(time_end.since(time_start));
 
@@ -78,7 +78,7 @@ pub fn main() !void {
 
     // Read the csv file into an array list
     time_start = try Instant.now();
-    lines = try meshio.readCsvToList(gpa_alloc, path_connect);
+    lines = try meshio.readCsvToList(page_alloc, path_connect);
     time_end = try Instant.now();
     const time_read_connect: f64 = @floatFromInt(time_end.since(time_start));
     print("\nConnect: read {} lines from csv.\n", .{lines.items.len});
@@ -107,7 +107,7 @@ pub fn main() !void {
 
     // Read the csv file into an array list
     time_start = try Instant.now();
-    lines = try meshio.readCsvToList(gpa_alloc, path_field);
+    lines = try meshio.readCsvToList(page_alloc, path_field);
     time_end = try Instant.now();
     const time_read_field: f64 = @floatFromInt(time_end.since(time_start));
     print("\nField: read {} lines from csv.\n", .{lines.items.len});

@@ -9,6 +9,11 @@ zig run -O ReleaseFast src/main.zig
 This project is inspired by the rasteriser implementation on [Scratchapixel](https://www.scratchapixel.com/index.html). See their description of the rasterisation process [here](https://www.scratchapixel.com/lessons/3d-basic-rendering/rasterization-practical-implementation/overview-rasterization-algorithm.html) and their code [here](https://github.com/scratchapixel/scratchapixel-code/tree/main/rasterization-practical-implementation).
 
 ## Test Case
-The test case for rendering is finite element solid mechanics simulation of a XXXXX, see image below of the vertical displacement field. I performed this simulation using [Gmsh](https://gmsh.info/) to create the mesh and [MOOSE](https://mooseframework.inl.gov/) as the physics solver. The Gmsh `.geo` and MOOSE input `.i` file can be found [here](). I skinned the 3D mesh using `pyvista` then I parsed the mesh (nodal coordinates and connectivity table) and the output displacement field to `.csv` files to be read into Zig (files are in the [data]() directory).
+The test case for rendering is finite element solid mechanics simulation of a linear elastic cylinder loaded in compression, see visualisation below of the vertical displacement field using [Paraview](https://www.paraview.org/). I performed this simulation using [Gmsh](https://gmsh.info/) to create the mesh and [MOOSE](https://mooseframework.inl.gov/) as the physics solver. The Gmsh `.geo` and MOOSE input `.i` file can be found in the [data directory](https://github.com/ScepticalRabbit/zigraster/tree/main/data). I skinned the 3D mesh using `pyvista` then I parsed the mesh (nodal coordinates and connectivity table) and the output displacement field to `.csv` files to be read into Zig (files are in the [data directory](https://github.com/ScepticalRabbit/zigraster/tree/main/data)).
+
+|![fig_test_case_cylinder](images/testcase_cylinder_mesh1_dispy.png)|
+|:--:|
+|*Rasterisation rendering test case: a linear elastic cylinder loaded in compression showing the vertical displacement field.*|
 
 ## Core Functionality
+This project provides support for basic linear algebra operations on vectors and matrices through the `Vector` and `Matrix` types. This supports small vectors and matrices through the types: `Vec2f`, `Vec3f`,` Mat22f`, `Mat33f` and `Mat44f`.

@@ -60,15 +60,12 @@ pub fn parseCoords(csv_lines: *const std.ArrayList([]const u8), coords: *[]Vec3f
             //print("num_count={}, num={d}\n", .{num_count,num});
             if (num_count == 0) {
                 coords.*[ii].set(0,num);
-                //coords.x[ii] = num;
                 //print("coords.x[{}] = {d}\n", .{ii,coords.x[ii]});
             } else if (num_count == 1) {
                 coords.*[ii].set(1,num);
-                //coords.y[ii] = num;
                 //print("coords.y[{}] = {d}\n", .{ii,coords.y[ii]});
             } else if (num_count == 2) {
                 coords.*[ii].set(2,num);
-                //coords.z[ii] = num;
                 //print("coords.z[{}] = {d}\n", .{ii,coords.z[ii]});
             }
 
