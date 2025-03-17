@@ -7,7 +7,13 @@ const meshio = @import("core/meshio.zig");
 const vector = @import("core/vector.zig");
 const matrix = @import("core/matrix.zig");
 
+const Rotation = @import("core/rotation.zig").Rotation;
 const Vec3f = vector.Vec3f;
+const Mat44f = matrix.Mat44f;
+const Mat44Ops = matrix.Mat44Ops;
+
+
+const Rasteriser = struct {};
 
 pub fn main() !void {
     const print_break = [_]u8{'-'} ** 80;
@@ -26,6 +32,8 @@ pub fn main() !void {
     print("Coords: {s}\n", .{path_coords});
     print("Connect: {s}\n", .{path_connect});
     print("Field: {s}\n\n", .{path_field});
+
+    // Camera Parameters
 
     //--------------------------------------------------------------------------
     // MEMORY ALLOCATORS
@@ -59,19 +67,19 @@ pub fn main() !void {
 
     // Pass the coords into a series of arrays
     const coord_count: usize = lines.items.len;
-    var coords = try arena_alloc.alloc(Vec3f,coord_count);
-    // var coords = meshio.Coords{
-    //     .x = try arena_alloc.alloc(f64, coord_count),
-    //     .y = try arena_alloc.alloc(f64, coord_count),
-    //     .z = try arena_alloc.alloc(f64, coord_count),
-    //     .len = coord_count,
-    // };
+    var coords = try arena_alloc.alloc(Vec3f, coord_count);
 
     time_start = try Instant.now();
     try meshio.parseCoords(&lines, &coords);
     time_end = try Instant.now();
     const time_parse_coords: f64 = @floatFromInt(time_end.since(time_start));
     print("Coords: parse time = {d:.3}ms\n", .{time_parse_coords / time.ns_per_ms});
+
+    // print("COORDS:\n",.{});
+    // for (0..coords.len) |cc| {
+    //     coords[cc].vecPrint();
+    // }
+    // print("\n",.{});
 
     // Parse the connectivity table into a 2D array - first clear the lines array
     lines.clearRetainingCapacity();
@@ -119,4 +127,8 @@ pub fn main() !void {
     const time_parse_field: f64 = @floatFromInt(time_end.since(time_start));
     print("Field: coords={}, time steps={}\n", .{ field.coord_n, field.time_n });
     print("Field: parse time = {d:.3}ms\n", .{time_parse_field / time.ns_per_ms});
+
+    //--------------------------------------------------------------------------
+    //
+
 }

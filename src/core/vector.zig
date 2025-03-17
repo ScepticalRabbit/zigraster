@@ -82,10 +82,42 @@ pub fn Vector(comptime elem_n_in: comptime_int, comptime ElemType: type) type {
             return @sqrt(self.norm());
         }
 
+        pub fn max(self: *const Self) ElemType {
+            var max_out: ElemType = self.get(0);
+            for (1..elem_n) |ii| {
+                if (self.get(ii) > max_out) {
+                    max_out = self.get(ii);
+                }
+            }
+            return max_out;
+        }
+
+        pub fn min(self: *const Self) ElemType {
+            var min_out: ElemType = self.get(0);
+            for (1..elem_n) |ii| {
+                if (self.get(ii) < min_out) {
+                    min_out = self.get(ii);
+                }
+            }
+            return min_out;
+        }
+
+        pub fn sum(self: *const Self) ElemType {
+            var sum_out: ElemType = 0;
+            for(0..elem_n) |ii| {
+                sum_out += self.get(ii);
+            }
+            return sum_out;
+        }
+
+        pub fn mean(self: *const Self) ElemType {
+            return self.sum()/elem_n;
+        }
+
         pub fn vecPrint(self: *const Self) void {
             print("[", .{});
             for (0..elem_n) |ii| {
-                print("{},", .{self.elems[ii]});
+                print("{e:.3},", .{self.elems[ii]});
             }
             print("]\n", .{});
         }

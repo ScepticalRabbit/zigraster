@@ -12,8 +12,8 @@ const Rotation = struct {
 
     const Self = @This();
 
-    const rows_n: usize = 3;
-    const cols_n: usize = 3;
+    // const rows_n: usize = 3;
+    // const cols_n: usize = 3;
 
     pub fn init(alpha_z: f64, beta_y: f64, gamma_x: f64) Rotation {
         var rot = Rotation{ .alpha_z = alpha_z, .beta_y = beta_y, .gamma_x = gamma_x };
