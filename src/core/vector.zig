@@ -9,11 +9,9 @@ const EType = f64;
 pub const Vec2f = Vec2T(EType);
 pub const Vec3f = Vec3T(EType);
 
-pub fn Vector(comptime elem_n_in: comptime_int, comptime ElemType: type) type {
+pub fn Vector(comptime elem_n: comptime_int, comptime ElemType: type) type {
     return extern struct {
         elems: [elem_n]ElemType,
-
-        pub const elem_n: usize = elem_n_in;
 
         const Self: type = @This();
 
@@ -119,6 +117,18 @@ pub fn Vec3T(comptime ElemType: type) type {
     return Vector(3, ElemType);
 }
 
+pub fn initVec2(comptime ElemType: type, x: ElemType, y: ElemType) Vec3T(ElemType) {
+    return Vec3T(ElemType){
+        .elems = [3]ElemType{ x, y },
+    };
+}
+
+pub fn initVec3(comptime ElemType: type, x: ElemType, y: ElemType, z: ElemType) Vec3T(ElemType) {
+    return Vec3T(ElemType){
+        .elems = [3]ElemType{ x, y, z },
+    };
+}
+
 pub const Vec3Ops = struct {
     pub fn cross(ElemType: type, vec0: Vec3T(ElemType), vec1: Vec3T(ElemType)) Vec3T(ElemType) {
         var vec_out: Vec3T(ElemType) = undefined;
@@ -133,7 +143,7 @@ test "Vec.max" {
     const v0 = [_]EType{ 1, 3, 6, 7, 8, 1, -2, -3, 0, 5 };
     const vec0 = Vector(v0.len, EType).initSlice(&v0);
 
-    const exp = ValInd(EType) {
+    const exp = ValInd(EType){
         .val = 8,
         .ind = 4,
     };
@@ -145,7 +155,7 @@ test "Vec.min" {
     const v0 = [_]EType{ 1, 3, 6, 7, 8, 1, -2, -3, 0, 5 };
     const vec0 = Vector(v0.len, EType).initSlice(&v0);
 
-    const exp = ValInd(EType) {
+    const exp = ValInd(EType){
         .val = -3,
         .ind = 7,
     };

@@ -14,13 +14,11 @@ pub const Mat22f = Mat22T(EType);
 pub const Mat33f = Mat33T(EType);
 pub const Mat44f = Mat44T(EType);
 
-pub fn Matrix(comptime rows_n_in: comptime_int, comptime cols_n_in: comptime_int, comptime ElemType: type) type {
+pub fn Matrix(comptime rows_n: comptime_int, comptime cols_n: comptime_int, comptime ElemType: type) type {
     return extern struct {
         elems: [elem_n]ElemType,
 
-        pub const rows_n: usize = rows_n_in;
-        pub const cols_n: usize = cols_n_in;
-        pub const elem_n: usize = rows_n_in * cols_n_in;
+        pub const elem_n: usize = rows_n * cols_n;
 
         const Self: type = @This();
 
