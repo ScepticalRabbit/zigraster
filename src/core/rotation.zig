@@ -4,7 +4,7 @@ const expectEqual = std.testing.expectEqual;
 const Mat33f = @import("matrix.zig").Mat33f;
 
 
-const Rotation = struct {
+pub const Rotation = struct {
     alpha_z: f64 = 0.0,
     beta_y: f64 = 0.0,
     gamma_x: f64 = 0.0,

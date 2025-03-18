@@ -17,9 +17,6 @@ pub const Mat44f = Mat44T(EType);
 pub fn Matrix(comptime rows_n_in: comptime_int, comptime cols_n_in: comptime_int, comptime ElemType: type) type {
     return extern struct {
         elems: [elem_n]ElemType,
-        // rows_num: usize = rows_n_in,
-        // cols_num: usize = cols_n_in,
-        // elem_num: usize = elem_n,
 
         pub const rows_n: usize = rows_n_in;
         pub const cols_n: usize = cols_n_in;
@@ -39,26 +36,23 @@ pub fn Matrix(comptime rows_n_in: comptime_int, comptime cols_n_in: comptime_int
             return initFill(1);
         }
 
-        pub fn initIdentity() Self {
+        pub fn initDiag(diag_val: ElemType) Self {
             var ident: Self = initZeros();
 
-            // TODO: fix this for non-square matrices
-            for (0..rows_n) |ii| {
-                ident.set(ii, ii, 1);
+            var diag_n: usize = cols_n;
+            if (cols_n > rows_n) {
+                diag_n = rows_n;
+            }
+
+            for (0..diag_n) |ii| {
+                ident.set(ii, ii, diag_val);
             }
 
             return ident;
         }
 
-        pub fn initDiag(diag_val: ElemType) Self {
-            var ident: Self = initZeros();
-
-            // TODO: fix this for non-square matrices
-            for (0..rows_n) |ii| {
-                ident.set(ii, ii, diag_val);
-            }
-
-            return ident;
+        pub fn initIdentity() Self {
+            return initDiag(1);
         }
 
         pub fn initSlice(slice: []const ElemType) Self {
@@ -107,22 +101,22 @@ pub fn Matrix(comptime rows_n_in: comptime_int, comptime cols_n_in: comptime_int
             return sub_mat;
         }
 
-        pub fn insertRowVec(self: *Self, row: usize, col_start: usize, comptime vec_len: usize, vec: Vector(vec_len,ElemType)) void {
+        pub fn insertRowVec(self: *Self, row: usize, col_start: usize, comptime vec_len: usize, vec: Vector(vec_len, ElemType)) void {
             for (0..vec_len) |cc| {
-                self.set(row,cc+col_start,vec.get(cc));
+                self.set(row, cc + col_start, vec.get(cc));
             }
         }
 
-        pub fn insertColVec(self: *Self, col: usize, row_start: usize, comptime vec_len: usize, vec: Vector(vec_len,ElemType)) void {
+        pub fn insertColVec(self: *Self, col: usize, row_start: usize, comptime vec_len: usize, vec: Vector(vec_len, ElemType)) void {
             for (0..vec_len) |rr| {
-                self.set(rr+row_start,col,vec.get(rr));
+                self.set(rr + row_start, col, vec.get(rr));
             }
         }
 
-        pub fn insertSubMat(self: *Self, row_start: usize, col_start: usize, comptime mat_rows: usize, comptime mat_cols: usize, mat: Matrix(mat_rows,mat_rows, ElemType)) void {
+        pub fn insertSubMat(self: *Self, row_start: usize, col_start: usize, comptime mat_rows: usize, comptime mat_cols: usize, mat: Matrix(mat_rows, mat_rows, ElemType)) void {
             for (0..mat_rows) |rr| {
                 for (0..mat_cols) |cc| {
-                    self.set(rr+row_start,cc+col_start,mat.get(rr,cc));
+                    self.set(rr + row_start, cc + col_start, mat.get(rr, cc));
                 }
             }
         }
@@ -190,7 +184,7 @@ pub fn Matrix(comptime rows_n_in: comptime_int, comptime cols_n_in: comptime_int
                 for (0..cols_n) |cc| {
                     sum += self.get(rr, cc) * vec.get(cc);
                 }
-                vec_out.set(rr,sum);
+                vec_out.set(rr, sum);
             }
 
             return vec_out;
@@ -296,7 +290,7 @@ pub const Mat33Ops = struct {
 };
 
 pub const Mat44Ops = struct {
-    // See this blog for the maths for below:
+    // See this blog for the maths:
     //https://lxjk.github.io/2017/09/03/Fast-4x4-Matrix-Inverse-with-SSE-SIMD-Explained.html
 
     pub fn det(ElemType: type, mat: Mat44T(ElemType)) ElemType {
@@ -393,11 +387,11 @@ pub const Mat44Ops = struct {
         for (0..3) |ii| {
             sum = 0;
             for (0..3) |jj| {
-                sum += mat.get(ii,jj)*vec.get(jj);
+                sum += mat.get(ii, jj) * vec.get(jj);
             }
             // w = 1, add the translation
-            sum += mat.get(ii,3);
-            vec_out.set(ii,sum);
+            sum += mat.get(ii, 3);
+            vec_out.set(ii, sum);
         }
 
         return vec_out;
@@ -682,22 +676,22 @@ test "Mat44f.insertRowVec" {
     const vec0 = Vec2f.initOnes();
     const vec1 = Vec3f.initOnes();
 
-    const m1 = [_]EType{0,0,0,0, 0,0,0,0, 0,1,1,0, 0,0,0,0};
+    const m1 = [_]EType{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0 };
     const mat_exp1 = Mat44f.initSlice(&m1);
 
-    const m2 = [_]EType{0,0,0,0, 0,0,0,0, 0,1,1,0, 0,1,1,1};
+    const m2 = [_]EType{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1 };
     const mat_exp2 = Mat44f.initSlice(&m2);
 
-    const m3 = [_]EType{1,1,0,0, 0,0,0,0, 0,1,1,0, 0,1,1,1};
+    const m3 = [_]EType{ 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1 };
     const mat_exp3 = Mat44f.initSlice(&m3);
 
-    mat0.insertRowVec(2,1,2,vec0);
+    mat0.insertRowVec(2, 1, 2, vec0);
     try expectEqual(mat_exp1, mat0);
 
-    mat0.insertRowVec(3,1,3,vec1);
+    mat0.insertRowVec(3, 1, 3, vec1);
     try expectEqual(mat_exp2, mat0);
 
-    mat0.insertRowVec(0,0,2,vec0);
+    mat0.insertRowVec(0, 0, 2, vec0);
     try expectEqual(mat_exp3, mat0);
 }
 
@@ -706,22 +700,22 @@ test "Mat44f.insertColVec" {
     const vec0 = Vec2f.initOnes();
     const vec1 = Vec3f.initOnes();
 
-    const m1 = [_]EType{0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,1};
+    const m1 = [_]EType{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1 };
     const mat_exp1 = Mat44f.initSlice(&m1);
 
-    const m2 = [_]EType{1,0,0,0, 1,0,0,0, 1,0,0,1, 0,0,0,1};
+    const m2 = [_]EType{ 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1 };
     const mat_exp2 = Mat44f.initSlice(&m2);
 
-    const m3 = [_]EType{1,0,1,0, 1,0,1,0, 1,0,0,1, 0,0,0,1};
+    const m3 = [_]EType{ 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1 };
     const mat_exp3 = Mat44f.initSlice(&m3);
 
-    mat0.insertColVec(3,2,2,vec0);
+    mat0.insertColVec(3, 2, 2, vec0);
     try expectEqual(mat_exp1, mat0);
 
-    mat0.insertColVec(0,0,3,vec1);
+    mat0.insertColVec(0, 0, 3, vec1);
     try expectEqual(mat_exp2, mat0);
 
-    mat0.insertColVec(2,0,2,vec0);
+    mat0.insertColVec(2, 0, 2, vec0);
     try expectEqual(mat_exp3, mat0);
 }
 
@@ -730,10 +724,10 @@ test "Mat44f.inertSubMat" {
     const mat1 = Mat22f.initOnes();
     const mat2 = Mat33f.initOnes();
 
-    const m1 = [_]EType{0,0,0,0, 0,0,0,0, 0,0,1,1, 0,0,1,1};
+    const m1 = [_]EType{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1 };
     const mat_exp1 = Mat44f.initSlice(&m1);
 
-    const m2 = [_]EType{1,1,1,0, 1,1,1,0, 1,1,1,1, 0,0,1,1};
+    const m2 = [_]EType{ 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1 };
     const mat_exp2 = Mat44f.initSlice(&m2);
 
     mat0.insertSubMat(2, 2, 2, 2, mat1);
@@ -780,5 +774,3 @@ test "Mat44Ops.inv" {
 
     try expectEqual(mat_exp, Mat44Ops.inv(EType, mat0));
 }
-
-

@@ -2,6 +2,9 @@ const std = @import("std");
 const print = std.debug.print;
 const expectEqual = std.testing.expectEqual;
 
+const slice = @import("slicetools.zig");
+const ValInd = slice.ValInd;
+
 const EType = f64;
 pub const Vec2f = Vec2T(EType);
 pub const Vec3f = Vec3T(EType);
@@ -26,8 +29,8 @@ pub fn Vector(comptime elem_n_in: comptime_int, comptime ElemType: type) type {
             return initFill(0);
         }
 
-        pub fn initSlice(slice: []const ElemType) Self {
-            return .{ .elems = slice[0..elem_n].* };
+        pub fn initSlice(slice_in: []const ElemType) Self {
+            return .{ .elems = slice_in[0..elem_n].* };
         }
 
         pub fn get(self: *const Self, ind: usize) ElemType {
@@ -54,7 +57,7 @@ pub fn Vector(comptime elem_n_in: comptime_int, comptime ElemType: type) type {
             return vec_out;
         }
 
-        pub fn multScalar(self: *const Self, scalar: ElemType) Self {
+        pub fn mulScalar(self: *const Self, scalar: ElemType) Self {
             var vec_out: Self = undefined;
             for (0..elem_n) |ii| {
                 vec_out.elems[ii] = scalar * self.elems[ii];
@@ -82,36 +85,20 @@ pub fn Vector(comptime elem_n_in: comptime_int, comptime ElemType: type) type {
             return @sqrt(self.norm());
         }
 
-        pub fn max(self: *const Self) ElemType {
-            var max_out: ElemType = self.get(0);
-            for (1..elem_n) |ii| {
-                if (self.get(ii) > max_out) {
-                    max_out = self.get(ii);
-                }
-            }
-            return max_out;
+        pub fn max(self: *const Self) ValInd(ElemType) {
+            return slice.max(ElemType, &self.elems);
         }
 
-        pub fn min(self: *const Self) ElemType {
-            var min_out: ElemType = self.get(0);
-            for (1..elem_n) |ii| {
-                if (self.get(ii) < min_out) {
-                    min_out = self.get(ii);
-                }
-            }
-            return min_out;
+        pub fn min(self: *const Self) ValInd(ElemType) {
+            return slice.min(ElemType, &self.elems);
         }
 
         pub fn sum(self: *const Self) ElemType {
-            var sum_out: ElemType = 0;
-            for(0..elem_n) |ii| {
-                sum_out += self.get(ii);
-            }
-            return sum_out;
+            return slice.sum(ElemType, &self.elems);
         }
 
         pub fn mean(self: *const Self) ElemType {
-            return self.sum()/elem_n;
+            return slice.mean(ElemType, &self.elems);
         }
 
         pub fn vecPrint(self: *const Self) void {
@@ -142,21 +129,46 @@ pub const Vec3Ops = struct {
     }
 };
 
-
 test "Vec.max" {
+    const v0 = [_]EType{ 1, 3, 6, 7, 8, 1, -2, -3, 0, 5 };
+    const vec0 = Vector(v0.len, EType).initSlice(&v0);
 
+    const exp = ValInd(EType) {
+        .val = 8,
+        .ind = 4,
+    };
+
+    try expectEqual(exp, vec0.max());
 }
 
 test "Vec.min" {
+    const v0 = [_]EType{ 1, 3, 6, 7, 8, 1, -2, -3, 0, 5 };
+    const vec0 = Vector(v0.len, EType).initSlice(&v0);
 
+    const exp = ValInd(EType) {
+        .val = -3,
+        .ind = 7,
+    };
+
+    try expectEqual(exp, vec0.min());
 }
 
 test "Vec.sum" {
+    const v0 = [_]EType{ 1, 3, 6, 7, 8, 1, -2, -3, 0, 5 };
+    const vec0 = Vector(v0.len, EType).initSlice(&v0);
 
+    const exp: EType = 26;
+
+    try expectEqual(exp, vec0.sum());
 }
 
 test "Vec.mean" {
+    const v0 = [_]EType{ 1, 3, 6, 7, 8, 1, -2, -3, 0, 5 };
+    const vec0 = Vector(v0.len, EType).initSlice(&v0);
 
+    const exp: EType = 2.6;
+
+    try expectEqual(exp, vec0.mean());
 }
 
 test "Vec3f.add" {
@@ -180,7 +192,7 @@ test "Vec3f.multScalar" {
     const scalar: EType = 1.23;
     const vec_exp = Vec3f.initFill(scalar);
 
-    try expectEqual(vec0.multScalar(scalar), vec_exp);
+    try expectEqual(vec0.mulScalar(scalar), vec_exp);
 }
 
 test "Vec3f.dot" {
