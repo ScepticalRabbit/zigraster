@@ -52,3 +52,7 @@ const Camera = struct {
         };
     }
 };
+
+test "Camera" {
+    
+}

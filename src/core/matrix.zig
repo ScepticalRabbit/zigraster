@@ -10,9 +10,9 @@ const Vec2f = vector.Vec2f;
 const Vec3f = vector.Vec3f;
 
 const EType = f64;
-pub const Mat22f = Mat22T(f64);
-pub const Mat33f = Mat33T(f64);
-pub const Mat44f = Mat44T(f64);
+pub const Mat22f = Mat22T(EType);
+pub const Mat33f = Mat33T(EType);
+pub const Mat44f = Mat44T(EType);
 
 pub fn Matrix(comptime rows_n_in: comptime_int, comptime cols_n_in: comptime_int, comptime ElemType: type) type {
     return extern struct {

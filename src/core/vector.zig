@@ -142,6 +142,23 @@ pub const Vec3Ops = struct {
     }
 };
 
+
+test "Vec.max" {
+
+}
+
+test "Vec.min" {
+
+}
+
+test "Vec.sum" {
+
+}
+
+test "Vec.mean" {
+
+}
+
 test "Vec3f.add" {
     var vec0 = Vec3f.initOnes();
     const vec1 = Vec3f.initFill(2);
