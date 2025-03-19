@@ -1,5 +1,6 @@
 const std = @import("std");
 const print = std.debug.print;
+const assert = std.debug.assert;
 const expectEqual = std.testing.expectEqual;
 
 pub fn ValInd(ValType: type) type {
@@ -10,16 +11,17 @@ pub fn ValInd(ValType: type) type {
 }
 
 pub fn max(comptime EType: type, slice: []const EType) ValInd(EType) {
+    assert(slice.len > 0);
 
     var val_ind = ValInd(EType) {
         .val = slice[0],
         .ind = 0,
     };
 
-    for (1..slice.len) |ii| {
-        if (slice[ii] > val_ind.val) {
+    for (slice[1..], 1..) |elem,ii| {
+        if (elem > val_ind.val) {
             val_ind.ind = ii;
-            val_ind.val = slice[ii];
+            val_ind.val = elem;
         }
     }
 
@@ -27,16 +29,17 @@ pub fn max(comptime EType: type, slice: []const EType) ValInd(EType) {
 }
 
 pub fn min(comptime EType: type, slice: []const EType) ValInd(EType) {
+    assert(slice.len > 0);
 
     var val_ind = ValInd(EType) {
         .val = slice[0],
         .ind = 0,
     };
 
-    for (1..slice.len) |ii| {
-        if (slice[ii] < val_ind.val) {
+    for (slice[1..], 1..) |elem, ii| {
+        if (elem < val_ind.val) {
             val_ind.ind = ii;
-            val_ind.val = slice[ii];
+            val_ind.val = elem;
         }
     }
 
@@ -44,9 +47,11 @@ pub fn min(comptime EType: type, slice: []const EType) ValInd(EType) {
 }
 
 pub fn sum(comptime EType: type, slice: []const EType) EType {
+    assert(slice.len > 0);
+
     var sum_out: EType = 0;
-    for (0..slice.len) |ii| {
-        sum_out += slice[ii];
+    for (slice[0..]) |elem| {
+        sum_out += elem;
     }
     return sum_out;
 }
