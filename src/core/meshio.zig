@@ -13,6 +13,7 @@ pub const Coords = struct {
     y: []f64,
     z: []f64,
     len: usize,
+    allocator: std.mem.Allocator,
 
     pub fn init(allocator: std.mem.Allocator, coord_n: usize) !Coords {
         return .{
@@ -20,7 +21,14 @@ pub const Coords = struct {
             .y = try allocator.alloc(f64, coord_n),
             .z = try allocator.alloc(f64, coord_n),
             .len = coord_n,
+            .allocator = allocator,
         };
+    }
+
+    pub fn deinit(self: Coords) void {
+        self.allocator.free(self.x);
+        self.allocator.free(self.y);
+        self.allocator.free(self.z);
     }
 
     pub fn getVec3(self: *const Coords, ind: usize) Vec3f {

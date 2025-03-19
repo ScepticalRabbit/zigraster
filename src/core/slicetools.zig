@@ -60,7 +60,41 @@ pub fn mean(comptime EType: type, slice: []const EType) EType {
     return sum(EType, slice) / @as(EType,@floatFromInt(slice.len));
 }
 
+// Removing inline from from the stdlib version for use with 'apply'
+pub fn exp(value: anytype) @TypeOf(value) {
+    return @exp(value);
+}
+
+// Based on copy forwards in std.mem
+pub fn apply(comptime EType: type, dest: []EType, source: []const EType, func: *const fn(val: anytype) EType) void {
+    for (dest[0..source.len], source) |*dd,ss| {
+        dd.* = func(ss);
+    }
+}
+
+
 const TestType = f64;
+
+test "slice.apply" {
+    const arr_ones = [_]TestType{1} ** 7;
+    const arr_zeros = [_]TestType{0} ** 7;
+
+    var arr_out = [_]TestType{-1} ** 7;
+
+    apply(TestType, &arr_out, &arr_ones,std.math.sqrt);
+
+    try expectEqual(arr_ones, arr_out);
+
+    arr_out = [_]TestType{-1} ** 7;
+    apply(TestType,&arr_out, &arr_zeros, std.math.atan);
+
+    try expectEqual(arr_zeros, arr_out);
+
+    arr_out = [_]TestType{-1} ** 7;
+    apply(TestType,&arr_out,&arr_zeros,exp);
+
+    try expectEqual(arr_ones, arr_out);
+}
 
 test "slice.max" {
     const array = [_]TestType{1,2,3,7,0,-3,1};

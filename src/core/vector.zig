@@ -99,6 +99,14 @@ pub fn Vector(comptime elem_n: comptime_int, comptime ElemType: type) type {
             return slice.mean(ElemType, &self.elems);
         }
 
+        pub fn apply(self: *const Self, func: *const fn(val: anytype) ElemType) Self {
+            var applied: Self = undefined;
+            for (self.elems,0..) |elem,ii| {
+                applied.elems[ii] = func(elem);
+            }
+            return applied;
+        }
+
         pub fn vecPrint(self: *const Self) void {
             print("[", .{});
             for (0..elem_n) |ii| {
@@ -139,46 +147,68 @@ pub const Vec3Ops = struct {
     }
 };
 
+
+test "Vec.apply" {
+    const vec_len: usize = 7;
+    const vec0 = Vector(vec_len,EType).initOnes();
+
+    const vec_exp_ones = Vector(vec_len,EType).initOnes();
+    const vec_exp_zeros = Vector(vec_len,EType).initZeros();
+
+    const vec_sqrt = vec0.apply(std.math.sqrt);
+
+    try expectEqual(vec_exp_ones, vec_sqrt);
+
+    const vec1 = Vector(vec_len,EType).initZeros();
+    const vec_atan = vec1.apply(std.math.atan);
+
+    try expectEqual(vec_exp_zeros, vec_atan);
+
+    const vec_e = vec1.apply(slice.exp);
+
+    try expectEqual(vec_exp_ones, vec_e);
+}
+
 test "Vec.max" {
     const v0 = [_]EType{ 1, 3, 6, 7, 8, 1, -2, -3, 0, 5 };
     const vec0 = Vector(v0.len, EType).initSlice(&v0);
 
-    const exp = ValInd(EType){
+    const exp_val = ValInd(EType){
         .val = 8,
         .ind = 4,
     };
 
-    try expectEqual(exp, vec0.max());
+    try expectEqual(exp_val, vec0.max());
 }
 
 test "Vec.min" {
     const v0 = [_]EType{ 1, 3, 6, 7, 8, 1, -2, -3, 0, 5 };
     const vec0 = Vector(v0.len, EType).initSlice(&v0);
 
-    const exp = ValInd(EType){
+    const exp_val = ValInd(EType){
         .val = -3,
         .ind = 7,
     };
 
-    try expectEqual(exp, vec0.min());
+    try expectEqual(exp_val, vec0.min());
 }
 
 test "Vec.sum" {
     const v0 = [_]EType{ 1, 3, 6, 7, 8, 1, -2, -3, 0, 5 };
     const vec0 = Vector(v0.len, EType).initSlice(&v0);
 
-    const exp: EType = 26;
+    const exp_val: EType = 26;
 
-    try expectEqual(exp, vec0.sum());
+    try expectEqual(exp_val, vec0.sum());
 }
 
 test "Vec.mean" {
     const v0 = [_]EType{ 1, 3, 6, 7, 8, 1, -2, -3, 0, 5 };
     const vec0 = Vector(v0.len, EType).initSlice(&v0);
 
-    const exp: EType = 2.6;
+    const exp_val: EType = 2.6;
 
-    try expectEqual(exp, vec0.mean());
+    try expectEqual(exp_val, vec0.mean());
 }
 
 test "Vec3f.add" {
