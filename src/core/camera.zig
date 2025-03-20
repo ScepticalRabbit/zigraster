@@ -1,6 +1,8 @@
 const std = @import("std");
 const print = std.debug.print;
 const testing = std.testing;
+const expectEqual = testing.expectEqual;
+const expectApproxEqAbs = testing.expectApproxEqAbs;
 
 const Coords = @import("meshio.zig").Coords;
 const vector = @import("vector.zig");
@@ -61,7 +63,7 @@ const Camera = struct {
 
 const CameraOps = struct {
     // TODO: maybe this should return a Vec2f?
-    pub fn fov_from_cam_rot(cam_rot: Rotation, coords_world: *Coords) [2]f64 {
+    pub fn fov_from_cam_rot(cam_rot: Rotation, coords_world: *const Coords) [2]f64 {
         const world_to_cam_mat = Mat33Ops.inv(f64, cam_rot.matrix);
 
         const bb_min_x = std.mem.min(f64, coords_world.x[0..]);
@@ -83,22 +85,22 @@ const CameraOps = struct {
 
         var bb_cam_vec: Vec3f = undefined;
         bb_cam_vec = world_to_cam_mat.multVec(bb_world_vecs[0]);
-        var bb_cam_max = [_]f64{ bb_cam_vec.x, bb_cam_vec.y };
-        var bb_cam_min = [_]f64{ bb_cam_vec.x, bb_cam_vec.y };
+        var bb_cam_max = [_]f64{ bb_cam_vec.get(0), bb_cam_vec.get(1) };
+        var bb_cam_min = [_]f64{ bb_cam_vec.get(0), bb_cam_vec.get(1) };
 
         for (bb_world_vecs[1..]) |vec| {
             bb_cam_vec = world_to_cam_mat.multVec(vec);
 
-            if (bb_cam_vec.x > bb_cam_max[0]) {
-                bb_cam_max[0] = bb_cam_vec.x;
-            } else if (bb_cam_vec.x < bb_cam_min[0]) {
-                bb_cam_min[0] = bb_cam_vec.x;
+            if (bb_cam_vec.get(0) > bb_cam_max[0]) {
+                bb_cam_max[0] = bb_cam_vec.get(0);
+            } else if (bb_cam_vec.get(0) < bb_cam_min[0]) {
+                bb_cam_min[0] = bb_cam_vec.get(0);
             }
 
-            if (bb_cam_vec.y > bb_cam_max[1]) {
-                bb_cam_max[1] = bb_cam_vec.y;
-            } else if (bb_cam_vec.y < bb_cam_min[1]) {
-                bb_cam_min[1] = bb_cam_vec.y;
+            if (bb_cam_vec.get(1) > bb_cam_max[1]) {
+                bb_cam_max[1] = bb_cam_vec.get(1);
+            } else if (bb_cam_vec.get(1) < bb_cam_min[1]) {
+                bb_cam_min[1] = bb_cam_vec.get(1);
             }
         }
 
@@ -115,7 +117,7 @@ const CameraOps = struct {
         return sensor_size;
     }
 
-    pub fn image_dist_from_fov(pixels_num: [2]u32, pixels_size: [2]f64, focal_leng: f64, fov_leng: [2]f64) f64 {
+    pub fn image_dist_from_fov(pixels_num: [2]u32, pixels_size: [2]f64, focal_leng: f64, fov_leng: [2]f64) [2]f64 {
         const sensor_size = calc_sensor_size(pixels_num, pixels_size);
 
         var fov_angle: [2]f64 = undefined;
@@ -123,10 +125,10 @@ const CameraOps = struct {
         fov_angle[1] = 2 * std.math.atan(sensor_size[1] / (2 * focal_leng));
 
         var image_dist: [2]f64 = undefined;
-        image_dist[0] = fov_leng[0] / (2 * std.math.atan(fov_angle[0] / 2));
-        image_dist[1] = fov_leng[1] / (2 * std.math.atan(fov_angle[0] / 2));
+        image_dist[0] = fov_leng[0] / (2 * std.math.tan(fov_angle[0] / 2));
+        image_dist[1] = fov_leng[1] / (2 * std.math.tan(fov_angle[1] / 2));
 
-        return @max(image_dist[0], image_dist[1]);
+        return image_dist;
     }
 
     pub fn calc_cam_pos(roi_pos_world: Vec3f, cam_rot: Rotation, image_dist: f64) Vec3f {
@@ -137,42 +139,78 @@ const CameraOps = struct {
     }
 };
 
-// Private test variables
+//------------------------------------------------------------------------------
+const test_tol: f64 = 1e-4;
 const pix_num = [_]u32{ 500, 500 };
 const pix_size = [_]f64{ 5e-3, 5e-3 };
 const foc_leng: f64 = 50.0;
 const rotat_world = Rotation.init(0, 0, std.math.degreesToRadians(-45));
-const bb: f64 = 25.0;
+const bb: f64 = 20.0;
 const coord_n: usize = 8;
 const coord_x = [_]f64{ -bb, bb, bb, -bb, -bb, bb, bb, -bb };
 const coord_y = [_]f64{ bb, bb, -bb, -bb, bb, bb, -bb, -bb };
 const coord_z = [_]f64{ bb, bb, bb, bb, -bb, -bb, -bb, -bb };
+const roi_world_arr = [_]f64{ 0, 0, 0 };
+const roi_world = Vec3f.initSlice(&roi_world_arr);
+const sub_samp: u8 = 2;
 
-// const pos_world_arr = [_]f64{ 0, 0, 100 };
-// const pos_world = Vec3f.initSlice(&pos_world_arr);
-// const roi_world_arr = [_]f64{ 0, 0, 0 };
-// const roi_world = Vec3f.initSlice(&roi_world_arr);
-// const sub_samp: u8 = 2;
+const fov_exp = [2]f64{ 40.0, 56.56854249 };
+const image_dist_exp = [2]f64{ 800.0, 1131.3708499 };
+const sensor_size_exp = [2]f64{ 2.5, 2.5 };
+const cam_pos_arr = [_]f64{ 0.0, 800.0, 800.0 };
+const cam_pos_exp = Vec3f.initSlice(&cam_pos_arr);
 
-test "CameraOps.fov_from_cam_rot" {
-    const coords = try Coords.init(testing.allocator,coord_n);
+
+test "CameraOps.calc_cam_pos" {
+    const coords = try Coords.init(testing.allocator, coord_n);
     defer coords.deinit();
 
     @memcpy(coords.x, coord_x[0..]);
     @memcpy(coords.y, coord_y[0..]);
     @memcpy(coords.z, coord_z[0..]);
 
+    const fov_leng = CameraOps.fov_from_cam_rot(rotat_world, &coords);
+    const image_dist = CameraOps.image_dist_from_fov(pix_num, pix_size, foc_leng, fov_leng);
+    const image_dist_max = @max(image_dist[0],image_dist[1]);
+    const cam_pos = CameraOps.calc_cam_pos(roi_world, rotat_world, image_dist_max);
 
+    try expectApproxEqAbs(cam_pos_exp.get(0), cam_pos.get(0),test_tol);
+    try expectApproxEqAbs(cam_pos_exp.get(1), cam_pos.get(1),test_tol);
+    try expectApproxEqAbs(cam_pos_exp.get(2), cam_pos.get(2),test_tol);
 }
 
-test "Camera" {
-    //const cam = Camera.init(pix_num, pix_size, pos_world, r_world, roi_world, foc_leng, sub_samp);
+test "CameraOps.image_dist_from_fov" {
+    const coords = try Coords.init(testing.allocator, coord_n);
+    defer coords.deinit();
 
-    // print("Cam to world matrix:\n", .{});
-    // cam.cam_to_world_mat.matPrint();
+    @memcpy(coords.x, coord_x[0..]);
+    @memcpy(coords.y, coord_y[0..]);
+    @memcpy(coords.z, coord_z[0..]);
 
-    // print("\nWorld to cam matrix:\n", .{});
-    // cam.world_to_cam_mat.matPrint();
+    const fov_leng = CameraOps.fov_from_cam_rot(rotat_world, &coords);
+    const image_dist = CameraOps.image_dist_from_fov(pix_num, pix_size, foc_leng, fov_leng);
 
-    // TODO: actually test this for a camera
+    try expectApproxEqAbs(image_dist_exp[0], image_dist[0], test_tol);
+    try expectApproxEqAbs(image_dist_exp[1], image_dist[1], test_tol);
 }
+
+test "CameraOps.fov_from_cam_rot" {
+    const coords = try Coords.init(testing.allocator, coord_n);
+    defer coords.deinit();
+
+    @memcpy(coords.x, coord_x[0..]);
+    @memcpy(coords.y, coord_y[0..]);
+    @memcpy(coords.z, coord_z[0..]);
+
+    const fov_leng = CameraOps.fov_from_cam_rot(rotat_world, &coords);
+
+    try expectApproxEqAbs(fov_exp[0], fov_leng[0], test_tol);
+    try expectApproxEqAbs(fov_exp[1], fov_leng[1], test_tol);
+}
+
+test "CameraOps.calc_sensor_size" {
+    const sensor_size = CameraOps.calc_sensor_size(pix_num, pix_size);
+
+    try expectEqual(sensor_size_exp, sensor_size);
+}
+

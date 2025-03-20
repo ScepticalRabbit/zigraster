@@ -34,6 +34,7 @@ pub fn main() !void {
     print("Field: {s}\n\n", .{path_field});
 
     // Camera Parameters
+    
 
     //--------------------------------------------------------------------------
     // MEMORY ALLOCATORS
