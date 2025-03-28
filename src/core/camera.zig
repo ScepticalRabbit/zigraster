@@ -15,7 +15,7 @@ const Mat44f = matrix.Mat44f;
 const Mat44Ops = matrix.Mat44Ops;
 const Rotation = @import("rotation.zig").Rotation;
 
-const Camera = struct {
+pub const Camera = struct {
     // TODO: which of these actually need to be stored?
     pixels_num: [2]u32,
     pixels_size: [2]f64,
@@ -61,7 +61,7 @@ const Camera = struct {
     }
 };
 
-const CameraOps = struct {
+pub const CameraOps = struct {
     // TODO: maybe this should return a Vec2f?
     pub fn fov_from_cam_rot(cam_rot: Rotation, coords_world: *const Coords) [2]f64 {
         const world_to_cam_mat = Mat33Ops.inv(f64, cam_rot.matrix);
@@ -137,6 +137,37 @@ const CameraOps = struct {
         const cam_pos = roi_pos_world.add(cam_z_axis_vec);
         return cam_pos;
     }
+
+    pub fn roi_cent_from_coords(coords_world: *const Coords) Vec3f {
+        var max_vec: Vec3f = undefined;
+        max_vec.elems[0] = std.mem.max(f64,coords_world.x[0..]);
+        max_vec.elems[1] = std.mem.max(f64,coords_world.y[0..]);
+        max_vec.elems[2] = std.mem.max(f64,coords_world.z[0..]);
+
+        var min_vec: Vec3f = undefined;
+        min_vec.elems[0] = std.mem.min(f64,coords_world.x[0..]);
+        min_vec.elems[1] = std.mem.min(f64,coords_world.y[0..]);
+        min_vec.elems[2] = std.mem.min(f64,coords_world.z[0..]);
+
+        var roi_cent: Vec3f = max_vec.subtract(min_vec);
+        roi_cent = roi_cent.mulScalar(0.5);
+        return roi_cent;
+    }
+
+    pub fn pos_fill_frame_from_rot(coords_world: *const Coords, pixels_num: [2]u32, pixels_size: [2]f64, focal_leng: f64, cam_rot: Rotation, frame_fill: f64) Vec3f {
+        var fov_leng: [2]f64 = fov_from_cam_rot(cam_rot,coords_world);
+        fov_leng[0] = frame_fill*fov_leng[0];
+        fov_leng[1] = frame_fill*fov_leng[1];
+
+        const image_dists: [2]f64 = image_dist_from_fov(pixels_num, pixels_size, focal_leng, fov_leng);
+        const image_dist = @max(image_dists[0],image_dists[1]);
+        
+        const roi_pos: Vec3f = roi_cent_from_coords(coords_world);
+
+        const cam_pos: Vec3f = calc_cam_pos(roi_pos, cam_rot, image_dist);
+
+        return cam_pos;
+    }
 };
 
 //------------------------------------------------------------------------------
@@ -160,6 +191,10 @@ const sensor_size_exp = [2]f64{ 2.5, 2.5 };
 const cam_pos_arr = [_]f64{ 0.0, 800.0, 800.0 };
 const cam_pos_exp = Vec3f.initSlice(&cam_pos_arr);
 
+//TODO
+test "CameraOps.pos_fill_frame_from_rot" {
+
+}
 
 test "CameraOps.calc_cam_pos" {
     const coords = try Coords.init(testing.allocator, coord_n);

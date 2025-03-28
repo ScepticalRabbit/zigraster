@@ -4,6 +4,7 @@ const time = std.time;
 const Instant = time.Instant;
 
 const meshio = @import("core/meshio.zig");
+const Coords = meshio.Coords;
 const vector = @import("core/vector.zig");
 const matrix = @import("core/matrix.zig");
 
@@ -12,6 +13,8 @@ const Vec3f = vector.Vec3f;
 const Mat44f = matrix.Mat44f;
 const Mat44Ops = matrix.Mat44Ops;
 
+const Camera = @import("core/camera.zig").Camera;
+const CameraOps = @import("core/camera.zig").CameraOps;
 
 const Rasteriser = struct {};
 
@@ -34,7 +37,12 @@ pub fn main() !void {
     print("Field: {s}\n\n", .{path_field});
 
     // Camera Parameters
-    
+    const pixel_num = [_]u32{ 960, 1280 };
+    const pixel_size = [_]f64{ 5.3e-3, 5.3e-3 };
+    const focal_leng: f64 = 50.0;
+    const cam_rot = Rotation.init(0.0, -30.0, 0.0);
+    const fov_scale_factor: f64 = 1.1;
+    const subsample: u8 = 2;
 
     //--------------------------------------------------------------------------
     // MEMORY ALLOCATORS
@@ -68,7 +76,9 @@ pub fn main() !void {
 
     // Pass the coords into a series of arrays
     const coord_count: usize = lines.items.len;
-    var coords = try arena_alloc.alloc(Vec3f, coord_count);
+    //var coords = try arena_alloc.alloc(Vec3f, coord_count);
+    var coords = try Coords.init(page_alloc, coord_count);
+    defer coords.deinit();
 
     time_start = try Instant.now();
     try meshio.parseCoords(&lines, &coords);
@@ -130,6 +140,25 @@ pub fn main() !void {
     print("Field: parse time = {d:.3}ms\n", .{time_parse_field / time.ns_per_ms});
 
     //--------------------------------------------------------------------------
+    // Build Camera
+    print("{s}\n", .{print_break});
+    const cam_pos = CameraOps.pos_fill_frame_from_rot(&coords, pixel_num, pixel_size, focal_leng, cam_rot, fov_scale_factor);
+    print("Camera position:\n", .{});
+    cam_pos.vecPrint();
+
+    const roi_pos = CameraOps.roi_cent_from_coords(&coords);
+    print("\nROI center position:\n", .{});
+    roi_pos.vecPrint();
+
+    const cam_data = Camera.init(pixel_num, pixel_size, cam_pos, cam_rot, roi_pos, focal_leng, subsample);
+    print("\nWorld to camera matrix:\n", .{});
+    cam_data.world_to_cam_mat.matPrint();
+
+    print("{s}\n", .{print_break});
+
+    //--------------------------------------------------------------------------
     //
+    
+
 
 }

@@ -2,11 +2,11 @@ const std = @import("std");
 const Vec3f = @import("vector.zig").Vec3f;
 const slice = @import("slicetools.zig");
 
-pub const Axis = enum(u8) {
-    x = 0,
-    y = 1,
-    z = 2,
-};
+// pub const Axis = enum(u8) {
+//     x = 0,
+//     y = 1,
+//     z = 2,
+// };
 
 pub const Coords = struct {
     x: []f64,
@@ -96,11 +96,11 @@ pub fn parseCoords(csv_lines: *const std.ArrayList([]const u8), coords: *Coords)
         while (split_iter.next()) |num_str| {
             const num: f64 = try std.fmt.parseFloat(f64, num_str);
 
-            if (num_count == Axis.x) {
+            if (num_count == 0) {
                 coords.x[ii] = num;
-            } else if (num_count == Axis.y) {
+            } else if (num_count == 1) {
                 coords.y[ii] = num;
-            } else if (num_count == Axis.z) {
+            } else if (num_count == 2) {
                 coords.z[ii] = num;
             }
 
