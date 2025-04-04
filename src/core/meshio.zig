@@ -2,12 +2,6 @@ const std = @import("std");
 const Vec3f = @import("vector.zig").Vec3f;
 const slice = @import("slicetools.zig");
 
-// pub const Axis = enum(u8) {
-//     x = 0,
-//     y = 1,
-//     z = 2,
-// };
-
 pub const Coords = struct {
     x: []f64,
     y: []f64,
@@ -51,6 +45,10 @@ pub const Connect = struct {
         const ind_start: usize = elem_num * self.nodes_per_elem;
         const ind_end: usize = ind_start + self.nodes_per_elem;
         return self.table[ind_start..ind_end];
+    }
+
+    pub fn getInd(self: *const Self, elem_num: usize, node_num: usize) usize {
+        return self.table[elem_num*self.nodes_per_elem + node_num];
     }
 };
 

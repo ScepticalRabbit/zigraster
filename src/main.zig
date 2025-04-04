@@ -4,7 +4,10 @@ const time = std.time;
 const Instant = time.Instant;
 
 const meshio = @import("core/meshio.zig");
+
 const Coords = meshio.Coords;
+const Connect = meshio.Connect;
+const Field = meshio.Field;
 const vector = @import("core/vector.zig");
 const matrix = @import("core/matrix.zig");
 
@@ -16,7 +19,8 @@ const Mat44Ops = matrix.Mat44Ops;
 const Camera = @import("core/camera.zig").Camera;
 const CameraOps = @import("core/camera.zig").CameraOps;
 
-const Rasteriser = struct {};
+const Raster = @import("core/raster.zig").Raster;
+
 
 pub fn main() !void {
     const print_break = [_]u8{'-'} ** 80;
@@ -26,7 +30,7 @@ pub fn main() !void {
     // USER INPUT VARIABLES
 
     // Paths to data files
-    const path_data = "data/";
+    const path_data = "data/block/";
     const path_coords = path_data ++ "coords.csv";
     const path_connect = path_data ++ "connectivity.csv";
     const path_field = path_data ++ "field_disp_y.csv";
@@ -40,7 +44,7 @@ pub fn main() !void {
     const pixel_num = [_]u32{ 960, 1280 };
     const pixel_size = [_]f64{ 5.3e-3, 5.3e-3 };
     const focal_leng: f64 = 50.0;
-    const cam_rot = Rotation.init(0.0, -30.0, 0.0);
+    const cam_rot = Rotation.init(0.0, 0.0, -30.0);
     const fov_scale_factor: f64 = 1.1;
     const subsample: u8 = 2;
 
@@ -142,23 +146,29 @@ pub fn main() !void {
     //--------------------------------------------------------------------------
     // Build Camera
     print("{s}\n", .{print_break});
-    const cam_pos = CameraOps.pos_fill_frame_from_rot(&coords, pixel_num, pixel_size, focal_leng, cam_rot, fov_scale_factor);
-    print("Camera position:\n", .{});
-    cam_pos.vecPrint();
-
     const roi_pos = CameraOps.roi_cent_from_coords(&coords);
     print("\nROI center position:\n", .{});
     roi_pos.vecPrint();
 
-    const cam_data = Camera.init(pixel_num, pixel_size, cam_pos, cam_rot, roi_pos, focal_leng, subsample);
+    const cam_pos = CameraOps.pos_fill_frame_from_rot(&coords, pixel_num, pixel_size, focal_leng, cam_rot, fov_scale_factor);
+    print("Camera position:\n", .{});
+    cam_pos.vecPrint();
+
+    const camera = Camera.init(pixel_num, pixel_size, cam_pos, cam_rot, roi_pos, focal_leng, subsample);
+
     print("\nWorld to camera matrix:\n", .{});
-    cam_data.world_to_cam_mat.matPrint();
+    camera.world_to_cam_mat.matPrint();
 
     print("{s}\n", .{print_break});
 
-    //--------------------------------------------------------------------------
-    //
-    
+//     //--------------------------------------------------------------------------
+//     // Raster Frame
+//     print("\n",.{});
+//     print("connect.elem_n={any}\n",.{connect.elem_n});
+//     print("connect.nodes_per_elem={any}\n",.{connect.nodes_per_elem});
+//     print("\n",.{});
 
+//     const raster = Raster.init(arena_alloc);
+//     try raster.raster_frame(coords, connect, field, camera);
 
 }
