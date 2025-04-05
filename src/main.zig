@@ -44,7 +44,10 @@ pub fn main() !void {
     const pixel_num = [_]u32{ 960, 1280 };
     const pixel_size = [_]f64{ 5.3e-3, 5.3e-3 };
     const focal_leng: f64 = 50.0;
-    const cam_rot = Rotation.init(0.0, 0.0, -30.0);
+    const alpha_z: f64 = std.math.degreesToRadians(0.0);
+    const beta_y: f64 = std.math.degreesToRadians(0.0);
+    const gamma_x: f64 = std.math.degreesToRadians(-30.0);
+    const cam_rot = Rotation.init(alpha_z, beta_y, gamma_x);
     const fov_scale_factor: f64 = 1.1;
     const subsample: u8 = 2;
 
