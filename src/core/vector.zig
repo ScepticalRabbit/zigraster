@@ -1,5 +1,6 @@
 const std = @import("std");
 const print = std.debug.print;
+const assert = std.debug.assert;
 const expectEqual = std.testing.expectEqual;
 
 const slice = @import("slicetools.zig");
@@ -8,6 +9,9 @@ const ValInd = slice.ValInd;
 const EType = f64;
 pub const Vec2f = Vec2T(EType);
 pub const Vec3f = Vec3T(EType);
+
+// TODO:
+// - Tests for VecSliceOps
 
 pub fn Vector(comptime elem_n: comptime_int, comptime ElemType: type) type {
     return extern struct {
@@ -146,6 +150,42 @@ pub const Vec3Ops = struct {
         return vec_out;
     }
 };
+
+pub const Vec3SliceOps = struct {
+    pub fn max(ElemType: type, vec: []Vec3T(ElemType), ind: usize) ElemType {
+        assert(vec.len > 0);
+        assert(ind < 3);
+
+        var val: ElemType = vec[0].get(ind);
+        for (vec[1..]) |vv| {
+
+            if (vv.get(ind) > val) {
+                val = vv.get(ind);
+            }
+        }
+
+        return val;
+    }
+};
+
+test "VecSliceOps.max" {
+    var vec_slice: [3]Vec3f = undefined;
+    vec_slice[0] = initVec3(f64, -1.0, 2.0, 7.0);
+    vec_slice[1] = initVec3(f64, 2.0, -2.0, 7.0);
+    vec_slice[2] = initVec3(f64, 5.0, -10.0, 0.0);
+
+    const max_x: f64 = VecSliceOps.max(f64,vec_slice[0..],0);
+    const max_y: f64 = VecSliceOps.max(f64,vec_slice[0..],1);
+    const max_z: f64 = VecSliceOps.max(f64,vec_slice[0..],2);
+
+    const exp_max_x: f64 = 5.0;
+    const exp_max_y: f64 = 2.0;
+    const exp_max_z: f64 = 7.0;
+
+    try expectEqual(exp_max_x, max_x);
+    try expectEqual(exp_max_y, max_y);
+    try expectEqual(exp_max_z, max_z);
+}
 
 
 test "Vec.apply" {
