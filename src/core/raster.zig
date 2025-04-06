@@ -26,15 +26,19 @@ pub const Raster = struct {
     pub fn world_to_raster_coords(coord_world: Vec3f, camera: Camera) Vec3f {
         var coord_raster: Vec3f = Mat44Ops.mulVec3(f64, camera.world_to_cam_mat, coord_world);
 
-        coord_raster.elems[0] = camera.image_dist * coord_raster.elems[0] / coord_raster.elems[2];
-        coord_raster.elems[1] = camera.image_dist * coord_raster.elems[1] / coord_raster.elems[2];
+        coord_raster.elems[0] = camera.image_dist * coord_raster.elems[0] / (-coord_raster.elems[2]);
+        coord_raster.elems[1] = camera.image_dist * coord_raster.elems[1] / (-coord_raster.elems[2]);
+
 
         coord_raster.elems[0] = 2.0*coord_raster.elems[0] / camera.image_dims[0];
         coord_raster.elems[1] = 2.0*coord_raster.elems[1] / camera.image_dims[1];
 
         coord_raster.elems[0] = (coord_raster.elems[0] + 1.0)/2.0 * @as(f64,@floatFromInt(camera.pixels_num[0]));
-        coord_raster.elems[1] = (1.0 - coord_raster.elems[1])/2.0 * @as(f64,@floatFromInt(camera.pixels_num[0]));
+        coord_raster.elems[1] = (1.0 - coord_raster.elems[1])/2.0 * @as(f64,@floatFromInt(camera.pixels_num[1]));
         coord_raster.elems[2] = -1.0*coord_raster.elems[2];
+
+        print("WORLD=  [{d:.3},{d:.3},{d:.3}]\n",.{coord_world.elems[0],coord_world.elems[1],coord_world.elems[2]});
+        print("RASTER= [{d:.3},{d:.3},{d:.3}]\n\n",.{coord_raster.elems[0],coord_raster.elems[1],coord_raster.elems[2]});
 
         return coord_raster;
     }
@@ -62,12 +66,12 @@ pub const Raster = struct {
 
             const coord_inds: []usize = connect.getElem(ee);
 
-            print("\nee={any}\n",.{ee});
+            //print("\nee={any}\n",.{ee});
             for (0..connect.nodes_per_elem) |nn|{
                 nodes_raster[nn] = world_to_raster_coords(coords.getVec3(coord_inds[nn]), camera);
 
-                print("nodes_raster[{any}]=",.{nn});
-                nodes_raster[nn].vecPrint();
+                //print("nodes_raster[{any}]=",.{nn});
+                //nodes_raster[nn].vecPrint();
                 //print("\n",.{});
             }
 

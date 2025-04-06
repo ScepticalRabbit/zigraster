@@ -164,14 +164,14 @@ pub fn main() !void {
 
     print("{s}\n", .{print_break});
 
-//     //--------------------------------------------------------------------------
-//     // Raster Frame
-//     print("\n",.{});
-//     print("connect.elem_n={any}\n",.{connect.elem_n});
-//     print("connect.nodes_per_elem={any}\n",.{connect.nodes_per_elem});
-//     print("\n",.{});
+    //--------------------------------------------------------------------------
+    // Raster Frame
+    print("\n",.{});
+    print("connect.elem_n={any}\n",.{connect.elem_n});
+    print("connect.nodes_per_elem={any}\n",.{connect.nodes_per_elem});
+    print("\n",.{});
 
-//     const raster = Raster.init(arena_alloc);
-//     try raster.raster_frame(coords, connect, field, camera);
+    const raster = Raster.init(arena_alloc);
+    try raster.raster_frame(coords, connect, field, camera);
 
 }
