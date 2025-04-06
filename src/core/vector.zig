@@ -174,9 +174,9 @@ test "VecSliceOps.max" {
     vec_slice[1] = initVec3(f64, 2.0, -2.0, 7.0);
     vec_slice[2] = initVec3(f64, 5.0, -10.0, 0.0);
 
-    const max_x: f64 = VecSliceOps.max(f64,vec_slice[0..],0);
-    const max_y: f64 = VecSliceOps.max(f64,vec_slice[0..],1);
-    const max_z: f64 = VecSliceOps.max(f64,vec_slice[0..],2);
+    const max_x: f64 = Vec3SliceOps.max(f64,vec_slice[0..],0);
+    const max_y: f64 = Vec3SliceOps.max(f64,vec_slice[0..],1);
+    const max_z: f64 = Vec3SliceOps.max(f64,vec_slice[0..],2);
 
     const exp_max_x: f64 = 5.0;
     const exp_max_y: f64 = 2.0;
