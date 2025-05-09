@@ -22,6 +22,8 @@ pub const Rotation = struct {
     }
 
     pub fn calcRotMat(self: *Rotation) void {
+        // NOTE: this is equivalent to ZYX for intrinsic (one after the other) not zyx which is extrinsic (all relative to global)
+
         // Row major as in C
         // Row 1
         self.matrix.elems[0] = @cos(self.alpha_z) * @cos(self.beta_y);
@@ -41,3 +43,14 @@ pub const Rotation = struct {
         self.matrix.matPrint();
     }
 };
+
+// NOTE: Check this
+// Intrinsic (z-y-x) Rotation Matrix: applied one by one
+// [ cos(beta)cos(gamma)             cos(beta)sin(gamma)             sin(beta)          ]
+// [ sin(alpha)sin(beta)cos(gamma) - cos(alpha)sin(gamma)   sin(alpha)sin(beta)sin(gamma) + cos(alpha)cos(gamma)   -sin(alpha)cos(beta) ]
+// [ -cos(alpha)sin(beta)cos(gamma) - sin(alpha)sin(gamma)  -cos(alpha)sin(beta)sin(gamma) + sin(alpha)cos(gamma)    cos(alpha)cos(beta)  ]
+
+// Extrinsic (z-y-x) Rotation Matrix: relative to global axis
+// [ cos(gamma)cos(beta)             cos(gamma)sin(beta)sin(alpha) - sin(gamma)cos(alpha)   cos(gamma)sin(beta)cos(alpha) + sin(gamma)sin(alpha) ]
+// [ sin(gamma)cos(beta)             sin(gamma)sin(beta)sin(alpha) + cos(gamma)cos(alpha)   sin(gamma)sin(beta)cos(alpha) - cos(gamma)sin(alpha) ]
+// [ -sin(beta)                    cos(beta)sin(alpha)                              cos(beta)cos(alpha)                              ]

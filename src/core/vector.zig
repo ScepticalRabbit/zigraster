@@ -166,6 +166,21 @@ pub const Vec3SliceOps = struct {
 
         return val;
     }
+
+    pub fn min(ElemType: type, vec: []Vec3T(ElemType), ind: usize) ElemType {
+        assert(vec.len > 0);
+        assert(ind < 3);
+
+        var val: ElemType = vec[0].get(ind);
+        for (vec[1..]) |vv| {
+
+            if (vv.get(ind) < val) {
+                val = vv.get(ind);
+            }
+        }
+
+        return val;
+    }
 };
 
 test "VecSliceOps.max" {
