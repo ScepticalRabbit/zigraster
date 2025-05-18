@@ -173,6 +173,6 @@ pub fn main() !void {
     print("\n",.{});
 
     const raster = Raster.init(arena_alloc);
-    try raster.raster_frame(coords, connect, field, camera);
+    try raster.raster_frame(&coords, &connect, &field, &camera);
 
 }

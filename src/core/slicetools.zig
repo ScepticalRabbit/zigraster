@@ -72,6 +72,12 @@ pub fn apply(comptime EType: type, dest: []EType, source: []const EType, func: *
     }
 }
 
+pub fn range_len(start: f64, stop: f64, step: f64) usize {
+    const range: f64 = @ceil((stop-start)/step);
+    const range_length: usize = @as(usize,@intFromFloat(range));
+    return range_length;
+}
+
 
 const TestType = f64;
 
