@@ -5,7 +5,7 @@ const testing = std.testing;
 const assert = std.debug.assert;
 const expectEqual = std.testing.expectEqual;
 const expectApproxEqAbs = testing.expectApproxEqAbs;
-
+const expectEqualSlices = testing.expectEqualSlices;
 
 const slice = @import("slicetools.zig");
 const ValInd = slice.ValInd;
@@ -15,19 +15,19 @@ const EType = f64;
 pub fn VecAlloc(comptime ElemType: type) type {
     return struct {
         elems: []ElemType,
-        allocator: std.mem.Allocator,
+        alloc: std.mem.Allocator,
 
         const Self: type = @This();
 
         pub fn init(allocator: std.mem.Allocator, elem_n: usize) !Self {
             return .{
                 .elems = try allocator.alloc(ElemType,elem_n),
-                .allocator = allocator,
+                .alloc = allocator,
             };
         }
 
         pub fn deinit(self: Self) void {
-            self.allocator.free(self.elems);
+            self.alloc.free(self.elems);
         }
 
         pub fn fill(self: *const Self, fill_val: ElemType) void {
@@ -44,25 +44,25 @@ pub fn VecAlloc(comptime ElemType: type) type {
             self.elems[ind] = val;
         }
 
-        pub fn add_in_place(self: *const Self, to_add: Self) void {
+        pub fn addInPlace(self: *const Self, to_add: Self) void {
             for (0..self.elems.len) |ii| {
                 self.elems[ii] += to_add.elems[ii];
             }
         }
 
-        pub fn sub_in_place(self: *const Self, to_sub: Self) void {
+        pub fn subInPlace(self: *const Self, to_sub: Self) void {
             for (0..self.elems.len) |ii| {
                 self.elems[ii] -= to_sub.elems[ii];
             }
         }
 
-        pub fn mul_in_place(self: *const Self, scalar: ElemType) Self {
+        pub fn mulInPlace(self: *const Self, scalar: ElemType) void {
             for (0..self.elems.len) |ii| {
                 self.elems[ii] = scalar * self.elems[ii];
             }
         }
 
-        pub fn apply_in_place(self: *const Self, func: *const fn(val: anytype) ElemType) Self {
+        pub fn applyInPlace(self: *const Self, func: *const fn(val: anytype) ElemType) void {
             for (self.elems,0..) |elem,ii| {
                 self.elems[ii] = func(elem);
             }
@@ -84,7 +84,7 @@ pub fn VecAlloc(comptime ElemType: type) type {
             return norm_out;
         }
 
-        pub fn vec_len(self: *const Self) ElemType {
+        pub fn vecLen(self: *const Self) ElemType {
             return @sqrt(self.norm());
         }
 
@@ -114,6 +114,9 @@ pub fn VecAlloc(comptime ElemType: type) type {
     };
 }
 
+
+
+// TODO: test in place maths
 
 test "VecAlloc.max" {
     const vec0 = try VecAlloc(EType).init(testing.allocator,10);
@@ -176,31 +179,34 @@ test "VecAlloc.mean" {
     try expectEqual(exp_val, vec0.mean());
 }
 
-// test "VecAlloc.apply" {
-//     const vec_len: usize = 7;
-//     var vec0 = VectorHeap(vec_len,EType).init(testing.allocator);
-//     defer vec0.deinit();
+test "VecAlloc.apply" {
+    const vec_len: usize = 7;
+    var vec0 = try VecAlloc(EType).init(testing.allocator, vec_len);
+    defer vec0.deinit();
 
-//     const vec_exp_ones = VectorHeap(vec_len,EType).init(testing.allocator);
-//     defer vec_exp_ones.deinit();
+    const vec_exp_ones = try VecAlloc(EType).init(testing.allocator, vec_len);
+    defer vec_exp_ones.deinit();
 
-//     const vec_exp_zeros = VectorHeap(vec_len,EType).init(testing.allocator);
-//     defer vec_exp_zeros.deinit();
+    const vec_exp_zeros = try VecAlloc(EType).init(testing.allocator, vec_len);
+    defer vec_exp_zeros.deinit();
 
-//     vec0.fill(1.0);
-//     vec_exp_ones.fill(1.0);
-//     vec_exp_zeros.fill(0.0);
+    vec0.fill(1.0);
+    vec_exp_ones.fill(1.0);
+    vec_exp_zeros.fill(0.0);
 
-//     const vec_sqrt = vec0.apply(std.math.sqrt);
+    vec0.applyInPlace(std.math.sqrt);
 
-//     try expectEqual(vec_exp_ones, vec_sqrt);
+    try expectEqualSlices(EType,vec_exp_ones.elems, vec0.elems);
 
-//     const vec1 = Vector(vec_len,EType).initZeros();
-//     const vec_atan = vec1.apply(std.math.atan);
+    var vec1 = try VecAlloc(EType).init(testing.allocator, vec_len);
+    defer vec1.deinit();
 
-//     try expectEqual(vec_exp_zeros, vec_atan);
+    vec1.fill(0.0);
+    vec1.applyInPlace(std.math.atan);
 
-//     const vec_e = vec1.apply(slice.exp);
+    try expectEqualSlices(EType,vec_exp_zeros.elems, vec1.elems);
 
-//     try expectEqual(vec_exp_ones, vec_e);
-// }
+    vec1.applyInPlace(slice.exp);
+
+    try expectEqualSlices(EType, vec_exp_ones.elems, vec1.elems);
+}

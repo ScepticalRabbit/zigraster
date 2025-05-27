@@ -135,9 +135,15 @@ pub fn Matrix(comptime rows_n: comptime_int, comptime cols_n: comptime_int, comp
         pub fn trace(self: *const Self) ElemType {
             var trace_out: ElemType = 0;
 
-            // TODO: fix this for non-square matrices
-            for (0..rows_n) |ii| {
-                trace_out += self.get(ii, ii);
+            if (self.rows_n <= self.cols_n){
+                for (0..self.rows_n) |ii| {
+                    trace_out += self.get(ii, ii);
+                }
+            }
+            else {
+                for (0..self.cols_n) |ii| {
+                    trace_out += self.get(ii, ii);
+                }
             }
 
             return trace_out;
@@ -153,7 +159,7 @@ pub fn Matrix(comptime rows_n: comptime_int, comptime cols_n: comptime_int, comp
             return mat_out;
         }
 
-        pub fn subtract(self: *const Self, to_sub: Self) Self {
+        pub fn sub(self: *const Self, to_sub: Self) Self {
             var mat_out: Self = undefined;
 
             for (0..elem_n) |ee| {
@@ -163,7 +169,7 @@ pub fn Matrix(comptime rows_n: comptime_int, comptime cols_n: comptime_int, comp
             return mat_out;
         }
 
-        pub fn multScalar(self: *const Self, scalar: ElemType) Self {
+        pub fn mulScalar(self: *const Self, scalar: ElemType) Self {
             var mat_out: Self = undefined;
 
             for (0..elem_n) |ee| {
@@ -173,7 +179,7 @@ pub fn Matrix(comptime rows_n: comptime_int, comptime cols_n: comptime_int, comp
             return mat_out;
         }
 
-        pub fn multVec(self: *const Self, vec: Vector(cols_n, ElemType)) Vector(cols_n, ElemType) {
+        pub fn mulVec(self: *const Self, vec: Vector(cols_n, ElemType)) Vector(cols_n, ElemType) {
             var vec_out: Vector(rows_n, ElemType) = undefined;
             var sum: ElemType = 0;
 
@@ -188,7 +194,7 @@ pub fn Matrix(comptime rows_n: comptime_int, comptime cols_n: comptime_int, comp
             return vec_out;
         }
 
-        pub fn multMat(self: *const Self, to_mult: Self) Self {
+        pub fn mulMat(self: *const Self, to_mult: Self) Self {
             var mat_out: Self = undefined;
             var sum: ElemType = 0;
 
@@ -251,7 +257,7 @@ pub const Mat22Ops = struct {
     pub fn inv(ElemType: type, mat22: Mat22T(ElemType)) Mat22T(ElemType) {
         var inverse: Mat22T(ElemType) = Mat22Ops.adj(ElemType, mat22);
         const determinant: ElemType = Mat22Ops.det(ElemType, mat22);
-        inverse = inverse.multScalar(1 / determinant);
+        inverse = inverse.mulScalar(1 / determinant);
         return inverse;
     }
 };
@@ -306,9 +312,9 @@ pub const Mat44Ops = struct {
         const adj_a = Mat22Ops.adj(ElemType, mat_a);
         const adj_d = Mat22Ops.adj(ElemType, mat_d);
 
-        const adj_ab = adj_a.multMat(mat_b);
-        const adj_dc = adj_d.multMat(mat_c);
-        const adj_ab_dc = adj_ab.multMat(adj_dc);
+        const adj_ab = adj_a.mulMat(mat_b);
+        const adj_dc = adj_d.mulMat(mat_c);
+        const adj_ab_dc = adj_ab.mulMat(adj_dc);
 
         // det(M44) = det(A)*det(D) + det(B)*det(C) - trace((adj(A)B)(adj(D)C))
         return det_a * det_d + det_b * det_c - adj_ab_dc.trace();
@@ -337,33 +343,33 @@ pub const Mat44Ops = struct {
         const adj_a = Mat22Ops.adj(ElemType, mat_a);
         const adj_d = Mat22Ops.adj(ElemType, mat_d);
 
-        const adj_ab = adj_a.multMat(mat_b);
-        const adj_dc = adj_d.multMat(mat_c);
-        const adj_ab_dc = adj_ab.multMat(adj_dc);
+        const adj_ab = adj_a.mulMat(mat_b);
+        const adj_dc = adj_d.mulMat(mat_c);
+        const adj_ab_dc = adj_ab.mulMat(adj_dc);
 
         const det_m: ElemType = det_a * det_d + det_b * det_c - adj_ab_dc.trace();
 
         // Now calculate the 2x2 sub matrices of the inverse
-        var inv_a = mat_a.multScalar(det_d);
-        const b_adj_dc = mat_b.multMat(adj_dc);
-        inv_a = inv_a.subtract(b_adj_dc);
+        var inv_a = mat_a.mulScalar(det_d);
+        const b_adj_dc = mat_b.mulMat(adj_dc);
+        inv_a = inv_a.sub(b_adj_dc);
         inv_a = Mat22Ops.adj(ElemType, inv_a);
 
-        var inv_b = mat_c.multScalar(det_b);
+        var inv_b = mat_c.mulScalar(det_b);
         const adj_ab_adj = Mat22Ops.adj(ElemType, adj_ab);
-        const d_adj_ab_adj = mat_d.multMat(adj_ab_adj);
-        inv_b = inv_b.subtract(d_adj_ab_adj);
+        const d_adj_ab_adj = mat_d.mulMat(adj_ab_adj);
+        inv_b = inv_b.sub(d_adj_ab_adj);
         inv_b = Mat22Ops.adj(ElemType, inv_b);
 
-        var inv_c = mat_b.multScalar(det_c);
+        var inv_c = mat_b.mulScalar(det_c);
         const adj_dc_adj = Mat22Ops.adj(ElemType, adj_dc);
-        const a_adj_dc_adj = mat_a.multMat(adj_dc_adj);
-        inv_c = inv_c.subtract(a_adj_dc_adj);
+        const a_adj_dc_adj = mat_a.mulMat(adj_dc_adj);
+        inv_c = inv_c.sub(a_adj_dc_adj);
         inv_c = Mat22Ops.adj(ElemType, inv_c);
 
-        var inv_d = mat_d.multScalar(det_a);
-        const c_adj_ab = mat_c.multMat(adj_ab);
-        inv_d = inv_d.subtract(c_adj_ab);
+        var inv_d = mat_d.mulScalar(det_a);
+        const c_adj_ab = mat_c.mulMat(adj_ab);
+        inv_d = inv_d.sub(c_adj_ab);
         inv_d = Mat22Ops.adj(ElemType, inv_d);
 
         // Build the 4x4 matrix from the 4 sub matrices
@@ -374,7 +380,7 @@ pub const Mat44Ops = struct {
         Mat44Ops.insertMat22(ElemType, &mat_inv, inv_c, 2, 0);
         Mat44Ops.insertMat22(ElemType, &mat_inv, inv_d, 2, 2);
 
-        mat_inv = mat_inv.multScalar(1 / det_m);
+        mat_inv = mat_inv.mulScalar(1 / det_m);
         return mat_inv;
     }
 
@@ -430,7 +436,7 @@ test "Mat22f.add" {
     try expectEqual(mat0.add(mat1), mat_exp);
 }
 
-test "Mat22f.subtract" {
+test "Mat22f.sub" {
     const m0 = [_]EType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
@@ -440,7 +446,7 @@ test "Mat22f.subtract" {
     const m2 = [_]EType{ -4, -4, -4, -4 };
     const mat_exp = Mat22f.initSlice(&m2);
 
-    try expectEqual(mat_exp, mat0.subtract(mat1));
+    try expectEqual(mat_exp, mat0.sub(mat1));
 }
 
 test "Mat22f.trace" {
@@ -462,7 +468,7 @@ test "Mat22f.transpose" {
     try expectEqual(mat_exp, mat0.transpose());
 }
 
-test "Mat22f.multScalar" {
+test "Mat22f.mulScalar" {
     const m0 = [_]EType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
@@ -470,10 +476,10 @@ test "Mat22f.multScalar" {
     const m1 = [_]EType{ 2, 4, 6, 8 };
     const mat_exp = Mat22f.initSlice(&m1);
 
-    try expectEqual(mat_exp, mat0.multScalar(scalar));
+    try expectEqual(mat_exp, mat0.mulScalar(scalar));
 }
 
-test "Mat22f.multVec" {
+test "Mat22f.mulVec" {
     const m0 = [_]EType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
@@ -483,10 +489,10 @@ test "Mat22f.multVec" {
     const v1 = [_]EType{ 5, 11 };
     const vec_exp = Vec2f.initSlice(&v1);
 
-    try expectEqual(vec_exp, mat0.multVec(vec0));
+    try expectEqual(vec_exp, mat0.mulVec(vec0));
 }
 
-test "Mat22f.multMat" {
+test "Mat22f.mulMat" {
     const m0 = [_]EType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
@@ -496,7 +502,7 @@ test "Mat22f.multMat" {
     const m2 = [_]EType{ 8, 5, 20, 13 };
     const mat_exp = Mat22f.initSlice(&m2);
 
-    try expectEqual(mat_exp, mat0.multMat(mat1));
+    try expectEqual(mat_exp, mat0.mulMat(mat1));
 }
 
 test "Mat22Ops.adj" {
@@ -539,14 +545,14 @@ test "Mat33f.add" {
     try expectEqual(mat_exp, mat0.add(mat1));
 }
 
-test "Mat33f.subtract" {
+test "Mat33f.sub" {
     const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     const mat0 = Mat33f.initSlice(&m0);
     const mat1 = Mat33f.initSlice(&m0);
 
     const mat_exp = Mat33f.initZeros();
 
-    try expectEqual(mat_exp, mat0.subtract(mat1));
+    try expectEqual(mat_exp, mat0.sub(mat1));
 }
 
 //------------------------------------------------------------------------------
@@ -616,10 +622,10 @@ test "Mat33f.multScalar" {
     const m1 = [_]EType{ 2, 4, 6, 8, 10, 12, 14, 16, 18 };
     const mat_exp = Mat33f.initSlice(&m1);
 
-    try expectEqual(mat_exp, mat0.multScalar(scalar));
+    try expectEqual(mat_exp, mat0.mulScalar(scalar));
 }
 
-test "Mat33f.multVec" {
+test "Mat33f.mulVec" {
     const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     const mat0 = Mat33f.initSlice(&m0);
 
@@ -629,10 +635,10 @@ test "Mat33f.multVec" {
     const v1 = [_]EType{ 10, 28, 46 };
     const vec_exp = Vec3f.initSlice(&v1);
 
-    try expectEqual(vec_exp, mat0.multVec(vec0));
+    try expectEqual(vec_exp, mat0.mulVec(vec0));
 }
 
-test "Mat33f.multMat" {
+test "Mat33f.mulMat" {
     const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     const mat0 = Mat33f.initSlice(&m0);
 
@@ -642,7 +648,7 @@ test "Mat33f.multMat" {
     const m2 = [_]EType{ 8, 10, 12, 23, 25, 27, 38, 40, 42 };
     const mat_exp = Mat33f.initSlice(&m2);
 
-    try expectEqual(mat_exp, mat0.multMat(mat1));
+    try expectEqual(mat_exp, mat0.mulMat(mat1));
 }
 
 test "Mat33Ops.det" {

@@ -2,6 +2,7 @@ const std = @import("std");
 const print = std.debug.print;
 const assert = std.debug.assert;
 const expectEqual = std.testing.expectEqual;
+const expectEqualSlices = std.testing.expectEqualSlices;
 
 const slice = @import("slicetools.zig");
 const ValInd = slice.ValInd;
@@ -51,7 +52,7 @@ pub fn Vector(comptime elem_n: comptime_int, comptime ElemType: type) type {
             return vec_out;
         }
 
-        pub fn subtract(self: *const Self, to_sub: Self) Self {
+        pub fn sub(self: *const Self, to_sub: Self) Self {
             var vec_out: Self = undefined;
             for (0..elem_n) |ii| {
                 vec_out.elems[ii] = self.elems[ii] - to_sub.elems[ii];
@@ -83,7 +84,7 @@ pub fn Vector(comptime elem_n: comptime_int, comptime ElemType: type) type {
             return norm_out;
         }
 
-        pub fn length(self: *const Self) ElemType {
+        pub fn vecLen(self: *const Self) ElemType {
             return @sqrt(self.norm());
         }
 
@@ -212,16 +213,16 @@ test "Vec.apply" {
 
     const vec_sqrt = vec0.apply(std.math.sqrt);
 
-    try expectEqual(vec_exp_ones, vec_sqrt);
+    try expectEqualSlices(EType, &vec_exp_ones.elems, &vec_sqrt.elems);
 
     const vec1 = Vector(vec_len,EType).initZeros();
     const vec_atan = vec1.apply(std.math.atan);
 
-    try expectEqual(vec_exp_zeros, vec_atan);
+    try expectEqualSlices(EType, &vec_exp_zeros.elems, &vec_atan.elems);
 
     const vec_e = vec1.apply(slice.exp);
 
-    try expectEqual(vec_exp_ones, vec_e);
+    try expectEqualSlices(EType, &vec_exp_ones.elems, &vec_e.elems);
 }
 
 test "Vec.max" {
@@ -271,23 +272,23 @@ test "Vec3f.add" {
     const vec1 = Vec3f.initFill(2);
     const vec_exp = Vec3f.initFill(3);
 
-    try expectEqual(vec0.add(vec1), vec_exp);
+    try expectEqualSlices(EType,&vec0.add(vec1).elems, &vec_exp.elems);
 }
 
-test "Vec3f.subtract" {
+test "Vec3f.sub" {
     var vec0 = Vec3f.initOnes();
     const vec1 = Vec3f.initFill(7);
     const vec_exp = Vec3f.initFill(-6);
 
-    try expectEqual(vec0.subtract(vec1), vec_exp);
+    try expectEqualSlices(EType, &vec0.sub(vec1).elems, &vec_exp.elems);
 }
 
-test "Vec3f.multScalar" {
+test "Vec3f.mulScalar" {
     var vec0 = Vec3f.initOnes();
     const scalar: EType = 1.23;
     const vec_exp = Vec3f.initFill(scalar);
 
-    try expectEqual(vec0.mulScalar(scalar), vec_exp);
+    try expectEqualSlices(EType,&vec0.mulScalar(scalar).elems, &vec_exp.elems);
 }
 
 test "Vec3f.dot" {
@@ -313,7 +314,7 @@ test "Vec3f.length" {
     const leng_exp = @sqrt(arr[0] * arr[0] + arr[1] * arr[1] + arr[2] * arr[2]);
     var vec = Vec3f.initSlice(&arr);
 
-    try expectEqual(vec.length(), leng_exp);
+    try expectEqual(vec.vecLen(), leng_exp);
 }
 
 test "Vec3Ops.cross" {
