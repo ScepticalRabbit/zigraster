@@ -139,13 +139,13 @@ pub fn MatAlloc(comptime ElemType: type) type {
             return trace_out;
         }
 
-        pub fn addInPlace(self: *const Self, to_add: Self) void {
+        pub fn addInPlace(self: *const Self, to_add: *const Self) void {
             for (0..self.elems.len) |ee| {
                 self.elems[ee] += to_add.elems[ee];
             }
         }
 
-        pub fn subInPlace(self: *const Self, to_sub: Self) void {
+        pub fn subInPlace(self: *const Self, to_sub: *const Self) void {
             for (0..self.elems.len) |ee| {
                 self.elems[ee] -= to_sub.elems[ee];
             }

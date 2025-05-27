@@ -44,13 +44,13 @@ pub fn VecAlloc(comptime ElemType: type) type {
             self.elems[ind] = val;
         }
 
-        pub fn addInPlace(self: *const Self, to_add: Self) void {
+        pub fn addInPlace(self: *const Self, to_add: *const Self) void {
             for (0..self.elems.len) |ii| {
                 self.elems[ii] += to_add.elems[ii];
             }
         }
 
-        pub fn subInPlace(self: *const Self, to_sub: Self) void {
+        pub fn subInPlace(self: *const Self, to_sub: *const Self) void {
             for (0..self.elems.len) |ii| {
                 self.elems[ii] -= to_sub.elems[ii];
             }
@@ -114,9 +114,44 @@ pub fn VecAlloc(comptime ElemType: type) type {
     };
 }
 
+pub const VecAllocOps = struct {
+    pub fn add(ElemType: type, alloc: std.mem.Allocator, vec0: *const VecAlloc(ElemType), vec1: *const VecAlloc(ElemType)) !*VecAlloc(ElemType){
+        assert(vec0.elems.len == vec1.elems.len);
+
+        var vec_out = try VecAlloc(EType).init(alloc,vec0.elems.len);
+
+        for (0..vec0.elems.len) |ii| {
+            vec_out.elems[ii] = vec0.elems[ii] + vec1.elems[ii];
+        }
+
+        return &vec_out;
+    }
+};
 
 
 // TODO: test in place maths
+
+test "VecAllocOps.add" {
+    const vec_len: usize = 10;
+
+    const vec0 = try VecAlloc(EType).init(testing.allocator,vec_len);
+    defer vec0.deinit();
+
+    const vec1 = try VecAlloc(EType).init(testing.allocator,vec_len);
+    defer vec1.deinit();
+
+    const vec_exp = try VecAlloc(EType).init(testing.allocator,vec_len);
+    defer vec_exp.deinit();
+
+    vec0.fill(1.0);
+    vec1.fill(1.0);
+    vec_exp.fill(2.0);
+
+    const vec_add = try VecAllocOps.add(EType,testing.allocator, &vec0, &vec1);
+    defer vec_add.deinit();
+    
+    try expectEqualSlices(EType, vec_exp.elems, vec_add.elems);
+}
 
 test "VecAlloc.max" {
     const vec0 = try VecAlloc(EType).init(testing.allocator,10);
