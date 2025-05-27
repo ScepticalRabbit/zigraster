@@ -3,7 +3,7 @@ const print = std.debug.print;
 
 const VecHeap = @import("vecheap.zig");
 
-pub fn MatrixHeap(comptime rows_n: comptime_int, comptime cols_n: comptime_int, comptime ElemType: type) type {
+pub fn MatrixAlloc(comptime rows_n: comptime_int, comptime cols_n: comptime_int, comptime ElemType: type) type {
     return extern struct {
         elems: []ElemType,
         alloc: std.mem.Allocator,
