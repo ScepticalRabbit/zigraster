@@ -613,7 +613,7 @@ test "Mat33f.transpose" {
     try expectEqual(mat_exp, mat0.transpose());
 }
 
-test "Mat33f.multScalar" {
+test "Mat33f.mulScalar" {
     const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     const mat0 = Mat33f.initSlice(&m0);
 

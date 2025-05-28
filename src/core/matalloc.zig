@@ -1,6 +1,13 @@
 const std = @import("std");
 const print = std.debug.print;
 
+const testing = std.testing;
+const assert = std.debug.assert;
+const expectEqual = std.testing.expectEqual;
+const expectApproxEqAbs = testing.expectApproxEqAbs;
+const expectEqualSlices = testing.expectEqualSlices;
+
+
 const VecAlloc = @import("vecalloc.zig");
 
 pub fn MatAlloc(comptime ElemType: type) type {
@@ -203,5 +210,81 @@ pub fn MatAlloc(comptime ElemType: type) type {
             }
             print("\n", .{});
         }
+    };
+}
+
+pub fn MatAllocOps(comptime ElemType: type) type {
+    return struct {
+        pub fn add(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), mat1: *const MatAlloc(ElemType)) !*MatAlloc(ElemType){
+            assert(mat0.rows_n == mat1.rows_n);
+            assert(mat0.cols_n == mat1.cols_n);
+
+            var mat_out = try MatAlloc(ElemType).init(alloc,mat0.rows_n,mat0.cols_n);
+
+            for (0..mat0.elems.len) |ii| {
+                mat_out.elems[ii] = mat0.elems[ii] + mat1.elems[ii];
+            }
+
+            return &mat_out;
+        }
+
+        pub fn sub(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), mat1: *const MatAlloc(ElemType)) !*MatAlloc(ElemType){
+            assert(mat0.rows_n == mat1.rows_n);
+            assert(mat0.cols_n == mat1.cols_n);
+
+            var mat_out = try MatAlloc(ElemType).init(alloc,mat0.rows_n,mat0.cols_n);
+
+            for (0..mat0.elems.len) |ii| {
+                mat_out.elems[ii] = mat0.elems[ii] - mat1.elems[ii];
+            }
+
+            return &mat_out;
+        }
+
+        pub fn mulElemWise(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), mat1: *const MatAlloc(ElemType)) !*MatAlloc(ElemType){
+            assert(mat0.rows_n == mat1.rows_n);
+            assert(mat0.cols_n == mat1.cols_n);
+
+            var mat_out = try MatAlloc(ElemType).init(alloc,mat0.rows_n,mat0.cols_n);
+
+            for (0..mat0.elems.len) |ii| {
+                mat_out.elems[ii] = mat0.elems[ii] * mat1.elems[ii];
+            }
+
+            return &mat_out;
+        }
+
+        pub fn divElemWise(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), mat1: *const MatAlloc(ElemType)) !*MatAlloc(ElemType){
+            assert(mat0.rows_n == mat1.rows_n);
+            assert(mat0.cols_n == mat1.cols_n);
+
+            var mat_out = try MatAlloc(ElemType).init(alloc,mat0.rows_n,mat0.cols_n);
+
+            for (0..mat0.elems.len) |ii| {
+                mat_out.elems[ii] = mat0.elems[ii] / mat1.elems[ii];
+            }
+
+            return &mat_out;
+        }
+
+        pub fn mulScalar(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), scalar: ElemType) !*MatAlloc(ElemType){
+
+            var mat_out = try MatAlloc(ElemType).init(alloc,mat0.rows_n,mat0.cols_n);
+
+            for (0..mat0.elems.len) |ii| {
+                mat_out.elems[ii] = scalar * mat0.elems[ii];
+            }
+
+            return &mat_out;
+        }
+
+        // pub fn mulMat(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), mat1: *const MatAlloc(ElemType)) !*MatAlloc(ElemType){
+
+        // }
+
+        // pub fn mulVec(alloc: std.mem.Allocator, mat: *const MatAlloc(ElemType), vec: *const VecAlloc(ElemType)) !*VecAlloc(ElemType){
+
+        // }
+
     };
 }
