@@ -10,8 +10,10 @@ const expectEqualSlices = testing.expectEqualSlices;
 
 const VecAlloc = @import("vecalloc.zig");
 
+const EType = f64;
+
 pub fn MatAlloc(comptime ElemType: type) type {
-    return extern struct {
+    return struct {
         elems: []ElemType,
         rows_n: usize,
         cols_n: usize,
@@ -116,7 +118,7 @@ pub fn MatAlloc(comptime ElemType: type) type {
         //     }
         // }
 
-        pub fn transpose(self: *const Self) void {
+        pub fn transpose(self: *Self) !void {
             const temp_mat = try MatAlloc(ElemType).init(self.alloc, self.rows_n, self.cols_n);
             defer temp_mat.deinit();
 
@@ -158,7 +160,7 @@ pub fn MatAlloc(comptime ElemType: type) type {
             }
         }
 
-        pub fn mulScalar(self: *const Self, scalar: ElemType) Self {
+        pub fn mulScalarInPlace(self: *const Self, scalar: ElemType) void {
             for (0..self.elems.len) |ee| {
                 self.elems[ee] = scalar * self.elems[ee];
             }
@@ -278,13 +280,119 @@ pub fn MatAllocOps(comptime ElemType: type) type {
             return &mat_out;
         }
 
-        // pub fn mulMat(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), mat1: *const MatAlloc(ElemType)) !*MatAlloc(ElemType){
+        pub fn mulMat(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), mat1: *const MatAlloc(ElemType)) !*MatAlloc(ElemType){
+            assert(mat0.cols_n == mat1.rows_n);
 
-        // }
+            const mat_out = try MatAlloc(ElemType).init(alloc, mat0.rows_n, mat1.cols_n);
+            var sum: ElemType = 0;
+
+            for (0..mat0.rows_n) |rr| {
+                for (0..mat0.cols_n) |cc| {
+                    sum = 0;
+
+                    for (0..mat1.cols_n) |mm| {
+                        sum += mat0.get(rr, mm) * mat1.get(mm, cc);
+                    }
+
+                    mat_out.set(rr, cc, sum);
+                }
+            }
+            return mat_out;
+        }
 
         // pub fn mulVec(alloc: std.mem.Allocator, mat: *const MatAlloc(ElemType), vec: *const VecAlloc(ElemType)) !*VecAlloc(ElemType){
 
         // }
 
     };
+}
+
+
+test "MatAlloc.addInPlace" {
+    const m0 = [_]EType{ 1, 2, 3, 4 };
+    const mat0 = try MatAlloc(EType).init(testing.allocator,2,2);
+    defer mat0.deinit();
+    @memcpy(mat0.elems, &m0);
+
+    const m1 = [_]EType{ 5, 6, 7, 8 };
+    const mat1 = try MatAlloc(EType).init(testing.allocator,2,2);
+    defer mat1.deinit();
+    @memcpy(mat1.elems, &m1);
+
+    const m2 = [_]EType{ 6, 8, 10, 12 };
+    const mat_exp = try MatAlloc(EType).init(testing.allocator,2,2);
+    defer mat_exp.deinit();
+    @memcpy(mat_exp.elems,&m2);
+
+    const mat_add = try MatAllocOps(EType).add(testing.allocator, &mat0, &mat1);
+    defer mat_add.deinit();
+
+    try expectEqualSlices(EType, mat_exp.elems, mat_add.elems);
+}
+
+test "MatAlloc.subInPlace" {
+    const m0 = [_]EType{ 1, 2, 3, 4 };
+    const mat0 = try MatAlloc(EType).init(testing.allocator,2,2);
+    defer mat0.deinit();
+    @memcpy(mat0.elems, &m0);
+
+    const m1 = [_]EType{ 5, 6, 7, 8 };
+    const mat1 = try MatAlloc(EType).init(testing.allocator,2,2);
+    defer mat1.deinit();
+    @memcpy(mat1.elems, &m1);
+
+    const m2 = [_]EType{ -4, -4, -4, -4 };
+    const mat_exp = try MatAlloc(EType).init(testing.allocator,2,2);
+    defer mat_exp.deinit();
+    @memcpy(mat_exp.elems,&m2);
+
+    const mat_add = try MatAllocOps(EType).sub(testing.allocator, &mat0, &mat1);
+    defer mat_add.deinit();
+
+    try expectEqualSlices(EType, mat_exp.elems, mat_add.elems);
+}
+
+test "MatAlloc.trace" {
+    const m0 = [_]EType{ 1, 2, 3, 4 };
+    const mat0 = try MatAlloc(EType).init(testing.allocator,2,2);
+    defer mat0.deinit();
+    @memcpy(mat0.elems, &m0);
+
+    const trace_exp: EType = 5;
+
+    try expectEqual(trace_exp, mat0.trace());
+}
+
+test "MatAlloc.transpose" {
+    const m0 = [_]EType{ 1, 2, 3, 4 };
+    var mat0 = try MatAlloc(EType).init(testing.allocator,2,2);
+    defer mat0.deinit();
+    @memcpy(mat0.elems, &m0);
+
+    const m1 = [_]EType{ 1, 3, 2, 4 };
+    const mat_exp = try MatAlloc(EType).init(testing.allocator,2,2);
+    defer mat_exp.deinit();
+    @memcpy(mat_exp.elems, &m1);
+
+    try mat0.transpose();
+
+    try expectEqualSlices(EType, mat_exp.elems, mat0.elems);
+}
+
+test "MatAlloc.mulScalar" {
+    const m0 = [_]EType{ 1, 2, 3, 4 };
+    const mat0 = try MatAlloc(EType).init(testing.allocator,2,2);
+    defer mat0.deinit();
+    @memcpy(mat0.elems, &m0);
+
+    const scalar: EType = 2;
+
+    const m1 = [_]EType{ 2, 4, 6, 8 };
+    const mat_exp = try MatAlloc(EType).init(testing.allocator,2,2);
+    defer mat_exp.deinit();
+    @memcpy(mat_exp.elems, &m1);
+
+    mat0.mulScalarInPlace(scalar);
+
+    try expectEqualSlices(EType,mat_exp.elems, mat0.elems);
 }
