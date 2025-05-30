@@ -1,6 +1,9 @@
 const std = @import("std");
+const print = std.debug.print;
 const Vec3f = @import("vector.zig").Vec3f;
 const slice = @import("slicetools.zig");
+
+const MatAlloc = @import("matalloc.zig").MatAlloc;
 
 pub const Coords = struct {
     x: []f64,
@@ -19,7 +22,7 @@ pub const Coords = struct {
         };
     }
 
-    pub fn deinit(self: Coords) void {
+    pub fn deinit(self: *Coords) void {
         self.allocator.free(self.x);
         self.allocator.free(self.y);
         self.allocator.free(self.z);
@@ -48,14 +51,30 @@ pub const Connect = struct {
     }
 
     pub fn getInd(self: *const Self, elem_num: usize, node_num: usize) usize {
-        return self.table[elem_num*self.nodes_per_elem + node_num];
+        return self.table[elem_num * self.nodes_per_elem + node_num];
     }
 };
 
 pub const Field = struct {
-    time_n: usize,
     coord_n: usize,
-    data: []f64,
+    time_n: usize,
+    data: MatAlloc(f64),
+    allocator: std.mem.Allocator,
+
+    const Self = @This();
+
+    pub fn init(alloc: std.mem.Allocator, coord_n: usize, time_n: usize) !Self {
+        return .{
+            .coord_n = coord_n,
+            .time_n = time_n,
+            .data = try MatAlloc(f64).init(alloc, coord_n, time_n),
+            .allocator = alloc,
+        };
+    }
+
+    pub fn deinit(self: *Self) void {
+        self.data.deinit();
+    }
 };
 
 pub fn readCsvToList(allocator: std.mem.Allocator, path: []const u8) !std.ArrayList([]const u8) {
@@ -111,28 +130,8 @@ pub fn parseCoords(csv_lines: *const std.ArrayList([]const u8), coords: *Coords)
     }
 }
 
-// pub fn parseCoords(csv_lines: *const std.ArrayList([]const u8), coords: *[]Vec3f) !void {
-//     const num_coords: u8 = 3;
-//     var num_count: u8 = 0;
-
-//     for (csv_lines.items, 0..) |line_str, ii| {
-//         //print("\nParsing line: {}\n", .{ii});
-//         var split_iter = std.mem.splitScalar(u8, line_str, ',');
-
-//         while (split_iter.next()) |num_str| {
-//             const num: f64 = try std.fmt.parseFloat(f64, num_str);
-
-//             coords.*[ii].set(num_count,num);
-
-//             num_count += 1;
-//             if (num_count >= num_coords) {
-//                 num_count = 0;
-//                 break;
-//             }
-//         }
-//     }
-// }
-
+// TODO: fix this so that connect has an allocator and passes back a reference and does not return the
+// large connectivity table by copying!
 pub fn parseConnect(allocator: std.mem.Allocator, csv_lines: *const std.ArrayList([]const u8)) !Connect {
     // Get the number of elements and the number of nodes per element
     const elem_count = csv_lines.items.len;
@@ -188,14 +187,11 @@ pub fn parseField(allocator: std.mem.Allocator, csv_lines: *const std.ArrayList(
         _ = num_str;
         time_n += 1;
     }
-    //print("Field: total pts = {}\n", .{coord_n});
-    //print("Field: total time steps = {}\n",.{time_n});
 
-    const field = Field{
-        .coord_n = coord_n,
-        .time_n = time_n,
-        .data = try allocator.alloc(f64, coord_n * time_n),
-    };
+    // print("Field: total pts = {}\n", .{coord_n});
+    // print("Field: total time steps = {}\n",.{time_n});
+
+    var field = try Field.init(allocator, coord_n, time_n);
 
     var coord: usize = 0;
     var time_step: usize = 0;
@@ -207,7 +203,8 @@ pub fn parseField(allocator: std.mem.Allocator, csv_lines: *const std.ArrayList(
 
         while (split_iter.next()) |num_str| {
             const num_f: f64 = try std.fmt.parseFloat(f64, num_str);
-            field.data[coord * time_n + time_step] = num_f;
+            field.data.set(coord, time_step, num_f);
+            //field.data[coord * time_n + time_step] = num_f;
             time_step += 1;
         }
     }

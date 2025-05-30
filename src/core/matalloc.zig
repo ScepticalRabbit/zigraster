@@ -30,7 +30,7 @@ pub fn MatAlloc(comptime ElemType: type) type {
             };
         }
 
-        pub fn deinit(self: Self) void {
+        pub fn deinit(self: *Self) void {
             self.alloc.free(self.elems);
         }
 
@@ -179,6 +179,10 @@ pub fn MatAlloc(comptime ElemType: type) type {
             }
             print("\n", .{});
         }
+
+        // pub fn saveCSV(self: *const Self, path: []u8) void {
+        // }
+
     };
 }
 
@@ -280,7 +284,7 @@ pub fn MatAllocOps(comptime ElemType: type) type {
                     mat_out.set(rr, cc, sum);
                 }
             }
-            return mat_out;
+            return &mat_out;
         }
     };
 }

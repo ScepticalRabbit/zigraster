@@ -6,6 +6,7 @@ const Vec3SliceOps = @import("vector.zig").Vec3SliceOps;
 
 const Mat44Ops = @import("matrix.zig").Mat44Ops;
 
+const VecAlloc = @import("vecalloc.zig").VecAlloc;
 const MatAlloc = @import("matalloc.zig").MatAlloc;
 
 const SliceTools = @import("slicetools.zig");
@@ -74,7 +75,8 @@ pub const Raster = struct {
         return max_ind;
     }
 
-    pub fn raster_frame(allocator: std.mem.Allocator, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera) !*Image {
+    pub fn raster_frame(allocator: std.mem.Allocator, frame_ind: usize, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera) !Image {
+
         const tol: f64 = 1e-12;
         var elems_in_image: usize = 0;
 
@@ -93,8 +95,6 @@ pub const Raster = struct {
         var image_subpx = try Image.init(allocator, pixels_x, pixels_y);
 
         var px_coord_buff: Vec3f = Vec3f.initZeros();
-
-        _ = field;
 
         // Lifted constants out of loop
         const sub_samp_f: f64 = @as(f64, @floatFromInt(camera.sub_sample));
@@ -238,14 +238,25 @@ pub const Raster = struct {
                         continue;
                     }
 
-                    if ((ee % 6) == 0) {
-                        print("Elem: {}\n", .{ee});
-                        print("x bound ind={}, coord={d}\n", .{ bound_ind_x, bound_coord_x });
-                        print("y bound ind={}, coord={d}\n", .{ bound_ind_y, bound_coord_y });
-                        print("weight_dot_nodes={d}\n", .{weight_dot_nodes});
-                        print("px_coord_z={d}\n", .{px_coord_z});
-                        print("\n", .{});
+                    image_subpx.depth.set(bound_ind_y,bound_ind_x, px_coord_z);
+
+                    // if ((ee % 6) == 0) {
+                    //     print("Elem: {}\n", .{ee});
+                    //     print("x bound ind={}, coord={d}\n", .{ bound_ind_x, bound_coord_x });
+                    //     print("y bound ind={}, coord={d}\n", .{ bound_ind_y, bound_coord_y });
+                    //     print("weight_dot_nodes={d}\n", .{weight_dot_nodes});
+                    //     print("px_coord_z={d}\n", .{px_coord_z});
+                    //     print("\n", .{});
+                    // }
+
+                    for (0..connect.nodes_per_elem) |nn| {
+                        field_raster_buff[nn] = field.data.get(coord_inds[nn],frame_ind);
                     }
+
+                    var px_field: f64 = SliceTools.dot(f64,field_raster_buff,weights_buff);
+                    px_field = px_field*px_coord_z;
+
+                    image_subpx.buffer.set(bound_ind_y,bound_ind_x, px_field);
 
                     // End for(x) - increment the x coords
                     bound_coord_x += coord_step;
@@ -258,6 +269,6 @@ pub const Raster = struct {
             }
         }
 
-        return &image_subpx;
+        return image_subpx;
     }
 };

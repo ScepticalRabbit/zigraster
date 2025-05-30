@@ -146,7 +146,8 @@ pub fn main() !void {
     time_end = try Instant.now();
     const time_parse_field: f64 = @floatFromInt(time_end.since(time_start));
     print("Field: coords={}, time steps={}\n", .{ field.coord_n, field.time_n });
-    print("Field: parse time = {d:.3}ms\n", .{time_parse_field / time.ns_per_ms});
+    print("Field: parse time = {d:.3}ms\n\n", .{time_parse_field / time.ns_per_ms});
+
 
     //--------------------------------------------------------------------------
     // Build Camera
@@ -173,7 +174,16 @@ pub fn main() !void {
     print("connect.nodes_per_elem={any}\n",.{connect.nodes_per_elem});
     print("\n",.{});
 
-    const image_subpx = try Raster.raster_frame(arena_alloc, &coords, &connect, &field, &camera);
-    _ = image_subpx;
+    const frame_ind: usize = field.coord_n - 1;
+
+
+    time_start = try Instant.now();
+    const image_subpx = try Raster.raster_frame(arena_alloc, frame_ind,&coords, &connect, &field, &camera);
+    time_end = try Instant.now();
+    const time_raster: f64 = @floatFromInt(time_end.since(time_start));
+    print("RASTER: time = {d:.3}ms\n\n", .{time_raster / time.ns_per_ms});
+
+    print("Image: pixels x={}\n",.{image_subpx.buffer.cols_n});
+    print("Image: pixels y={}\n",.{image_subpx.buffer.rows_n});
 
 }
