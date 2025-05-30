@@ -135,13 +135,12 @@ pub fn Matrix(comptime rows_n: comptime_int, comptime cols_n: comptime_int, comp
         pub fn trace(self: *const Self) ElemType {
             var trace_out: ElemType = 0;
 
-            if (self.rows_n <= self.cols_n){
-                for (0..self.rows_n) |ii| {
+            if (rows_n <= cols_n) {
+                for (0..rows_n) |ii| {
                     trace_out += self.get(ii, ii);
                 }
-            }
-            else {
-                for (0..self.cols_n) |ii| {
+            } else {
+                for (0..cols_n) |ii| {
                     trace_out += self.get(ii, ii);
                 }
             }

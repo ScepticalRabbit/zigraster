@@ -58,6 +58,7 @@ pub fn main() !void {
     //var page_alloc = std.heap.PageAllocator(std.heap.page_allocator);
     var arena = std.heap.ArenaAllocator.init(page_alloc);
     defer arena.deinit();
+
     const arena_alloc = arena.allocator();
 
     //--------------------------------------------------------------------------
@@ -172,7 +173,7 @@ pub fn main() !void {
     print("connect.nodes_per_elem={any}\n",.{connect.nodes_per_elem});
     print("\n",.{});
 
-    const raster = Raster.init(arena_alloc);
-    try raster.raster_frame(&coords, &connect, &field, &camera);
+    const image_subpx = try Raster.raster_frame(arena_alloc, &coords, &connect, &field, &camera);
+    _ = image_subpx;
 
 }

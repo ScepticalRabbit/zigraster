@@ -7,8 +7,8 @@ const expectEqual = std.testing.expectEqual;
 const expectApproxEqAbs = testing.expectApproxEqAbs;
 const expectEqualSlices = testing.expectEqualSlices;
 
-
-const VecAlloc = @import("vecalloc.zig");
+const VecAlloc = @import("vecalloc.zig").VecAlloc;
+const VecAllocOps = @import("vecalloc.zig").VecAllocOps;
 
 const EType = f64;
 
@@ -166,39 +166,6 @@ pub fn MatAlloc(comptime ElemType: type) type {
             }
         }
 
-        // pub fn mulVec(self: *const Self, vec: Vector(cols_n, ElemType)) Vector(cols_n, ElemType) {
-        //     var vec_out: Vector(rows_n, ElemType) = undefined;
-        //     var sum: ElemType = 0;
-
-        //     for (0..rows_n) |rr| {
-        //         sum = 0;
-        //         for (0..cols_n) |cc| {
-        //             sum += self.get(rr, cc) * vec.get(cc);
-        //         }
-        //         vec_out.set(rr, sum);
-        //     }
-
-        //     return vec_out;
-        // }
-
-        // pub fn mulMat(self: *const Self, to_mult: Self) Self {
-        //     var mat_out: Self = undefined;
-        //     var sum: ElemType = 0;
-
-        //     for (0..rows_n) |rr| {
-        //         for (0..cols_n) |cc| {
-        //             sum = 0;
-
-        //             for (0..cols_n) |mm| {
-        //                 sum += self.get(rr, mm) * to_mult.get(mm, cc);
-        //             }
-
-        //             mat_out.set(rr, cc, sum);
-        //         }
-        //     }
-        //     return mat_out;
-        // }
-
         pub fn matPrint(self: *const Self) void {
             var ind: usize = 0;
 
@@ -217,11 +184,11 @@ pub fn MatAlloc(comptime ElemType: type) type {
 
 pub fn MatAllocOps(comptime ElemType: type) type {
     return struct {
-        pub fn add(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), mat1: *const MatAlloc(ElemType)) !*MatAlloc(ElemType){
+        pub fn add(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), mat1: *const MatAlloc(ElemType)) !*MatAlloc(ElemType) {
             assert(mat0.rows_n == mat1.rows_n);
             assert(mat0.cols_n == mat1.cols_n);
 
-            var mat_out = try MatAlloc(ElemType).init(alloc,mat0.rows_n,mat0.cols_n);
+            var mat_out = try MatAlloc(ElemType).init(alloc, mat0.rows_n, mat0.cols_n);
 
             for (0..mat0.elems.len) |ii| {
                 mat_out.elems[ii] = mat0.elems[ii] + mat1.elems[ii];
@@ -230,11 +197,11 @@ pub fn MatAllocOps(comptime ElemType: type) type {
             return &mat_out;
         }
 
-        pub fn sub(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), mat1: *const MatAlloc(ElemType)) !*MatAlloc(ElemType){
+        pub fn sub(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), mat1: *const MatAlloc(ElemType)) !*MatAlloc(ElemType) {
             assert(mat0.rows_n == mat1.rows_n);
             assert(mat0.cols_n == mat1.cols_n);
 
-            var mat_out = try MatAlloc(ElemType).init(alloc,mat0.rows_n,mat0.cols_n);
+            var mat_out = try MatAlloc(ElemType).init(alloc, mat0.rows_n, mat0.cols_n);
 
             for (0..mat0.elems.len) |ii| {
                 mat_out.elems[ii] = mat0.elems[ii] - mat1.elems[ii];
@@ -243,11 +210,11 @@ pub fn MatAllocOps(comptime ElemType: type) type {
             return &mat_out;
         }
 
-        pub fn mulElemWise(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), mat1: *const MatAlloc(ElemType)) !*MatAlloc(ElemType){
+        pub fn mulElemWise(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), mat1: *const MatAlloc(ElemType)) !*MatAlloc(ElemType) {
             assert(mat0.rows_n == mat1.rows_n);
             assert(mat0.cols_n == mat1.cols_n);
 
-            var mat_out = try MatAlloc(ElemType).init(alloc,mat0.rows_n,mat0.cols_n);
+            var mat_out = try MatAlloc(ElemType).init(alloc, mat0.rows_n, mat0.cols_n);
 
             for (0..mat0.elems.len) |ii| {
                 mat_out.elems[ii] = mat0.elems[ii] * mat1.elems[ii];
@@ -256,11 +223,11 @@ pub fn MatAllocOps(comptime ElemType: type) type {
             return &mat_out;
         }
 
-        pub fn divElemWise(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), mat1: *const MatAlloc(ElemType)) !*MatAlloc(ElemType){
+        pub fn divElemWise(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), mat1: *const MatAlloc(ElemType)) !*MatAlloc(ElemType) {
             assert(mat0.rows_n == mat1.rows_n);
             assert(mat0.cols_n == mat1.cols_n);
 
-            var mat_out = try MatAlloc(ElemType).init(alloc,mat0.rows_n,mat0.cols_n);
+            var mat_out = try MatAlloc(ElemType).init(alloc, mat0.rows_n, mat0.cols_n);
 
             for (0..mat0.elems.len) |ii| {
                 mat_out.elems[ii] = mat0.elems[ii] / mat1.elems[ii];
@@ -269,9 +236,8 @@ pub fn MatAllocOps(comptime ElemType: type) type {
             return &mat_out;
         }
 
-        pub fn mulScalar(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), scalar: ElemType) !*MatAlloc(ElemType){
-
-            var mat_out = try MatAlloc(ElemType).init(alloc,mat0.rows_n,mat0.cols_n);
+        pub fn mulScalar(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), scalar: ElemType) !*MatAlloc(ElemType) {
+            var mat_out = try MatAlloc(ElemType).init(alloc, mat0.rows_n, mat0.cols_n);
 
             for (0..mat0.elems.len) |ii| {
                 mat_out.elems[ii] = scalar * mat0.elems[ii];
@@ -280,7 +246,24 @@ pub fn MatAllocOps(comptime ElemType: type) type {
             return &mat_out;
         }
 
-        pub fn mulMat(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), mat1: *const MatAlloc(ElemType)) !*MatAlloc(ElemType){
+        pub fn mulVec(alloc: std.mem.Allocator, mat: *const MatAlloc(ElemType), vec: *const VecAlloc(ElemType)) !*VecAlloc(ElemType) {
+            assert(mat.cols_n == vec.elems.len);
+
+            const vec_out = try VecAlloc(ElemType).init(alloc, mat.cols_n);
+            var sum: ElemType = 0;
+
+            for (0..mat.rows_n) |rr| {
+                sum = 0;
+                for (0..mat.cols_n) |cc| {
+                    sum += mat.get(rr, cc) * vec.get(cc);
+                }
+                vec_out.set(rr, sum);
+            }
+
+            return &vec_out;
+        }
+
+        pub fn mulMat(alloc: std.mem.Allocator, mat0: *const MatAlloc(ElemType), mat1: *const MatAlloc(ElemType)) !*MatAlloc(ElemType) {
             assert(mat0.cols_n == mat1.rows_n);
 
             const mat_out = try MatAlloc(ElemType).init(alloc, mat0.rows_n, mat1.cols_n);
@@ -299,30 +282,137 @@ pub fn MatAllocOps(comptime ElemType: type) type {
             }
             return mat_out;
         }
-
-        // pub fn mulVec(alloc: std.mem.Allocator, mat: *const MatAlloc(ElemType), vec: *const VecAlloc(ElemType)) !*VecAlloc(ElemType){
-
-        // }
-
     };
 }
 
+test "MatAllocOps.add" {
+    const rows: usize = 3;
+    const cols: usize = 4;
+
+    const mat0 = try MatAlloc(EType).init(testing.allocator, rows, cols);
+    defer mat0.deinit();
+
+    const mat1 = try MatAlloc(EType).init(testing.allocator, rows, cols);
+    defer mat1.deinit();
+
+    const mat_exp = try MatAlloc(EType).init(testing.allocator, rows, cols);
+    defer mat_exp.deinit();
+
+    mat0.fill(1.0);
+    mat1.fill(1.0);
+    mat_exp.fill(2.0);
+
+    const mat_check = try MatAllocOps(EType).add(testing.allocator, &mat0, &mat1);
+    defer mat_check.deinit();
+
+    try expectEqualSlices(EType, mat_exp.elems, mat_check.elems);
+}
+
+test "MatAllocOps.sub" {
+    const rows: usize = 3;
+    const cols: usize = 4;
+
+    const mat0 = try MatAlloc(EType).init(testing.allocator, rows, cols);
+    defer mat0.deinit();
+
+    const mat1 = try MatAlloc(EType).init(testing.allocator, rows, cols);
+    defer mat1.deinit();
+
+    const mat_exp = try MatAlloc(EType).init(testing.allocator, rows, cols);
+    defer mat_exp.deinit();
+
+    mat0.fill(1.0);
+    mat1.fill(1.0);
+    mat_exp.fill(0.0);
+
+    const mat_check = try MatAllocOps(EType).sub(testing.allocator, &mat0, &mat1);
+    defer mat_check.deinit();
+
+    try expectEqualSlices(EType, mat_exp.elems, mat_check.elems);
+}
+
+test "MatAllocOps.mulElemWise" {
+    const rows: usize = 3;
+    const cols: usize = 4;
+
+    const mat0 = try MatAlloc(EType).init(testing.allocator, rows, cols);
+    defer mat0.deinit();
+
+    const mat1 = try MatAlloc(EType).init(testing.allocator, rows, cols);
+    defer mat1.deinit();
+
+    const mat_exp = try MatAlloc(EType).init(testing.allocator, rows, cols);
+    defer mat_exp.deinit();
+
+    mat0.fill(1.0);
+    mat1.fill(1.0);
+    mat_exp.fill(1.0);
+
+    const mat_check = try MatAllocOps(EType).mulElemWise(testing.allocator, &mat0, &mat1);
+    defer mat_check.deinit();
+
+    try expectEqualSlices(EType, mat_exp.elems, mat_check.elems);
+}
+
+test "MatAllocOps.mulScalar" {
+    const rows: usize = 3;
+    const cols: usize = 4;
+
+    const mat0 = try MatAlloc(EType).init(testing.allocator, rows, cols);
+    defer mat0.deinit();
+
+    const mat_exp = try MatAlloc(EType).init(testing.allocator, rows, cols);
+    defer mat_exp.deinit();
+
+    const scalar: EType = 2.0;
+
+    mat0.fill(1.0);
+    mat_exp.fill(2.0);
+
+    const mat_check = try MatAllocOps(EType).mulScalar(testing.allocator, &mat0, scalar);
+    defer mat_check.deinit();
+
+    try expectEqualSlices(EType, mat_exp.elems, mat_check.elems);
+}
+
+test "MatAllocOps.divElemWise" {
+    const rows: usize = 3;
+    const cols: usize = 4;
+
+    const mat0 = try MatAlloc(EType).init(testing.allocator, rows, cols);
+    defer mat0.deinit();
+
+    const mat1 = try MatAlloc(EType).init(testing.allocator, rows, cols);
+    defer mat1.deinit();
+
+    const mat_exp = try MatAlloc(EType).init(testing.allocator, rows, cols);
+    defer mat_exp.deinit();
+
+    mat0.fill(1.0);
+    mat1.fill(1.0);
+    mat_exp.fill(1.0);
+
+    const mat_check = try MatAllocOps(EType).divElemWise(testing.allocator, &mat0, &mat1);
+    defer mat_check.deinit();
+
+    try expectEqualSlices(EType, mat_exp.elems, mat_check.elems);
+}
 
 test "MatAlloc.addInPlace" {
     const m0 = [_]EType{ 1, 2, 3, 4 };
-    const mat0 = try MatAlloc(EType).init(testing.allocator,2,2);
+    const mat0 = try MatAlloc(EType).init(testing.allocator, 2, 2);
     defer mat0.deinit();
     @memcpy(mat0.elems, &m0);
 
     const m1 = [_]EType{ 5, 6, 7, 8 };
-    const mat1 = try MatAlloc(EType).init(testing.allocator,2,2);
+    const mat1 = try MatAlloc(EType).init(testing.allocator, 2, 2);
     defer mat1.deinit();
     @memcpy(mat1.elems, &m1);
 
     const m2 = [_]EType{ 6, 8, 10, 12 };
-    const mat_exp = try MatAlloc(EType).init(testing.allocator,2,2);
+    const mat_exp = try MatAlloc(EType).init(testing.allocator, 2, 2);
     defer mat_exp.deinit();
-    @memcpy(mat_exp.elems,&m2);
+    @memcpy(mat_exp.elems, &m2);
 
     const mat_add = try MatAllocOps(EType).add(testing.allocator, &mat0, &mat1);
     defer mat_add.deinit();
@@ -332,19 +422,19 @@ test "MatAlloc.addInPlace" {
 
 test "MatAlloc.subInPlace" {
     const m0 = [_]EType{ 1, 2, 3, 4 };
-    const mat0 = try MatAlloc(EType).init(testing.allocator,2,2);
+    const mat0 = try MatAlloc(EType).init(testing.allocator, 2, 2);
     defer mat0.deinit();
     @memcpy(mat0.elems, &m0);
 
     const m1 = [_]EType{ 5, 6, 7, 8 };
-    const mat1 = try MatAlloc(EType).init(testing.allocator,2,2);
+    const mat1 = try MatAlloc(EType).init(testing.allocator, 2, 2);
     defer mat1.deinit();
     @memcpy(mat1.elems, &m1);
 
     const m2 = [_]EType{ -4, -4, -4, -4 };
-    const mat_exp = try MatAlloc(EType).init(testing.allocator,2,2);
+    const mat_exp = try MatAlloc(EType).init(testing.allocator, 2, 2);
     defer mat_exp.deinit();
-    @memcpy(mat_exp.elems,&m2);
+    @memcpy(mat_exp.elems, &m2);
 
     const mat_add = try MatAllocOps(EType).sub(testing.allocator, &mat0, &mat1);
     defer mat_add.deinit();
@@ -354,7 +444,7 @@ test "MatAlloc.subInPlace" {
 
 test "MatAlloc.trace" {
     const m0 = [_]EType{ 1, 2, 3, 4 };
-    const mat0 = try MatAlloc(EType).init(testing.allocator,2,2);
+    const mat0 = try MatAlloc(EType).init(testing.allocator, 2, 2);
     defer mat0.deinit();
     @memcpy(mat0.elems, &m0);
 
@@ -365,12 +455,12 @@ test "MatAlloc.trace" {
 
 test "MatAlloc.transpose" {
     const m0 = [_]EType{ 1, 2, 3, 4 };
-    var mat0 = try MatAlloc(EType).init(testing.allocator,2,2);
+    var mat0 = try MatAlloc(EType).init(testing.allocator, 2, 2);
     defer mat0.deinit();
     @memcpy(mat0.elems, &m0);
 
     const m1 = [_]EType{ 1, 3, 2, 4 };
-    const mat_exp = try MatAlloc(EType).init(testing.allocator,2,2);
+    const mat_exp = try MatAlloc(EType).init(testing.allocator, 2, 2);
     defer mat_exp.deinit();
     @memcpy(mat_exp.elems, &m1);
 
@@ -381,18 +471,18 @@ test "MatAlloc.transpose" {
 
 test "MatAlloc.mulScalar" {
     const m0 = [_]EType{ 1, 2, 3, 4 };
-    const mat0 = try MatAlloc(EType).init(testing.allocator,2,2);
+    const mat0 = try MatAlloc(EType).init(testing.allocator, 2, 2);
     defer mat0.deinit();
     @memcpy(mat0.elems, &m0);
 
     const scalar: EType = 2;
 
     const m1 = [_]EType{ 2, 4, 6, 8 };
-    const mat_exp = try MatAlloc(EType).init(testing.allocator,2,2);
+    const mat_exp = try MatAlloc(EType).init(testing.allocator, 2, 2);
     defer mat_exp.deinit();
     @memcpy(mat_exp.elems, &m1);
 
     mat0.mulScalarInPlace(scalar);
 
-    try expectEqualSlices(EType,mat_exp.elems, mat0.elems);
+    try expectEqualSlices(EType, mat_exp.elems, mat0.elems);
 }

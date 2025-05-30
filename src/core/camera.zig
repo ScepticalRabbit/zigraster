@@ -32,7 +32,7 @@ pub const Camera = struct {
 
     pub fn init(pixels_num: [2]u32, pixels_size: [2]f64, pos_world: Vec3f, rot_world: Rotation, roi_cent_world: Vec3f, focal_length: f64, sub_sample: u8) Camera {
         const sensor_size = CameraOps.calc_sensor_size(pixels_num, pixels_size);
-        const image_dist: f64 = (pos_world.subtract(roi_cent_world)).length();
+        const image_dist: f64 = (pos_world.sub(roi_cent_world)).vecLen();
 
         var image_dims: [2]f64 = undefined;
         image_dims[0] = (image_dist / focal_length) * sensor_size[0];
@@ -94,12 +94,12 @@ pub const CameraOps = struct {
         bb_world_vecs[7] = vector.initVec3(f64, bb_min_x, bb_max_y, bb_min_z);
 
         var bb_cam_vec: Vec3f = undefined;
-        bb_cam_vec = world_to_cam_mat.multVec(bb_world_vecs[0]);
+        bb_cam_vec = world_to_cam_mat.mulVec(bb_world_vecs[0]);
         var bb_cam_max = [_]f64{ bb_cam_vec.get(0), bb_cam_vec.get(1) };
         var bb_cam_min = [_]f64{ bb_cam_vec.get(0), bb_cam_vec.get(1) };
 
         for (bb_world_vecs[1..]) |vec| {
-            bb_cam_vec = world_to_cam_mat.multVec(vec);
+            bb_cam_vec = world_to_cam_mat.mulVec(vec);
 
             if (bb_cam_vec.get(0) > bb_cam_max[0]) {
                 bb_cam_max[0] = bb_cam_vec.get(0);
@@ -159,7 +159,7 @@ pub const CameraOps = struct {
         min_vec.elems[1] = std.mem.min(f64,coords_world.y[0..]);
         min_vec.elems[2] = std.mem.min(f64,coords_world.z[0..]);
 
-        var roi_cent: Vec3f = max_vec.subtract(min_vec);
+        var roi_cent: Vec3f = max_vec.sub(min_vec);
         roi_cent = roi_cent.mulScalar(0.5);
         return roi_cent;
     }
