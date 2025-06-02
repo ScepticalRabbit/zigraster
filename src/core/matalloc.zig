@@ -180,7 +180,8 @@ pub fn MatAlloc(comptime ElemType: type) type {
             print("\n", .{});
         }
 
-        // pub fn saveCSV(self: *const Self, path: []u8) void {
+        // pub fn saveCSV(self: *const Self, path: []const u8) void {
+
         // }
 
     };

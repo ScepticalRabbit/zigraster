@@ -39,7 +39,7 @@ pub const Image = struct {
 };
 
 pub const Raster = struct {
-    pub fn world_to_raster_coords(coord_world: Vec3f, camera: *const Camera) Vec3f {
+    fn worldToRasterCoords(coord_world: Vec3f, camera: *const Camera) Vec3f {
         var coord_raster: Vec3f = Mat44Ops.mulVec3(f64, camera.world_to_cam_mat, coord_world);
 
         coord_raster.elems[0] = camera.image_dist * coord_raster.elems[0] / (-coord_raster.elems[2]);
@@ -55,11 +55,11 @@ pub const Raster = struct {
         return coord_raster;
     }
 
-    pub fn edge_fun3(vert_0: Vec3f, vert_1: Vec3f, vert_2: Vec3f) f64 {
+    fn edgeFun3(vert_0: Vec3f, vert_1: Vec3f, vert_2: Vec3f) f64 {
         return ((vert_2.get(0) - vert_0.get(0)) * (vert_1.get(1) - vert_0.get(1)) - (vert_2.get(1) - vert_0.get(1)) * (vert_1.get(0) - vert_0.get(0)));
     }
 
-    fn bound_index_min(min_val: f64) usize {
+    fn boundIndexMin(min_val: f64) usize {
         var min_ind: usize = @as(usize, @intFromFloat(@floor(min_val)));
         if (min_ind < 0) {
             min_ind = 0;
@@ -67,7 +67,7 @@ pub const Raster = struct {
         return min_ind;
     }
 
-    fn bound_index_max(max_val: f64, pixels_num: usize) usize {
+    fn boundIndexMax(max_val: f64, pixels_num: usize) usize {
         var max_ind: usize = @as(usize, @intFromFloat(@ceil(max_val)));
         if (max_ind > (pixels_num - 1)) {
             max_ind = (pixels_num - 1);
@@ -75,7 +75,31 @@ pub const Raster = struct {
         return max_ind;
     }
 
-    pub fn raster_frame(allocator: std.mem.Allocator, frame_ind: usize, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera) !Image {
+    pub fn averageImage(image_subpx: *const MatAlloc(f64), sub_samp: u8, image_avg: *MatAlloc(f64)) void {
+
+        const num_px_x: usize = (image_subpx.buffer.cols_n)/@as(usize,sub_samp);
+        const num_px_y: usize = (image_subpx.buffer.cols_n)/@as(usize,sub_samp);
+        const sub_samp_us: usize = @as(usize,sub_samp);
+        const sub_samp_f: f64 = @as(f64,@floatFromInt(sub_samp));
+        const subpx_per_px: f64 = sub_samp_f*sub_samp_f;
+
+        var px_sum: f64 = 0.0;
+
+        for (0..num_px_y) |iy| {
+            for (0..num_px_x) |ix| {
+                px_sum = 0.0;
+                for (0..sub_samp_us) |sy| {
+                    for (0..sub_samp_us) |sx| {
+                        px_sum += image_subpx.get(sub_samp_us*iy+sy,sub_samp_us*ix+sx);
+                    }
+                }
+                image_avg.set(iy,ix, px_sum/subpx_per_px);
+            }
+        }
+
+    }
+
+    pub fn rasterFrame(allocator: std.mem.Allocator, frame_ind: usize, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera) !Image {
 
         const tol: f64 = 1e-12;
         var elems_in_image: usize = 0;
@@ -89,10 +113,13 @@ pub const Raster = struct {
         const field_raster_buff: []f64 = try allocator.alloc(f64, connect.nodes_per_elem);
         defer allocator.free(field_raster_buff);
 
-        const pixels_x: usize = @as(usize, camera.pixels_num[0]) * @as(usize, camera.sub_sample);
-        const pixels_y: usize = @as(usize, camera.pixels_num[1]) * @as(usize, camera.sub_sample);
+        const subpx_x: usize = @as(usize, camera.pixels_num[0]) * @as(usize, camera.sub_sample);
+        const subpx_y: usize = @as(usize, camera.pixels_num[1]) * @as(usize, camera.sub_sample);
 
-        var image_subpx = try Image.init(allocator, pixels_x, pixels_y);
+        // var image_buff_subpx = try MatAlloc(f64).init(allocator,subpx_y,subpx_x);
+        // var depth_buff_subpx = try MatAlloc(f64).init(allocator,subpx_y, subpx_x);
+
+        var image_subpx = try Image.init(allocator, subpx_x, subpx_y);
 
         var px_coord_buff: Vec3f = Vec3f.initZeros();
 
@@ -105,10 +132,10 @@ pub const Raster = struct {
             const coord_inds: []usize = connect.getElem(ee);
 
             for (0..connect.nodes_per_elem) |nn| {
-                nodes_raster_buff[nn] = world_to_raster_coords(coords.getVec3(coord_inds[nn]), camera);
+                nodes_raster_buff[nn] = worldToRasterCoords(coords.getVec3(coord_inds[nn]), camera);
             }
 
-            const elem_area: f64 = edge_fun3(nodes_raster_buff[0], nodes_raster_buff[1], nodes_raster_buff[2]);
+            const elem_area: f64 = edgeFun3(nodes_raster_buff[0], nodes_raster_buff[1], nodes_raster_buff[2]);
 
             if (elem_area < -tol) {
                 continue;
@@ -143,10 +170,10 @@ pub const Raster = struct {
             // print("Elem {}: x, min {}\n", .{ ee, y_min });
             // print("Elem {}: x, max {}\n\n", .{ ee, y_max });
 
-            const xi_min: usize = bound_index_min(x_min);
-            const xi_max: usize = bound_index_max(x_max, @as(usize, camera.pixels_num[0]));
-            const yi_min: usize = bound_index_min(y_min);
-            const yi_max: usize = bound_index_max(y_max, @as(usize, camera.pixels_num[1]));
+            const xi_min: usize = boundIndexMin(x_min);
+            const xi_max: usize = boundIndexMax(x_max, @as(usize, camera.pixels_num[0]));
+            const yi_min: usize = boundIndexMin(y_min);
+            const yi_max: usize = boundIndexMax(y_max, @as(usize, camera.pixels_num[1]));
 
             // print("Elem {}: xi, min {}\n", .{ ee, xi_min });
             // print("Elem {}: xi, max {}\n", .{ ee, xi_max });
@@ -193,21 +220,21 @@ pub const Raster = struct {
                     px_coord_buff.set(0, bound_coord_x);
                     px_coord_buff.set(1, bound_coord_y);
 
-                    weights_buff[0] = edge_fun3(nodes_raster_buff[1], nodes_raster_buff[2], px_coord_buff);
+                    weights_buff[0] = edgeFun3(nodes_raster_buff[1], nodes_raster_buff[2], px_coord_buff);
                     if (weights_buff[0] < -tol) {
                         bound_coord_x += coord_step;
                         bound_ind_x += 1;
                         continue;
                     }
 
-                    weights_buff[1] = edge_fun3(nodes_raster_buff[2], nodes_raster_buff[0], px_coord_buff);
+                    weights_buff[1] = edgeFun3(nodes_raster_buff[2], nodes_raster_buff[0], px_coord_buff);
                     if (weights_buff[1] < -tol) {
                         bound_coord_x += coord_step;
                         bound_ind_x += 1;
                         continue;
                     }
 
-                    weights_buff[2] = edge_fun3(nodes_raster_buff[0], nodes_raster_buff[1], px_coord_buff);
+                    weights_buff[2] = edgeFun3(nodes_raster_buff[0], nodes_raster_buff[1], px_coord_buff);
                     if (weights_buff[2] < -tol) {
                         bound_coord_x += coord_step;
                         bound_ind_x += 1;

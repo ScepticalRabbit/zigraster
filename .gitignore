@@ -1,3 +1,7 @@
+file-out/
+raster-out/
+
+# Zig ignores
 .zig-cache/
 zig-out/
 .vscode/
