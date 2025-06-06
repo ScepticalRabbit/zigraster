@@ -32,7 +32,7 @@ pub const Image = struct {
         };
     }
 
-    pub fn deinit(self: Self) void {
+    pub fn deinit(self: *const Self) void {
         self.allocator.free(self.buffer);
         self.allocator.free(self.depth);
     }
@@ -76,12 +76,11 @@ pub const Raster = struct {
     }
 
     pub fn averageImage(image_subpx: *const MatAlloc(f64), sub_samp: u8, image_avg: *MatAlloc(f64)) void {
-
-        const num_px_x: usize = (image_subpx.buffer.cols_n)/@as(usize,sub_samp);
-        const num_px_y: usize = (image_subpx.buffer.cols_n)/@as(usize,sub_samp);
-        const sub_samp_us: usize = @as(usize,sub_samp);
-        const sub_samp_f: f64 = @as(f64,@floatFromInt(sub_samp));
-        const subpx_per_px: f64 = sub_samp_f*sub_samp_f;
+        const num_px_x: usize = (image_subpx.cols_n) / @as(usize, sub_samp);
+        const num_px_y: usize = (image_subpx.rows_n) / @as(usize, sub_samp);
+        const sub_samp_us: usize = @as(usize, sub_samp);
+        const sub_samp_f: f64 = @as(f64, @floatFromInt(sub_samp));
+        const subpx_per_px: f64 = sub_samp_f * sub_samp_f;
 
         var px_sum: f64 = 0.0;
 
@@ -90,16 +89,17 @@ pub const Raster = struct {
                 px_sum = 0.0;
                 for (0..sub_samp_us) |sy| {
                     for (0..sub_samp_us) |sx| {
-                        px_sum += image_subpx.get(sub_samp_us*iy+sy,sub_samp_us*ix+sx);
+                        px_sum += image_subpx.get(sub_samp_us * iy + sy, sub_samp_us * ix + sx);
                     }
                 }
-                image_avg.set(iy,ix, px_sum/subpx_per_px);
+                image_avg.set(iy, ix, px_sum / subpx_per_px);
             }
         }
-
     }
 
     pub fn rasterFrame(allocator: std.mem.Allocator, frame_ind: usize, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera) !Image {
+        // _ = frame_ind;
+        // _ = field;
 
         const tol: f64 = 1e-12;
         var elems_in_image: usize = 0;
@@ -120,6 +120,8 @@ pub const Raster = struct {
         // var depth_buff_subpx = try MatAlloc(f64).init(allocator,subpx_y, subpx_x);
 
         var image_subpx = try Image.init(allocator, subpx_x, subpx_y);
+        image_subpx.buffer.fill(0.0);
+        image_subpx.depth.fill(1e6);
 
         var px_coord_buff: Vec3f = Vec3f.initZeros();
 
@@ -241,7 +243,7 @@ pub const Raster = struct {
                         continue;
                     }
 
-                    // if ((ee % 6) == 0){
+                    // if ((ee % 10) == 0){
                     //     print("Elem: {}\n",.{ee});
                     //     print("x bound ind={}, coord={d}\n",.{bound_ind_x,bound_coord_x});
                     //     print("y bound ind={}, coord={d}\n",.{bound_ind_y,bound_coord_y});
@@ -265,9 +267,9 @@ pub const Raster = struct {
                         continue;
                     }
 
-                    image_subpx.depth.set(bound_ind_y,bound_ind_x, px_coord_z);
+                    image_subpx.depth.set(bound_ind_y, bound_ind_x, px_coord_z);
 
-                    // if ((ee % 6) == 0) {
+                    // if ((ee % 10) == 0) {
                     //     print("Elem: {}\n", .{ee});
                     //     print("x bound ind={}, coord={d}\n", .{ bound_ind_x, bound_coord_x });
                     //     print("y bound ind={}, coord={d}\n", .{ bound_ind_y, bound_coord_y });
@@ -277,13 +279,19 @@ pub const Raster = struct {
                     // }
 
                     for (0..connect.nodes_per_elem) |nn| {
-                        field_raster_buff[nn] = field.data.get(coord_inds[nn],frame_ind);
+                        // print("nn={}\n",.{nn});
+                        // print("coord_inds[nn]={}\n",.{coord_inds[nn]});
+                        // print("field.data.rows_n={}\n",.{field.data.rows_n});
+                        // print("field.data.cols_n={}\n",.{field.data.cols_n});
+                        field_raster_buff[nn] = field.data.get(coord_inds[nn], frame_ind);
                     }
 
-                    var px_field: f64 = SliceTools.dot(f64,field_raster_buff,weights_buff);
-                    px_field = px_field*px_coord_z;
+                    var px_field: f64 = SliceTools.dot(f64, field_raster_buff, weights_buff);
+                    px_field = px_field * px_coord_z;
 
-                    image_subpx.buffer.set(bound_ind_y,bound_ind_x, px_field);
+                    //print("\nind_y={} , ind_x={}, px_field={}\n",.{bound_ind_y,bound_ind_x,px_field});
+
+                    image_subpx.buffer.set(bound_ind_y, bound_ind_x, px_field);
 
                     // End for(x) - increment the x coords
                     bound_coord_x += coord_step;
@@ -296,6 +304,14 @@ pub const Raster = struct {
             }
         }
 
-        return image_subpx;
+        var image = try Image.init(allocator, camera.pixels_num[0], camera.pixels_num[1]);
+
+        averageImage(&image_subpx.buffer, camera.sub_sample, &image.buffer);
+
+        // NOTE: only need to do this for debugging - this can be discarded here
+        averageImage(&image_subpx.depth, camera.sub_sample, &image.depth);
+
+        // NOTE: don't need to return depth buffer
+        return image;
     }
 };

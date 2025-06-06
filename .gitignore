@@ -1,6 +1,9 @@
 file-out/
 raster-out/
 
+# Python ignoes
+.venv/
+
 # Zig ignores
 .zig-cache/
 zig-out/

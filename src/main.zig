@@ -174,16 +174,38 @@ pub fn main() !void {
     print("connect.nodes_per_elem={any}\n",.{connect.nodes_per_elem});
     print("\n",.{});
 
-    const frame_ind: usize = field.coord_n - 1;
-
+    const frame_ind: usize = 1;
 
     time_start = try Instant.now();
-    const image_subpx = try Raster.raster_frame(arena_alloc, frame_ind,&coords, &connect, &field, &camera);
+    const image_subpx = try Raster.rasterFrame(arena_alloc, frame_ind,&coords, &connect, &field, &camera);
     time_end = try Instant.now();
     const time_raster: f64 = @floatFromInt(time_end.since(time_start));
     print("RASTER: time = {d:.3}ms\n\n", .{time_raster / time.ns_per_ms});
 
-    print("Image: pixels x={}\n",.{image_subpx.buffer.cols_n});
-    print("Image: pixels y={}\n",.{image_subpx.buffer.rows_n});
+    // Print diagnostics to console to see if there is an image
+    const image_max = std.mem.max(f64,image_subpx.buffer.elems);
+    const image_min = std.mem.min(f64,image_subpx.buffer.elems);
+    print("Image: [max, min] = [{}, {}]\n",.{image_max,image_min});
+    const depth_min = std.mem.min(f64,image_subpx.depth.elems);
+    print("Depth: min = {}\n\n",.{depth_min});
+
+    //--------------------------------------------------------------------------
+    // Save csv to file for analysis
+    const cwd = std.fs.cwd();
+
+    const dir_name = "raster-out";
+    const buffer_name = "image.csv";
+    const depth_name = "depth.csv";
+
+    cwd.makeDir(dir_name) catch |err| switch (err) {
+        error.PathAlreadyExists => {}, // Path exists do nothing
+        else => return err, // Propagate any other error
+    };
+
+    var out_dir = try cwd.openDir(dir_name, .{});
+    defer out_dir.close();
+
+    try image_subpx.buffer.saveCSV(out_dir, buffer_name);
+    try image_subpx.depth.saveCSV(out_dir, depth_name);
 
 }

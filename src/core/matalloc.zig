@@ -30,14 +30,15 @@ pub fn MatAlloc(comptime ElemType: type) type {
             };
         }
 
-        pub fn deinit(self: *Self) void {
+        pub fn deinit(self: *const Self) void {
             self.alloc.free(self.elems);
         }
 
         pub fn fill(self: *const Self, fill_val: ElemType) void {
-            for (0..self.elems.len) |ii| {
-                self.elems[ii] = fill_val;
-            }
+            @memset(self.elems[0..],fill_val);
+            // for (0..self.elems.len) |ii| {
+            //     self.elems[ii] = fill_val;
+            // }
         }
 
         pub fn fillDiag(self: *const Self, fill_val: ElemType, diag_val: ElemType) void {
@@ -180,9 +181,22 @@ pub fn MatAlloc(comptime ElemType: type) type {
             print("\n", .{});
         }
 
-        // pub fn saveCSV(self: *const Self, path: []const u8) void {
+        pub fn saveCSV(self: *const Self, out_dir: std.fs.Dir, file_name: []const u8) !void {
 
-        // }
+            const csv = try out_dir.createFile(file_name,.{});
+            defer csv.close();
+
+            var buff: [1024]u8 = undefined;
+            @memset(buff[0..], 0);
+
+            for (0..self.rows_n) |rr| {
+                for (0..self.cols_n) |cc| {
+                    const str = try std.fmt.bufPrint(&buff, "{},", .{self.get(rr,cc)});
+                    _ = try csv.write(str);
+                }
+                _ = try csv.write("\n");
+            }
+        }
 
     };
 }
