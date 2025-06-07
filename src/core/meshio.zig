@@ -55,6 +55,10 @@ pub const Connect = struct {
     }
 };
 
+// TODO:
+// - Need to have this store frames with all components
+// - Maybe we use an array list of MatAlloc?
+
 pub const Field = struct {
     coord_n: usize,
     time_n: usize,

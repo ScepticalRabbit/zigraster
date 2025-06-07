@@ -55,7 +55,7 @@ pub fn main() !void {
     //--------------------------------------------------------------------------
     // MEMORY ALLOCATORS
     const page_alloc = std.heap.page_allocator;
-    //var page_alloc = std.heap.PageAllocator(std.heap.page_allocator);
+
     var arena = std.heap.ArenaAllocator.init(page_alloc);
     defer arena.deinit();
 

@@ -307,7 +307,6 @@ pub const Raster = struct {
         var image = try Image.init(allocator, camera.pixels_num[0], camera.pixels_num[1]);
 
         averageImage(&image_subpx.buffer, camera.sub_sample, &image.buffer);
-
         // NOTE: only need to do this for debugging - this can be discarded here
         averageImage(&image_subpx.depth, camera.sub_sample, &image.depth);
 
