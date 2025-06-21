@@ -118,169 +118,10 @@ pub fn VecSlice(comptime ElemType: type) type {
     };
 }
 
-pub fn VecSliceOps(comptime ElemType: type) type {
-    return struct {
-        pub fn add(vec0: []const ElemType, vec1: []const ElemType, vec_out: []ElemType) !void{
-            assert(vec0.len == vec1.len);
-            assert(vec0.len == vec_out.len);
-
-            for (0..vec0.len) |ii| {
-                vec_out[ii] = vec0[ii] + vec1[ii];
-            }
-        }
-
-        pub fn sub(vec0: []const ElemType, vec1: []const ElemType, vec_out: []ElemType) !void{
-            assert(vec0.len == vec1.len);
-            assert(vec0.len == vec_out.len);
-
-            for (0..vec0.len) |ii| {
-                vec_out[ii] = vec0[ii] - vec1[ii];
-            }
-        }
-
-        pub fn mul(vec0: []const ElemType, vec1: []const ElemType, vec_out: []ElemType) !void{
-            assert(vec0.len == vec1.len);
-            assert(vec0.len == vec_out.len);
-
-            for (0..vec0.len) |ii| {
-                vec_out[ii] = vec0[ii] * vec1[ii];
-            }
-        }
 
 
-        pub fn div(vec0: []const ElemType, vec1: []const ElemType, vec_out: []ElemType) !void{
-            assert(vec0.len == vec1.len);
 
-            for (0..vec0.len) |ii| {
-                vec_out[ii] = vec0[ii] / vec1[ii];
-            }
-        }
-
-        pub fn mulScalar(vec0: []const ElemType, scalar: ElemType, vec_out: []ElemType) !void{
-            assert(vec0.len == vec_out.len);
-
-            for (0..vec0.len) |ii| {
-                vec_out[ii] = scalar*vec0[ii];
-            }
-        }
-    };
-}
-
-
-// test "VecSliceOps.add" {
-//     const vec_len: usize = 10;
-
-//     const vec0 = try VecSlice(TestType).init(testing.allocator,vec_len);
-//     defer vec0.deinit();
-
-//     const vec1 = try VecSlice(TestType).init(testing.allocator,vec_len);
-//     defer vec1.deinit();
-
-//     const vec_exp = try VecSlice(TestType).init(testing.allocator,vec_len);
-//     defer vec_exp.deinit();
-
-//     vec0.fill(1.0);
-//     vec1.fill(1.0);
-//     vec_exp.fill(2.0);
-//     const VecOps = VecSliceOps(TestType);
-
-//     const vec_add = try VecOps.add(testing.allocator, &vec0, &vec1);
-//     defer vec_add.deinit();
-
-//     try expectEqualSlices(TestType, vec_exp.elems, vec_add.elems);
-// }
-
-// test "VecSliceOps.sub" {
-//     const vec_len: usize = 10;
-
-//     const vec0 = try VecSlice(TestType).init(testing.allocator,vec_len);
-//     defer vec0.deinit();
-
-//     const vec1 = try VecSlice(TestType).init(testing.allocator,vec_len);
-//     defer vec1.deinit();
-
-//     const vec_exp = try VecSlice(TestType).init(testing.allocator,vec_len);
-//     defer vec_exp.deinit();
-
-//     vec0.fill(1.0);
-//     vec1.fill(1.0);
-//     vec_exp.fill(0.0);
-//     const VecOps = VecSliceOps(TestType);
-
-//     const vec_add = try VecOps.sub(testing.allocator, &vec0, &vec1);
-//     defer vec_add.deinit();
-
-//     try expectEqualSlices(TestType, vec_exp.elems, vec_add.elems);
-// }
-
-// test "VecSliceOps.mul" {
-//     const vec_len: usize = 10;
-
-//     const vec0 = try VecSlice(TestType).init(testing.allocator,vec_len);
-//     defer vec0.deinit();
-
-//     const vec1 = try VecSlice(TestType).init(testing.allocator,vec_len);
-//     defer vec1.deinit();
-
-//     const vec_exp = try VecSlice(TestType).init(testing.allocator,vec_len);
-//     defer vec_exp.deinit();
-
-//     vec0.fill(1.0);
-//     vec1.fill(1.0);
-//     vec_exp.fill(1.0);
-//     const VecOps = VecSliceOps(TestType);
-
-//     const vec_add = try VecOps.mul(testing.allocator, &vec0, &vec1);
-//     defer vec_add.deinit();
-
-//     try expectEqualSlices(TestType, vec_exp.elems, vec_add.elems);
-// }
-
-// test "VecSliceOps.div" {
-//     const vec_len: usize = 10;
-
-//     const vec0 = try VecSlice(TestType).init(testing.allocator,vec_len);
-//     defer vec0.deinit();
-
-//     const vec1 = try VecSlice(TestType).init(testing.allocator,vec_len);
-//     defer vec1.deinit();
-
-//     const vec_exp = try VecSlice(TestType).init(testing.allocator,vec_len);
-//     defer vec_exp.deinit();
-
-//     vec0.fill(1.0);
-//     vec1.fill(1.0);
-//     vec_exp.fill(1.0);
-//     const VecOps = VecSliceOps(TestType);
-
-//     const vec_add = try VecOps.div(testing.allocator, &vec0, &vec1);
-//     defer vec_add.deinit();
-
-//     try expectEqualSlices(TestType, vec_exp.elems, vec_add.elems);
-// }
-
-test "VecSliceOps.mulScalar" {
-    const vec_len: usize = 10;
-
-    var v0 = [_]f64{0.0} ** vec_len;
-    const vec0 = VecSlice(TestType).init(v0[0..]);
-
-    var ve = [_]f64{0.0} ** vec_len;
-    const vec_exp = VecSlice(TestType).init(ve[0..]);
-
-    vec0.fill(1.0);
-    vec_exp.fill(2.0);
-
-    const scalar: TestType = 2.0;
-    const VecOps = VecSliceOps(TestType);
-
-    const vec_add = try VecOps.mulScalar(testing.allocator, &vec0, scalar);
-    defer vec_add.deinit();
-
-    try expectEqualSlices(TestType, vec_exp.elems, vec_add.elems);
-}
-
-test "VecSliceOps.addInPlace" {
+test "VecSlice.addInPlace" {
     const vec_len: usize = 10;
 
     var v0 = [_]f64{0.0} ** vec_len;
@@ -301,7 +142,7 @@ test "VecSliceOps.addInPlace" {
     try expectEqualSlices(TestType, vec_exp.elems, vec0.elems);
 }
 
-test "VecSliceOps.subInPlace" {
+test "VecSlice.subInPlace" {
     const vec_len: usize = 10;
 
     var v0 = [_]f64{0.0} ** vec_len;
@@ -322,7 +163,7 @@ test "VecSliceOps.subInPlace" {
     try expectEqualSlices(TestType, vec_exp.elems, vec0.elems);
 }
 
-test "VecSliceOps.mulInPlace" {
+test "VecSlice.mulInPlace" {
     const vec_len: usize = 10;
 
     var v0 = [_]f64{0.0} ** vec_len;
@@ -343,7 +184,7 @@ test "VecSliceOps.mulInPlace" {
     try expectEqualSlices(TestType, vec_exp.elems, vec0.elems);
 }
 
-test "VecSliceOps.divInPlace" {
+test "VecSlice.divInPlace" {
     const vec_len: usize = 10;
 
     var v0 = [_]f64{0.0} ** vec_len;
@@ -364,7 +205,7 @@ test "VecSliceOps.divInPlace" {
     try expectEqualSlices(TestType, vec_exp.elems, vec0.elems);
 }
 
-test "VecSliceOps.mulScalarInPlace" {
+test "VecSlice.mulScalarInPlace" {
     const vec_len: usize = 10;
 
     var v0 = [_]f64{0.0} ** vec_len;
@@ -383,7 +224,7 @@ test "VecSliceOps.mulScalarInPlace" {
     try expectEqualSlices(TestType, vec_exp.elems, vec0.elems);
 }
 
-test "VecSliceOps.max" {
+test "VecSlice.max" {
     var v0 = [_]f64{0.0} ** 10;
     const vec0 = VecSlice(TestType).init(v0[0..]);
 
@@ -401,7 +242,7 @@ test "VecSliceOps.max" {
     try expectEqual(exp_val_ind, vec0.max());
 }
 
-test "VecSliceOps.min" {
+test "VecSlice.min" {
     var v0 = [_]f64{0.0} ** 10;
     const vec0 = VecSlice(TestType).init(v0[0..]);
 
@@ -419,7 +260,7 @@ test "VecSliceOps.min" {
     try expectEqual(exp_val_ind, vec0.min());
 }
 
-test "VecSliceOps.sum" {
+test "VecSlice.sum" {
     var v0 = [_]f64{0.0} ** 12;
     const vec0 = VecSlice(TestType).init(v0[0..]);
 
@@ -431,7 +272,7 @@ test "VecSliceOps.sum" {
     try expectEqual(exp_val, vec0.sum());
 }
 
-test "VecSliceOps.mean" {
+test "VecSlice.mean" {
     var v0 = [_]f64{0.0} ** 10;
     const vec0 = VecSlice(TestType).init(v0[0..]);
 
@@ -444,7 +285,7 @@ test "VecSliceOps.mean" {
     try expectEqual(exp_val, vec0.mean());
 }
 
-test "VecSliceOps.apply" {
+test "VecSlice.apply" {
     const vec_len: usize = 7;
 
     var v0 = [_]f64{0.0} ** vec_len;

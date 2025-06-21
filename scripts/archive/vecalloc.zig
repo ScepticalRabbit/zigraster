@@ -31,9 +31,7 @@ pub fn VecAlloc(comptime ElemType: type) type {
         }
 
         pub fn fill(self: *const Self, fill_val: ElemType) void {
-            for (0..self.elems.len) |ii| {
-                self.elems[ii] = fill_val;
-            }
+            @memset(self.elems,fill_val);
         }
 
         pub fn get(self: *const Self, ind: usize) ElemType {

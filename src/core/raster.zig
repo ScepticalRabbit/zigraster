@@ -6,7 +6,7 @@ const Vec3SliceOps = @import("vecstack.zig").Vec3SliceOps;
 
 const Mat44Ops = @import("matstack.zig").Mat44Ops;
 
-const VecAlloc = @import("vecalloc.zig").VecAlloc;
+const VecSlice = @import("vecslice.zig").VecSlice;
 const MatAlloc = @import("matalloc.zig").MatAlloc;
 
 const SliceOps = @import("sliceops.zig");

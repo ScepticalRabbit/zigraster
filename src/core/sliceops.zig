@@ -1,7 +1,11 @@
 const std = @import("std");
 const print = std.debug.print;
+
+const testing = std.testing;
 const assert = std.debug.assert;
-const expectEqual = std.testing.expectEqual;
+const expectEqual = testing.expectEqual;
+const expectApproxEqAbs = testing.expectApproxEqAbs;
+const expectEqualSlices = testing.expectEqualSlices;
 
 pub fn ValInd(ValType: type) type {
     return struct {
@@ -72,7 +76,7 @@ pub fn apply(comptime EType: type, dest: []EType, source: []const EType, func: *
     }
 }
 
-pub fn range_len(start: f64, stop: f64, step: f64) usize {
+pub fn rangeLen(start: f64, stop: f64, step: f64) usize {
     const range: f64 = @ceil((stop - start) / step);
     const range_length: usize = @as(usize, @intFromFloat(range));
     return range_length;
@@ -88,9 +92,152 @@ pub fn dot(comptime EType: type, slice0: []const EType, slice1: []const EType) E
     return dot_prod;
 }
 
+pub fn norm(comptime EType: type, vec: []const EType) EType {
+    var norm_out: EType = 0;
 
+    for (0..vec.len) |ii|{
+        norm_out += vec[ii] * vec[ii];
+    }
+
+    return norm_out;
+}
+
+pub fn vecLen(comptime EType: type, vec: []const EType) EType {
+    return @sqrt(norm(EType,vec));
+}
+
+pub fn add(comptime EType: type, vec0: []const EType, vec1: []const EType, vec_out: []EType) !void{
+    assert(vec0.len == vec1.len);
+    assert(vec0.len == vec_out.len);
+
+    for (0..vec0.len) |ii| {
+        vec_out[ii] = vec0[ii] + vec1[ii];
+    }
+}
+
+pub fn sub(comptime EType: type, vec0: []const EType, vec1: []const EType, vec_out: []EType) !void{
+    assert(vec0.len == vec1.len);
+    assert(vec0.len == vec_out.len);
+
+    for (0..vec0.len) |ii| {
+        vec_out[ii] = vec0[ii] - vec1[ii];
+    }
+}
+
+pub fn mul(comptime EType: type, vec0: []const EType, vec1: []const EType, vec_out: []EType) !void{
+    assert(vec0.len == vec1.len);
+    assert(vec0.len == vec_out.len);
+
+    for (0..vec0.len) |ii| {
+        vec_out[ii] = vec0[ii] * vec1[ii];
+    }
+}
+
+
+pub fn div(comptime EType: type, vec0: []const EType, vec1: []const EType, vec_out: []EType) !void{
+    assert(vec0.len == vec1.len);
+
+    for (0..vec0.len) |ii| {
+        vec_out[ii] = vec0[ii] / vec1[ii];
+    }
+}
+
+pub fn mulScalar(comptime EType: type, vec0: []const EType, scalar: EType, vec_out: []EType) !void{
+    assert(vec0.len == vec_out.len);
+
+    for (0..vec0.len) |ii| {
+        vec_out[ii] = scalar*vec0[ii];
+    }
+}
+
+pub fn slicePrint(comptime EType: type, slice: []const EType) void {
+    print("[", .{});
+    for (0..slice.len) |ii| {
+        print("{},", .{slice[ii]});
+    }
+    print("]\n", .{});
+}
+
+
+// TODO: add tests for
+// - norm
+// - vecLen
 
 const TestType = f64;
+
+test "slice.add" {
+    const vec_len: usize = 10;
+
+    var vec0 = [_]f64{1.0} ** vec_len;
+    var vec1 = [_]f64{1.0} ** vec_len;
+    var vec_exp = [_]f64{2.0} ** vec_len;
+
+    var vec_op = [_]f64{0.0} ** vec_len;
+
+    try add(TestType,vec0[0..], vec1[0..], vec_op[0..]);
+
+    try expectEqualSlices(TestType, vec_exp[0..], vec_op[0..]);
+
+}
+
+test "slice.sub" {
+    const vec_len: usize = 10;
+
+    var vec0 = [_]f64{1.0} ** vec_len;
+    var vec1 = [_]f64{1.0} ** vec_len;
+    var vec_exp = [_]f64{0.0} ** vec_len;
+
+    var vec_op = [_]f64{-1.0} ** vec_len;
+
+    try sub(TestType,vec0[0..], vec1[0..], vec_op[0..]);
+
+    try expectEqualSlices(TestType, vec_exp[0..], vec_op[0..]);
+
+}
+
+test "slice.mul" {
+    const vec_len: usize = 10;
+
+    var vec0 = [_]f64{1.0} ** vec_len;
+    var vec1 = [_]f64{1.0} ** vec_len;
+    var vec_exp = [_]f64{1.0} ** vec_len;
+
+    var vec_op = [_]f64{0.0} ** vec_len;
+
+    try mul(TestType,vec0[0..], vec1[0..], vec_op[0..]);
+
+    try expectEqualSlices(TestType, vec_exp[0..], vec_op[0..]);
+
+}
+
+test "slice.div" {
+    const vec_len: usize = 10;
+
+    var vec0 = [_]f64{1.0} ** vec_len;
+    var vec1 = [_]f64{1.0} ** vec_len;
+    var vec_exp = [_]f64{1.0} ** vec_len;
+
+    var vec_op = [_]f64{0.0} ** vec_len;
+
+    try div(TestType,vec0[0..], vec1[0..], vec_op[0..]);
+
+    try expectEqualSlices(TestType, vec_exp[0..], vec_op[0..]);
+}
+
+test "slice.mulScalar" {
+    const vec_len: usize = 10;
+
+    var vec0 = [_]f64{1.0} ** vec_len;
+    var vec_exp = [_]f64{2.0} ** vec_len;
+    const scalar: TestType = 2.0;
+
+    var vec_op = [_]f64{0.0} ** vec_len;
+
+    try mulScalar(TestType,vec0[0..],scalar,vec_op[0..]);
+
+    try expectEqualSlices(TestType, vec_exp[0..], vec_op[0..]);
+}
+
 
 test "slice.apply" {
     const arr_ones = [_]TestType{1} ** 7;
