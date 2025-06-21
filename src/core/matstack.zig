@@ -14,7 +14,7 @@ pub const Mat22f = Mat22T(f64);
 pub const Mat33f = Mat33T(f64);
 pub const Mat44f = Mat44T(f64);
 
-pub fn Matrix(comptime rows_n: comptime_int, comptime cols_n: comptime_int, comptime ElemType: type) type {
+pub fn MatStack(comptime rows_n: comptime_int, comptime cols_n: comptime_int, comptime ElemType: type) type {
     return struct {
         elems: [elem_n]ElemType,
 
@@ -84,9 +84,9 @@ pub fn Matrix(comptime rows_n: comptime_int, comptime cols_n: comptime_int, comp
             return vec;
         }
 
-        pub fn getSubMat(self: *const Self, row_start: usize, col_start: usize, comptime rows: usize, comptime cols: usize) Matrix(rows, cols, ElemType) {
+        pub fn getSubMat(self: *const Self, row_start: usize, col_start: usize, comptime rows: usize, comptime cols: usize) MatStack(rows, cols, ElemType) {
             // TODO: make this bounds check?
-            var sub_mat = Matrix(rows, cols, ElemType).initZeros();
+            var sub_mat = MatStack(rows, cols, ElemType).initZeros();
 
             const row_end: usize = row_start + rows;
             const col_end: usize = col_start + cols;
@@ -111,7 +111,7 @@ pub fn Matrix(comptime rows_n: comptime_int, comptime cols_n: comptime_int, comp
             }
         }
 
-        pub fn insertSubMat(self: *Self, row_start: usize, col_start: usize, comptime mat_rows: usize, comptime mat_cols: usize, mat: Matrix(mat_rows, mat_rows, ElemType)) void {
+        pub fn insertSubMat(self: *Self, row_start: usize, col_start: usize, comptime mat_rows: usize, comptime mat_cols: usize, mat: MatStack(mat_rows, mat_rows, ElemType)) void {
             for (0..mat_rows) |rr| {
                 for (0..mat_cols) |cc| {
                     self.set(rr + row_start, cc + col_start, mat.get(rr, cc));
@@ -228,15 +228,15 @@ pub fn Matrix(comptime rows_n: comptime_int, comptime cols_n: comptime_int, comp
 }
 
 pub fn Mat22T(comptime ElemType: type) type {
-    return Matrix(2, 2, ElemType);
+    return MatStack(2, 2, ElemType);
 }
 
 pub fn Mat33T(comptime ElemType: type) type {
-    return Matrix(3, 3, ElemType);
+    return MatStack(3, 3, ElemType);
 }
 
 pub fn Mat44T(comptime ElemType: type) type {
-    return Matrix(4, 4, ElemType);
+    return MatStack(4, 4, ElemType);
 }
 
 pub const Mat22Ops = struct {

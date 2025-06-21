@@ -14,7 +14,7 @@ pub const Vec3f = Vec3T(EType);
 // TODO:
 // - Tests for VecSliceOps
 
-pub fn Vector(comptime elem_n: comptime_int, comptime ElemType: type) type {
+pub fn VecStack(comptime elem_n: comptime_int, comptime ElemType: type) type {
     return struct {
         elems: [elem_n]ElemType,
 
@@ -123,11 +123,11 @@ pub fn Vector(comptime elem_n: comptime_int, comptime ElemType: type) type {
 }
 
 pub fn Vec2T(comptime ElemType: type) type {
-    return Vector(2, ElemType);
+    return VecStack(2, ElemType);
 }
 
 pub fn Vec3T(comptime ElemType: type) type {
-    return Vector(3, ElemType);
+    return VecStack(3, ElemType);
 }
 
 pub fn initVec2(comptime ElemType: type, x: ElemType, y: ElemType) Vec3T(ElemType) {
@@ -206,16 +206,16 @@ test "VecSliceOps.max" {
 
 test "Vec.apply" {
     const vec_len: usize = 7;
-    const vec0 = Vector(vec_len,EType).initOnes();
+    const vec0 = VecStack(vec_len,EType).initOnes();
 
-    const vec_exp_ones = Vector(vec_len,EType).initOnes();
-    const vec_exp_zeros = Vector(vec_len,EType).initZeros();
+    const vec_exp_ones = VecStack(vec_len,EType).initOnes();
+    const vec_exp_zeros = VecStack(vec_len,EType).initZeros();
 
     const vec_sqrt = vec0.apply(std.math.sqrt);
 
     try expectEqualSlices(EType, &vec_exp_ones.elems, &vec_sqrt.elems);
 
-    const vec1 = Vector(vec_len,EType).initZeros();
+    const vec1 = VecStack(vec_len,EType).initZeros();
     const vec_atan = vec1.apply(std.math.atan);
 
     try expectEqualSlices(EType, &vec_exp_zeros.elems, &vec_atan.elems);
@@ -227,7 +227,7 @@ test "Vec.apply" {
 
 test "Vec.max" {
     const v0 = [_]EType{ 1, 3, 6, 7, 8, 1, -2, -3, 0, 5 };
-    const vec0 = Vector(v0.len, EType).initSlice(&v0);
+    const vec0 = VecStack(v0.len, EType).initSlice(&v0);
 
     const exp_val = ValInd(EType){
         .val = 8,
@@ -239,7 +239,7 @@ test "Vec.max" {
 
 test "Vec.min" {
     const v0 = [_]EType{ 1, 3, 6, 7, 8, 1, -2, -3, 0, 5 };
-    const vec0 = Vector(v0.len, EType).initSlice(&v0);
+    const vec0 = VecStack(v0.len, EType).initSlice(&v0);
 
     const exp_val = ValInd(EType){
         .val = -3,
@@ -251,7 +251,7 @@ test "Vec.min" {
 
 test "Vec.sum" {
     const v0 = [_]EType{ 1, 3, 6, 7, 8, 1, -2, -3, 0, 5 };
-    const vec0 = Vector(v0.len, EType).initSlice(&v0);
+    const vec0 = VecStack(v0.len, EType).initSlice(&v0);
 
     const exp_val: EType = 26;
 
@@ -260,7 +260,7 @@ test "Vec.sum" {
 
 test "Vec.mean" {
     const v0 = [_]EType{ 1, 3, 6, 7, 8, 1, -2, -3, 0, 5 };
-    const vec0 = Vector(v0.len, EType).initSlice(&v0);
+    const vec0 = VecStack(v0.len, EType).initSlice(&v0);
 
     const exp_val: EType = 2.6;
 
