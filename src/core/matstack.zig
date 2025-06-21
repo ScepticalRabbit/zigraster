@@ -2,12 +2,12 @@ const std = @import("std");
 const print = std.debug.print;
 const expectEqual = std.testing.expectEqual;
 
-const vector = @import("vector.zig");
-const Vector = vector.Vector;
-const Vec2T = vector.Vec2T;
-const Vec3T = vector.Vec3T;
-const Vec2f = vector.Vec2f;
-const Vec3f = vector.Vec3f;
+const vecstack = @import("vecstack.zig");
+const VecStack = vecstack.VecStack;
+const Vec2T = vecstack.Vec2T;
+const Vec3T = vecstack.Vec3T;
+const Vec2f = vecstack.Vec2f;
+const Vec3f = vecstack.Vec3f;
 
 const TestType = f64;
 pub const Mat22f = Mat22T(f64);
@@ -65,22 +65,22 @@ pub fn MatStack(comptime rows_n: comptime_int, comptime cols_n: comptime_int, co
             self.elems[(row * cols_n) + col] = val;
         }
 
-        pub fn getRowVec(self: *const Self, row: usize) Vector(cols_n, ElemType) {
+        pub fn getRowVec(self: *const Self, row: usize) VecStack(cols_n, ElemType) {
             // TODO: make this bounds check?
             const start: usize = row * cols_n;
             const end: usize = start + cols_n;
             const row_slice: []const ElemType = self.elems[start..end];
-            const vec = Vector(cols_n, ElemType).initSlice(row_slice);
+            const vec = VecStack(cols_n, ElemType).initSlice(row_slice);
             return vec;
         }
 
-        pub fn getColVec(self: *const Self, col: usize) Vector(rows_n, ElemType) {
+        pub fn getColVec(self: *const Self, col: usize) VecStack(rows_n, ElemType) {
             // TODO: make this bounds check?
             var col_vec: [rows_n]ElemType = undefined;
             for (0..rows_n) |rr| {
                 col_vec[rr] = self.get(rr, col);
             }
-            const vec = Vector(rows_n, ElemType).initSlice(&col_vec);
+            const vec = VecStack(rows_n, ElemType).initSlice(&col_vec);
             return vec;
         }
 
@@ -99,13 +99,13 @@ pub fn MatStack(comptime rows_n: comptime_int, comptime cols_n: comptime_int, co
             return sub_mat;
         }
 
-        pub fn insertRowVec(self: *Self, row: usize, col_start: usize, comptime vec_len: usize, vec: Vector(vec_len, ElemType)) void {
+        pub fn insertRowVec(self: *Self, row: usize, col_start: usize, comptime vec_len: usize, vec: VecStack(vec_len, ElemType)) void {
             for (0..vec_len) |cc| {
                 self.set(row, cc + col_start, vec.get(cc));
             }
         }
 
-        pub fn insertColVec(self: *Self, col: usize, row_start: usize, comptime vec_len: usize, vec: Vector(vec_len, ElemType)) void {
+        pub fn insertColVec(self: *Self, col: usize, row_start: usize, comptime vec_len: usize, vec: VecStack(vec_len, ElemType)) void {
             for (0..vec_len) |rr| {
                 self.set(rr + row_start, col, vec.get(rr));
             }
@@ -178,8 +178,8 @@ pub fn MatStack(comptime rows_n: comptime_int, comptime cols_n: comptime_int, co
             return mat_out;
         }
 
-        pub fn mulVec(self: *const Self, vec: Vector(cols_n, ElemType)) Vector(cols_n, ElemType) {
-            var vec_out: Vector(rows_n, ElemType) = undefined;
+        pub fn mulVec(self: *const Self, vec: VecStack(cols_n, ElemType)) VecStack(cols_n, ElemType) {
+            var vec_out: VecStack(rows_n, ElemType) = undefined;
             var sum: ElemType = 0;
 
             for (0..rows_n) |rr| {

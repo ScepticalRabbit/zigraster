@@ -1,6 +1,6 @@
 const std = @import("std");
 const print = std.debug.print;
-const Vec3f = @import("vector.zig").Vec3f;
+const Vec3f = @import("vecstack.zig").Vec3f;
 const slice = @import("sliceops.zig");
 
 const MatAlloc = @import("matalloc.zig").MatAlloc;

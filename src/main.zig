@@ -8,13 +8,13 @@ const meshio = @import("core/meshio.zig");
 const Coords = meshio.Coords;
 const Connect = meshio.Connect;
 const Field = meshio.Field;
-const vector = @import("core/vector.zig");
-const matrix = @import("core/matrix.zig");
+const VecStack = @import("core/vecstack.zig");
+const MatStack = @import("core/matstack.zig");
 
 const Rotation = @import("core/rotation.zig").Rotation;
-const Vec3f = vector.Vec3f;
-const Mat44f = matrix.Mat44f;
-const Mat44Ops = matrix.Mat44Ops;
+const Vec3f = VecStack.Vec3f;
+const Mat44f = MatStack.Mat44f;
+const Mat44Ops = MatStack.Mat44Ops;
 
 const Camera = @import("core/camera.zig").Camera;
 const CameraOps = @import("core/camera.zig").CameraOps;
