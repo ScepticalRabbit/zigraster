@@ -1,7 +1,7 @@
 file-out/
 raster-out/
 
-# Python ignoes
+# Python ignores
 .venv/
 
 # Zig ignores

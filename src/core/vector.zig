@@ -4,8 +4,8 @@ const assert = std.debug.assert;
 const expectEqual = std.testing.expectEqual;
 const expectEqualSlices = std.testing.expectEqualSlices;
 
-const slice = @import("slicetools.zig");
-const ValInd = slice.ValInd;
+const SliceOps = @import("sliceops.zig");
+const ValInd = SliceOps.ValInd;
 
 const EType = f64;
 pub const Vec2f = Vec2T(EType);
@@ -15,7 +15,7 @@ pub const Vec3f = Vec3T(EType);
 // - Tests for VecSliceOps
 
 pub fn Vector(comptime elem_n: comptime_int, comptime ElemType: type) type {
-    return extern struct {
+    return struct {
         elems: [elem_n]ElemType,
 
         const Self: type = @This();
@@ -89,19 +89,19 @@ pub fn Vector(comptime elem_n: comptime_int, comptime ElemType: type) type {
         }
 
         pub fn max(self: *const Self) ValInd(ElemType) {
-            return slice.max(ElemType, &self.elems);
+            return SliceOps.max(ElemType, &self.elems);
         }
 
         pub fn min(self: *const Self) ValInd(ElemType) {
-            return slice.min(ElemType, &self.elems);
+            return SliceOps.min(ElemType, &self.elems);
         }
 
         pub fn sum(self: *const Self) ElemType {
-            return slice.sum(ElemType, &self.elems);
+            return SliceOps.sum(ElemType, &self.elems);
         }
 
         pub fn mean(self: *const Self) ElemType {
-            return slice.mean(ElemType, &self.elems);
+            return SliceOps.mean(ElemType, &self.elems);
         }
 
         pub fn apply(self: *const Self, func: *const fn(val: anytype) ElemType) Self {
@@ -220,7 +220,7 @@ test "Vec.apply" {
 
     try expectEqualSlices(EType, &vec_exp_zeros.elems, &vec_atan.elems);
 
-    const vec_e = vec1.apply(slice.exp);
+    const vec_e = vec1.apply(SliceOps.exp);
 
     try expectEqualSlices(EType, &vec_exp_ones.elems, &vec_e.elems);
 }

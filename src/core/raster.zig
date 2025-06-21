@@ -9,7 +9,7 @@ const Mat44Ops = @import("matrix.zig").Mat44Ops;
 const VecAlloc = @import("vecalloc.zig").VecAlloc;
 const MatAlloc = @import("matalloc.zig").MatAlloc;
 
-const SliceTools = @import("slicetools.zig");
+const SliceOps = @import("sliceops.zig");
 
 const Coords = @import("meshio.zig").Coords;
 const Connect = @import("meshio.zig").Connect;
@@ -17,7 +17,7 @@ const Field = @import("meshio.zig").Field;
 
 const Camera = @import("camera.zig").Camera;
 
-pub const Image = struct {
+pub const ImageAlloc = struct {
     allocator: std.mem.Allocator,
     buffer: MatAlloc(f64),
     depth: MatAlloc(f64),
@@ -97,7 +97,7 @@ pub const Raster = struct {
         }
     }
 
-    pub fn rasterFrame(allocator: std.mem.Allocator, frame_ind: usize, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera) !Image {
+    pub fn rasterFrame(allocator: std.mem.Allocator, frame_ind: usize, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera) !ImageAlloc {
         // _ = frame_ind;
         // _ = field;
 
@@ -119,7 +119,7 @@ pub const Raster = struct {
         // var image_buff_subpx = try MatAlloc(f64).init(allocator,subpx_y,subpx_x);
         // var depth_buff_subpx = try MatAlloc(f64).init(allocator,subpx_y, subpx_x);
 
-        var image_subpx = try Image.init(allocator, subpx_x, subpx_y);
+        var image_subpx = try ImageAlloc.init(allocator, subpx_x, subpx_y);
         image_subpx.buffer.fill(0.0);
         image_subpx.depth.fill(1e6);
 
@@ -193,8 +193,8 @@ pub const Raster = struct {
             var bound_ind_x: usize = @as(usize, camera.sub_sample) * xi_min;
             var bound_ind_y: usize = @as(usize, camera.sub_sample) * yi_min;
 
-            const num_bound_x: usize = SliceTools.range_len(xi_min_f, xi_max_f, coord_step);
-            const num_bound_y: usize = SliceTools.range_len(yi_min_f, yi_max_f, coord_step);
+            const num_bound_x: usize = SliceOps.range_len(xi_min_f, xi_max_f, coord_step);
+            const num_bound_y: usize = SliceOps.range_len(yi_min_f, yi_max_f, coord_step);
 
             var inv_buff: f64 = 0.0;
             for (0..connect.nodes_per_elem) |nn| {
@@ -286,7 +286,7 @@ pub const Raster = struct {
                         field_raster_buff[nn] = field.data.get(coord_inds[nn], frame_ind);
                     }
 
-                    var px_field: f64 = SliceTools.dot(f64, field_raster_buff, weights_buff);
+                    var px_field: f64 = SliceOps.dot(f64, field_raster_buff, weights_buff);
                     px_field = px_field * px_coord_z;
 
                     //print("\nind_y={} , ind_x={}, px_field={}\n",.{bound_ind_y,bound_ind_x,px_field});
@@ -304,7 +304,7 @@ pub const Raster = struct {
             }
         }
 
-        var image = try Image.init(allocator, camera.pixels_num[0], camera.pixels_num[1]);
+        var image = try ImageAlloc.init(allocator, camera.pixels_num[0], camera.pixels_num[1]);
 
         averageImage(&image_subpx.buffer, camera.sub_sample, &image.buffer);
         // NOTE: only need to do this for debugging - this can be discarded here

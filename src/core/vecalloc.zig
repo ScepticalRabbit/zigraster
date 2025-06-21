@@ -7,8 +7,8 @@ const expectEqual = std.testing.expectEqual;
 const expectApproxEqAbs = testing.expectApproxEqAbs;
 const expectEqualSlices = testing.expectEqualSlices;
 
-const slice = @import("slicetools.zig");
-const ValInd = slice.ValInd;
+const SliceOps = @import("sliceops.zig");
+const ValInd = SliceOps.ValInd;
 
 const EType = f64;
 
@@ -101,19 +101,19 @@ pub fn VecAlloc(comptime ElemType: type) type {
         }
 
         pub fn max(self: *const Self) ValInd(ElemType) {
-            return slice.max(ElemType, self.elems);
+            return SliceOps.max(ElemType, self.elems);
         }
 
         pub fn min(self: *const Self) ValInd(ElemType) {
-            return slice.min(ElemType, self.elems);
+            return SliceOps.min(ElemType, self.elems);
         }
 
         pub fn sum(self: *const Self) ElemType {
-            return slice.sum(ElemType, self.elems);
+            return SliceOps.sum(ElemType, self.elems);
         }
 
         pub fn mean(self: *const Self) ElemType {
-            return slice.mean(ElemType, self.elems);
+            return SliceOps.mean(ElemType, self.elems);
         }
 
         pub fn vecPrint(self: *const Self) void {
@@ -497,7 +497,7 @@ test "VecAlloc.apply" {
 
     try expectEqualSlices(EType,vec_exp_zeros.elems, vec1.elems);
 
-    vec1.applyInPlace(slice.exp);
+    vec1.applyInPlace(SliceOps.exp);
 
     try expectEqualSlices(EType, vec_exp_ones.elems, vec1.elems);
 }

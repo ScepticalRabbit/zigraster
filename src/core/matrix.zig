@@ -9,13 +9,13 @@ const Vec3T = vector.Vec3T;
 const Vec2f = vector.Vec2f;
 const Vec3f = vector.Vec3f;
 
-const EType = f64;
-pub const Mat22f = Mat22T(EType);
-pub const Mat33f = Mat33T(EType);
-pub const Mat44f = Mat44T(EType);
+const TestType = f64;
+pub const Mat22f = Mat22T(f64);
+pub const Mat33f = Mat33T(f64);
+pub const Mat44f = Mat44T(f64);
 
 pub fn Matrix(comptime rows_n: comptime_int, comptime cols_n: comptime_int, comptime ElemType: type) type {
-    return extern struct {
+    return struct {
         elems: [elem_n]ElemType,
 
         pub const elem_n: usize = rows_n * cols_n;
@@ -403,149 +403,149 @@ pub const Mat44Ops = struct {
 
 //------------------------------------------------------------------------------
 test "Mat22f.getRowVec" {
-    const m0 = [_]EType{ 1, 2, 3, 4 };
+    const m0 = [_]TestType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
-    const v0 = [_]EType{ 3, 4 };
+    const v0 = [_]TestType{ 3, 4 };
     const vec_exp = Vec2f.initSlice(&v0);
 
     try expectEqual(vec_exp, mat0.getRowVec(1));
 }
 
 test "Mat22f.getColVec" {
-    const m0 = [_]EType{ 1, 2, 3, 4 };
+    const m0 = [_]TestType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
-    const v0 = [_]EType{ 1, 3 };
+    const v0 = [_]TestType{ 1, 3 };
     const vec_exp = Vec2f.initSlice(&v0);
 
     try expectEqual(vec_exp, mat0.getColVec(0));
 }
 
 test "Mat22f.add" {
-    const m0 = [_]EType{ 1, 2, 3, 4 };
+    const m0 = [_]TestType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
-    const m1 = [_]EType{ 5, 6, 7, 8 };
+    const m1 = [_]TestType{ 5, 6, 7, 8 };
     const mat1 = Mat22f.initSlice(&m1);
 
-    const m2 = [_]EType{ 6, 8, 10, 12 };
+    const m2 = [_]TestType{ 6, 8, 10, 12 };
     const mat_exp = Mat22f.initSlice(&m2);
 
     try expectEqual(mat0.add(mat1), mat_exp);
 }
 
 test "Mat22f.sub" {
-    const m0 = [_]EType{ 1, 2, 3, 4 };
+    const m0 = [_]TestType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
-    const m1 = [_]EType{ 5, 6, 7, 8 };
+    const m1 = [_]TestType{ 5, 6, 7, 8 };
     const mat1 = Mat22f.initSlice(&m1);
 
-    const m2 = [_]EType{ -4, -4, -4, -4 };
+    const m2 = [_]TestType{ -4, -4, -4, -4 };
     const mat_exp = Mat22f.initSlice(&m2);
 
     try expectEqual(mat_exp, mat0.sub(mat1));
 }
 
 test "Mat22f.trace" {
-    const m0 = [_]EType{ 1, 2, 3, 4 };
+    const m0 = [_]TestType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
-    const trace_exp: EType = 5;
+    const trace_exp: TestType = 5;
 
     try expectEqual(trace_exp, mat0.trace());
 }
 
 test "Mat22f.transpose" {
-    const m0 = [_]EType{ 1, 2, 3, 4 };
+    const m0 = [_]TestType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
-    const m1 = [_]EType{ 1, 3, 2, 4 };
+    const m1 = [_]TestType{ 1, 3, 2, 4 };
     const mat_exp = Mat22f.initSlice(&m1);
 
     try expectEqual(mat_exp, mat0.transpose());
 }
 
 test "Mat22f.mulScalar" {
-    const m0 = [_]EType{ 1, 2, 3, 4 };
+    const m0 = [_]TestType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
-    const scalar: EType = 2;
-    const m1 = [_]EType{ 2, 4, 6, 8 };
+    const scalar: TestType = 2;
+    const m1 = [_]TestType{ 2, 4, 6, 8 };
     const mat_exp = Mat22f.initSlice(&m1);
 
     try expectEqual(mat_exp, mat0.mulScalar(scalar));
 }
 
 test "Mat22f.mulVec" {
-    const m0 = [_]EType{ 1, 2, 3, 4 };
+    const m0 = [_]TestType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
-    const v0 = [_]EType{ 1, 2 };
+    const v0 = [_]TestType{ 1, 2 };
     const vec0 = Vec2f.initSlice(&v0);
 
-    const v1 = [_]EType{ 5, 11 };
+    const v1 = [_]TestType{ 5, 11 };
     const vec_exp = Vec2f.initSlice(&v1);
 
     try expectEqual(vec_exp, mat0.mulVec(vec0));
 }
 
 test "Mat22f.mulMat" {
-    const m0 = [_]EType{ 1, 2, 3, 4 };
+    const m0 = [_]TestType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
-    const m1 = [_]EType{ 4, 3, 2, 1 };
+    const m1 = [_]TestType{ 4, 3, 2, 1 };
     const mat1 = Mat22f.initSlice(&m1);
 
-    const m2 = [_]EType{ 8, 5, 20, 13 };
+    const m2 = [_]TestType{ 8, 5, 20, 13 };
     const mat_exp = Mat22f.initSlice(&m2);
 
     try expectEqual(mat_exp, mat0.mulMat(mat1));
 }
 
 test "Mat22Ops.adj" {
-    const m0 = [_]EType{ 1, 2, 3, 4 };
+    const m0 = [_]TestType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
-    const m2 = [_]EType{ 4, -2, -3, 1 };
+    const m2 = [_]TestType{ 4, -2, -3, 1 };
     const mat_exp = Mat22f.initSlice(&m2);
 
-    try expectEqual(mat_exp, Mat22Ops.adj(EType, mat0));
+    try expectEqual(mat_exp, Mat22Ops.adj(TestType, mat0));
 }
 
 test "Mat22Ops.det" {
-    const m0 = [_]EType{ 1, 2, 3, 4 };
+    const m0 = [_]TestType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
-    const det_exp: EType = -2;
+    const det_exp: TestType = -2;
 
-    try expectEqual(det_exp, Mat22Ops.det(EType, mat0));
+    try expectEqual(det_exp, Mat22Ops.det(TestType, mat0));
 }
 
 test "Mat22Ops.inv" {
-    const m0 = [_]EType{ 1, 2, 3, 4 };
+    const m0 = [_]TestType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
-    const m2 = [_]EType{ -2, 1, 1.5, -0.5 };
+    const m2 = [_]TestType{ -2, 1, 1.5, -0.5 };
     const mat_exp = Mat22f.initSlice(&m2);
 
-    try expectEqual(mat_exp, Mat22Ops.inv(EType, mat0));
+    try expectEqual(mat_exp, Mat22Ops.inv(TestType, mat0));
 }
 
 test "Mat33f.add" {
-    const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    const m0 = [_]TestType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     const mat0 = Mat33f.initSlice(&m0);
     const mat1 = Mat33f.initSlice(&m0);
 
-    const m2 = [_]EType{ 2, 4, 6, 8, 10, 12, 14, 16, 18 };
+    const m2 = [_]TestType{ 2, 4, 6, 8, 10, 12, 14, 16, 18 };
     const mat_exp = Mat33f.initSlice(&m2);
 
     try expectEqual(mat_exp, mat0.add(mat1));
 }
 
 test "Mat33f.sub" {
-    const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    const m0 = [_]TestType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     const mat0 = Mat33f.initSlice(&m0);
     const mat1 = Mat33f.initSlice(&m0);
 
@@ -556,45 +556,45 @@ test "Mat33f.sub" {
 
 //------------------------------------------------------------------------------
 test "Mat33f.getRowVec" {
-    const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    const m0 = [_]TestType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     const mat0 = Mat33f.initSlice(&m0);
 
-    const v0 = [_]EType{ 4, 5, 6 };
+    const v0 = [_]TestType{ 4, 5, 6 };
     const vec_exp = Vec3f.initSlice(&v0);
 
     try expectEqual(vec_exp, mat0.getRowVec(1));
 }
 
 test "Mat33f.getColVec" {
-    const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    const m0 = [_]TestType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     const mat0 = Mat33f.initSlice(&m0);
 
-    const v0 = [_]EType{ 2, 5, 8 };
+    const v0 = [_]TestType{ 2, 5, 8 };
     const vec_exp = Vec3f.initSlice(&v0);
 
     try expectEqual(vec_exp, mat0.getColVec(1));
 }
 
 test "Mat33f.getSubMat" {
-    const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    const m0 = [_]TestType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     const mat0 = Mat33f.initSlice(&m0);
 
-    const m1 = [_]EType{ 5, 6, 8, 9 };
+    const m1 = [_]TestType{ 5, 6, 8, 9 };
     var mat_exp = Mat22f.initSlice(&m1);
 
     try expectEqual(mat_exp, mat0.getSubMat(1, 1, 2, 2));
 
-    const m2 = [_]EType{ 2, 3, 5, 6 };
+    const m2 = [_]TestType{ 2, 3, 5, 6 };
     mat_exp = Mat22f.initSlice(&m2);
 
     try expectEqual(mat_exp, mat0.getSubMat(0, 1, 2, 2));
 
-    const m3 = [_]EType{ 1, 2, 4, 5 };
+    const m3 = [_]TestType{ 1, 2, 4, 5 };
     mat_exp = Mat22f.initSlice(&m3);
 
     try expectEqual(mat_exp, mat0.getSubMat(0, 0, 2, 2));
 
-    const m5 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    const m5 = [_]TestType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     const mat_exp33 = Mat33f.initSlice(&m5);
 
     try expectEqual(mat_exp33, mat0.getSubMat(0, 0, 3, 3));
@@ -603,74 +603,74 @@ test "Mat33f.getSubMat" {
 //------------------------------------------------------------------------------
 
 test "Mat33f.transpose" {
-    const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    const m0 = [_]TestType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     const mat0 = Mat33f.initSlice(&m0);
 
-    const m1 = [_]EType{ 1, 4, 7, 2, 5, 8, 3, 6, 9 };
+    const m1 = [_]TestType{ 1, 4, 7, 2, 5, 8, 3, 6, 9 };
     const mat_exp = Mat33f.initSlice(&m1);
 
     try expectEqual(mat_exp, mat0.transpose());
 }
 
 test "Mat33f.mulScalar" {
-    const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    const m0 = [_]TestType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     const mat0 = Mat33f.initSlice(&m0);
 
-    const scalar: EType = 2;
+    const scalar: TestType = 2;
 
-    const m1 = [_]EType{ 2, 4, 6, 8, 10, 12, 14, 16, 18 };
+    const m1 = [_]TestType{ 2, 4, 6, 8, 10, 12, 14, 16, 18 };
     const mat_exp = Mat33f.initSlice(&m1);
 
     try expectEqual(mat_exp, mat0.mulScalar(scalar));
 }
 
 test "Mat33f.mulVec" {
-    const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    const m0 = [_]TestType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     const mat0 = Mat33f.initSlice(&m0);
 
-    const v0 = [_]EType{ 3, 2, 1 };
+    const v0 = [_]TestType{ 3, 2, 1 };
     const vec0 = Vec3f.initSlice(&v0);
 
-    const v1 = [_]EType{ 10, 28, 46 };
+    const v1 = [_]TestType{ 10, 28, 46 };
     const vec_exp = Vec3f.initSlice(&v1);
 
     try expectEqual(vec_exp, mat0.mulVec(vec0));
 }
 
 test "Mat33f.mulMat" {
-    const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    const m0 = [_]TestType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     const mat0 = Mat33f.initSlice(&m0);
 
-    const m1 = [_]EType{ 3, 1, 1, 1, 3, 1, 1, 1, 3 };
+    const m1 = [_]TestType{ 3, 1, 1, 1, 3, 1, 1, 1, 3 };
     const mat1 = Mat33f.initSlice(&m1);
 
-    const m2 = [_]EType{ 8, 10, 12, 23, 25, 27, 38, 40, 42 };
+    const m2 = [_]TestType{ 8, 10, 12, 23, 25, 27, 38, 40, 42 };
     const mat_exp = Mat33f.initSlice(&m2);
 
     try expectEqual(mat_exp, mat0.mulMat(mat1));
 }
 
 test "Mat33Ops.det" {
-    const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+    const m0 = [_]TestType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     const mat0 = Mat33f.initSlice(&m0);
-    const det0_exp: EType = 0;
+    const det0_exp: TestType = 0;
 
-    const m1 = [_]EType{ 3, 1, 1, 1, 3, 1, 1, 1, 3 };
+    const m1 = [_]TestType{ 3, 1, 1, 1, 3, 1, 1, 1, 3 };
     const mat1 = Mat33f.initSlice(&m1);
-    const det1_exp: EType = 20;
+    const det1_exp: TestType = 20;
 
-    try expectEqual(det0_exp, Mat33Ops.det(EType, mat0));
-    try expectEqual(det1_exp, Mat33Ops.det(EType, mat1));
+    try expectEqual(det0_exp, Mat33Ops.det(TestType, mat0));
+    try expectEqual(det1_exp, Mat33Ops.det(TestType, mat1));
 }
 
 test "Mat33Ops.inv" {
-    const m1 = [_]EType{ 3, 1, 1, 1, 3, 1, 1, 1, 3 };
+    const m1 = [_]TestType{ 3, 1, 1, 1, 3, 1, 1, 1, 3 };
     const mat1 = Mat33f.initSlice(&m1);
 
-    const m2 = [_]EType{ 0.4, -0.1, -0.1, -0.1, 0.4, -0.1, -0.1, -0.1, 0.4 };
+    const m2 = [_]TestType{ 0.4, -0.1, -0.1, -0.1, 0.4, -0.1, -0.1, -0.1, 0.4 };
     const mat_exp = Mat33f.initSlice(&m2);
 
-    try expectEqual(mat_exp, Mat33Ops.inv(EType, mat1));
+    try expectEqual(mat_exp, Mat33Ops.inv(TestType, mat1));
 }
 
 //------------------------------------------------------------------------------
@@ -679,13 +679,13 @@ test "Mat44f.insertRowVec" {
     const vec0 = Vec2f.initOnes();
     const vec1 = Vec3f.initOnes();
 
-    const m1 = [_]EType{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0 };
+    const m1 = [_]TestType{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0 };
     const mat_exp1 = Mat44f.initSlice(&m1);
 
-    const m2 = [_]EType{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1 };
+    const m2 = [_]TestType{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1 };
     const mat_exp2 = Mat44f.initSlice(&m2);
 
-    const m3 = [_]EType{ 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1 };
+    const m3 = [_]TestType{ 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1 };
     const mat_exp3 = Mat44f.initSlice(&m3);
 
     mat0.insertRowVec(2, 1, 2, vec0);
@@ -703,13 +703,13 @@ test "Mat44f.insertColVec" {
     const vec0 = Vec2f.initOnes();
     const vec1 = Vec3f.initOnes();
 
-    const m1 = [_]EType{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1 };
+    const m1 = [_]TestType{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1 };
     const mat_exp1 = Mat44f.initSlice(&m1);
 
-    const m2 = [_]EType{ 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1 };
+    const m2 = [_]TestType{ 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1 };
     const mat_exp2 = Mat44f.initSlice(&m2);
 
-    const m3 = [_]EType{ 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1 };
+    const m3 = [_]TestType{ 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 1, 0, 0, 0, 1 };
     const mat_exp3 = Mat44f.initSlice(&m3);
 
     mat0.insertColVec(3, 2, 2, vec0);
@@ -727,10 +727,10 @@ test "Mat44f.inertSubMat" {
     const mat1 = Mat22f.initOnes();
     const mat2 = Mat33f.initOnes();
 
-    const m1 = [_]EType{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1 };
+    const m1 = [_]TestType{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1 };
     const mat_exp1 = Mat44f.initSlice(&m1);
 
-    const m2 = [_]EType{ 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1 };
+    const m2 = [_]TestType{ 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 1 };
     const mat_exp2 = Mat44f.initSlice(&m2);
 
     mat0.insertSubMat(2, 2, 2, 2, mat1);
@@ -741,39 +741,39 @@ test "Mat44f.inertSubMat" {
 }
 
 test "Mat44Ops.det" {
-    const m0 = [_]EType{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
+    const m0 = [_]TestType{ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16 };
     const mat0 = Mat44f.initSlice(&m0);
 
-    var det_exp: EType = 0;
+    var det_exp: TestType = 0;
 
-    try expectEqual(det_exp, Mat44Ops.det(EType, mat0));
+    try expectEqual(det_exp, Mat44Ops.det(TestType, mat0));
 
-    const m1 = [_]EType{ 1, 2, 1, 2, 3, 1, 1, 3, 3, 1, 2, 3, 2, 1, 2, 1 };
+    const m1 = [_]TestType{ 1, 2, 1, 2, 3, 1, 1, 3, 3, 1, 2, 3, 2, 1, 2, 1 };
     const mat1 = Mat44f.initSlice(&m1);
 
     det_exp = 6;
 
-    try expectEqual(det_exp, Mat44Ops.det(EType, mat1));
+    try expectEqual(det_exp, Mat44Ops.det(TestType, mat1));
 }
 
 test "Mat44Ops.insertMat22" {
     var mat0 = Mat44f.initZeros();
     const mat1 = Mat22f.initOnes();
 
-    const m2 = [_]EType{ 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0 };
+    const m2 = [_]TestType{ 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0 };
     const mat_exp = Mat44f.initSlice(&m2);
 
-    Mat44Ops.insertMat22(EType, &mat0, mat1, 1, 1);
+    Mat44Ops.insertMat22(TestType, &mat0, mat1, 1, 1);
 
     try expectEqual(mat_exp, mat0);
 }
 
 test "Mat44Ops.inv" {
-    const m0 = [_]EType{ 0, 2, 0, 2, 2, 1, 1, 2, 2, 1, 2, 2, 2, 1, 2, 1 };
+    const m0 = [_]TestType{ 0, 2, 0, 2, 2, 1, 1, 2, 2, 1, 2, 2, 2, 1, 2, 1 };
     const mat0 = Mat44f.initSlice(&m0);
 
-    const m1 = [_]EType{ -0.25, 1, -1, 0.5, 0.5, 0, -1, 1, 0, -1, 1, 0, 0, 0, 1, -1 };
+    const m1 = [_]TestType{ -0.25, 1, -1, 0.5, 0.5, 0, -1, 1, 0, -1, 1, 0, 0, 0, 1, -1 };
     const mat_exp = Mat44f.initSlice(&m1);
 
-    try expectEqual(mat_exp, Mat44Ops.inv(EType, mat0));
+    try expectEqual(mat_exp, Mat44Ops.inv(TestType, mat0));
 }

@@ -1,18 +1,23 @@
 const std = @import("std");
 const testing = std.testing;
 
-pub export fn addInts(a: i32, b: i32) i32 {
-    return a + b;
+pub fn CMatrix(comptime ElemType: type) type {
+    return extern struct {
+        elems: [*c]ElemType,
+        dims: [*c]usize,
+        numel: usize,
+        ndim: usize,
+    };
 }
 
-pub export fn subInts(a: i32, b: i32) i32 {
-    return a - b;
-}
+const CMatrixF64 = CMatrix(f64);
+const CMatrixUS = CMatrix(usize);
 
-pub export fn giveBack(a: i32) i32 {
-    return a;
-}
-
-test "basic add functionality" {
-    try testing.expect(addInts(3, 7) == 10);
+pub fn ZMatrix(comptime ElemType: type) type {
+    return extern struct {
+        elems: []ElemType,
+        dims: []usize,
+        numel: usize,
+        ndim: usize,
+    };
 }
