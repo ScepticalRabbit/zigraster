@@ -17,7 +17,5 @@ pub fn ZMatrix(comptime ElemType: type) type {
     return extern struct {
         elems: []ElemType,
         dims: []usize,
-        numel: usize,
-        ndim: usize,
     };
 }

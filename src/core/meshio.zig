@@ -3,7 +3,7 @@ const print = std.debug.print;
 const Vec3f = @import("vecstack.zig").Vec3f;
 const slice = @import("sliceops.zig");
 
-const MatAlloc = @import("matalloc.zig").MatAlloc;
+const MatSlice = @import("matslice.zig").MatSlice;
 
 pub const Coords = struct {
     x: []f64,
@@ -62,22 +62,26 @@ pub const Connect = struct {
 pub const Field = struct {
     coord_n: usize,
     time_n: usize,
-    data: MatAlloc(f64),
+    data: MatSlice(f64),
+    buffer: []f64,
     allocator: std.mem.Allocator,
 
     const Self = @This();
 
     pub fn init(alloc: std.mem.Allocator, coord_n: usize, time_n: usize) !Self {
+        const buff = try alloc.alloc(f64, coord_n*time_n);
+
         return .{
             .coord_n = coord_n,
             .time_n = time_n,
-            .data = try MatAlloc(f64).init(alloc, coord_n, time_n),
+            .data = try MatSlice(f64).init(buff, coord_n, time_n),
+            .buffer = buff,
             .allocator = alloc,
         };
     }
 
     pub fn deinit(self: *Self) void {
-        self.data.deinit();
+        self.allocator.free(self.buffer);
     }
 };
 

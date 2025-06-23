@@ -183,8 +183,8 @@ pub fn main() !void {
     print("RASTER: time = {d:.3}ms\n\n", .{time_raster / time.ns_per_ms});
 
     // Print diagnostics to console to see if there is an image
-    const image_max = std.mem.max(f64,image_subpx.buffer.elems);
-    const image_min = std.mem.min(f64,image_subpx.buffer.elems);
+    const image_max = std.mem.max(f64,image_subpx.image.elems);
+    const image_min = std.mem.min(f64,image_subpx.image.elems);
     print("Image: [max, min] = [{}, {}]\n",.{image_max,image_min});
     const depth_min = std.mem.min(f64,image_subpx.depth.elems);
     print("Depth: min = {}\n\n",.{depth_min});
@@ -205,7 +205,7 @@ pub fn main() !void {
     var out_dir = try cwd.openDir(dir_name, .{});
     defer out_dir.close();
 
-    try image_subpx.buffer.saveCSV(out_dir, buffer_name);
+    try image_subpx.image.saveCSV(out_dir, buffer_name);
     try image_subpx.depth.saveCSV(out_dir, depth_name);
 
 }

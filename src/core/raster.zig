@@ -7,9 +7,9 @@ const Vec3SliceOps = @import("vecstack.zig").Vec3SliceOps;
 const Mat44Ops = @import("matstack.zig").Mat44Ops;
 
 const VecSlice = @import("vecslice.zig").VecSlice;
-const MatAlloc = @import("matalloc.zig").MatAlloc;
+const MatSlice = @import("matslice.zig").MatSlice;
 
-const SliceOps = @import("sliceops.zig");
+const sliceops = @import("sliceops.zig");
 
 const Coords = @import("meshio.zig").Coords;
 const Connect = @import("meshio.zig").Connect;
@@ -19,22 +19,29 @@ const Camera = @import("camera.zig").Camera;
 
 pub const ImageAlloc = struct {
     allocator: std.mem.Allocator,
-    buffer: MatAlloc(f64),
-    depth: MatAlloc(f64),
+    image: MatSlice(f64),
+    depth: MatSlice(f64),
+    im_buff: []f64,
+    d_buff: []f64,
 
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator, pixels_x: usize, pixels_y: usize) !Self {
+        const image_buff = try allocator.alloc(f64, pixels_x*pixels_y);
+        const depth_buff = try allocator.alloc(f64, pixels_x*pixels_y);
+
         return .{
             .allocator = allocator,
-            .buffer = try MatAlloc(f64).init(allocator, pixels_y, pixels_x),
-            .depth = try MatAlloc(f64).init(allocator, pixels_y, pixels_x),
+            .image = try MatSlice(f64).init(image_buff, pixels_y, pixels_x),
+            .depth = try MatSlice(f64).init(depth_buff, pixels_y, pixels_x),
+            .im_buff = image_buff,
+            .d_buff = depth_buff,
         };
     }
 
     pub fn deinit(self: *const Self) void {
-        self.allocator.free(self.buffer);
-        self.allocator.free(self.depth);
+        self.allocator.free(self.im_buff);
+        self.allocator.free(self.d_buff);
     }
 };
 
@@ -75,7 +82,7 @@ pub const Raster = struct {
         return max_ind;
     }
 
-    pub fn averageImage(image_subpx: *const MatAlloc(f64), sub_samp: u8, image_avg: *MatAlloc(f64)) void {
+    pub fn averageImage(image_subpx: *const MatSlice(f64), sub_samp: u8, image_avg: *MatSlice(f64)) void {
         const num_px_x: usize = (image_subpx.cols_n) / @as(usize, sub_samp);
         const num_px_y: usize = (image_subpx.rows_n) / @as(usize, sub_samp);
         const sub_samp_us: usize = @as(usize, sub_samp);
@@ -120,7 +127,7 @@ pub const Raster = struct {
         // var depth_buff_subpx = try MatAlloc(f64).init(allocator,subpx_y, subpx_x);
 
         var image_subpx = try ImageAlloc.init(allocator, subpx_x, subpx_y);
-        image_subpx.buffer.fill(0.0);
+        image_subpx.image.fill(0.0);
         image_subpx.depth.fill(1e6);
 
         var px_coord_buff: Vec3f = Vec3f.initZeros();
@@ -193,8 +200,8 @@ pub const Raster = struct {
             var bound_ind_x: usize = @as(usize, camera.sub_sample) * xi_min;
             var bound_ind_y: usize = @as(usize, camera.sub_sample) * yi_min;
 
-            const num_bound_x: usize = SliceOps.range_len(xi_min_f, xi_max_f, coord_step);
-            const num_bound_y: usize = SliceOps.range_len(yi_min_f, yi_max_f, coord_step);
+            const num_bound_x: usize = sliceops.rangeLen(xi_min_f, xi_max_f, coord_step);
+            const num_bound_y: usize = sliceops.rangeLen(yi_min_f, yi_max_f, coord_step);
 
             var inv_buff: f64 = 0.0;
             for (0..connect.nodes_per_elem) |nn| {
@@ -286,12 +293,12 @@ pub const Raster = struct {
                         field_raster_buff[nn] = field.data.get(coord_inds[nn], frame_ind);
                     }
 
-                    var px_field: f64 = SliceOps.dot(f64, field_raster_buff, weights_buff);
+                    var px_field: f64 = sliceops.dot(f64, field_raster_buff, weights_buff);
                     px_field = px_field * px_coord_z;
 
                     //print("\nind_y={} , ind_x={}, px_field={}\n",.{bound_ind_y,bound_ind_x,px_field});
 
-                    image_subpx.buffer.set(bound_ind_y, bound_ind_x, px_field);
+                    image_subpx.image.set(bound_ind_y, bound_ind_x, px_field);
 
                     // End for(x) - increment the x coords
                     bound_coord_x += coord_step;
@@ -306,7 +313,7 @@ pub const Raster = struct {
 
         var image = try ImageAlloc.init(allocator, camera.pixels_num[0], camera.pixels_num[1]);
 
-        averageImage(&image_subpx.buffer, camera.sub_sample, &image.buffer);
+        averageImage(&image_subpx.image, camera.sub_sample, &image.image);
         // NOTE: only need to do this for debugging - this can be discarded here
         averageImage(&image_subpx.depth, camera.sub_sample, &image.depth);
 
