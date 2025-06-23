@@ -3,7 +3,7 @@ My implementation of a rasterisation renderer in Zig. I am using this project to
 
 The rasteriser is built using [Zig 0.14](https://ziglang.org/download/) and can be run using:
 ```shell
-zig run -O ReleaseFast src/main.zig
+zig run -O ReleaseFast src/main_raster.zig
 ```
 
 This project is inspired by the rasteriser implementation on [Scratchapixel](https://www.scratchapixel.com/index.html), this taught me a lot about computer graphics! See their description of the rasterisation process [here](https://www.scratchapixel.com/lessons/3d-basic-rendering/rasterization-practical-implementation/overview-rasterization-algorithm.html) and their code [here](https://github.com/scratchapixel/scratchapixel-code/tree/main/rasterization-practical-implementation).
