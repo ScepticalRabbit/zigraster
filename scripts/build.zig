@@ -6,7 +6,7 @@ pub fn build(b: *std.Build) void {
 
     const libcheck = b.addSharedLibrary(.{
         .name = "zigraster",
-        .root_source_file = b.path("src/root.zig"),
+        .root_source_file = b.path("src/zigraster/zig/root.zig"),
         .target = target,
         .optimize = optimize,
     });

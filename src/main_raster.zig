@@ -3,23 +3,23 @@ const print = std.debug.print;
 const time = std.time;
 const Instant = time.Instant;
 
-const meshio = @import("core/meshio.zig");
+const meshio = @import("zigraster/zig/meshio.zig");
 
 const Coords = meshio.Coords;
 const Connect = meshio.Connect;
 const Field = meshio.Field;
-const VecStack = @import("core/vecstack.zig");
-const MatStack = @import("core/matstack.zig");
+const VecStack = @import("zigraster/zig/vecstack.zig");
+const MatStack = @import("zigraster/zig/matstack.zig");
 
-const Rotation = @import("core/rotation.zig").Rotation;
+const Rotation = @import("zigraster/zig/rotation.zig").Rotation;
 const Vec3f = VecStack.Vec3f;
 const Mat44f = MatStack.Mat44f;
 const Mat44Ops = MatStack.Mat44Ops;
 
-const Camera = @import("core/camera.zig").Camera;
-const CameraOps = @import("core/camera.zig").CameraOps;
+const Camera = @import("zigraster/zig/camera.zig").Camera;
+const CameraOps = @import("zigraster/zig/camera.zig").CameraOps;
 
-const Raster = @import("core/raster.zig").Raster;
+const Raster = @import("zigraster/zig/raster.zig").Raster;
 
 
 pub fn main() !void {

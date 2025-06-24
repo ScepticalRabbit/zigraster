@@ -4,25 +4,25 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef struct CVec2U32 {
+typedef struct cVec2U32 {
     uint32_t x;
     uint32_t y;
 } CVec2U32;
 
-typedef struct CVec2F {
+typedef struct cVec2F {
     double x;
     double y;
 } CVec2F;
 
-typedef struct CVec3F {
+typedef struct cVec3F {
     double x;
     double y;
     double z;
-} CVec2F;
+} CVec3F;
 
-typedef struct CMat44F {
+typedef struct cMat44F {
     double* mat;
-    const size_t numel;
+    size_t numel;
 } CMat44F;
 
 typedef struct CCamera {
@@ -39,5 +39,6 @@ typedef struct CCamera {
     CMat44F world_to_cam;
 } CCamera;
 
+void printCamera(const CCamera* cam);
 
 #endif // ZIGRASTER_H

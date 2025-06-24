@@ -1,4 +1,5 @@
 const std = @import("std");
+const print = std.debug.print;
 const testing = std.testing;
 
 pub const CVec2U32 = extern struct {
@@ -35,3 +36,11 @@ pub const CCamera = extern struct {
     cam_to_world: CMat44F,
     world_to_cam: CMat44F,
 };
+
+pub export fn printCamera(cam: *const CCamera) void {
+    print("\nZig Camera:\n", .{});
+    print("--------------------\n", .{});
+    print("pixels_num[y,x]=[{},{}]\n", .{ cam.pixels_num.y, cam.pixels_num.x });
+
+    print("\n", .{});
+}

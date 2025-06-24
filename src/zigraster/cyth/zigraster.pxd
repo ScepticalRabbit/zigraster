@@ -1,3 +1,5 @@
+from libc.stdint cimport uint32_t, uint8_t
+
 cdef extern from "zigraster.h":
 
     ctypedef struct CVec2U32:
@@ -15,7 +17,7 @@ cdef extern from "zigraster.h":
 
     ctypedef struct CMat44F:
         double* mat
-        const size_t numel
+        size_t numel
 
     ctypedef struct CCamera:
         CVec2U32 pixels_num
@@ -30,4 +32,5 @@ cdef extern from "zigraster.h":
         CMat44F cam_to_world
         CMat44F world_to_cam
 
+    void printCamera(const CCamera* cam)
 

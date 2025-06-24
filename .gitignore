@@ -1,3 +1,7 @@
+*.so
+*.a
+*.o
+build/
 file-out/
 raster-out/
 

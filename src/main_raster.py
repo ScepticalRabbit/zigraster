@@ -5,13 +5,14 @@ from scipy.spatial.transform import Rotation
 import matplotlib.pyplot as plt
 import mooseherder as mh
 import pyvale as pyv
+import zigraster.cyth.zraster as zr
 
 
 def main() -> None:
     print()
     print(80*"=")
     print("RASTER ZIG FILE (should be *.so on Linux):")
-    #print(pyv.rastercyth.__file__)
+    print(zr.__file__)
     print(80*"=")
     print()
 
@@ -64,6 +65,8 @@ def main() -> None:
         back_face_removal=True,
     )
 
+    zr.set_camera(cam_data)
+
 
     # print()
     # print(80*"-")
@@ -82,17 +85,17 @@ def main() -> None:
     # print(80*"-")
     # print()
 
-    print(80*"-")
-    print("CAMERA DATA:")
-    print(80*"-")
-    print(f"{cam_data.image_dist=}")
-    print(f"{cam_data.roi_cent_world=}")
-    print(f"{cam_data.pos_world=}")
-    print()
-    print("World to camera matrix:")
-    print(cam_data.world_to_cam_mat)
-    print(80*"-")
-    print()
+    # print(80*"-")
+    # print("CAMERA DATA:")
+    # print(80*"-")
+    # print(f"{cam_data.image_dist=}")
+    # print(f"{cam_data.roi_cent_world=}")
+    # print(f"{cam_data.pos_world=}")
+    # print()
+    # print("World to camera matrix:")
+    # print(cam_data.world_to_cam_mat)
+    # print(80*"-")
+    # print()
 
     # print(80*"-")
     # total_frames = render_mesh.fields_render.shape[1]*render_mesh.fields_render.shape[2]

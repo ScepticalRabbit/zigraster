@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel", "Cython", "numpy", "ziglang"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zigcython"
+version = "2025.6.0"
+description = "A python->Zig CPU rasteriser."
+authors = [
+  { name = "scepticalrabbit et al.", email = "thescepticalrabbit@gmail.com" },
+]
+license = { file = "LICENSE" }
+readme = "README.md"
+requires-python = "==3.11.*"
+dependencies = [
+  "numpy<2.0.0",
+  "Cython>=3.0.0",
+  "ziglang>=0.14.0",
+  "pyvale>=2025.5.3",
+]
+
+[project.urls]
+"Repository" = "https://github.com/ScepticalRabbit/zigraster"
+
+[tool.setuptools.packages.find]
+where = ["src"]
