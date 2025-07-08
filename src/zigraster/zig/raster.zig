@@ -27,8 +27,8 @@ pub const ImageAlloc = struct {
     const Self = @This();
 
     pub fn init(allocator: std.mem.Allocator, pixels_x: usize, pixels_y: usize) !Self {
-        const image_buff = try allocator.alloc(f64, pixels_x*pixels_y);
-        const depth_buff = try allocator.alloc(f64, pixels_x*pixels_y);
+        const image_buff = try allocator.alloc(f64, pixels_x * pixels_y);
+        const depth_buff = try allocator.alloc(f64, pixels_x * pixels_y);
 
         return .{
             .allocator = allocator,

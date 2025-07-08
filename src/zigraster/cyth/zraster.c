@@ -2973,7 +2973,7 @@ static const char __pyx_k_itemsize_0_for_cython_array[] = "itemsize <= 0 for cyt
 static const char __pyx_k_src_zigraster_cyth_zraster_py[] = "src/zigraster/cyth/zraster.py";
 static const char __pyx_k_unable_to_allocate_array_data[] = "unable to allocate array data.";
 static const char __pyx_k_strided_and_direct_or_indirect[] = "<strided and direct or indirect>";
-static const char __pyx_k_q_C_1_as_as_AS_1_1_1_s_IQfHA_AX[] = "\320\000\024\320\024'\240q\330\004)\250\021\250#\250[\270\001\270\023\270C\270{\310!\3101\330\004&\240a\240s\250,\260a\260s\270#\270\\\310\021\310!\330\004$\240A\240S\250\n\260!\2601\330%(\250\n\260!\2601\330%(\250\n\260!\2601\330\004\017\210s\220*\230I\240Q\240f\250H\260A\330\004$\240A\240X\250Q\250c\260\030\270\021\270#\270X\300Q\300a\330\004)\250\021\250#\250_\270A\270Q\330*-\250_\270A\270Q\330*-\250_\270A\270Q\330\004 \240\003\2401\330\004&\240a\240s\250,\260a\260q\330'*\250,\260a\260q\330\004%\240Q\240c\250\033\260A\260Q\330&)\250\033\260A\260Q\330\004 \240\003\2401\340\004\025\220R\320\027)\250\021\250#\320->\270h\300a\330\004!\240\021\330\004-\250W\260I\270V\3001\300D\310\001\340\004\025\220R\320\027)\250\021\250#\320->\270h\300a\330\004!\240\021\330\004-\250W\260I\270V\3001\300D\310\001\340\004!\240\021\330\010\t\330\010\t\330\010\t\330\010\t\330\010\t\330\010\t\330\010\t\330\010\t\330\010\t\330\010\t\330\010\t\360\020\000\007\023\220'\230\031\240!";
+static const char __pyx_k_q_C_1_as_as_AS_1_1_1_s_IQfHA_AX[] = "\320\000\024\320\024'\240q\330\004)\250\021\250#\250[\270\001\270\023\270C\270{\310!\3101\330\004&\240a\240s\250,\260a\260s\270#\270\\\310\021\310!\330\004$\240A\240S\250\n\260!\2601\330%(\250\n\260!\2601\330%(\250\n\260!\2601\330\004\017\210s\220*\230I\240Q\240f\250H\260A\330\004$\240A\240X\250Q\250c\260\030\270\021\270#\270X\300Q\300a\330\004)\250\021\250#\250_\270A\270Q\330*-\250_\270A\270Q\330*-\250_\270A\270Q\330\004 \240\003\2401\330\004&\240a\240s\250,\260a\260q\330'*\250,\260a\260q\330\004%\240Q\240c\250\033\260A\260Q\330&)\250\033\260A\260Q\330\004 \240\003\2401\340\004\025\220R\320\027)\250\021\250#\320->\270h\300a\330\004!\240\021\330\004-\250W\260I\270V\3001\300D\310\001\340\004\025\220R\320\027)\250\021\250#\320->\270h\300a\330\004!\240\021\330\004-\250W\260I\270V\3001\300D\310\001\340\004!\240\021\330\010\t\330\010\t\330\010\t\330\010\t\330\010\t\330\010\t\330\010\t\330\010\t\330\010\t\330\010\t\330\010\t\360\006\000\007\023\220'\230\031\240!";
 static const char __pyx_k_All_dimensions_preceding_dimensi[] = "All dimensions preceding dimension %d must be indexed and not sliced";
 static const char __pyx_k_Buffer_view_does_not_expose_stri[] = "Buffer view does not expose strides";
 static const char __pyx_k_Can_only_create_a_buffer_that_is[] = "Can only create a buffer that is contiguous in memory.";
@@ -16730,8 +16730,8 @@ static PyObject *__pyx_unpickle_Enum__set_state(struct __pyx_MemviewEnum_obj *__
   return __pyx_r;
 }
 
-/* "zigraster/cyth/zraster.py":6
- * import pyvale as pyv
+/* "zigraster/cyth/zraster.py":7
+ * 
  * 
  * def set_camera(cam: pyv.CameraData) -> None:             # <<<<<<<<<<<<<<
  *     pixels_num: zr.CVec2U32 = zr.CVec2U32(cam.pixels_num[0],cam.pixels_num[1])
@@ -16777,32 +16777,32 @@ PyObject *__pyx_args, PyObject *__pyx_kwds
   {
     PyObject ** const __pyx_pyargnames[] = {&__pyx_mstate_global->__pyx_n_u_cam,0};
     const Py_ssize_t __pyx_kwds_len = (__pyx_kwds) ? __Pyx_NumKwargs_FASTCALL(__pyx_kwds) : 0;
-    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 6, __pyx_L3_error)
+    if (unlikely(__pyx_kwds_len) < 0) __PYX_ERR(0, 7, __pyx_L3_error)
     if (__pyx_kwds_len > 0) {
       switch (__pyx_nargs) {
         case  1:
         values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 6, __pyx_L3_error)
+        if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 7, __pyx_L3_error)
         CYTHON_FALLTHROUGH;
         case  0: break;
         default: goto __pyx_L5_argtuple_error;
       }
       const Py_ssize_t kwd_pos_args = __pyx_nargs;
-      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "set_camera", 0) < 0) __PYX_ERR(0, 6, __pyx_L3_error)
+      if (__Pyx_ParseKeywords(__pyx_kwds, __pyx_kwvalues, __pyx_pyargnames, 0, values, kwd_pos_args, __pyx_kwds_len, "set_camera", 0) < 0) __PYX_ERR(0, 7, __pyx_L3_error)
       for (Py_ssize_t i = __pyx_nargs; i < 1; i++) {
-        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("set_camera", 1, 1, 1, i); __PYX_ERR(0, 6, __pyx_L3_error) }
+        if (unlikely(!values[i])) { __Pyx_RaiseArgtupleInvalid("set_camera", 1, 1, 1, i); __PYX_ERR(0, 7, __pyx_L3_error) }
       }
     } else if (unlikely(__pyx_nargs != 1)) {
       goto __pyx_L5_argtuple_error;
     } else {
       values[0] = __Pyx_ArgRef_FASTCALL(__pyx_args, 0);
-      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 6, __pyx_L3_error)
+      if (!CYTHON_ASSUME_SAFE_MACROS && unlikely(!values[0])) __PYX_ERR(0, 7, __pyx_L3_error)
     }
     __pyx_v_cam = values[0];
   }
   goto __pyx_L6_skip;
   __pyx_L5_argtuple_error:;
-  __Pyx_RaiseArgtupleInvalid("set_camera", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 6, __pyx_L3_error)
+  __Pyx_RaiseArgtupleInvalid("set_camera", 1, 1, 1, __pyx_nargs); __PYX_ERR(0, 7, __pyx_L3_error)
   __pyx_L6_skip:;
   goto __pyx_L4_argument_unpacking_done;
   __pyx_L3_error:;
@@ -16866,298 +16866,298 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
   int __pyx_clineno = 0;
   __Pyx_RefNannySetupContext("set_camera", 0);
 
-  /* "zigraster/cyth/zraster.py":7
+  /* "zigraster/cyth/zraster.py":8
  * 
  * def set_camera(cam: pyv.CameraData) -> None:
  *     pixels_num: zr.CVec2U32 = zr.CVec2U32(cam.pixels_num[0],cam.pixels_num[1])             # <<<<<<<<<<<<<<
  *     pixels_size: zr.CVec2F = zr.CVec2F(cam.pixels_size[0],cam.pixels_size[1])
  *     pos_world: zr.CVec3F = zr.CVec3F(cam.pos_world[0],
 */
-  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_pixels_num); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 7, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_pixels_num); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 8, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_2, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 7, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_2, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 8, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_4 = __Pyx_PyLong_As_uint32_t(__pyx_t_3); if (unlikely((__pyx_t_4 == ((uint32_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 7, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyLong_As_uint32_t(__pyx_t_3); if (unlikely((__pyx_t_4 == ((uint32_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 8, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __pyx_t_1.x = __pyx_t_4;
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_pixels_num); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 7, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_pixels_num); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 8, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_2 = __Pyx_GetItemInt(__pyx_t_3, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 7, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_GetItemInt(__pyx_t_3, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 8, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_4 = __Pyx_PyLong_As_uint32_t(__pyx_t_2); if (unlikely((__pyx_t_4 == ((uint32_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 7, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_PyLong_As_uint32_t(__pyx_t_2); if (unlikely((__pyx_t_4 == ((uint32_t)-1)) && PyErr_Occurred())) __PYX_ERR(0, 8, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __pyx_t_1.y = __pyx_t_4;
   __pyx_v_pixels_num = __pyx_t_1;
 
-  /* "zigraster/cyth/zraster.py":8
+  /* "zigraster/cyth/zraster.py":9
  * def set_camera(cam: pyv.CameraData) -> None:
  *     pixels_num: zr.CVec2U32 = zr.CVec2U32(cam.pixels_num[0],cam.pixels_num[1])
  *     pixels_size: zr.CVec2F = zr.CVec2F(cam.pixels_size[0],cam.pixels_size[1])             # <<<<<<<<<<<<<<
  *     pos_world: zr.CVec3F = zr.CVec3F(cam.pos_world[0],
  *                                      cam.pos_world[1],
 */
-  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_pixels_size); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 8, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_2, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 8, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_3);
-  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_3); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 8, __pyx_L1_error)
-  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_5.x = __pyx_t_6;
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_pixels_size); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 8, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_2 = __Pyx_GetItemInt(__pyx_t_3, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 8, __pyx_L1_error)
-  __Pyx_GOTREF(__pyx_t_2);
-  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_2); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 8, __pyx_L1_error)
-  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_5.y = __pyx_t_6;
-  __pyx_v_pixels_size = __pyx_t_5;
-
-  /* "zigraster/cyth/zraster.py":9
- *     pixels_num: zr.CVec2U32 = zr.CVec2U32(cam.pixels_num[0],cam.pixels_num[1])
- *     pixels_size: zr.CVec2F = zr.CVec2F(cam.pixels_size[0],cam.pixels_size[1])
- *     pos_world: zr.CVec3F = zr.CVec3F(cam.pos_world[0],             # <<<<<<<<<<<<<<
- *                                      cam.pos_world[1],
- *                                      cam.pos_world[2])
-*/
-  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_pos_world); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 9, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_pixels_size); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 9, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_2, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 9, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_3); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 9, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_7.x = __pyx_t_6;
+  __pyx_t_5.x = __pyx_t_6;
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_pixels_size); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 9, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  __pyx_t_2 = __Pyx_GetItemInt(__pyx_t_3, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 9, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_2); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 9, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  __pyx_t_5.y = __pyx_t_6;
+  __pyx_v_pixels_size = __pyx_t_5;
 
   /* "zigraster/cyth/zraster.py":10
+ *     pixels_num: zr.CVec2U32 = zr.CVec2U32(cam.pixels_num[0],cam.pixels_num[1])
+ *     pixels_size: zr.CVec2F = zr.CVec2F(cam.pixels_size[0],cam.pixels_size[1])
+ *     pos_world: zr.CVec3F = zr.CVec3F(cam.pos_world[0],             # <<<<<<<<<<<<<<
+ *                                      cam.pos_world[1],
+ *                                      cam.pos_world[2])
+*/
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_pos_world); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 10, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_2);
+  __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_2, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 10, __pyx_L1_error)
+  __Pyx_GOTREF(__pyx_t_3);
+  __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
+  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_3); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 10, __pyx_L1_error)
+  __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
+  __pyx_t_7.x = __pyx_t_6;
+
+  /* "zigraster/cyth/zraster.py":11
  *     pixels_size: zr.CVec2F = zr.CVec2F(cam.pixels_size[0],cam.pixels_size[1])
  *     pos_world: zr.CVec3F = zr.CVec3F(cam.pos_world[0],
  *                                      cam.pos_world[1],             # <<<<<<<<<<<<<<
  *                                      cam.pos_world[2])
  *     rot_angs = cam.rot_world.as_euler("zyx",degrees=False)
 */
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_pos_world); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 10, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_pos_world); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 11, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_2 = __Pyx_GetItemInt(__pyx_t_3, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 10, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_GetItemInt(__pyx_t_3, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 11, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_2); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 10, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_2); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 11, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
   __pyx_t_7.y = __pyx_t_6;
 
-  /* "zigraster/cyth/zraster.py":11
+  /* "zigraster/cyth/zraster.py":12
  *     pos_world: zr.CVec3F = zr.CVec3F(cam.pos_world[0],
  *                                      cam.pos_world[1],
  *                                      cam.pos_world[2])             # <<<<<<<<<<<<<<
  *     rot_angs = cam.rot_world.as_euler("zyx",degrees=False)
  *     rot_world: zr.CVec3F = zr.CVec3F(rot_angs[0],rot_angs[1],rot_angs[2])
 */
-  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_pos_world); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 11, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_pos_world); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 12, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
-  __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_2, 2, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 11, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_2, 2, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 12, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_3); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 11, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_3); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 12, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __pyx_t_7.z = __pyx_t_6;
   __pyx_v_pos_world = __pyx_t_7;
 
-  /* "zigraster/cyth/zraster.py":12
+  /* "zigraster/cyth/zraster.py":13
  *                                      cam.pos_world[1],
  *                                      cam.pos_world[2])
  *     rot_angs = cam.rot_world.as_euler("zyx",degrees=False)             # <<<<<<<<<<<<<<
  *     rot_world: zr.CVec3F = zr.CVec3F(rot_angs[0],rot_angs[1],rot_angs[2])
  *     roi_cent_world: zr.CVec3F = zr.CVec3F(cam.roi_cent_world[0],
 */
-  __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_rot_world); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 12, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_rot_world); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 13, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
   __pyx_t_2 = __pyx_t_8;
   __Pyx_INCREF(__pyx_t_2);
   __pyx_t_9 = 0;
   {
     PyObject *__pyx_callargs[2 + ((CYTHON_VECTORCALL) ? 1 : 0)] = {__pyx_t_2, __pyx_mstate_global->__pyx_n_u_zyx};
-    __pyx_t_10 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 12, __pyx_L1_error)
+    __pyx_t_10 = __Pyx_MakeVectorcallBuilderKwds(1); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 13, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_10);
-    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_degrees, Py_False, __pyx_t_10, __pyx_callargs+2, 0) < 0) __PYX_ERR(0, 12, __pyx_L1_error)
+    if (__Pyx_VectorcallBuilder_AddArg(__pyx_mstate_global->__pyx_n_u_degrees, Py_False, __pyx_t_10, __pyx_callargs+2, 0) < 0) __PYX_ERR(0, 13, __pyx_L1_error)
     __pyx_t_3 = __Pyx_Object_VectorcallMethod_CallFromBuilder(__pyx_mstate_global->__pyx_n_u_as_euler, __pyx_callargs+__pyx_t_9, (2-__pyx_t_9) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET), __pyx_t_10);
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
     __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 12, __pyx_L1_error)
+    if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 13, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_3);
   }
   __pyx_v_rot_angs = __pyx_t_3;
   __pyx_t_3 = 0;
 
-  /* "zigraster/cyth/zraster.py":13
+  /* "zigraster/cyth/zraster.py":14
  *                                      cam.pos_world[2])
  *     rot_angs = cam.rot_world.as_euler("zyx",degrees=False)
  *     rot_world: zr.CVec3F = zr.CVec3F(rot_angs[0],rot_angs[1],rot_angs[2])             # <<<<<<<<<<<<<<
  *     roi_cent_world: zr.CVec3F = zr.CVec3F(cam.roi_cent_world[0],
  *                                           cam.roi_cent_world[1],
 */
-  __pyx_t_3 = __Pyx_GetItemInt(__pyx_v_rot_angs, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 13, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_GetItemInt(__pyx_v_rot_angs, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 14, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_3); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 13, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_3); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 14, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __pyx_t_7.x = __pyx_t_6;
-  __pyx_t_3 = __Pyx_GetItemInt(__pyx_v_rot_angs, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 13, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_GetItemInt(__pyx_v_rot_angs, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 14, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_3); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 13, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_3); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 14, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __pyx_t_7.y = __pyx_t_6;
-  __pyx_t_3 = __Pyx_GetItemInt(__pyx_v_rot_angs, 2, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 13, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_GetItemInt(__pyx_v_rot_angs, 2, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 14, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_3); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 13, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_3); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 14, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __pyx_t_7.z = __pyx_t_6;
   __pyx_v_rot_world = __pyx_t_7;
 
-  /* "zigraster/cyth/zraster.py":14
+  /* "zigraster/cyth/zraster.py":15
  *     rot_angs = cam.rot_world.as_euler("zyx",degrees=False)
  *     rot_world: zr.CVec3F = zr.CVec3F(rot_angs[0],rot_angs[1],rot_angs[2])
  *     roi_cent_world: zr.CVec3F = zr.CVec3F(cam.roi_cent_world[0],             # <<<<<<<<<<<<<<
  *                                           cam.roi_cent_world[1],
  *                                           cam.roi_cent_world[2])
 */
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_roi_cent_world); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 14, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_roi_cent_world); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 15, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_8 = __Pyx_GetItemInt(__pyx_t_3, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 14, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_GetItemInt(__pyx_t_3, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 15, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_8); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 14, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_8); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 15, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
   __pyx_t_7.x = __pyx_t_6;
 
-  /* "zigraster/cyth/zraster.py":15
+  /* "zigraster/cyth/zraster.py":16
  *     rot_world: zr.CVec3F = zr.CVec3F(rot_angs[0],rot_angs[1],rot_angs[2])
  *     roi_cent_world: zr.CVec3F = zr.CVec3F(cam.roi_cent_world[0],
  *                                           cam.roi_cent_world[1],             # <<<<<<<<<<<<<<
  *                                           cam.roi_cent_world[2])
  *     sub_sample: cython.ushort = cam.sub_samp
 */
-  __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_roi_cent_world); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 15, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_roi_cent_world); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 16, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
-  __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_8, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 15, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_8, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 16, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_3); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 15, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_3); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 16, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __pyx_t_7.y = __pyx_t_6;
 
-  /* "zigraster/cyth/zraster.py":16
+  /* "zigraster/cyth/zraster.py":17
  *     roi_cent_world: zr.CVec3F = zr.CVec3F(cam.roi_cent_world[0],
  *                                           cam.roi_cent_world[1],
  *                                           cam.roi_cent_world[2])             # <<<<<<<<<<<<<<
  *     sub_sample: cython.ushort = cam.sub_samp
  *     sensor_size: zr.CVec2F = zr.CVec2F(cam.sensor_size[0],
 */
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_roi_cent_world); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 16, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_roi_cent_world); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 17, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_8 = __Pyx_GetItemInt(__pyx_t_3, 2, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 16, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_GetItemInt(__pyx_t_3, 2, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 17, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_8); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 16, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_8); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 17, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
   __pyx_t_7.z = __pyx_t_6;
   __pyx_v_roi_cent_world = __pyx_t_7;
 
-  /* "zigraster/cyth/zraster.py":17
+  /* "zigraster/cyth/zraster.py":18
  *                                           cam.roi_cent_world[1],
  *                                           cam.roi_cent_world[2])
  *     sub_sample: cython.ushort = cam.sub_samp             # <<<<<<<<<<<<<<
  *     sensor_size: zr.CVec2F = zr.CVec2F(cam.sensor_size[0],
  *                                        cam.sensor_size[1])
 */
-  __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_sub_samp); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 17, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_sub_samp); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 18, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
-  __pyx_t_11 = __Pyx_PyLong_As_unsigned_short(__pyx_t_8); if (unlikely((__pyx_t_11 == (unsigned short)-1) && PyErr_Occurred())) __PYX_ERR(0, 17, __pyx_L1_error)
+  __pyx_t_11 = __Pyx_PyLong_As_unsigned_short(__pyx_t_8); if (unlikely((__pyx_t_11 == (unsigned short)-1) && PyErr_Occurred())) __PYX_ERR(0, 18, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
   __pyx_v_sub_sample = __pyx_t_11;
 
-  /* "zigraster/cyth/zraster.py":18
+  /* "zigraster/cyth/zraster.py":19
  *                                           cam.roi_cent_world[2])
  *     sub_sample: cython.ushort = cam.sub_samp
  *     sensor_size: zr.CVec2F = zr.CVec2F(cam.sensor_size[0],             # <<<<<<<<<<<<<<
  *                                        cam.sensor_size[1])
  *     image_dims: zr.CVec2F = zr.CVec2F(cam.image_dims[0],
 */
-  __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_sensor_size); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 18, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_sensor_size); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 19, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
-  __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_8, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 18, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_8, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 19, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_3); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 18, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_3); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 19, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __pyx_t_5.x = __pyx_t_6;
 
-  /* "zigraster/cyth/zraster.py":19
+  /* "zigraster/cyth/zraster.py":20
  *     sub_sample: cython.ushort = cam.sub_samp
  *     sensor_size: zr.CVec2F = zr.CVec2F(cam.sensor_size[0],
  *                                        cam.sensor_size[1])             # <<<<<<<<<<<<<<
  *     image_dims: zr.CVec2F = zr.CVec2F(cam.image_dims[0],
  *                                       cam.image_dims[1])
 */
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_sensor_size); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 19, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_sensor_size); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 20, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_8 = __Pyx_GetItemInt(__pyx_t_3, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 19, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_GetItemInt(__pyx_t_3, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 20, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_8); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 19, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_8); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 20, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
   __pyx_t_5.y = __pyx_t_6;
   __pyx_v_sensor_size = __pyx_t_5;
 
-  /* "zigraster/cyth/zraster.py":20
+  /* "zigraster/cyth/zraster.py":21
  *     sensor_size: zr.CVec2F = zr.CVec2F(cam.sensor_size[0],
  *                                        cam.sensor_size[1])
  *     image_dims: zr.CVec2F = zr.CVec2F(cam.image_dims[0],             # <<<<<<<<<<<<<<
  *                                       cam.image_dims[1])
  *     image_dist: cython.double = cam.image_dist
 */
-  __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_image_dims); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 20, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_image_dims); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 21, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
-  __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_8, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 20, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_GetItemInt(__pyx_t_8, 0, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 21, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
-  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_3); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 20, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_3); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 21, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
   __pyx_t_5.x = __pyx_t_6;
 
-  /* "zigraster/cyth/zraster.py":21
+  /* "zigraster/cyth/zraster.py":22
  *                                        cam.sensor_size[1])
  *     image_dims: zr.CVec2F = zr.CVec2F(cam.image_dims[0],
  *                                       cam.image_dims[1])             # <<<<<<<<<<<<<<
  *     image_dist: cython.double = cam.image_dist
  * 
 */
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_image_dims); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 21, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_image_dims); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 22, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
-  __pyx_t_8 = __Pyx_GetItemInt(__pyx_t_3, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 21, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_GetItemInt(__pyx_t_3, 1, long, 1, __Pyx_PyLong_From_long, 0, 0, 1); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 22, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
   __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_8); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 21, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_8); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 22, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
   __pyx_t_5.y = __pyx_t_6;
   __pyx_v_image_dims = __pyx_t_5;
 
-  /* "zigraster/cyth/zraster.py":22
+  /* "zigraster/cyth/zraster.py":23
  *     image_dims: zr.CVec2F = zr.CVec2F(cam.image_dims[0],
  *                                       cam.image_dims[1])
  *     image_dist: cython.double = cam.image_dist             # <<<<<<<<<<<<<<
  * 
  *     c_to_w_flat_np = np.ascontiguousarray(cam.cam_to_world_mat.flatten())
 */
-  __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_image_dist); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 22, __pyx_L1_error)
+  __pyx_t_8 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_image_dist); if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 23, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_8);
-  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_8); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 22, __pyx_L1_error)
+  __pyx_t_6 = __Pyx_PyFloat_AsDouble(__pyx_t_8); if (unlikely((__pyx_t_6 == (double)-1) && PyErr_Occurred())) __PYX_ERR(0, 23, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_8); __pyx_t_8 = 0;
   __pyx_v_image_dist = __pyx_t_6;
 
-  /* "zigraster/cyth/zraster.py":24
+  /* "zigraster/cyth/zraster.py":25
  *     image_dist: cython.double = cam.image_dist
  * 
  *     c_to_w_flat_np = np.ascontiguousarray(cam.cam_to_world_mat.flatten())             # <<<<<<<<<<<<<<
@@ -17165,12 +17165,12 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
  *     cam_to_world_mat: zr.CMat44F = zr.CMat44F(cython.address(c_to_w[0]),16)
 */
   __pyx_t_3 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 24, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 25, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_10);
-  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 24, __pyx_L1_error)
+  __pyx_t_2 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_2)) __PYX_ERR(0, 25, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_2);
   __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-  __pyx_t_13 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_cam_to_world_mat); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 24, __pyx_L1_error)
+  __pyx_t_13 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_cam_to_world_mat); if (unlikely(!__pyx_t_13)) __PYX_ERR(0, 25, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_13);
   __pyx_t_12 = __pyx_t_13;
   __Pyx_INCREF(__pyx_t_12);
@@ -17180,7 +17180,7 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
     __pyx_t_10 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_flatten, __pyx_callargs+__pyx_t_9, (1-__pyx_t_9) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
     __Pyx_XDECREF(__pyx_t_12); __pyx_t_12 = 0;
     __Pyx_DECREF(__pyx_t_13); __pyx_t_13 = 0;
-    if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 24, __pyx_L1_error)
+    if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 25, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_10);
   }
   __pyx_t_9 = 1;
@@ -17201,25 +17201,25 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
     __Pyx_XDECREF(__pyx_t_3); __pyx_t_3 = 0;
     __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
     __Pyx_DECREF(__pyx_t_2); __pyx_t_2 = 0;
-    if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 24, __pyx_L1_error)
+    if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 25, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
   }
   __pyx_v_c_to_w_flat_np = __pyx_t_8;
   __pyx_t_8 = 0;
 
-  /* "zigraster/cyth/zraster.py":25
+  /* "zigraster/cyth/zraster.py":26
  * 
  *     c_to_w_flat_np = np.ascontiguousarray(cam.cam_to_world_mat.flatten())
  *     c_to_w: cython.double[::1] = c_to_w_flat_np             # <<<<<<<<<<<<<<
  *     cam_to_world_mat: zr.CMat44F = zr.CMat44F(cython.address(c_to_w[0]),16)
  * 
 */
-  __pyx_t_14 = __Pyx_PyObject_to_MemoryviewSlice_dc_double(__pyx_v_c_to_w_flat_np, PyBUF_WRITABLE); if (unlikely(!__pyx_t_14.memview)) __PYX_ERR(0, 25, __pyx_L1_error)
+  __pyx_t_14 = __Pyx_PyObject_to_MemoryviewSlice_dc_double(__pyx_v_c_to_w_flat_np, PyBUF_WRITABLE); if (unlikely(!__pyx_t_14.memview)) __PYX_ERR(0, 26, __pyx_L1_error)
   __pyx_v_c_to_w = __pyx_t_14;
   __pyx_t_14.memview = NULL;
   __pyx_t_14.data = NULL;
 
-  /* "zigraster/cyth/zraster.py":26
+  /* "zigraster/cyth/zraster.py":27
  *     c_to_w_flat_np = np.ascontiguousarray(cam.cam_to_world_mat.flatten())
  *     c_to_w: cython.double[::1] = c_to_w_flat_np
  *     cam_to_world_mat: zr.CMat44F = zr.CMat44F(cython.address(c_to_w[0]),16)             # <<<<<<<<<<<<<<
@@ -17234,13 +17234,13 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
   } else if (unlikely(__pyx_t_16 >= __pyx_v_c_to_w.shape[0])) __pyx_t_17 = 0;
   if (unlikely(__pyx_t_17 != -1)) {
     __Pyx_RaiseBufferIndexError(__pyx_t_17);
-    __PYX_ERR(0, 26, __pyx_L1_error)
+    __PYX_ERR(0, 27, __pyx_L1_error)
   }
   __pyx_t_15.mat = (&(*((double *) ( /* dim=0 */ ((char *) (((double *) __pyx_v_c_to_w.data) + __pyx_t_16)) ))));
   __pyx_t_15.numel = 16;
   __pyx_v_cam_to_world_mat = __pyx_t_15;
 
-  /* "zigraster/cyth/zraster.py":28
+  /* "zigraster/cyth/zraster.py":29
  *     cam_to_world_mat: zr.CMat44F = zr.CMat44F(cython.address(c_to_w[0]),16)
  * 
  *     w_to_c_flat_np = np.ascontiguousarray(cam.world_to_cam_mat.flatten())             # <<<<<<<<<<<<<<
@@ -17248,12 +17248,12 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
  *     world_to_cam_mat: zr.CMat44F = zr.CMat44F(cython.address(w_to_c[0]),16)
 */
   __pyx_t_2 = NULL;
-  __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 28, __pyx_L1_error)
+  __Pyx_GetModuleGlobalName(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_np); if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 29, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_10);
-  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 28, __pyx_L1_error)
+  __pyx_t_3 = __Pyx_PyObject_GetAttrStr(__pyx_t_10, __pyx_mstate_global->__pyx_n_u_ascontiguousarray); if (unlikely(!__pyx_t_3)) __PYX_ERR(0, 29, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_3);
   __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
-  __pyx_t_12 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_world_to_cam_mat); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 28, __pyx_L1_error)
+  __pyx_t_12 = __Pyx_PyObject_GetAttrStr(__pyx_v_cam, __pyx_mstate_global->__pyx_n_u_world_to_cam_mat); if (unlikely(!__pyx_t_12)) __PYX_ERR(0, 29, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_12);
   __pyx_t_13 = __pyx_t_12;
   __Pyx_INCREF(__pyx_t_13);
@@ -17263,7 +17263,7 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
     __pyx_t_10 = __Pyx_PyObject_FastCallMethod(__pyx_mstate_global->__pyx_n_u_flatten, __pyx_callargs+__pyx_t_9, (1-__pyx_t_9) | (1*__Pyx_PY_VECTORCALL_ARGUMENTS_OFFSET));
     __Pyx_XDECREF(__pyx_t_13); __pyx_t_13 = 0;
     __Pyx_DECREF(__pyx_t_12); __pyx_t_12 = 0;
-    if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 28, __pyx_L1_error)
+    if (unlikely(!__pyx_t_10)) __PYX_ERR(0, 29, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_10);
   }
   __pyx_t_9 = 1;
@@ -17284,25 +17284,25 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
     __Pyx_XDECREF(__pyx_t_2); __pyx_t_2 = 0;
     __Pyx_DECREF(__pyx_t_10); __pyx_t_10 = 0;
     __Pyx_DECREF(__pyx_t_3); __pyx_t_3 = 0;
-    if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 28, __pyx_L1_error)
+    if (unlikely(!__pyx_t_8)) __PYX_ERR(0, 29, __pyx_L1_error)
     __Pyx_GOTREF(__pyx_t_8);
   }
   __pyx_v_w_to_c_flat_np = __pyx_t_8;
   __pyx_t_8 = 0;
 
-  /* "zigraster/cyth/zraster.py":29
+  /* "zigraster/cyth/zraster.py":30
  * 
  *     w_to_c_flat_np = np.ascontiguousarray(cam.world_to_cam_mat.flatten())
  *     w_to_c: cython.double[::1] = w_to_c_flat_np             # <<<<<<<<<<<<<<
  *     world_to_cam_mat: zr.CMat44F = zr.CMat44F(cython.address(w_to_c[0]),16)
  * 
 */
-  __pyx_t_14 = __Pyx_PyObject_to_MemoryviewSlice_dc_double(__pyx_v_w_to_c_flat_np, PyBUF_WRITABLE); if (unlikely(!__pyx_t_14.memview)) __PYX_ERR(0, 29, __pyx_L1_error)
+  __pyx_t_14 = __Pyx_PyObject_to_MemoryviewSlice_dc_double(__pyx_v_w_to_c_flat_np, PyBUF_WRITABLE); if (unlikely(!__pyx_t_14.memview)) __PYX_ERR(0, 30, __pyx_L1_error)
   __pyx_v_w_to_c = __pyx_t_14;
   __pyx_t_14.memview = NULL;
   __pyx_t_14.data = NULL;
 
-  /* "zigraster/cyth/zraster.py":30
+  /* "zigraster/cyth/zraster.py":31
  *     w_to_c_flat_np = np.ascontiguousarray(cam.world_to_cam_mat.flatten())
  *     w_to_c: cython.double[::1] = w_to_c_flat_np
  *     world_to_cam_mat: zr.CMat44F = zr.CMat44F(cython.address(w_to_c[0]),16)             # <<<<<<<<<<<<<<
@@ -17317,13 +17317,13 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
   } else if (unlikely(__pyx_t_16 >= __pyx_v_w_to_c.shape[0])) __pyx_t_17 = 0;
   if (unlikely(__pyx_t_17 != -1)) {
     __Pyx_RaiseBufferIndexError(__pyx_t_17);
-    __PYX_ERR(0, 30, __pyx_L1_error)
+    __PYX_ERR(0, 31, __pyx_L1_error)
   }
   __pyx_t_15.mat = (&(*((double *) ( /* dim=0 */ ((char *) (((double *) __pyx_v_w_to_c.data) + __pyx_t_16)) ))));
   __pyx_t_15.numel = 16;
   __pyx_v_world_to_cam_mat = __pyx_t_15;
 
-  /* "zigraster/cyth/zraster.py":33
+  /* "zigraster/cyth/zraster.py":34
  * 
  *     ccam: zr.CCamera = zr.CCamera(
  *         pixels_num,             # <<<<<<<<<<<<<<
@@ -17332,7 +17332,7 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
 */
   __pyx_t_18.pixels_num = __pyx_v_pixels_num;
 
-  /* "zigraster/cyth/zraster.py":34
+  /* "zigraster/cyth/zraster.py":35
  *     ccam: zr.CCamera = zr.CCamera(
  *         pixels_num,
  *         pixels_size,             # <<<<<<<<<<<<<<
@@ -17341,7 +17341,7 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
 */
   __pyx_t_18.pixels_size = __pyx_v_pixels_size;
 
-  /* "zigraster/cyth/zraster.py":35
+  /* "zigraster/cyth/zraster.py":36
  *         pixels_num,
  *         pixels_size,
  *         pos_world,             # <<<<<<<<<<<<<<
@@ -17350,7 +17350,7 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
 */
   __pyx_t_18.pos_world = __pyx_v_pos_world;
 
-  /* "zigraster/cyth/zraster.py":36
+  /* "zigraster/cyth/zraster.py":37
  *         pixels_size,
  *         pos_world,
  *         rot_world,             # <<<<<<<<<<<<<<
@@ -17359,7 +17359,7 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
 */
   __pyx_t_18.rot_world = __pyx_v_rot_world;
 
-  /* "zigraster/cyth/zraster.py":37
+  /* "zigraster/cyth/zraster.py":38
  *         pos_world,
  *         rot_world,
  *         roi_cent_world,             # <<<<<<<<<<<<<<
@@ -17368,7 +17368,7 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
 */
   __pyx_t_18.roi_cent_world = __pyx_v_roi_cent_world;
 
-  /* "zigraster/cyth/zraster.py":38
+  /* "zigraster/cyth/zraster.py":39
  *         rot_world,
  *         roi_cent_world,
  *         sub_sample,             # <<<<<<<<<<<<<<
@@ -17377,7 +17377,7 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
 */
   __pyx_t_18.subsample = __pyx_v_sub_sample;
 
-  /* "zigraster/cyth/zraster.py":39
+  /* "zigraster/cyth/zraster.py":40
  *         roi_cent_world,
  *         sub_sample,
  *         sensor_size,             # <<<<<<<<<<<<<<
@@ -17386,7 +17386,7 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
 */
   __pyx_t_18.sensor_size = __pyx_v_sensor_size;
 
-  /* "zigraster/cyth/zraster.py":40
+  /* "zigraster/cyth/zraster.py":41
  *         sub_sample,
  *         sensor_size,
  *         image_dims,             # <<<<<<<<<<<<<<
@@ -17395,7 +17395,7 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
 */
   __pyx_t_18.image_dims = __pyx_v_image_dims;
 
-  /* "zigraster/cyth/zraster.py":41
+  /* "zigraster/cyth/zraster.py":42
  *         sensor_size,
  *         image_dims,
  *         image_dist,             # <<<<<<<<<<<<<<
@@ -17404,7 +17404,7 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
 */
   __pyx_t_18.image_dist = __pyx_v_image_dist;
 
-  /* "zigraster/cyth/zraster.py":42
+  /* "zigraster/cyth/zraster.py":43
  *         image_dims,
  *         image_dist,
  *         cam_to_world_mat,             # <<<<<<<<<<<<<<
@@ -17413,7 +17413,7 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
 */
   __pyx_t_18.cam_to_world = __pyx_v_cam_to_world_mat;
 
-  /* "zigraster/cyth/zraster.py":43
+  /* "zigraster/cyth/zraster.py":44
  *         image_dist,
  *         cam_to_world_mat,
  *         world_to_cam_mat,             # <<<<<<<<<<<<<<
@@ -17423,15 +17423,15 @@ static PyObject *__pyx_pf_9zigraster_4cyth_7zraster_set_camera(CYTHON_UNUSED PyO
   __pyx_t_18.world_to_cam = __pyx_v_world_to_cam_mat;
   __pyx_v_ccam = __pyx_t_18;
 
-  /* "zigraster/cyth/zraster.py":51
- *     # print()
+  /* "zigraster/cyth/zraster.py":47
+ *     )
  * 
  *     zr.printCamera(cython.address(ccam))             # <<<<<<<<<<<<<<
 */
   printCamera((&__pyx_v_ccam));
 
-  /* "zigraster/cyth/zraster.py":6
- * import pyvale as pyv
+  /* "zigraster/cyth/zraster.py":7
+ * 
  * 
  * def set_camera(cam: pyv.CameraData) -> None:             # <<<<<<<<<<<<<<
  *     pixels_num: zr.CVec2U32 = zr.CVec2U32(cam.pixels_num[0],cam.pixels_num[1])
@@ -19397,29 +19397,29 @@ __Pyx_RefNannySetupContext("PyInit_zraster", 0);
  * import numpy as np
  * import pyvale as pyv             # <<<<<<<<<<<<<<
  * 
- * def set_camera(cam: pyv.CameraData) -> None:
+ * 
 */
   __pyx_t_5 = __Pyx_ImportDottedModule(__pyx_mstate_global->__pyx_n_u_pyvale, NULL); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 4, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
   if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_pyv, __pyx_t_5) < 0) __PYX_ERR(0, 4, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
 
-  /* "zigraster/cyth/zraster.py":6
- * import pyvale as pyv
+  /* "zigraster/cyth/zraster.py":7
+ * 
  * 
  * def set_camera(cam: pyv.CameraData) -> None:             # <<<<<<<<<<<<<<
  *     pixels_num: zr.CVec2U32 = zr.CVec2U32(cam.pixels_num[0],cam.pixels_num[1])
  *     pixels_size: zr.CVec2F = zr.CVec2F(cam.pixels_size[0],cam.pixels_size[1])
 */
-  __pyx_t_5 = __Pyx_PyDict_NewPresized(2); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 6, __pyx_L1_error)
+  __pyx_t_5 = __Pyx_PyDict_NewPresized(2); if (unlikely(!__pyx_t_5)) __PYX_ERR(0, 7, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_5);
-  if (PyDict_SetItem(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_cam, __pyx_mstate_global->__pyx_kp_u_pyv_CameraData) < 0) __PYX_ERR(0, 6, __pyx_L1_error)
-  if (PyDict_SetItem(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_return, __pyx_mstate_global->__pyx_n_u_None) < 0) __PYX_ERR(0, 6, __pyx_L1_error)
-  __pyx_t_4 = __Pyx_CyFunction_New(&__pyx_mdef_9zigraster_4cyth_7zraster_1set_camera, 0, __pyx_mstate_global->__pyx_n_u_set_camera, NULL, __pyx_mstate_global->__pyx_n_u_zigraster_cyth_zraster, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[0])); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 6, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_cam, __pyx_mstate_global->__pyx_kp_u_pyv_CameraData) < 0) __PYX_ERR(0, 7, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_t_5, __pyx_mstate_global->__pyx_n_u_return, __pyx_mstate_global->__pyx_n_u_None) < 0) __PYX_ERR(0, 7, __pyx_L1_error)
+  __pyx_t_4 = __Pyx_CyFunction_New(&__pyx_mdef_9zigraster_4cyth_7zraster_1set_camera, 0, __pyx_mstate_global->__pyx_n_u_set_camera, NULL, __pyx_mstate_global->__pyx_n_u_zigraster_cyth_zraster, __pyx_mstate_global->__pyx_d, ((PyObject *)__pyx_mstate_global->__pyx_codeobj_tab[0])); if (unlikely(!__pyx_t_4)) __PYX_ERR(0, 7, __pyx_L1_error)
   __Pyx_GOTREF(__pyx_t_4);
   __Pyx_CyFunction_SetAnnotationsDict(__pyx_t_4, __pyx_t_5);
   __Pyx_DECREF(__pyx_t_5); __pyx_t_5 = 0;
-  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_set_camera, __pyx_t_4) < 0) __PYX_ERR(0, 6, __pyx_L1_error)
+  if (PyDict_SetItem(__pyx_mstate_global->__pyx_d, __pyx_mstate_global->__pyx_n_u_set_camera, __pyx_t_4) < 0) __PYX_ERR(0, 7, __pyx_L1_error)
   __Pyx_DECREF(__pyx_t_4); __pyx_t_4 = 0;
 
   /* "zigraster/cyth/zraster.py":1
@@ -19765,7 +19765,7 @@ static int __Pyx_CreateCodeObjects(__pyx_mstatetype *__pyx_mstate) {
   PyObject* tuple_dedup_map = PyDict_New();
   if (unlikely(!tuple_dedup_map)) return -1;
   {
-    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 18, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 6, 337};
+    const __Pyx_PyCode_New_function_description descr = {1, 0, 0, 18, (unsigned int)(CO_OPTIMIZED|CO_NEWLOCALS), 7, 337};
     PyObject* const varnames[] = {__pyx_mstate->__pyx_n_u_cam, __pyx_mstate->__pyx_n_u_pixels_num, __pyx_mstate->__pyx_n_u_pixels_size, __pyx_mstate->__pyx_n_u_pos_world, __pyx_mstate->__pyx_n_u_rot_angs, __pyx_mstate->__pyx_n_u_rot_world, __pyx_mstate->__pyx_n_u_roi_cent_world, __pyx_mstate->__pyx_n_u_sub_sample, __pyx_mstate->__pyx_n_u_sensor_size, __pyx_mstate->__pyx_n_u_image_dims, __pyx_mstate->__pyx_n_u_image_dist, __pyx_mstate->__pyx_n_u_c_to_w_flat_np, __pyx_mstate->__pyx_n_u_c_to_w, __pyx_mstate->__pyx_n_u_cam_to_world_mat, __pyx_mstate->__pyx_n_u_w_to_c_flat_np, __pyx_mstate->__pyx_n_u_w_to_c, __pyx_mstate->__pyx_n_u_world_to_cam_mat, __pyx_mstate->__pyx_n_u_ccam};
     __pyx_mstate_global->__pyx_codeobj_tab[0] = __Pyx_PyCode_New(descr, varnames, __pyx_mstate->__pyx_kp_u_src_zigraster_cyth_zraster_py, __pyx_mstate->__pyx_n_u_set_camera, __pyx_k_q_C_1_as_as_AS_1_1_1_s_IQfHA_AX, tuple_dedup_map); if (unlikely(!__pyx_mstate_global->__pyx_codeobj_tab[0])) goto bad;
   }

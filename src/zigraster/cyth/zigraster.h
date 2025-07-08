@@ -25,7 +25,7 @@ typedef struct cMat44F {
     size_t numel;
 } CMat44F;
 
-typedef struct CCamera {
+typedef struct cCamera {
     CVec2U32 pixels_num;
     CVec2F pixels_size;
     CVec3F pos_world;

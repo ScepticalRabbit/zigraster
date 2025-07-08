@@ -169,18 +169,20 @@ pub fn main() !void {
 
     //--------------------------------------------------------------------------
     // Raster Frame
-    print("\n",.{});
-    print("connect.elem_n={any}\n",.{connect.elem_n});
-    print("connect.nodes_per_elem={any}\n",.{connect.nodes_per_elem});
-    print("\n",.{});
+    // print("\n",.{});
+    // print("connect.elem_n={any}\n",.{connect.elem_n});
+    // print("connect.nodes_per_elem={any}\n",.{connect.nodes_per_elem});
+    // print("\n",.{});
 
+
+    print("Rastering Image...\n",.{});
     const frame_ind: usize = 1;
 
     time_start = try Instant.now();
     const image_subpx = try Raster.rasterFrame(arena_alloc, frame_ind,&coords, &connect, &field, &camera);
     time_end = try Instant.now();
     const time_raster: f64 = @floatFromInt(time_end.since(time_start));
-    print("RASTER: time = {d:.3}ms\n\n", .{time_raster / time.ns_per_ms});
+    print("Raster time = {d:.3}ms\n\n", .{time_raster / time.ns_per_ms});
 
     // Print diagnostics to console to see if there is an image
     const image_max = std.mem.max(f64,image_subpx.image.elems);
@@ -205,7 +207,20 @@ pub fn main() !void {
     var out_dir = try cwd.openDir(dir_name, .{});
     defer out_dir.close();
 
+    print("Saving output images to: {s}\n",.{dir_name});
+
+    time_start = try Instant.now();
     try image_subpx.image.saveCSV(out_dir, buffer_name);
+    time_end = try Instant.now();
+
+    const time_save_image: f64 = @floatFromInt(time_end.since(time_start));
+
+    time_start = try Instant.now();
     try image_subpx.depth.saveCSV(out_dir, depth_name);
+    time_end = try Instant.now();
+
+    const time_save_depth: f64 = @floatFromInt(time_end.since(time_start));
+    print("Image, depth buffer save time = {d:.3}, {d:.3} ms\n", .{time_save_image / time.ns_per_ms, time_save_depth / time.ns_per_ms});
+
 
 }

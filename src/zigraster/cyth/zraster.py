@@ -3,6 +3,7 @@ from cython.cimports import zigraster as zr
 import numpy as np
 import pyvale as pyv
 
+
 def set_camera(cam: pyv.CameraData) -> None:
     pixels_num: zr.CVec2U32 = zr.CVec2U32(cam.pixels_num[0],cam.pixels_num[1])
     pixels_size: zr.CVec2F = zr.CVec2F(cam.pixels_size[0],cam.pixels_size[1])
@@ -42,10 +43,5 @@ def set_camera(cam: pyv.CameraData) -> None:
         cam_to_world_mat,
         world_to_cam_mat,
     )
-
-    # print()
-    # print("Cython: Camera")
-    # print(f"{ccam}")
-    # print()
-
+    
     zr.printCamera(cython.address(ccam))

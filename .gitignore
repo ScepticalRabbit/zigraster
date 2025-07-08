@@ -1,9 +1,14 @@
+
+# Library files
 *.so
 *.a
 *.o
 build/
 file-out/
 raster-out/
+
+# Cython
+*.html
 
 # Python ignores
 .venv/
