@@ -4,7 +4,8 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 import matplotlib.pyplot as plt
 import mooseherder as mh
-import pyvale as pyv
+import pyvale.dataset as dataset
+import pyvale.sensorsim as sens
 import zigraster.cyth.zraster as zr
 
 
@@ -16,14 +17,14 @@ def main() -> None:
     print(80*"=")
     print()
 
-    sim_path = pyv.DataSet.render_simple_block_path()
-    #sim_path = pyv.DataSet.render_mechanical_3d_path()
+    sim_path = dataset.render_simple_block_path()
+    #sim_path = sens.DataSet.render_mechanical_3d_path()
     sim_data = mh.ExodusReader(sim_path).read_all_sim_data()
 
     disp_comps = ("disp_x","disp_y","disp_z")
 
     # Scale m -> mm
-    sim_data = pyv.scale_length_units(1000.0,sim_data,disp_comps)
+    sim_data = sens.scale_length_units(1000.0,sim_data,disp_comps)
 
     print()
     print(f"{np.max(np.abs(sim_data.node_vars['disp_x']))=}")
@@ -32,7 +33,7 @@ def main() -> None:
     print()
 
     # Extracts the surface mesh from a full 3d simulation for rendering
-    render_mesh = pyv.create_render_mesh(sim_data,
+    render_mesh = sens.create_render_mesh(sim_data,
                                         ("disp_y","disp_x","disp_z"),
                                         sim_spat_dim=3,
                                         field_disp_keys=disp_comps)
@@ -45,7 +46,7 @@ def main() -> None:
     fov_scale_factor: float = 1.1
 
     (roi_pos_world,
-    cam_pos_world) = pyv.CameraTools.pos_fill_frame(
+    cam_pos_world) = sens.CameraTools.pos_fill_frame(
         coords_world=render_mesh.coords,
         pixel_num=pixel_num,
         pixel_size=pixel_size,
@@ -54,7 +55,7 @@ def main() -> None:
         frame_fill=fov_scale_factor,
     )
 
-    cam_data = pyv.CameraData(
+    cam_data = sens.CameraData(
         pixels_num=pixel_num,
         pixels_size=pixel_size,
         pos_world=cam_pos_world,

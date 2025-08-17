@@ -131,19 +131,42 @@ pub fn MatSlice(comptime EType: type) type {
         }
 
         pub fn saveCSV(self: *const Self, out_dir: std.fs.Dir, file_name: []const u8) !void {
-            const csv = try out_dir.createFile(file_name, .{});
-            defer csv.close();
+            // NOTE: this is really slow - only use for debugging. Probably
+            // could be fixed by writing one line at a time instead of one col.
 
-            var buff: [1024]u8 = undefined;
-            @memset(buff[0..], 0);
+            // const csv = try out_dir.createFile(file_name, .{});
+            // defer csv.close();
+
+            // var buff: [1024]u8 = undefined;
+            // @memset(buff[0..], 0);
+
+            // for (0..self.rows_n) |rr| {
+            //     for (0..self.cols_n) |cc| {
+            //         const str = try std.fmt.bufPrint(&buff, "{},", .{self.get(rr, cc)});
+            //         _ = try csv.write(str);
+            //     }
+            //     _ = try csv.write("\n");
+            // }
+
+            const csv_file = try out_dir.createFile(file_name, .{});
+            defer csv_file.close();
+
+            var bw = std.io.bufferedWriter(csv_file.writer());
+            const writer = bw.writer();
 
             for (0..self.rows_n) |rr| {
                 for (0..self.cols_n) |cc| {
-                    const str = try std.fmt.bufPrint(&buff, "{},", .{self.get(rr, cc)});
-                    _ = try csv.write(str);
+                    try writer.print("{}", .{self.get(rr, cc)});
+                    if (cc < self.cols_n - 1) {
+                        try writer.writeAll(",");
+                    }
                 }
-                _ = try csv.write("\n");
+                try writer.writeAll("\n");
+                // We don't need to manually flush here, the BufferedWriter handles it.
+                // It's designed to batch the writes efficiently.
             }
+
+            try bw.flush(); // IMPORTANT: Flush the remaining data to the file
         }
     };
 }
@@ -443,7 +466,7 @@ test "MatSlice.mulScalar" {
 
 test "MatSliceOps.mulVec" {
     var m0 = [_]TestType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-    const mat0 = try MatSlice(TestType).init(&m0,3,3);
+    const mat0 = try MatSlice(TestType).init(&m0, 3, 3);
 
     var v0 = [_]TestType{ 3, 2, 1 };
     const vec0 = VecSlice(TestType).init(&v0);
@@ -451,7 +474,7 @@ test "MatSliceOps.mulVec" {
     var v1 = [_]TestType{ 10, 28, 46 };
     const vec_exp = VecSlice(TestType).init(&v1);
 
-    var v_out = [_]TestType{ 0 } ** 3;
+    var v_out = [_]TestType{0} ** 3;
     var vec_out = VecSlice(TestType).init(&v_out);
 
     try MatSliceOps(TestType).mulVec(&mat0, &vec0, &vec_out);
@@ -461,19 +484,18 @@ test "MatSliceOps.mulVec" {
 
 test "MatSliceOps.mulMat" {
     var m0 = [_]TestType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
-    const mat0 = try MatSlice(TestType).init(&m0,3,3);
+    const mat0 = try MatSlice(TestType).init(&m0, 3, 3);
 
     var m1 = [_]TestType{ 3, 1, 1, 1, 3, 1, 1, 1, 3 };
-    const mat1 = try MatSlice(TestType).init(&m1,3,3);
+    const mat1 = try MatSlice(TestType).init(&m1, 3, 3);
 
-    var m2 = [_]TestType{ 0 } ** 9;
-    var mat_out = try MatSlice(TestType).init(&m2,3,3);
+    var m2 = [_]TestType{0} ** 9;
+    var mat_out = try MatSlice(TestType).init(&m2, 3, 3);
 
     var m3 = [_]TestType{ 8, 10, 12, 23, 25, 27, 38, 40, 42 };
-    const mat_exp = try MatSlice(TestType).init(&m3,3,3);
+    const mat_exp = try MatSlice(TestType).init(&m3, 3, 3);
 
     try MatSliceOps(TestType).mulMat(&mat0, &mat1, &mat_out);
 
     try expectEqualSlices(TestType, mat_exp.elems, mat_out.elems);
 }
-

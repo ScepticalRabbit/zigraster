@@ -19,8 +19,16 @@ pub const CVec3F = extern struct {
 };
 
 pub const CMat44F = extern struct {
-    mat: [*c]f64,
-    numel: usize,
+    elems: [*c]f64,
+    elems_num: usize,
+};
+
+
+pub const CNDArrayF = extern struct {
+    elems: [*c]f64,
+    dims: [*c]usize,
+    elems_num: usize,
+    dims_num: usize,
 };
 
 pub const CCamera = extern struct {
@@ -52,3 +60,4 @@ pub export fn printCamera(cam: *const CCamera) void {
     print("image_dist={}\n",.{cam.image_dist});
     print("\n", .{});
 }
+
