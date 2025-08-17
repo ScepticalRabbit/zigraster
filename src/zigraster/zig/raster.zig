@@ -8,6 +8,7 @@ const Mat44Ops = @import("matstack.zig").Mat44Ops;
 
 const VecSlice = @import("vecslice.zig").VecSlice;
 const MatSlice = @import("matslice.zig").MatSlice;
+const NDArray = @import("ndarray.zig").NDArray;
 
 const sliceops = @import("sliceops.zig");
 
@@ -17,7 +18,7 @@ const Field = @import("meshio.zig").Field;
 
 const Camera = @import("camera.zig").Camera;
 
-// NOTE: mainly used for debugging and passing back sub-pixel buffers
+// NOTE: Used for debugging and passing back sub-pixel buffers
 pub const ImageAlloc = struct {
     allocator: std.mem.Allocator,
     image: MatSlice(f64),
@@ -109,7 +110,7 @@ pub const Raster = struct {
         }
     }
 
-    pub fn rasterOneFrame(allocator: std.mem.Allocator, frame_ind: usize, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera, image_out_buff: *MatSlice(f64)) !ImageAlloc {
+    pub fn rasterOneFrame(allocator: std.mem.Allocator, frame_ind: usize, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera, image_out_buff: *MatSlice(f64)) !void {
         const tol: f64 = 1e-12;
         var elems_in_image: usize = 0;
 
@@ -143,8 +144,11 @@ pub const Raster = struct {
         // NOTE: we keep this instead of 2x MatSlice buffers so we can return it
         // for debugging purposes.
         var image_subpx = try ImageAlloc.init(allocator, subpx_x, subpx_y);
+        defer image_subpx.deinit();
         image_subpx.image.fill(0.0);
         image_subpx.depth.fill(1e6);
+
+        // TODO: this will need to be de-allocated instead of passed back.
 
         var px_coord_buff: Vec3f = Vec3f.initZeros();
 
@@ -336,14 +340,32 @@ pub const Raster = struct {
         // NOTE: only need to do this for debugging - this can be discarded here
         // averageImage(&image_subpx.depth, camera.sub_sample, &image.depth);
 
-        // NOTE: could return the sub_px buffers here, they have to be
-        // allocated anyway so we only catch them if we need them.
-        // Instead we pass in the image buffer and write into it
-        return image_subpx;
+        // NOTE: could return the sub_px buffers here, but if we don't free the
+        // memory then we have a leak. Need to defer deinit() them to avoid this.
+        // return image_subpx;
     }
 
-    // pub fn rasterAllFrames(allocator: std.mem.Allocator, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera) !ImageAlloc {
-        // TODO: Allocate an NDArray buffer, loop over the images and write into
-        // the NDArray for each frame
-    // }
+    pub fn rasterAllFrames(allocator: std.mem.Allocator, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera) !NDArray {
+
+        const frame_buff_size: usize = field.time_n*camera.pixels_num[0]*camera.pixels_num[1];
+
+        const frame_buff_mem = try allocator.alloc(f64,frame_buff_size);
+        const frame_buff_dims = [_]usize{field.time_n,camera.pixels_num[1],camera.pixels_num[0]};
+
+        var frame_buff = try NDArray(f64).init(frame_buff_mem,frame_buff_dims);
+
+        const image_stride = try frame_buff.flatStride(0);
+        var image_inds = [_]usize{0,0,0};
+        for (0..field.time_n) |ff| {
+            image_inds[0] = ff;
+            const start_ind = try frame_buff.flatInd(image_inds);
+            const end_ind = start_ind+image_stride;
+
+            const image_out_mem = frame_buff.elems[start_ind..end_ind];
+            var image_out_buff = try MatSlice(f64).init(image_out_mem,camera.pixels_num[1],camera.pixels_num[0]);
+            try rasterOneFrame(allocator, ff, coords, connect, field, camera, &image_out_buff);
+        }
+
+        return frame_buff;
+    }
 };
