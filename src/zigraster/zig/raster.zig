@@ -355,7 +355,7 @@ pub const Raster = struct {
         var frame_buff = try NDArray(f64).init(frame_buff_mem,frame_buff_dims);
 
         const image_stride = try frame_buff.flatStride(0);
-        var image_inds = [_]usize{0,0,0};
+        var image_inds = [_]usize{0,0,0}; // frame,px_y,px_x
         for (0..field.time_n) |ff| {
             image_inds[0] = ff;
             const start_ind = try frame_buff.flatInd(image_inds);
