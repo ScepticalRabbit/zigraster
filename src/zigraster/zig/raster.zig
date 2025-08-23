@@ -1,5 +1,7 @@
 const std = @import("std");
 const print = std.debug.print;
+const time = std.time;
+const Instant = time.Instant;
 
 const Vec3f = @import("vecstack.zig").Vec3f;
 const Vec3SliceOps = @import("vecstack.zig").Vec3SliceOps;
@@ -345,7 +347,7 @@ pub const Raster = struct {
         // return image_subpx;
     }
 
-    pub fn rasterAllFrames(allocator: std.mem.Allocator, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera) !NDArray {
+    pub fn rasterAllFrames(allocator: std.mem.Allocator, out_dir: std.fs.Dir, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera) !NDArray {
 
         const frame_buff_size: usize = field.time_n*camera.pixels_num[0]*camera.pixels_num[1];
 
@@ -356,7 +358,14 @@ pub const Raster = struct {
 
         const image_stride = try frame_buff.flatStride(0);
         var image_inds = [_]usize{0,0,0}; // frame,px_y,px_x
+
+        var time_start: f64 = 0.0;
+        var time_end: f64 = 0.0;
+        var time_raster: f64 = 0.0;
+
         for (0..field.time_n) |ff| {
+            time_start = try Instant.now();
+
             image_inds[0] = ff;
             const start_ind = try frame_buff.flatInd(image_inds);
             const end_ind = start_ind+image_stride;
@@ -364,6 +373,13 @@ pub const Raster = struct {
             const image_out_mem = frame_buff.elems[start_ind..end_ind];
             var image_out_buff = try MatSlice(f64).init(image_out_mem,camera.pixels_num[1],camera.pixels_num[0]);
             try rasterOneFrame(allocator, ff, coords, connect, field, camera, &image_out_buff);
+
+            try image_out_buff.saveCSV(out_dir,);
+
+            time_end = try Instant.now();
+            time_raster = @floatFromInt(time_end.since(time_start));
+
+            print("Frame {}, raster time = {d:.3}ms\n\n", .{ff, time_raster / time.ns_per_ms});
         }
 
         return frame_buff;

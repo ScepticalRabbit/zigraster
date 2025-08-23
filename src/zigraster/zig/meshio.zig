@@ -85,30 +85,58 @@ pub const Field = struct {
     }
 };
 
+
+// pub fn readCsvToList(allocator: std.mem.Allocator, path: []const u8) !std.ArrayList([]const u8) {
+//     var file = try std.fs.cwd().openFile(path, .{});
+//     defer file.close();
+
+//     var buffered_reader = std.io.bufferedReader(file.reader());
+//     var reader = buffered_reader.reader();
+//     var buffer: [4096]u8 = undefined;
+
+//     var lines = std.ArrayList([]const u8).init(allocator);
+
+//     while (true) {
+//         const line = try reader.readUntilDelimiterOrEof(&buffer, '\n');
+
+//         if (line) |line_str| {
+//             const line_copy = try allocator.alloc(u8, line_str.len);
+//             std.mem.copyForwards(u8, line_copy, line_str);
+//             try lines.append(line_copy);
+//         } else {
+//             break;
+//         }
+//     }
+
+//     return lines;
+// }
+
 pub fn readCsvToList(allocator: std.mem.Allocator, path: []const u8) !std.ArrayList([]const u8) {
     var file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
 
-    var buffered_reader = std.io.bufferedReader(file.reader());
-    var reader = buffered_reader.reader();
-    var buffer: [4096]u8 = undefined;
+    // File-backed buffered reader. Keep this struct alive while reading.
+    var buf: [4096]u8 = undefined;
+    var reader = file.reader(&buf); // type: std.fs.File.Reader
 
-    var lines = std.ArrayList([]const u8).init(allocator);
+    var lines: std.ArrayList([] const u8)  = .{};
 
-    while (true) {
-        const line = try reader.readUntilDelimiterOrEof(&buffer, '\n');
+    // Read lines without the trailing '\n' (exclusive).
+    while (reader.interface.takeDelimiterExclusive('\n')) |line| {
+        // Optional: trim Windows '\r'
+        const clean = if (@import("builtin").os.tag == .windows)
+            std.mem.trimRight(u8, line, "\r")
+        else
+            line;
 
-        if (line) |line_str| {
-            const line_copy = try allocator.alloc(u8, line_str.len);
-            std.mem.copyForwards(u8, line_copy, line_str);
-            try lines.append(line_copy);
-        } else {
-            break;
-        }
-    }
+        const copy = try allocator.dupe(u8, clean);
+        try lines.append(allocator,copy);
+    } else |err| if (err != error.EndOfStream) return err;
 
     return lines;
 }
+
+
 
 pub fn parseCoords(csv_lines: *const std.ArrayList([]const u8), coords: *Coords) !void {
     const num_coords: u8 = 3;

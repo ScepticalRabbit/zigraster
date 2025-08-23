@@ -130,29 +130,37 @@ pub fn MatSlice(comptime EType: type) type {
             print("\n", .{});
         }
 
+        // NOTE: Zig 0.14
+        // pub fn saveCSV(self: *const Self, out_dir: std.fs.Dir, file_name: []const u8) !void {
+
+        //     const csv_file = try out_dir.createFile(file_name, .{});
+        //     defer csv_file.close();
+
+        //     var bw = std.io.bufferedWriter(csv_file.writer());
+        //     const writer = bw.writer();
+
+        //     for (0..self.rows_n) |rr| {
+        //         for (0..self.cols_n) |cc| {
+        //             try writer.print("{}", .{self.get(rr, cc)});
+        //             if (cc < self.cols_n - 1) {
+        //                 try writer.writeAll(",");
+        //             }
+        //         }
+        //         try writer.writeAll("\n");
+        //         // We don't need to manually flush here, the BufferedWriter handles it.
+        //         // It's designed to batch the writes efficiently.
+        //     }
+
+        //     try bw.flush(); // IMPORTANT: Flush the remaining data to the file
+        // }
+
         pub fn saveCSV(self: *const Self, out_dir: std.fs.Dir, file_name: []const u8) !void {
-            // NOTE: this is really slow - only use for debugging. Probably
-            // could be fixed by writing one line at a time instead of one col.
-
-            // const csv = try out_dir.createFile(file_name, .{});
-            // defer csv.close();
-
-            // var buff: [1024]u8 = undefined;
-            // @memset(buff[0..], 0);
-
-            // for (0..self.rows_n) |rr| {
-            //     for (0..self.cols_n) |cc| {
-            //         const str = try std.fmt.bufPrint(&buff, "{},", .{self.get(rr, cc)});
-            //         _ = try csv.write(str);
-            //     }
-            //     _ = try csv.write("\n");
-            // }
-
             const csv_file = try out_dir.createFile(file_name, .{});
             defer csv_file.close();
 
-            var bw = std.io.bufferedWriter(csv_file.writer());
-            const writer = bw.writer();
+            var write_buf: [8192]u8 = undefined;
+            var file_writer = csv_file.writer(&write_buf);
+            const writer = &file_writer.interface;
 
             for (0..self.rows_n) |rr| {
                 for (0..self.cols_n) |cc| {
@@ -162,11 +170,9 @@ pub fn MatSlice(comptime EType: type) type {
                     }
                 }
                 try writer.writeAll("\n");
-                // We don't need to manually flush here, the BufferedWriter handles it.
-                // It's designed to batch the writes efficiently.
             }
 
-            try bw.flush(); // IMPORTANT: Flush the remaining data to the file
+            try writer.flush();
         }
     };
 }
