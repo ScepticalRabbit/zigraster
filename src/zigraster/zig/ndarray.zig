@@ -62,12 +62,12 @@ pub fn NDArray(comptime EType: type) type {
             var mult: usize = 1;
 
             var ii: usize = self.dims.len - 1;
-            while (ii >= 0) : (ii -= 1) {
+            while (ii > 0) : (ii -= 1) {
                 if (indices[ii] >= self.dims[ii]) {
                     return NDArrayError.IndexOutOfBounds;
                 }
 
-                flat_ind = indices[ii] * mult;
+                flat_ind += indices[ii] * mult;
                 mult *= self.dims[ii];
             }
 

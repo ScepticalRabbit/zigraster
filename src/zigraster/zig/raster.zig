@@ -347,40 +347,48 @@ pub const Raster = struct {
         // return image_subpx;
     }
 
-    pub fn rasterAllFrames(allocator: std.mem.Allocator, out_dir: std.fs.Dir, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera) !NDArray {
+    pub fn rasterAllFrames(allocator: std.mem.Allocator, out_dir: std.fs.Dir, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera) !NDArray(f64) {
+        const frame_buff_size: usize = field.time_n * camera.pixels_num[0] * camera.pixels_num[1];
 
-        const frame_buff_size: usize = field.time_n*camera.pixels_num[0]*camera.pixels_num[1];
+        const frame_buff_mem = try allocator.alloc(f64, frame_buff_size);
+        var frame_buff_dims = [_]usize{ field.time_n, camera.pixels_num[1], camera.pixels_num[0] };
 
-        const frame_buff_mem = try allocator.alloc(f64,frame_buff_size);
-        const frame_buff_dims = [_]usize{field.time_n,camera.pixels_num[1],camera.pixels_num[0]};
-
-        var frame_buff = try NDArray(f64).init(frame_buff_mem,frame_buff_dims);
+        var frame_buff = try NDArray(f64).init(frame_buff_mem, frame_buff_dims[0..]);
 
         const image_stride = try frame_buff.flatStride(0);
-        var image_inds = [_]usize{0,0,0}; // frame,px_y,px_x
+        var image_inds = [_]usize{ 0, 0, 0 }; // frame,px_y,px_x
 
-        var time_start: f64 = 0.0;
-        var time_end: f64 = 0.0;
+        var time_start = try Instant.now();
+        var time_end = try Instant.now();
         var time_raster: f64 = 0.0;
+
+        var name_buff: [512]u8 = undefined;
+        const field_name = "field";
+
+        print("Starting rastering frames.\n", .{});
 
         for (0..field.time_n) |ff| {
             time_start = try Instant.now();
 
             image_inds[0] = ff;
-            const start_ind = try frame_buff.flatInd(image_inds);
-            const end_ind = start_ind+image_stride;
+            const start_ind = try frame_buff.flatInd(image_inds[0..]);
+            const end_ind = start_ind + image_stride;
 
             const image_out_mem = frame_buff.elems[start_ind..end_ind];
-            var image_out_buff = try MatSlice(f64).init(image_out_mem,camera.pixels_num[1],camera.pixels_num[0]);
+            var image_out_buff = try MatSlice(f64).init(image_out_mem, camera.pixels_num[1], camera.pixels_num[0]);
             try rasterOneFrame(allocator, ff, coords, connect, field, camera, &image_out_buff);
 
-            try image_out_buff.saveCSV(out_dir,);
+            const file_name = try std.fmt.bufPrint(name_buff[0..], "{s}_frame{d}.csv", .{ field_name, ff });
+
+            try image_out_buff.saveCSV(out_dir, file_name);
 
             time_end = try Instant.now();
             time_raster = @floatFromInt(time_end.since(time_start));
 
-            print("Frame {}, raster time = {d:.3}ms\n\n", .{ff, time_raster / time.ns_per_ms});
+            print("Frame {}, raster time = {d:.3}ms\n", .{ ff, time_raster / time.ns_per_ms });
         }
+
+        print("Rastering complete.\n\n", .{});
 
         return frame_buff;
     }
