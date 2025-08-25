@@ -90,7 +90,7 @@ pub fn main() !void {
     const coord_count: usize = lines.items.len;
     //var coords = try arena_alloc.alloc(Vec3f, coord_count);
     var coords = try Coords.init(page_alloc, coord_count);
-    defer coords.deinit();
+    defer coords.deinit(page_alloc);
 
     time_start = try Instant.now();
     try meshio.parseCoords(&lines, &coords);

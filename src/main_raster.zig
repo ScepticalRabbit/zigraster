@@ -90,7 +90,7 @@ pub fn main() !void {
     const coord_count: usize = lines.items.len;
     //var coords = try arena_alloc.alloc(Vec3f, coord_count);
     var coords = try Coords.init(page_alloc, coord_count);
-    defer coords.deinit();
+    defer coords.deinit(page_alloc);
 
     time_start = try Instant.now();
     try meshio.parseCoords(&lines, &coords);
@@ -180,7 +180,7 @@ pub fn main() !void {
     const frame_ind: usize = 1;
 
     const image_buff = try arena_alloc.alloc(f64, camera.pixels_num[0] * camera.pixels_num[1]);
-    defer arena_alloc.free(image_buff);
+    //defer arena_alloc.free(image_buff);
     var image_out_buff = try MatSlice(f64).init(image_buff, camera.pixels_num[1], camera.pixels_num[0]);
 
     time_start = try Instant.now();

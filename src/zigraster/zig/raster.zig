@@ -22,7 +22,7 @@ const Camera = @import("camera.zig").Camera;
 
 // NOTE: Used for debugging and passing back sub-pixel buffers
 pub const ImageAlloc = struct {
-    allocator: std.mem.Allocator,
+    alloc: std.mem.Allocator,
     image: MatSlice(f64),
     depth: MatSlice(f64),
     im_buff: []f64,
@@ -30,12 +30,12 @@ pub const ImageAlloc = struct {
 
     const Self = @This();
 
-    pub fn init(allocator: std.mem.Allocator, pixels_x: usize, pixels_y: usize) !Self {
-        const image_buff = try allocator.alloc(f64, pixels_x * pixels_y);
-        const depth_buff = try allocator.alloc(f64, pixels_x * pixels_y);
+    pub fn init(alloc: std.mem.Allocator, pixels_x: usize, pixels_y: usize) !Self {
+        const image_buff = try alloc.alloc(f64, pixels_x * pixels_y);
+        const depth_buff = try alloc.alloc(f64, pixels_x * pixels_y);
 
         return .{
-            .allocator = allocator,
+            .alloc = alloc,
             .image = try MatSlice(f64).init(image_buff, pixels_y, pixels_x),
             .depth = try MatSlice(f64).init(depth_buff, pixels_y, pixels_x),
             .im_buff = image_buff,
@@ -44,8 +44,8 @@ pub const ImageAlloc = struct {
     }
 
     pub fn deinit(self: *const Self) void {
-        self.allocator.free(self.im_buff);
-        self.allocator.free(self.d_buff);
+        self.alloc.free(self.im_buff);
+        self.alloc.free(self.d_buff);
     }
 };
 
@@ -112,18 +112,18 @@ pub const Raster = struct {
         }
     }
 
-    pub fn rasterOneFrame(allocator: std.mem.Allocator, frame_ind: usize, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera, image_out_buff: *MatSlice(f64)) !void {
+    pub fn rasterOneFrame(alloc: std.mem.Allocator, frame_ind: usize, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera, image_out_buff: *MatSlice(f64)) !void {
         const tol: f64 = 1e-12;
         var elems_in_image: usize = 0;
 
         // NOTE: speed test shows this is way faster than stack allocation.
         // 71ms per frame vs 115ms per frame for equivalent setup
-        var nodes_raster_buff: []Vec3f = try allocator.alloc(Vec3f, connect.nodes_per_elem);
-        defer allocator.free(nodes_raster_buff);
-        var weights_buff: []f64 = try allocator.alloc(f64, connect.nodes_per_elem);
-        defer allocator.free(weights_buff);
-        const field_raster_buff: []f64 = try allocator.alloc(f64, connect.nodes_per_elem);
-        defer allocator.free(field_raster_buff);
+        var nodes_raster_buff: []Vec3f = try alloc.alloc(Vec3f, connect.nodes_per_elem);
+        defer alloc.free(nodes_raster_buff);
+        var weights_buff: []f64 = try alloc.alloc(f64, connect.nodes_per_elem);
+        defer alloc.free(weights_buff);
+        const field_raster_buff: []f64 = try alloc.alloc(f64, connect.nodes_per_elem);
+        defer alloc.free(field_raster_buff);
 
         // Allocate buffers on the stack, assuming max nodes is 4
         // NOTE: this is slower than heap allocation
@@ -140,12 +140,12 @@ pub const Raster = struct {
         const subpx_x: usize = @as(usize, camera.pixels_num[0]) * @as(usize, camera.sub_sample);
         const subpx_y: usize = @as(usize, camera.pixels_num[1]) * @as(usize, camera.sub_sample);
 
-        // var image_buff_subpx = try MatAlloc(f64).init(allocator,subpx_y,subpx_x);
-        // var depth_buff_subpx = try MatAlloc(f64).init(allocator,subpx_y, subpx_x);
+        // var image_buff_subpx = try MatAlloc(f64).init(alloc,subpx_y,subpx_x);
+        // var depth_buff_subpx = try MatAlloc(f64).init(alloc,subpx_y, subpx_x);
 
         // NOTE: we keep this instead of 2x MatSlice buffers so we can return it
         // for debugging purposes.
-        var image_subpx = try ImageAlloc.init(allocator, subpx_x, subpx_y);
+        var image_subpx = try ImageAlloc.init(alloc, subpx_x, subpx_y);
         defer image_subpx.deinit();
         image_subpx.image.fill(0.0);
         image_subpx.depth.fill(1e6);
@@ -335,7 +335,7 @@ pub const Raster = struct {
 
         // NOTE: image buffer is now passed into the function instead of being
         // allocated here
-        //var image = try ImageAlloc.init(allocator, camera.pixels_num[0], camera.pixels_num[1]);
+        //var image = try ImageAlloc.init(alloc, camera.pixels_num[0], camera.pixels_num[1]);
 
         averageImage(&image_subpx.image, camera.sub_sample, image_out_buff);
 
@@ -347,15 +347,15 @@ pub const Raster = struct {
         // return image_subpx;
     }
 
-    pub fn rasterAllFrames(allocator: std.mem.Allocator, out_dir: std.fs.Dir, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera) !NDArray(f64) {
+    pub fn rasterAllFrames(alloc: std.mem.Allocator, out_dir: std.fs.Dir, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera) !NDArray(f64) {
         const frame_buff_size: usize = field.time_n * camera.pixels_num[0] * camera.pixels_num[1];
 
-        const frame_buff_mem = try allocator.alloc(f64, frame_buff_size);
+        const frame_buff_mem = try alloc.alloc(f64, frame_buff_size);
         var frame_buff_dims = [_]usize{ field.time_n, camera.pixels_num[1], camera.pixels_num[0] };
 
-        var frame_buff = try NDArray(f64).init(frame_buff_mem, frame_buff_dims[0..]);
+        var frame_buff = try NDArray(f64).init(alloc, frame_buff_mem, frame_buff_dims[0..]);
 
-        const image_stride = try frame_buff.flatStride(0);
+        const image_stride: usize = frame_buff.strides[0];
         var image_inds = [_]usize{ 0, 0, 0 }; // frame,px_y,px_x
 
         var time_start = try Instant.now();
@@ -371,12 +371,12 @@ pub const Raster = struct {
             time_start = try Instant.now();
 
             image_inds[0] = ff;
-            const start_ind = try frame_buff.flatInd(image_inds[0..]);
+            const start_ind = try frame_buff.getFlatInd(image_inds[0..]);
             const end_ind = start_ind + image_stride;
 
             const image_out_mem = frame_buff.elems[start_ind..end_ind];
             var image_out_buff = try MatSlice(f64).init(image_out_mem, camera.pixels_num[1], camera.pixels_num[0]);
-            try rasterOneFrame(allocator, ff, coords, connect, field, camera, &image_out_buff);
+            try rasterOneFrame(alloc, ff, coords, connect, field, camera, &image_out_buff);
 
             const file_name = try std.fmt.bufPrint(name_buff[0..], "{s}_frame{d}.csv", .{ field_name, ff });
 
