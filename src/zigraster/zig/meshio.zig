@@ -4,11 +4,15 @@ const Vec3f = @import("vecstack.zig").Vec3f;
 const slice = @import("sliceops.zig");
 
 const MatSlice = @import("matslice.zig").MatSlice;
+const NDArray = @import("ndarray.zig").NDArray;
 
+
+// TODO: this should wrap a MatSlice and allocate a buffer
 pub const Coords = struct {
     x: []f64,
     y: []f64,
     z: []f64,
+    coord_mat:
     len: usize,
 
     pub fn init(allocator: std.mem.Allocator, coord_n: usize) !Coords {
@@ -35,6 +39,8 @@ pub const Coords = struct {
     }
 };
 
+// TODO; this should wrap a MatSlice and allocate a buffer. Note: Row major so 
+// we need to have dims=[elem_num,node_nums]
 pub const Connect = struct {
     nodes_per_elem: u8,
     elem_n: usize,
@@ -55,57 +61,46 @@ pub const Connect = struct {
 
 
 pub const Field = struct {
-    coord_n: usize,
-    time_n: usize,
-    data: MatSlice(f64),
-    buffer: []f64,
+    //time_n: usize,    
+    //coord_n: usize,
+    //fields_n: usize,
+    array: NDArray(f64),
+    buffer_dims: []usize,
+    buffer_array: []f64,
 
     const Self = @This();
 
-    pub fn init(alloc: std.mem.Allocator, coord_n: usize, time_n: usize) !Self {
-        const buff = try alloc.alloc(f64, coord_n*time_n);
+    pub fn init(alloc: std.mem.Allocator, time_n: usize, coord_n: usize,
+                fields_n: usize) !Self {
 
+        const buff_array = try alloc.alloc(f64, time_n*coord_n*fields_n);
+
+        var buff_dims = try alloc.alloc(usize,3);
+        buff_dims[0] = time_n;
+        buff_dims[1] = coord_n;
+        buff_dims[2] = fields_n;
+
+        const arr = try NDArray(f64).init(buff_array,buff_dims);
+        
         return .{
             .coord_n = coord_n,
             .time_n = time_n,
-            .data = try MatSlice(f64).init(buff, coord_n, time_n),
-            .buffer = buff,
+            .array = arr, 
+            .buffer_data = buffer,
         };
     }
 
+    pub fn get_time_n(self: *Self) usize {return self.buffer_dims[0];}
+    pub fn get_coord_n(self: *Self) usize {return self.buffer_dims[1];}
+    pub fn get_fields_n(self: *Self) usize {return self.buffer_dims[2];}
+   
     pub fn deinit(self: *Self, alloc: std.mem.Allocator) void {
         alloc.free(self.buffer);
     }
 };
 
-
-// NOTE: Zig 0.14
-// pub fn readCsvToList(allocator: std.mem.Allocator, path: []const u8) !std.ArrayList([]const u8) {
-//     var file = try std.fs.cwd().openFile(path, .{});
-//     defer file.close();
-
-//     var buffered_reader = std.io.bufferedReader(file.reader());
-//     var reader = buffered_reader.reader();
-//     var buffer: [4096]u8 = undefined;
-
-//     var lines = std.ArrayList([]const u8).init(allocator);
-
-//     while (true) {
-//         const line = try reader.readUntilDelimiterOrEof(&buffer, '\n');
-
-//         if (line) |line_str| {
-//             const line_copy = try allocator.alloc(u8, line_str.len);
-//             std.mem.copyForwards(u8, line_copy, line_str);
-//             try lines.append(line_copy);
-//         } else {
-//             break;
-//         }
-//     }
-
-//     return lines;
-// }
-
-pub fn readCsvToList(allocator: std.mem.Allocator, path: []const u8) !std.ArrayList([]const u8) {
+pub fn readCsvToList(allocator: std.mem.Allocator, path: []const u8
+                    ) !std.ArrayList([]const u8) {
     var file = try std.fs.cwd().openFile(path, .{});
     defer file.close();
 
@@ -129,8 +124,6 @@ pub fn readCsvToList(allocator: std.mem.Allocator, path: []const u8) !std.ArrayL
 
     return lines;
 }
-
-
 
 pub fn parseCoords(csv_lines: *const std.ArrayList([]const u8), coords: *Coords) !void {
     const num_coords: u8 = 3;

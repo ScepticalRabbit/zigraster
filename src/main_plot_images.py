@@ -2,7 +2,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-import pyvale.sensorsim as sens
+import plotopts as po
 
 def main() -> None:
     data_path = Path.cwd() / "raster-out"
@@ -25,7 +25,7 @@ def main() -> None:
         depth_subpx_buff[depth_subpx_buff > 1e4] = np.nan
 
     #---------------------------------------------------------------------------
-    plot_opts = sens.PlotOptsGeneral()
+    plot_opts = po.PlotOptsGeneral()
 
     if depth_subpx_path.is_file():
         (fig, ax) = plt.subplots(figsize=plot_opts.single_fig_size_square,
