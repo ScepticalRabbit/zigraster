@@ -12,7 +12,6 @@ pub const Coords = struct {
     x: []f64,
     y: []f64,
     z: []f64,
-    coord_mat:
     len: usize,
 
     pub fn init(allocator: std.mem.Allocator, coord_n: usize) !Coords {
@@ -83,10 +82,9 @@ pub const Field = struct {
         const arr = try NDArray(f64).init(buff_array,buff_dims);
         
         return .{
-            .coord_n = coord_n,
-            .time_n = time_n,
-            .array = arr, 
-            .buffer_data = buffer,
+            .array = arr,
+            .buffer_dims = buff_dims, 
+            .buffer_arr = buff_array,
         };
     }
 
@@ -95,6 +93,7 @@ pub const Field = struct {
     pub fn get_fields_n(self: *Self) usize {return self.buffer_dims[2];}
    
     pub fn deinit(self: *Self, alloc: std.mem.Allocator) void {
+        self.array.deinit(alloc);
         alloc.free(self.buffer);
     }
 };
@@ -200,7 +199,11 @@ pub fn parseConnect(allocator: std.mem.Allocator, csv_lines: *const std.ArrayLis
     return connect;
 }
 
-pub fn parseField(allocator: std.mem.Allocator, csv_lines: *const std.ArrayList([]const u8)) !Field {
+pub fn parseField(allocator: std.mem.Allocator, 
+                  csv_lines: *const std.ArrayList([]const u8), 
+                  field: *Field,
+                  field_n: usize) !void {
+
     const coord_n = csv_lines.items.len;
 
     var split_iter = std.mem.splitScalar(u8, csv_lines.items[0], ',');
@@ -213,19 +216,27 @@ pub fn parseField(allocator: std.mem.Allocator, csv_lines: *const std.ArrayList(
     // print("Field: total pts = {}\n", .{coord_n});
     // print("Field: total time steps = {}\n",.{time_n});
 
-    var field = try Field.init(allocator, coord_n, time_n);
-
     var coord: usize = 0;
     var time_step: usize = 0;
+    var inds = [_]usize{0,02,0};
+    inds[2] = field_n;
+
     for (csv_lines.items, 0..) |line_str, ii| {
         coord = ii;
         time_step = 0;
+
+        inds[0] = 0;     // time_n
+        inds[1] = ii;    // coord_n 
 
         split_iter = std.mem.splitScalar(u8, line_str, ',');
 
         while (split_iter.next()) |num_str| {
             const num_f: f64 = try std.fmt.parseFloat(f64, num_str);
+            
+            // TODO: fix this - need to set ndarray value correctly 
+            
             field.data.set(coord, time_step, num_f);
+            
             //field.data[coord * time_n + time_step] = num_f;
             time_step += 1;
         }
