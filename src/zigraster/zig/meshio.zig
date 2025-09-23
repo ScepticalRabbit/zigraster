@@ -59,10 +59,7 @@ pub const Connect = struct {
 };
 
 
-pub const Field = struct {
-    //time_n: usize,    
-    //coord_n: usize,
-    //fields_n: usize,
+pub const Field = struct {,
     array: NDArray(f64),
     buffer_dims: []usize,
     buffer_array: []f64,
@@ -199,12 +196,7 @@ pub fn parseConnect(allocator: std.mem.Allocator, csv_lines: *const std.ArrayLis
     return connect;
 }
 
-pub fn parseField(allocator: std.mem.Allocator, 
-                  csv_lines: *const std.ArrayList([]const u8), 
-                  field: *Field,
-                  field_n: usize) !void {
-
-    const coord_n = csv_lines.items.len;
+pub fn getFieldTimeN(csv_lines: *const std.ArrayList([]const u8)) usize {
 
     var split_iter = std.mem.splitScalar(u8, csv_lines.items[0], ',');
     var time_n: usize = 0;
@@ -213,12 +205,16 @@ pub fn parseField(allocator: std.mem.Allocator,
         time_n += 1;
     }
 
-    // print("Field: total pts = {}\n", .{coord_n});
-    // print("Field: total time steps = {}\n",.{time_n});
+    return time_n;
+}
+
+pub fn parseField(csv_lines: *const std.ArrayList([]const u8), 
+                  field: *Field,
+                  field_n: usize) !void {
 
     var coord: usize = 0;
     var time_step: usize = 0;
-    var inds = [_]usize{0,02,0};
+    var inds = [_]usize{0,0,0};
     inds[2] = field_n;
 
     for (csv_lines.items, 0..) |line_str, ii| {
@@ -233,14 +229,9 @@ pub fn parseField(allocator: std.mem.Allocator,
         while (split_iter.next()) |num_str| {
             const num_f: f64 = try std.fmt.parseFloat(f64, num_str);
             
-            // TODO: fix this - need to set ndarray value correctly 
-            
-            field.data.set(coord, time_step, num_f);
-            
-            //field.data[coord * time_n + time_step] = num_f;
+            field.array.set(inds,num_f);
+          
             time_step += 1;
         }
     }
-
-    return field;
 }

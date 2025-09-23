@@ -37,7 +37,11 @@ pub fn main() !void {
 
     const path_coords = path_data ++ "coords.csv";
     const path_connect = path_data ++ "connectivity.csv";
-    const path_field = path_data ++ "field_disp_y.csv";
+    
+    const path_field_x = path_data ++ "field_disp_x.csv";
+    const path_field_y = path_data ++ "field_disp_y.csv";
+    const path_field_z = path_data ++ "field_disp_z.csv";
+    const field_n: usize = 3; // VECTOR FIELD 
 
     print("Data paths:\n", .{});
     print("Coords: {s}\n", .{path_coords});
@@ -133,19 +137,26 @@ pub fn main() !void {
     //     print("\n",.{});
     // }
 
-    // Parse the field data
     lines.clearRetainingCapacity();
 
+    // Parse the field data
+    
     // Read the csv file into an array list
     time_start = try Instant.now();
-    lines = try meshio.readCsvToList(page_alloc, path_field);
+    lines = try meshio.readCsvToList(page_alloc, path_field_x);
     time_end = try Instant.now();
     const time_read_field: f64 = @floatFromInt(time_end.since(time_start));
     print("\nField: read {} lines from csv.\n", .{lines.items.len});
     print("Field: read time = {d:.3}ms\n", .{time_read_field / time.ns_per_ms});
 
+    // Create the field struct to hold all the data
+    const time_n: usize = meshio.getFieldTimeN(&lines);
+    const coord_n: usize = lines.items.len;
+    var field = meshio.Field.init(arena_alloc,time_n,coord_n,field_n);   
+
+    // Parse first field component
     time_start = try Instant.now();
-    const field = try meshio.parseField(arena_alloc, &lines);
+    const field = try meshio.parseField(&lines,&field,0);
     time_end = try Instant.now();
     const time_parse_field: f64 = @floatFromInt(time_end.since(time_start));
     print("Field: coords={}, time steps={}\n", .{ field.coord_n, field.time_n });
@@ -175,7 +186,7 @@ pub fn main() !void {
     // print("connect.elem_n={any}\n",.{connect.elem_n});
     // print("connect.nodes_per_elem={any}\n",.{connect.nodes_per_elem});
     // print("\n",.{});
-
+    
     print("Rastering Image...\n", .{});
     const frame_ind: usize = 1;
 
