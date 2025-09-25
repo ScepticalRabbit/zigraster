@@ -46,9 +46,9 @@ pub fn main() !void {
     print("Data paths:\n", .{});
     print("Coords: {s}\n", .{path_coords});
     print("Connect: {s}\n", .{path_connect});
-    print("Field, x: {s}\n\n", .{path_field_x});
-    print("Field, y: {s}\n\n", .{path_field_y});
-    print("Field, z: {s}\n\n", .{path_field_z});
+    print("Field, x: {s}\n", .{path_field_x});
+    print("Field, y: {s}\n", .{path_field_y});
+    print("Field, z: {s}\n", .{path_field_z});
 
     // Camera Parameters
     const pixel_num = [_]u32{ 960, 1280 };
@@ -140,49 +140,83 @@ pub fn main() !void {
     // }
 
     lines.clearRetainingCapacity();
-
-    // Parse the field data
+    //--------------------------------------------------------------------------
+    // Parse X displacement field
     
-    // Read the csv file into an array list
     time_start = try Instant.now();
     lines = try meshio.readCsvToList(page_alloc, path_field_x);
     time_end = try Instant.now();
-    const time_read_field: f64 = @floatFromInt(time_end.since(time_start));
-    print("\nField: read {} lines from csv.\n", .{lines.items.len});
-    print("Field: read time = {d:.3}ms\n", .{time_read_field / time.ns_per_ms});
-
+    var time_read_field: f64 = @floatFromInt(time_end.since(time_start));
+    print("\nField.x: read {} lines from csv.\n", .{lines.items.len});
+    print("Field.x: read time = {d:.3}ms\n", .{time_read_field / time.ns_per_ms});
+                        
     // Create the field struct to hold all the data
     const time_n: usize = meshio.getFieldTimeN(&lines);
     const coord_n: usize = lines.items.len;
-    var field = meshio.Field.init(arena_alloc,time_n,coord_n,field_n);   
+    var field = try meshio.Field.init(arena_alloc,time_n,coord_n,field_n);   
 
-    // Parse first field component
     time_start = try Instant.now();
     try meshio.parseField(&lines,&field,0);
     time_end = try Instant.now();
-    const time_parse_field: f64 = @floatFromInt(time_end.since(time_start));
-    print("Field: coords={}, time steps={}\n", .{ field.coord_n, field.time_n });
-    print("Field: parse time = {d:.3}ms\n\n", .{time_parse_field / time.ns_per_ms});
+    var time_parse_field: f64 = @floatFromInt(time_end.since(time_start));
+    print("Field.x: coords={}, time steps={}\n", .{ field.getCoordN(), field.getTimeN() });
+    print("Field.x: parse time = {d:.3}ms\n", .{time_parse_field / time.ns_per_ms});
 
-//
-//    //--------------------------------------------------------------------------
-//    // Build Camera
-//    print("{s}\n", .{print_break});
-//    const roi_pos = CameraOps.roi_cent_from_coords(&coords);
-//    print("\nROI center position:\n", .{});
-//    roi_pos.vecPrint();
-//
-//    const cam_pos = CameraOps.pos_fill_frame_from_rot(&coords, pixel_num, pixel_size, focal_leng, cam_rot, fov_scale_factor);
-//    print("Camera position:\n", .{});
-//    cam_pos.vecPrint();
-//
-//    const camera = Camera.init(pixel_num, pixel_size, cam_pos, cam_rot, roi_pos, focal_leng, subsample);
-//
-//    print("\nWorld to camera matrix:\n", .{});
-//    camera.world_to_cam_mat.matPrint();
-//
-//    print("{s}\n", .{print_break});
-//
+    //--------------------------------------------------------------------------
+    // Parse Y displacement field 
+
+    lines.clearRetainingCapacity();
+    time_start = try Instant.now();
+    lines = try meshio.readCsvToList(page_alloc, path_field_y);
+    time_end = try Instant.now();
+    time_read_field = @floatFromInt(time_end.since(time_start));
+    print("\nField.y: read {} lines from csv.\n", .{lines.items.len});
+    print("Field.y: read time = {d:.3}ms\n", .{time_read_field / time.ns_per_ms});
+    
+    time_start = try Instant.now();
+    try meshio.parseField(&lines,&field,1);
+    time_end = try Instant.now();
+    time_parse_field = @floatFromInt(time_end.since(time_start));
+    print("Field.y: parse time = {d:.3}ms\n", .{time_parse_field / time.ns_per_ms});
+
+    //--------------------------------------------------------------------------
+    // Parse Z displacement fields
+
+    lines.clearRetainingCapacity();
+    time_start = try Instant.now();
+    lines = try meshio.readCsvToList(page_alloc, path_field_z);
+    time_end = try Instant.now();
+    time_read_field = @floatFromInt(time_end.since(time_start));
+    print("\nField.z: read {} lines from csv.\n", .{lines.items.len});
+    print("Field.z: read time = {d:.3}ms\n", .{time_read_field / time.ns_per_ms});
+    
+    time_start = try Instant.now();
+    try meshio.parseField(&lines,&field,2);
+    time_end = try Instant.now();
+    time_parse_field = @floatFromInt(time_end.since(time_start));
+    print("Field.z: parse time = {d:.3}ms\n", .{time_parse_field / time.ns_per_ms});
+
+
+    //--------------------------------------------------------------------------
+    // Build Camera
+    print("{s}\n", .{print_break});
+    const roi_pos = CameraOps.roi_cent_from_coords(&coords);
+    
+    print("\nROI center position:\n", .{});
+    roi_pos.vecPrint();
+
+    const cam_pos = CameraOps.pos_fill_frame_from_rot(&coords, pixel_num, pixel_size, focal_leng, cam_rot, fov_scale_factor);
+
+    print("\nCamera position:\n", .{});
+    cam_pos.vecPrint();
+
+    const camera = Camera.init(pixel_num, pixel_size, cam_pos, cam_rot, roi_pos, focal_leng, subsample);
+
+    print("\nWorld to camera matrix:\n", .{});
+    camera.world_to_cam_mat.matPrint();
+
+    print("{s}\n", .{print_break});
+
 //    //--------------------------------------------------------------------------
 //    // Raster Frame
 //    // print("\n",.{});

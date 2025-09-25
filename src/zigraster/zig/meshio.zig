@@ -76,18 +76,18 @@ pub const Field = struct {
         buff_dims[1] = coord_n;
         buff_dims[2] = fields_n;
 
-        const arr = try NDArray(f64).init(buff_array,buff_dims);
+        const arr = try NDArray(f64).init(alloc,buff_array,buff_dims);
         
         return .{
             .array = arr,
             .buffer_dims = buff_dims, 
-            .buffer_arr = buff_array,
+            .buffer_array = buff_array,
         };
     }
 
-    pub fn get_time_n(self: *Self) usize {return self.buffer_dims[0];}
-    pub fn get_coord_n(self: *Self) usize {return self.buffer_dims[1];}
-    pub fn get_fields_n(self: *Self) usize {return self.buffer_dims[2];}
+    pub fn getTimeN(self: *Self) usize {return self.buffer_dims[0];}
+    pub fn getCoordN(self: *Self) usize {return self.buffer_dims[1];}
+    pub fn getFieldsN(self: *Self) usize {return self.buffer_dims[2];}
    
     pub fn deinit(self: *Self, alloc: std.mem.Allocator) void {
         self.array.deinit(alloc);
@@ -224,12 +224,12 @@ pub fn parseField(csv_lines: *const std.ArrayList([]const u8),
         inds[0] = 0;     // time_n
         inds[1] = ii;    // coord_n 
 
-        split_iter = std.mem.splitScalar(u8, line_str, ',');
+        var split_iter = std.mem.splitScalar(u8, line_str, ',');
 
         while (split_iter.next()) |num_str| {
             const num_f: f64 = try std.fmt.parseFloat(f64, num_str);
             
-            field.array.set(inds,num_f);
+            try field.array.set(inds[0..],num_f);
           
             time_step += 1;
         }

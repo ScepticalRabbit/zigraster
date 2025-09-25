@@ -75,13 +75,12 @@ pub const CameraOps = struct {
 
         print("\n", .{});
         print("bb_min=[{d},{d},{d}]\n", .{ bb_min_x, bb_min_y, bb_min_z });
-        print("bb_max=[{d},{d},{d}]", .{ bb_max_x, bb_max_y, bb_max_z });
+        print("bb_max=[{d},{d},{d}]\n", .{ bb_max_x, bb_max_y, bb_max_z });
 
         print("\nCam to world mat:\n", .{});
         cam_rot.matrix.matPrint();
-        print("\nWorld to cam mat:\n", .{});
+        print("World to cam mat:\n", .{});
         world_to_cam_mat.matPrint();
-        print("\n", .{});
 
         var bb_world_vecs: [8]Vec3f = undefined;
         bb_world_vecs[0] = vector.initVec3(f64, bb_min_x, bb_min_y, bb_max_z);
@@ -172,7 +171,7 @@ pub const CameraOps = struct {
         const image_dists: [2]f64 = image_dist_from_fov(pixels_num, pixels_size, focal_leng, fov_leng);
         const image_dist = @max(image_dists[0], image_dists[1]);
 
-        print("\nfov_leng=[{any},{any}]\n", .{ fov_leng[0], fov_leng[1] });
+        print("fov_leng=[{any},{any}]\n", .{ fov_leng[0], fov_leng[1] });
         print("image_dists=[{any},{any}]\n", .{ image_dists[0], image_dists[1] });
         print("image_dist={any}\n", .{image_dist});
 

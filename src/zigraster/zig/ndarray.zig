@@ -51,12 +51,12 @@ pub fn NDArray(comptime EType: type) type {
         }
 
         pub fn set(self: *Self, indices: []const usize, in_val: EType) !void {
-            const ind: usize = self.flatInd(indices);
+            const ind: usize = try self.getFlatInd(indices);
             self.elems[ind] = in_val;
         }
 
         pub fn get(self: *Self, indices: []const usize) !EType {
-            const ind: usize = self.flatInd(indices);
+            const ind: usize = try self.getFlatInd(indices);
             return self.elems[ind];
         }
 
