@@ -59,7 +59,7 @@ pub const Connect = struct {
 };
 
 
-pub const Field = struct {,
+pub const Field = struct {
     array: NDArray(f64),
     buffer_dims: []usize,
     buffer_array: []f64,
