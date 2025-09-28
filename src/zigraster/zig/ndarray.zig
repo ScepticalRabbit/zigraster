@@ -8,6 +8,7 @@ const expectEqual = std.testing.expectEqual;
 const expectApproxEqAbs = testing.expectApproxEqAbs;
 const expectEqualSlices = testing.expectEqualSlices;
 
+const MatSlice = @import("matslice.zig").MatSlice;
 const sliceops = @import("sliceops.zig");
 
 const NDArrayError = error{
@@ -176,6 +177,19 @@ pub fn NDArrayOps(comptime EType: type) type {
                 return NDArray.DimMismatch;
             }
             sliceops.div(EType, arr0.elems, arr1.elems, arr_out.elems);
+        }
+
+        pub fn extractMat(arr: *const NDArray(EType), row_ind: usize, col_ind: usize, mat: *MatSlice(EType)) !void {
+            // Check that the row and col inds are in the arr, check the mat is big enough
+
+            // Loop over the two inds and write into the MatSlice
+            var get_dims = arr.dims
+            for (0..arr.dims[row_ind]) |rr| {
+                for (0..arr.dims[col_ind]) |cc| {
+                    const to_set = arr.get
+                    mat.set();
+                }
+            }
         }
     };
 }

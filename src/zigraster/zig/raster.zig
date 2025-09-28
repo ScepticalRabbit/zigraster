@@ -112,7 +112,14 @@ pub const Raster = struct {
         }
     }
 
-    pub fn rasterOneFrame(alloc: std.mem.Allocator, frame_ind: usize, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera, image_out_buff: *MatSlice(f64)) !void {
+    pub fn rasterOneFrame(alloc: std.mem.Allocator, 
+                        frame_ind: usize, 
+                        coords: *const Coords, 
+                        connect: *const Connect, 
+                        field: *const Field, 
+                        camera: *const Camera, 
+                        image_out_buff: *MatSlice(f64)) !void {
+
         const tol: f64 = 1e-12;
         var elems_in_image: usize = 0;
 
@@ -312,7 +319,7 @@ pub const Raster = struct {
                         // print("coord_inds[nn]={}\n",.{coord_inds[nn]});
                         // print("field.data.rows_n={}\n",.{field.data.rows_n});
                         // print("field.data.cols_n={}\n",.{field.data.cols_n});
-                        field_raster_buff[nn] = field.data.get(coord_inds[nn], frame_ind);
+                        field_raster_buff[nn] = field.array.get(coord_inds[nn], frame_ind);
                     }
 
                     var px_field: f64 = sliceops.dot(f64, field_raster_buff, weights_buff);

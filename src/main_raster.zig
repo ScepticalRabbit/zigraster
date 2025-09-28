@@ -217,74 +217,74 @@ pub fn main() !void {
 
     print("{s}\n", .{print_break});
 
-//    //--------------------------------------------------------------------------
-//    // Raster Frame
-//    // print("\n",.{});
-//    // print("connect.elem_n={any}\n",.{connect.elem_n});
-//    // print("connect.nodes_per_elem={any}\n",.{connect.nodes_per_elem});
-//    // print("\n",.{});
-//    
-//    print("Rastering Image...\n", .{});
-//    const frame_ind: usize = 1;
-//
-//    const image_buff = try arena_alloc.alloc(f64, camera.pixels_num[0] * camera.pixels_num[1]);
-//    //defer arena_alloc.free(image_buff);
-//    var image_out_buff = try MatSlice(f64).init(image_buff, camera.pixels_num[1], camera.pixels_num[0]);
-//
-//    time_start = try Instant.now();
-//    //const image_subpx = try Raster.rasterOneFrame(arena_alloc, frame_ind, &coords, &connect, &field, &camera, &image_out_buff);
-//    try Raster.rasterOneFrame(arena_alloc, frame_ind, &coords, &connect, &field, &camera, &image_out_buff);
-//    time_end = try Instant.now();
-//    const time_raster: f64 = @floatFromInt(time_end.since(time_start));
-//    print("Raster time = {d:.3}ms\n\n", .{time_raster / time.ns_per_ms});
-//
-//    // Print diagnostics to console to see if there is an image
-//    const image_max = std.mem.max(f64, image_out_buff.elems);
-//    const image_min = std.mem.min(f64, image_out_buff.elems);
-//    print("Image: [max, min] = [{}, {}]\n\n", .{ image_max, image_min });
-//
-//    //--------------------------------------------------------------------------
-//    // Save csv of image file for analysis
-//    const cwd = std.fs.cwd();
-//
-//    const dir_name = "raster-out";
-//    const image_name = "image.csv";
-//
-//    cwd.makeDir(dir_name) catch |err| switch (err) {
-//        error.PathAlreadyExists => {}, // Path exists do nothing
-//        else => return err, // Propagate any other error
-//    };
-//
-//    var out_dir = try cwd.openDir(dir_name, .{});
-//    defer out_dir.close();
-//
-//    print("Saving output image to: {s}\n", .{dir_name});
-//
-//    time_start = try Instant.now();
-//    try image_out_buff.saveCSV(out_dir, image_name);
-//    time_end = try Instant.now();
-//
-//    const time_save_image: f64 = @floatFromInt(time_end.since(time_start));
-//    print("Image buffer save time = {d:.3} ms\n\n", .{
-//        time_save_image / time.ns_per_ms,
-//    });
-//
-//    //--------------------------------------------------------------------------
-//    // Save csv files of subpx buffers for analysis
-//    // const image_subpx_name = "image_subpx.csv";
-//    // const depth_name = "depth.csv";
-//
-//    // time_start = try Instant.now();
-//    // try image_subpx.image.saveCSV(out_dir, image_subpx_name);
-//    // time_end = try Instant.now();
-//
-//    // const time_save_subimage: f64 = @floatFromInt(time_end.since(time_start));
-//
-//    // time_start = try Instant.now();
-//    // try image_subpx.depth.saveCSV(out_dir, depth_name);
-//    // time_end = try Instant.now();
-//
-//    // const time_save_depth: f64 = @floatFromInt(time_end.since(time_start));
-//    // print("Image, depth subpx save time = {d:.3}, {d:.3} ms\n", .{time_save_subimage / time.ns_per_ms, time_save_depth / time.ns_per_ms});
+    //--------------------------------------------------------------------------
+    // Raster Frame
+    // print("\n",.{});
+    // print("connect.elem_n={any}\n",.{connect.elem_n});
+    // print("connect.nodes_per_elem={any}\n",.{connect.nodes_per_elem});
+    // print("\n",.{});
+    
+    print("Rastering Image...\n", .{});
+    const frame_ind: usize = 1;
+
+    const image_buff = try arena_alloc.alloc(f64, camera.pixels_num[0] * camera.pixels_num[1]);
+    //defer arena_alloc.free(image_buff);
+    var image_out_buff = try MatSlice(f64).init(image_buff, camera.pixels_num[1], camera.pixels_num[0]);
+
+    time_start = try Instant.now();
+    //const image_subpx = try Raster.rasterOneFrame(arena_alloc, frame_ind, &coords, &connect, &field, &camera, &image_out_buff);
+    try Raster.rasterOneFrame(arena_alloc, frame_ind, &coords, &connect, &field, &camera, &image_out_buff);
+    time_end = try Instant.now();
+    const time_raster: f64 = @floatFromInt(time_end.since(time_start));
+    print("Raster time = {d:.3}ms\n\n", .{time_raster / time.ns_per_ms});
+
+    // Print diagnostics to console to see if there is an image
+    const image_max = std.mem.max(f64, image_out_buff.elems);
+    const image_min = std.mem.min(f64, image_out_buff.elems);
+    print("Image: [max, min] = [{}, {}]\n\n", .{ image_max, image_min });
+
+    //--------------------------------------------------------------------------
+    // Save csv of image file for analysis
+    const cwd = std.fs.cwd();
+
+    const dir_name = "raster-out";
+    const image_name = "image.csv";
+
+    cwd.makeDir(dir_name) catch |err| switch (err) {
+        error.PathAlreadyExists => {}, // Path exists do nothing
+        else => return err, // Propagate any other error
+    };
+
+    var out_dir = try cwd.openDir(dir_name, .{});
+    defer out_dir.close();
+
+    print("Saving output image to: {s}\n", .{dir_name});
+
+    time_start = try Instant.now();
+    try image_out_buff.saveCSV(out_dir, image_name);
+    time_end = try Instant.now();
+
+    const time_save_image: f64 = @floatFromInt(time_end.since(time_start));
+    print("Image buffer save time = {d:.3} ms\n\n", .{
+        time_save_image / time.ns_per_ms,
+    });
+
+    //--------------------------------------------------------------------------
+    // Save csv files of subpx buffers for analysis
+    // const image_subpx_name = "image_subpx.csv";
+    // const depth_name = "depth.csv";
+
+    // time_start = try Instant.now();
+    // try image_subpx.image.saveCSV(out_dir, image_subpx_name);
+    // time_end = try Instant.now();
+
+    // const time_save_subimage: f64 = @floatFromInt(time_end.since(time_start));
+
+    // time_start = try Instant.now();
+    // try image_subpx.depth.saveCSV(out_dir, depth_name);
+    // time_end = try Instant.now();
+
+    // const time_save_depth: f64 = @floatFromInt(time_end.since(time_start));
+    // print("Image, depth subpx save time = {d:.3}, {d:.3} ms\n", .{time_save_subimage / time.ns_per_ms, time_save_depth / time.ns_per_ms});
 
 }
