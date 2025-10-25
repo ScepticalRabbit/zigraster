@@ -183,10 +183,10 @@ pub fn NDArrayOps(comptime EType: type) type {
             // Check that the row and col inds are in the arr, check the mat is big enough
 
             // Loop over the two inds and write into the MatSlice
-            var get_dims = arr.dims
+            var get_dims = arr.dims;
             for (0..arr.dims[row_ind]) |rr| {
                 for (0..arr.dims[col_ind]) |cc| {
-                    const to_set = arr.get
+                    const to_set = arr.get();
                     mat.set();
                 }
             }
