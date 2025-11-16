@@ -27,7 +27,10 @@ pub fn NDArray(comptime EType: type) type {
 
         const Self: type = @This();
 
-        pub fn init(allocator: std.mem.Allocator, elems: []EType, dims: []usize) !Self {
+        pub fn init(allocator: std.mem.Allocator, 
+        			elems: []EType, 
+        			dims: []usize) !Self {
+        			
             var dim_prod: usize = dims[0];
             for (1..dims.len) |dd| {
                 dim_prod *= dims[dd];
@@ -38,7 +41,9 @@ pub fn NDArray(comptime EType: type) type {
             }
 
             const strides = try allocator.alloc(usize, dims.len);
-            var ndarray = NDArray(EType){ .elems = elems, .dims = dims, .strides = strides };
+            var ndarray = NDArray(EType){ .elems = elems, 
+            							  .dims = dims, 
+            							  .strides = strides };
 
             for (0..dims.len) |dd| {
                 ndarray.strides[dd] = try ndarray.calcFlatStride(dd);

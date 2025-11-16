@@ -30,7 +30,10 @@ pub const ImageAlloc = struct {
 
     const Self = @This();
 
-    pub fn init(alloc: std.mem.Allocator, pixels_x: usize, pixels_y: usize) !Self {
+    pub fn init(alloc: std.mem.Allocator, 
+    			pixels_x: usize, 
+    			pixels_y: usize) !Self {
+
         const image_buff = try alloc.alloc(f64, pixels_x * pixels_y);
         const depth_buff = try alloc.alloc(f64, pixels_x * pixels_y);
 
@@ -113,12 +116,12 @@ pub const Raster = struct {
     }
 
     pub fn rasterOneFrame(alloc: std.mem.Allocator, 
-                        frame_ind: usize, 
-                        coords: *const Coords, 
-                        connect: *const Connect, 
-                        field: *const Field, 
-                        camera: *const Camera, 
-                        image_out_buff: *MatSlice(f64)) !void {
+                          frame_ind: usize, 
+                          coords: *const Coords, 
+                          connect: *const Connect, 
+                          field: *const Field, 
+                          camera: *const Camera, 
+                          image_out_buff: *MatSlice(f64)) !void {
 
         const tol: f64 = 1e-12;
         var elems_in_image: usize = 0;
