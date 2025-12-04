@@ -20,6 +20,9 @@ const matslice = @import("zigraster/zig/matslice.zig");
 const MatSlice = matslice.MatSlice;
 const MatSliceOps = matslice.MatSliceOps;
 
+const ndarray = @import("zigraster/zig/ndarray.zig");
+const NDArray = ndarray.NDArray;
+
 const Camera = @import("zigraster/zig/camera.zig").Camera;
 const CameraOps = @import("zigraster/zig/camera.zig").CameraOps;
 
@@ -226,48 +229,63 @@ pub fn main() !void {
     
     print("Rastering Image...\n", .{});
     const frame_ind: usize = 1;
+    const num_fields = field.getFieldsN();
 
-    const image_buff = try arena_alloc.alloc(f64, camera.pixels_num[0] * camera.pixels_num[1]);
-    //defer arena_alloc.free(image_buff);
-    var image_out_buff = try MatSlice(f64).init(image_buff, camera.pixels_num[1], camera.pixels_num[0]);
+    const images_mem = try arena_alloc.alloc(f64, 
+    									    num_fields
+    									    * camera.pixels_num[1]
+    									    * camera.pixels_num[0]);
+	var images_dims = [_]usize{num_fields,
+								 camera.pixels_num[1],
+								 camera.pixels_num[0]};
+    var images_arr = try NDArray(f64).init(arena_alloc,
+                                           images_mem,
+                                           images_dims[0..]);
 
     time_start = try Instant.now();
-    //const image_subpx = try Raster.rasterOneFrame(arena_alloc, frame_ind, &coords, &connect, &field, &camera, &image_out_buff);
-    try Raster.rasterOneFrame(arena_alloc, frame_ind, &coords, &connect, &field, &camera, &image_out_buff);
+
+    try Raster.rasterOneFrame(arena_alloc, 
+                              frame_ind, 
+                              &coords, 
+                              &connect, 
+                              &field, 
+                              &camera, 
+                              &images_arr);
+                              
     time_end = try Instant.now();
     const time_raster: f64 = @floatFromInt(time_end.since(time_start));
     print("Raster time = {d:.3}ms\n\n", .{time_raster / time.ns_per_ms});
 
     // Print diagnostics to console to see if there is an image
-    const image_max = std.mem.max(f64, image_out_buff.elems);
-    const image_min = std.mem.min(f64, image_out_buff.elems);
+    const image_max = std.mem.max(f64, images_arr.elems);
+    const image_min = std.mem.min(f64, images_arr.elems);
     print("Image: [max, min] = [{}, {}]\n\n", .{ image_max, image_min });
 
     //--------------------------------------------------------------------------
     // Save csv of image file for analysis
-    const cwd = std.fs.cwd();
-
-    const dir_name = "raster-out";
-    const image_name = "image.csv";
-
-    cwd.makeDir(dir_name) catch |err| switch (err) {
-        error.PathAlreadyExists => {}, // Path exists do nothing
-        else => return err, // Propagate any other error
-    };
-
-    var out_dir = try cwd.openDir(dir_name, .{});
-    defer out_dir.close();
-
-    print("Saving output image to: {s}\n", .{dir_name});
-
-    time_start = try Instant.now();
-    try image_out_buff.saveCSV(out_dir, image_name);
-    time_end = try Instant.now();
-
-    const time_save_image: f64 = @floatFromInt(time_end.since(time_start));
-    print("Image buffer save time = {d:.3} ms\n\n", .{
-        time_save_image / time.ns_per_ms,
-    });
+//     const cwd = std.fs.cwd();
+// 
+//     const dir_name = "raster-out";
+//     const image_name = "image.csv";
+// 
+//     cwd.makeDir(dir_name) catch |err| switch (err) {
+//         error.PathAlreadyExists => {}, // Path exists do nothing
+//         else => return err, // Propagate any other error
+//     };
+// 
+//     var out_dir = try cwd.openDir(dir_name, .{});
+//     defer out_dir.close();
+// 
+//     print("Saving output image to: {s}\n", .{dir_name});
+// 
+//     time_start = try Instant.now();
+//     try image_out_buff.saveCSV(out_dir, image_name);
+//     time_end = try Instant.now();
+// 
+//     const time_save_image: f64 = @floatFromInt(time_end.since(time_start));
+//     print("Image buffer save time = {d:.3} ms\n\n", .{
+//         time_save_image / time.ns_per_ms,
+//     });
 
     //--------------------------------------------------------------------------
     // Save csv files of subpx buffers for analysis

@@ -85,9 +85,9 @@ pub const Field = struct {
         };
     }
 
-    pub fn getTimeN(self: *Self) usize {return self.buffer_dims[0];}
-    pub fn getCoordN(self: *Self) usize {return self.buffer_dims[1];}
-    pub fn getFieldsN(self: *Self) usize {return self.buffer_dims[2];}
+    pub fn getTimeN(self: *const Self) usize {return self.buffer_dims[0];}
+    pub fn getCoordN(self: *const Self) usize {return self.buffer_dims[1];}
+    pub fn getFieldsN(self: *const Self) usize {return self.buffer_dims[2];}
    
     pub fn deinit(self: *Self, alloc: std.mem.Allocator) void {
         self.array.deinit(alloc);

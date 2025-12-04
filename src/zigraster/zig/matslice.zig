@@ -116,6 +116,14 @@ pub fn MatSlice(comptime EType: type) type {
             }
         }
 
+		pub fn getSlice(self: *const Self, row_to_slice: usize) ![]EType {
+			assert(row_to_slice <= self.rows_n);
+
+			const start_ind: usize = row_to_slice*self.cols_n; 
+			const end_ind: usize = start_ind+self.cols_n;
+			return self.elems[start_ind..end_ind];
+        }
+
         pub fn matPrint(self: *const Self) void {
             var ind: usize = 0;
 
@@ -154,7 +162,14 @@ pub fn MatSlice(comptime EType: type) type {
         //     try bw.flush(); // IMPORTANT: Flush the remaining data to the file
         // }
 
-        pub fn saveCSV(self: *const Self, out_dir: std.fs.Dir, file_name: []const u8) !void {
+		// TODO: 
+		// Function to get a slice of the last dim for fixed first dim
+		// Useful for getting a 1D slice for a dot product
+
+        pub fn saveCSV(self: *const Self, 
+                       out_dir: std.fs.Dir, 
+                       file_name: []const u8) !void {
+                       
             const csv_file = try out_dir.createFile(file_name, .{});
             defer csv_file.close();
 
@@ -179,7 +194,9 @@ pub fn MatSlice(comptime EType: type) type {
 
 pub fn MatSliceOps(comptime EType: type) type {
     return struct {
-        pub fn add(mat0: *const MatSlice(EType), mat1: *const MatSlice(EType), mat_out: *MatSlice(EType)) !void {
+        pub fn add(mat0: *const MatSlice(EType), 
+                   mat1: *const MatSlice(EType), 
+                   mat_out: *MatSlice(EType)) !void {
             assert(mat0.rows_n == mat1.rows_n);
             assert(mat0.cols_n == mat1.cols_n);
 
@@ -188,7 +205,9 @@ pub fn MatSliceOps(comptime EType: type) type {
             }
         }
 
-        pub fn sub(mat0: *const MatSlice(EType), mat1: *const MatSlice(EType), mat_out: *MatSlice(EType)) !void {
+        pub fn sub(mat0: *const MatSlice(EType), 
+                   mat1: *const MatSlice(EType), 
+                   mat_out: *MatSlice(EType)) !void {
             assert(mat0.rows_n == mat1.rows_n);
             assert(mat0.cols_n == mat1.cols_n);
 
@@ -197,7 +216,9 @@ pub fn MatSliceOps(comptime EType: type) type {
             }
         }
 
-        pub fn mulElemWise(mat0: *const MatSlice(EType), mat1: *const MatSlice(EType), mat_out: *MatSlice(EType)) !void {
+        pub fn mulElemWise(mat0: *const MatSlice(EType), 
+                           mat1: *const MatSlice(EType), 
+                           mat_out: *MatSlice(EType)) !void {
             assert(mat0.rows_n == mat1.rows_n);
             assert(mat0.cols_n == mat1.cols_n);
 
@@ -206,7 +227,9 @@ pub fn MatSliceOps(comptime EType: type) type {
             }
         }
 
-        pub fn divElemWise(mat0: *const MatSlice(EType), mat1: *const MatSlice(EType), mat_out: *MatSlice(EType)) !void {
+        pub fn divElemWise(mat0: *const MatSlice(EType), 
+                           mat1: *const MatSlice(EType), 
+                           mat_out: *MatSlice(EType)) !void {
             assert(mat0.rows_n == mat1.rows_n);
             assert(mat0.cols_n == mat1.cols_n);
 
@@ -215,13 +238,17 @@ pub fn MatSliceOps(comptime EType: type) type {
             }
         }
 
-        pub fn mulScalar(mat0: *const MatSlice(EType), scalar: EType, mat_out: *MatSlice(EType)) !void {
+        pub fn mulScalar(mat0: *const MatSlice(EType), 
+                         scalar: EType, 
+                         mat_out: *MatSlice(EType)) !void {
             for (0..mat0.elems.len) |ii| {
                 mat_out.elems[ii] = scalar * mat0.elems[ii];
             }
         }
 
-        pub fn mulVec(mat: *const MatSlice(EType), vec_mul: *const VecSlice(EType), vec_out: *VecSlice(EType)) !void {
+        pub fn mulVec(mat: *const MatSlice(EType), 
+                      vec_mul: *const VecSlice(EType), 
+                      vec_out: *VecSlice(EType)) !void {
             assert(mat.cols_n == vec_mul.elems.len);
 
             var sum: EType = 0;
@@ -235,7 +262,10 @@ pub fn MatSliceOps(comptime EType: type) type {
             }
         }
 
-        pub fn mulMat(mat0: *const MatSlice(EType), mat1: *const MatSlice(EType), mat_out: *MatSlice(EType)) !void {
+        pub fn mulMat(mat0: *const MatSlice(EType), 
+                      mat1: *const MatSlice(EType), 
+                      mat_out: *MatSlice(EType)) !void {
+                      
             assert(mat0.cols_n == mat1.rows_n);
 
             var sum: EType = 0;
@@ -259,6 +289,43 @@ pub fn MatSliceOps(comptime EType: type) type {
 
 const TestType = f64;
 const talloc = testing.allocator;
+
+test "MatSlice.getSlice" {
+	const rows: usize = 3;
+    const cols: usize = 4;
+
+    const m0 = try talloc.alloc(TestType, rows * cols);
+    defer talloc.free(m0);
+    var mat0 = try MatSlice(TestType).init(m0, rows, cols);
+    mat0.fill(0.0);
+
+    for (0..cols) |cc| {
+    	mat0.set(1,cc,7);
+    }
+    for (0..cols) |cc| {
+       	mat0.set(2,cc,9);
+    }
+
+    const exp0 = [_]TestType{0} ** 4;
+    const exp1 = [_]TestType{7} ** 4;
+    const exp2 = [_]TestType{9} ** 4;
+
+	const slice0 = try mat0.getSlice(0);
+	const slice1 = try mat0.getSlice(1);
+	const slice2 = try mat0.getSlice(2);
+
+    // mat0.matPrint();
+    // print("exp0={any}\n",.{exp0});
+    // print("slice0={any}\n",.{slice0});
+    // print("exp1={any}\n",.{exp1});
+    // print("slice1={any}\n",.{slice1});
+    // print("exp2={any}\n",.{exp2});
+    // print("slice2={any}\n",.{slice2});
+
+    try expectEqualSlices(TestType, exp0[0..], slice0);
+    try expectEqualSlices(TestType, exp1[0..], slice1);
+    try expectEqualSlices(TestType, exp2[0..], slice2);
+}
 
 test "MatSliceOps.add" {
     const rows: usize = 3;
@@ -505,3 +572,4 @@ test "MatSliceOps.mulMat" {
 
     try expectEqualSlices(TestType, mat_exp.elems, mat_out.elems);
 }
+

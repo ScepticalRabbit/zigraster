@@ -20,58 +20,40 @@ const Field = @import("meshio.zig").Field;
 
 const Camera = @import("camera.zig").Camera;
 
-// NOTE: Used for debugging and passing back sub-pixel buffers
-pub const ImageAlloc = struct {
-    alloc: std.mem.Allocator,
-    image: MatSlice(f64),
-    depth: MatSlice(f64),
-    im_buff: []f64,
-    d_buff: []f64,
-
-    const Self = @This();
-
-    pub fn init(alloc: std.mem.Allocator, 
-    			pixels_x: usize, 
-    			pixels_y: usize) !Self {
-
-        const image_buff = try alloc.alloc(f64, pixels_x * pixels_y);
-        const depth_buff = try alloc.alloc(f64, pixels_x * pixels_y);
-
-        return .{
-            .alloc = alloc,
-            .image = try MatSlice(f64).init(image_buff, pixels_y, pixels_x),
-            .depth = try MatSlice(f64).init(depth_buff, pixels_y, pixels_x),
-            .im_buff = image_buff,
-            .d_buff = depth_buff,
-        };
-    }
-
-    pub fn deinit(self: *const Self) void {
-        self.alloc.free(self.im_buff);
-        self.alloc.free(self.d_buff);
-    }
-};
 
 pub const Raster = struct {
     fn worldToRasterCoords(coord_world: Vec3f, camera: *const Camera) Vec3f {
         // TODO: simplify this to a matrix mult
-        var coord_raster: Vec3f = Mat44Ops.mulVec3(f64, camera.world_to_cam_mat, coord_world);
+        var coord_raster: Vec3f = Mat44Ops.mulVec3(f64, 
+        										   camera.world_to_cam_mat, 
+        										   coord_world);
 
-        coord_raster.elems[0] = camera.image_dist * coord_raster.elems[0] / (-coord_raster.elems[2]);
-        coord_raster.elems[1] = camera.image_dist * coord_raster.elems[1] / (-coord_raster.elems[2]);
+        coord_raster.elems[0] = camera.image_dist 
+                                * coord_raster.elems[0] 
+                                / (-coord_raster.elems[2]);
+        coord_raster.elems[1] = camera.image_dist 
+                                * coord_raster.elems[1] 
+                                / (-coord_raster.elems[2]);
 
-        coord_raster.elems[0] = 2.0 * coord_raster.elems[0] / camera.image_dims[0];
-        coord_raster.elems[1] = 2.0 * coord_raster.elems[1] / camera.image_dims[1];
+        coord_raster.elems[0] = 2.0 * coord_raster.elems[0] 
+                                / camera.image_dims[0];
+        coord_raster.elems[1] = 2.0 * coord_raster.elems[1] 
+                                / camera.image_dims[1];
 
-        coord_raster.elems[0] = (coord_raster.elems[0] + 1.0) / 2.0 * @as(f64, @floatFromInt(camera.pixels_num[0]));
-        coord_raster.elems[1] = (1.0 - coord_raster.elems[1]) / 2.0 * @as(f64, @floatFromInt(camera.pixels_num[1]));
+        coord_raster.elems[0] = (coord_raster.elems[0] + 1.0) 
+        	/ 2.0 * @as(f64, @floatFromInt(camera.pixels_num[0]));
+        coord_raster.elems[1] = (1.0 - coord_raster.elems[1]) 
+        	/ 2.0 * @as(f64, @floatFromInt(camera.pixels_num[1]));
         coord_raster.elems[2] = -1.0 * coord_raster.elems[2];
 
         return coord_raster;
     }
 
     fn edgeFun3(vert_0: Vec3f, vert_1: Vec3f, vert_2: Vec3f) f64 {
-        return ((vert_2.get(0) - vert_0.get(0)) * (vert_1.get(1) - vert_0.get(1)) - (vert_2.get(1) - vert_0.get(1)) * (vert_1.get(0) - vert_0.get(0)));
+        return ((vert_2.get(0) - vert_0.get(0)) 
+              * (vert_1.get(1) - vert_0.get(1)) 
+              - (vert_2.get(1) - vert_0.get(1)) 
+              * (vert_1.get(0) - vert_0.get(0)));
     }
 
     fn boundIndexMin(min_val: f64) usize {
@@ -90,7 +72,10 @@ pub const Raster = struct {
         return max_ind;
     }
 
-    pub fn averageImage(image_subpx: *const MatSlice(f64), sub_samp: u8, image_avg: *MatSlice(f64)) void {
+    pub fn averageImage(image_subpx: *const MatSlice(f64), 
+                        sub_samp: u8, 
+                        image_avg: *MatSlice(f64)) void {
+                        
         const num_px_x: usize = (image_subpx.cols_n) / @as(usize, sub_samp);
         const num_px_y: usize = (image_subpx.rows_n) / @as(usize, sub_samp);
         const sub_samp_us: usize = @as(usize, sub_samp);
@@ -107,7 +92,8 @@ pub const Raster = struct {
                 px_sum = 0.0;
                 for (0..sub_samp_us) |sy| {
                     for (0..sub_samp_us) |sx| {
-                        px_sum += image_subpx.get(sub_samp_us * iy + sy, sub_samp_us * ix + sx);
+                        px_sum += image_subpx.get(sub_samp_us * iy + sy, 
+                                                  sub_samp_us * ix + sx);
                     }
                 }
                 image_avg.set(iy, ix, px_sum / subpx_per_px);
@@ -121,46 +107,65 @@ pub const Raster = struct {
                           connect: *const Connect, 
                           field: *const Field, 
                           camera: *const Camera, 
-                          image_out_buff: *MatSlice(f64)) !void {
+                          image_out_arr: *NDArray(f64)) !void {
 
         const tol: f64 = 1e-12;
         var elems_in_image: usize = 0;
+        const num_fields: usize = field.getFieldsN();
 
+		
         // NOTE: speed test shows this is way faster than stack allocation.
         // 71ms per frame vs 115ms per frame for equivalent setup
         var nodes_raster_buff: []Vec3f = try alloc.alloc(Vec3f, connect.nodes_per_elem);
         defer alloc.free(nodes_raster_buff);
+
+		// Stores N weights, one for each node in the element
         var weights_buff: []f64 = try alloc.alloc(f64, connect.nodes_per_elem);
         defer alloc.free(weights_buff);
-        const field_raster_buff: []f64 = try alloc.alloc(f64, connect.nodes_per_elem);
-        defer alloc.free(field_raster_buff);
 
-        // Allocate buffers on the stack, assuming max nodes is 4
-        // NOTE: this is slower than heap allocation
-        // const max_nodes: usize = 4;
-        // var nodes_raster_arr: [max_nodes]Vec3f = undefined;
-        // var nodes_raster_buff = nodes_raster_arr[0..nodes_raster_arr.len];
-        // //var weights_buff_arr = [_]f64{0.0} ** max_nodes;
-        // var weights_buff_arr: [max_nodes]f64 = undefined;
-        // var weights_buff = weights_buff_arr[0..weights_buff_arr.len];
-        // //var field_raster_arr = [_]f64{0.0} ** max_nodes;
-        // var field_raster_arr: [max_nodes]f64 = undefined;
-        // var field_raster_buff = field_raster_arr[0..field_raster_arr.len];
+		// Stores all F field values at the N nodes per element
+		var field_inds = [_]usize{frame_ind,0,0};
+        const field_buff: []f64 = try alloc.alloc(f64, num_fields*connect.nodes_per_elem);
+        defer alloc.free(field_buff);
+		var field_raster_mat = try MatSlice(f64).init(field_buff,
+		                                              connect.nodes_per_elem,
+		                                              num_fields);
 
-        const subpx_x: usize = @as(usize, camera.pixels_num[0]) * @as(usize, camera.sub_sample);
-        const subpx_y: usize = @as(usize, camera.pixels_num[1]) * @as(usize, camera.sub_sample);
+		// Stores field value at the pixel
+		var px_field: f64 = 0.0;
 
-        // var image_buff_subpx = try MatAlloc(f64).init(alloc,subpx_y,subpx_x);
-        // var depth_buff_subpx = try MatAlloc(f64).init(alloc,subpx_y, subpx_x);
+		// Sub-pixel image buffers
+        const subpx_x: usize = @as(usize, camera.pixels_num[0]) 
+        					   * @as(usize, camera.sub_sample);
+        const subpx_y: usize = @as(usize, camera.pixels_num[1]) 
+                               * @as(usize, camera.sub_sample);
 
-        // NOTE: we keep this instead of 2x MatSlice buffers so we can return it
-        // for debugging purposes.
-        var image_subpx = try ImageAlloc.init(alloc, subpx_x, subpx_y);
-        defer image_subpx.deinit();
-        image_subpx.image.fill(0.0);
-        image_subpx.depth.fill(1e6);
+        
+        var depth_subpx_inds = [_]usize{0,0};
+		var image_subpx_inds = [_]usize{0,0,0};
 
-        // TODO: this will need to be de-allocated instead of passed back.
+        // Sub-pixel image buffer
+        var image_subpx_dims = [_]usize{num_fields,subpx_y,subpx_x};
+		const image_subpx_mem = try alloc.alloc(f64,subpx_y*subpx_x*num_fields);
+		defer alloc.free();
+		var image_subpx = try NDArray(f64).init(alloc,
+		                                        image_subpx_mem,
+		                                        image_subpx_dims[0..]);
+		defer image_subpx.deinit();
+		defer alloc.free(image_subpx_mem);
+
+		// Sub-pixel depth buffer
+		var depth_subpx_dims = [_]usize{subpx_y,subpx_x};
+	    const depth_subpx_mem = try alloc.alloc(f64,subpx_y*subpx_x);
+		var depth_subpx = try NDArray(f64).init(alloc,
+		                                        depth_subpx_mem,
+		                                        depth_subpx_dims[0..]);
+		defer depth_subpx.deinit();
+		defer alloc.free(depth_subpx_mem);
+
+		// Set image background to 0.0 and depth buffer to large value.
+        image_subpx.fill(0.0);
+        depth_subpx.fill(1e6);
 
         var px_coord_buff: Vec3f = Vec3f.initZeros();
 
@@ -169,14 +174,19 @@ pub const Raster = struct {
         const coord_step: f64 = 1.0 / sub_samp_f;
         const coord_offset: f64 = 1.0 / (2.0 * sub_samp_f);
 
+		//----------------------------------------------------------------------
+		// Raster Loop
         for (0..connect.elem_n) |ee| {
             const coord_inds: []usize = connect.getElem(ee);
 
             for (0..connect.nodes_per_elem) |nn| {
-                nodes_raster_buff[nn] = worldToRasterCoords(coords.getVec3(coord_inds[nn]), camera);
+                nodes_raster_buff[nn] = worldToRasterCoords(
+                	coords.getVec3(coord_inds[nn]), camera);
             }
 
-            const elem_area: f64 = edgeFun3(nodes_raster_buff[0], nodes_raster_buff[1], nodes_raster_buff[2]);
+            const elem_area: f64 = edgeFun3(nodes_raster_buff[0], 
+                                            nodes_raster_buff[1], 
+                                            nodes_raster_buff[2]);
 
             if (elem_area < -tol) {
                 continue;
@@ -261,21 +271,27 @@ pub const Raster = struct {
                     px_coord_buff.set(0, bound_coord_x);
                     px_coord_buff.set(1, bound_coord_y);
 
-                    weights_buff[0] = edgeFun3(nodes_raster_buff[1], nodes_raster_buff[2], px_coord_buff);
+                    weights_buff[0] = edgeFun3(nodes_raster_buff[1], 
+                                               nodes_raster_buff[2], 
+                                               px_coord_buff);
                     if (weights_buff[0] < -tol) {
                         bound_coord_x += coord_step;
                         bound_ind_x += 1;
                         continue;
                     }
 
-                    weights_buff[1] = edgeFun3(nodes_raster_buff[2], nodes_raster_buff[0], px_coord_buff);
+                    weights_buff[1] = edgeFun3(nodes_raster_buff[2], 
+                    						   nodes_raster_buff[0], 
+                    						   px_coord_buff);
                     if (weights_buff[1] < -tol) {
                         bound_coord_x += coord_step;
                         bound_ind_x += 1;
                         continue;
                     }
 
-                    weights_buff[2] = edgeFun3(nodes_raster_buff[0], nodes_raster_buff[1], px_coord_buff);
+                    weights_buff[2] = edgeFun3(nodes_raster_buff[0], 
+                    						   nodes_raster_buff[1], 
+                    						   px_coord_buff);
                     if (weights_buff[2] < -tol) {
                         bound_coord_x += coord_step;
                         bound_ind_x += 1;
@@ -286,120 +302,197 @@ pub const Raster = struct {
                     //     print("Elem: {}\n",.{ee});
                     //     print("x bound ind={}, coord={d}\n",.{bound_ind_x,bound_coord_x});
                     //     print("y bound ind={}, coord={d}\n",.{bound_ind_y,bound_coord_y});
-                    //     print("weights=[{d},{d},{d}]\n",.{weights_buff[0],weights_buff[1],weights_buff[2]});
+                    //     print("weights=[{d},{d},{d}]\n",#
+                    //       .{weights_buff[0],weights_buff[1],weights_buff[2]});
                     //     print("\n",.{});
                     // }
 
                     var weight_dot_nodes: f64 = 0.0;
                     for (0..connect.nodes_per_elem) |nn| {
                         weights_buff[nn] = weights_buff[nn] / elem_area;
-                        weight_dot_nodes += weights_buff[nn] * nodes_raster_buff[nn].get(2);
+                        weight_dot_nodes += weights_buff[nn] 
+                        			        * nodes_raster_buff[nn].get(2);
                     }
 
                     // Calculate the depth for this sub-pixel
                     const px_coord_z: f64 = 1.0 / weight_dot_nodes;
 
                     // If this pixel is behind another we move on
-                    if (px_coord_z >= image_subpx.depth.get(bound_ind_y, bound_ind_x)) {
+                    if (px_coord_z >= 
+                    	image_subpx.depth.get(bound_ind_y, bound_ind_x)) {
                         bound_coord_x += coord_step;
                         bound_ind_x += 1;
                         continue;
                     }
 
-                    image_subpx.depth.set(bound_ind_y, bound_ind_x, px_coord_z);
+					depth_subpx_inds[0] = bound_ind_y;
+					depth_subpx_inds[1] = bound_ind_x; 
+                    depth_subpx.set(depth_subpx_inds[0..], px_coord_z);
 
                     // if ((ee % 10) == 0) {
                     //     print("Elem: {}\n", .{ee});
-                    //     print("x bound ind={}, coord={d}\n", .{ bound_ind_x, bound_coord_x });
-                    //     print("y bound ind={}, coord={d}\n", .{ bound_ind_y, bound_coord_y });
+                    //     print("x bound ind={}, coord={d}\n", 
+                    //     .{ bound_ind_x, bound_coord_x });
+                    //     print("y bound ind={}, coord={d}\n", 
+                    //     .{ bound_ind_y, bound_coord_y });
                     //     print("weight_dot_nodes={d}\n", .{weight_dot_nodes});
                     //     print("px_coord_z={d}\n", .{px_coord_z});
                     //     print("\n", .{});
                     // }
 
+					//----------------------------------------------------------
+					// BROKEN: PSEUDO CODE FROM HERE
+					// - Update to deal with rendering F fields in a single pass
+					
                     for (0..connect.nodes_per_elem) |nn| {
                         // print("nn={}\n",.{nn});
                         // print("coord_inds[nn]={}\n",.{coord_inds[nn]});
                         // print("field.data.rows_n={}\n",.{field.data.rows_n});
                         // print("field.data.cols_n={}\n",.{field.data.cols_n});
-                        field_raster_buff[nn] = field.array.get(coord_inds[nn], frame_ind);
+
+						for (0..num_fields) |ff|{
+							field_inds[1] = coord_inds[nn];
+							field_inds[2] = ff;
+							
+	                        field_raster_mat.set(ff,nn,
+	                        	field.array.get(field_inds[0..]));
+	                    }
+
                     }
 
-                    var px_field: f64 = sliceops.dot(f64, field_raster_buff, weights_buff);
-                    px_field = px_field * px_coord_z;
+					image_subpx_inds[1] = bound_ind_y;
+					image_subpx_inds[2] = bound_ind_x;
 
-                    //print("\nind_y={} , ind_x={}, px_field={}\n",.{bound_ind_y,bound_ind_x,px_field});
+					for (0..num_fields) |ff| {
+						const field_slice = field_raster_mat.getSlice(ff);
+                    	px_field = sliceops.dot(f64, field_slice, weights_buff);
 
-                    image_subpx.image.set(bound_ind_y, bound_ind_x, px_field);
+	                    px_field = px_field * px_coord_z;
 
+	                    //print("\nind_y={} , ind_x={}, px_field={}\n",
+	                    //      .{bound_ind_y,bound_ind_x,px_field});
+
+						image_subpx_inds[0] = ff;
+					    image_subpx.set(image_subpx_inds[0..], px_field);
+					}
+
+					//----------------------------------------------------------
                     // End for(x) - increment the x coords
                     bound_coord_x += coord_step;
                     bound_ind_x += 1;
                 }
-
+				//--------------------------------------------------------------
                 // End for(y) - increment the y coords
                 bound_coord_y += coord_step;
                 bound_ind_y += 1;
             }
         }
 
-        // NOTE: image buffer is now passed into the function instead of being
-        // allocated here
-        //var image = try ImageAlloc.init(alloc, camera.pixels_num[0], camera.pixels_num[1]);
+		// TODO: fix this, average each field image and populate the out buffer
+		// Need to finish the get slice functions here
 
-        averageImage(&image_subpx.image, camera.sub_sample, image_out_buff);
-
-        // NOTE: only need to do this for debugging - this can be discarded here
-        // averageImage(&image_subpx.depth, camera.sub_sample, &image.depth);
-
-        // NOTE: could return the sub_px buffers here, but if we don't free the
-        // memory then we have a leak. Need to defer deinit() them to avoid this.
-        // return image_subpx;
+		var out_slice_inds = [_]usize{0,0,0};
+		
+		for (0..num_fields) |ff| {
+			out_slice_inds[0] = ff;
+		
+			// 1) Create MatSlice for sub-pixel image for given field ff
+			const image_subpx_slice = image_subpx.getEndDimSlice(out_slice_inds,
+			                                                     0);
+			const image_subpx_mat = try MatSlice(f64).init(image_subpx_slices,
+			                                               subpx_y,
+			                                               subpx_x);
+			
+			// 2) Create wrapper MatSlice for actual images dims from last
+			// two dims of the image_out_arr using getEndDimSlice()
+			// Need to get it from image_out_arr
+			var image_out_slice = image_out_arr.getEndDimSlice(out_slice_inds,
+			                                                   0);
+			var image_out_mat = try MatSlice(f64).init(image_out_slice,
+			                                           camera.pixels[1],
+			                                           camera.pixels[0]);
+			
+			averageImage(&image_subpx_mat, camera.sub_sample, &image_out_mat);
+			
+		}
     }
 
-    pub fn rasterAllFrames(alloc: std.mem.Allocator, out_dir: std.fs.Dir, coords: *const Coords, connect: *const Connect, field: *const Field, camera: *const Camera) !NDArray(f64) {
-        const frame_buff_size: usize = field.time_n * camera.pixels_num[0] * camera.pixels_num[1];
+    pub fn rasterAllFrames(alloc: std.mem.Allocator, 
+                           out_dir: std.fs.Dir, 
+                           coords: *const Coords, 
+                           connect: *const Connect, 
+                           field: *const Field, 
+                           camera: *const Camera) !NDArray(f64) {
 
-        const frame_buff_mem = try alloc.alloc(f64, frame_buff_size);
-        var frame_buff_dims = [_]usize{ field.time_n, camera.pixels_num[1], camera.pixels_num[0] };
 
-        var frame_buff = try NDArray(f64).init(alloc, frame_buff_mem, frame_buff_dims[0..]);
+        const num_fields: usize = field.getFieldN();
+                           
+        const frame_arr_size: usize = field.time_n 
+									   * num_fields
+                                       * camera.pixels_num[0] 
+                                       * camera.pixels_num[1];
 
-        const image_stride: usize = frame_buff.strides[0];
-        var image_inds = [_]usize{ 0, 0, 0 }; // frame,px_y,px_x
+        const frame_arr_mem = try alloc.alloc(f64, frame_arr_size);
+		
+        var frame_arr_dims = [_]usize{ field.time_n, 
+										num_fields,
+                                        camera.pixels_num[1], 
+                                        camera.pixels_num[0],};
+                                        
+
+        var frame_arr = try NDArray(f64).init(alloc, 
+                                               frame_arr_mem, 
+                                               frame_arr_dims[0..]);
+
+        const image_stride: usize = frame_arr.strides[0];
+        var image_inds = [_]usize{ 0, 0, 0 ,0}; // frame,field,px_y,px_x
+		var field_inds = [_]usize{0,0,0}; // field,px_y_px_x
 
         var time_start = try Instant.now();
         var time_end = try Instant.now();
         var time_raster: f64 = 0.0;
 
-        var name_buff: [512]u8 = undefined;
-        const field_name = "field";
+        var name_buff: [1024]u8 = undefined;
 
         print("Starting rastering frames.\n", .{});
 
-        for (0..field.time_n) |ff| {
+        for (0..field.time_n) |tt| {
             time_start = try Instant.now();
 
-            image_inds[0] = ff;
-            const start_ind = try frame_buff.getFlatInd(image_inds[0..]);
+            image_inds[0] = tt;
+            const start_ind = try frame_arr.getFlatInd(image_inds[0..]);
             const end_ind = start_ind + image_stride;
 
-            const image_out_mem = frame_buff.elems[start_ind..end_ind];
-            var image_out_buff = try MatSlice(f64).init(image_out_mem, camera.pixels_num[1], camera.pixels_num[0]);
-            try rasterOneFrame(alloc, ff, coords, connect, field, camera, &image_out_buff);
+            const images_mem = frame_arr.elems[start_ind..end_ind];
+            var images_arr = try NDArray(f64).init(images_mem, 
+            									   frame_arr_dims[1..]);
 
-            const file_name = try std.fmt.bufPrint(name_buff[0..], "{s}_frame{d}.csv", .{ field_name, ff });
+            try rasterOneFrame(alloc, tt, coords, connect, 
+                               field, camera, &images_arr);
 
-            try image_out_buff.saveCSV(out_dir, file_name);
+            for (0..num_fields) |ff| {
+		    	const file_name = try std.fmt.bufPrint(name_buff[0..], 
+                                                   "field{d}_frame{d}.csv", 
+                                                   .{ ff,tt });
 
+				field_inds[0] = ff;
+				const field_slice = images_arr.getEndDimSlice(field_inds[0..],0);
+				
+			    const image_mat = MatSlice(f64).init(field_slice,
+			                                       camera.pixels_num[1],
+			                                       camera.pixels_num[0]);
+            	try image_mat.saveCSV(out_dir, file_name);
+			}
+			
             time_end = try Instant.now();
             time_raster = @floatFromInt(time_end.since(time_start));
 
-            print("Frame {}, raster time = {d:.3}ms\n", .{ ff, time_raster / time.ns_per_ms });
+            print("Frame {}, raster time = {d:.3}ms\n", 
+                  .{ tt, time_raster / time.ns_per_ms });
         }
 
         print("Rastering complete.\n\n", .{});
 
-        return frame_buff;
+        return frame_arr;
     }
 };
