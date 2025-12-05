@@ -147,11 +147,11 @@ pub const Raster = struct {
         // Sub-pixel image buffer
         var image_subpx_dims = [_]usize{num_fields,subpx_y,subpx_x};
 		const image_subpx_mem = try alloc.alloc(f64,subpx_y*subpx_x*num_fields);
-		defer alloc.free();
+		defer alloc.free(image_subpx_mem);
 		var image_subpx = try NDArray(f64).init(alloc,
 		                                        image_subpx_mem,
 		                                        image_subpx_dims[0..]);
-		defer image_subpx.deinit();
+		defer image_subpx.deinit(alloc);
 		defer alloc.free(image_subpx_mem);
 
 		// Sub-pixel depth buffer
@@ -160,7 +160,7 @@ pub const Raster = struct {
 		var depth_subpx = try NDArray(f64).init(alloc,
 		                                        depth_subpx_mem,
 		                                        depth_subpx_dims[0..]);
-		defer depth_subpx.deinit();
+		defer depth_subpx.deinit(alloc);
 		defer alloc.free(depth_subpx_mem);
 
 		// Set image background to 0.0 and depth buffer to large value.
@@ -300,10 +300,12 @@ pub const Raster = struct {
 
                     // if ((ee % 10) == 0){
                     //     print("Elem: {}\n",.{ee});
-                    //     print("x bound ind={}, coord={d}\n",.{bound_ind_x,bound_coord_x});
-                    //     print("y bound ind={}, coord={d}\n",.{bound_ind_y,bound_coord_y});
-                    //     print("weights=[{d},{d},{d}]\n",#
-                    //       .{weights_buff[0],weights_buff[1],weights_buff[2]});
+                    //     print("x bound ind={}, coord={d}\n",
+                    //         .{bound_ind_x,bound_coord_x});
+                    //     print("y bound ind={}, coord={d}\n",
+                    //         .{bound_ind_y,bound_coord_y});
+                    //     print("weights=[{d},{d},{d}]\n",
+                    //         .{weights_buff[0],weights_buff[1],weights_buff[2]});
                     //     print("\n",.{});
                     // }
 
@@ -318,16 +320,18 @@ pub const Raster = struct {
                     const px_coord_z: f64 = 1.0 / weight_dot_nodes;
 
                     // If this pixel is behind another we move on
-                    if (px_coord_z >= 
-                    	image_subpx.depth.get(bound_ind_y, bound_ind_x)) {
+					depth_subpx_inds[0] = bound_ind_y;
+					depth_subpx_inds[1] = bound_ind_x;
+					
+					const depth_arr_z: f64 = try depth_subpx.get(depth_subpx_inds[0..]); 
+					
+                    if (px_coord_z >= depth_arr_z) {
                         bound_coord_x += coord_step;
                         bound_ind_x += 1;
                         continue;
                     }
 
-					depth_subpx_inds[0] = bound_ind_y;
-					depth_subpx_inds[1] = bound_ind_x; 
-                    depth_subpx.set(depth_subpx_inds[0..], px_coord_z);
+                    try depth_subpx.set(depth_subpx_inds[0..], px_coord_z);
 
                     // if ((ee % 10) == 0) {
                     //     print("Elem: {}\n", .{ee});
@@ -336,6 +340,7 @@ pub const Raster = struct {
                     //     print("y bound ind={}, coord={d}\n", 
                     //     .{ bound_ind_y, bound_coord_y });
                     //     print("weight_dot_nodes={d}\n", .{weight_dot_nodes});
+                    //     print("depth_arr_z={d}\n",. {depth_arr_z});
                     //     print("px_coord_z={d}\n", .{px_coord_z});
                     //     print("\n", .{});
                     // }
@@ -343,37 +348,38 @@ pub const Raster = struct {
 					//----------------------------------------------------------
 					// BROKEN: PSEUDO CODE FROM HERE
 					// - Update to deal with rendering F fields in a single pass
-					
-                    for (0..connect.nodes_per_elem) |nn| {
-                        // print("nn={}\n",.{nn});
-                        // print("coord_inds[nn]={}\n",.{coord_inds[nn]});
-                        // print("field.data.rows_n={}\n",.{field.data.rows_n});
-                        // print("field.data.cols_n={}\n",.{field.data.cols_n});
 
+					var field_val: f64 = 0.0;
+                    for (0..connect.nodes_per_elem) |nn| {
+                        // NOTE:
+                        // field.array, shape=(time_n,coord_n,field_n)
+                        // field_raster_mat, shape=(field_n,nodes_per_elem)
 						for (0..num_fields) |ff|{
-							field_inds[1] = coord_inds[nn];
+							field_inds[1] = coord_inds[nn]; // This is scattered
 							field_inds[2] = ff;
-							
-	                        field_raster_mat.set(ff,nn,
-	                        	field.array.get(field_inds[0..]));
+
+							field_val = try	field.array.get(field_inds[0..]);
+
+	                        field_raster_mat.set(ff,nn,field_val);
 	                    }
 
                     }
-
+                    
+                    // TODO: works up to here getting field values                        
 					image_subpx_inds[1] = bound_ind_y;
 					image_subpx_inds[2] = bound_ind_x;
 
 					for (0..num_fields) |ff| {
-						const field_slice = field_raster_mat.getSlice(ff);
+						const field_slice = try field_raster_mat.getSlice(ff);
                     	px_field = sliceops.dot(f64, field_slice, weights_buff);
 
 	                    px_field = px_field * px_coord_z;
 
-	                    //print("\nind_y={} , ind_x={}, px_field={}\n",
+	                    // print("\nind_y={} , ind_x={}, px_field={}\n",
 	                    //      .{bound_ind_y,bound_ind_x,px_field});
 
 						image_subpx_inds[0] = ff;
-					    image_subpx.set(image_subpx_inds[0..], px_field);
+					    try image_subpx.set(image_subpx_inds[0..], px_field);
 					}
 
 					//----------------------------------------------------------
@@ -388,33 +394,84 @@ pub const Raster = struct {
             }
         }
 
-		// TODO: fix this, average each field image and populate the out buffer
-		// Need to finish the get slice functions here
+        const image_subpx_max = std.mem.max(f64,image_subpx.elems);
+        const image_subpx_min = std.mem.min(f64,image_subpx.elems);
+        const depth_subpx_max = std.mem.max(f64,depth_subpx.elems);
+        const depth_subpx_min = std.mem.min(f64,depth_subpx.elems);
+        print("\nimage_subpx_max,min=[{d:.6},{d:.6}]\n",.{image_subpx_max,image_subpx_min});
+        print("depth_subpx_max,min=[{d:.6},{d:.6}]\n",.{depth_subpx_max,depth_subpx_min});
 
-		var out_slice_inds = [_]usize{0,0,0};
+
+        var out_slice_inds = [_]usize{0,0,0};
+        for (0..num_fields) |ff| {
+            out_slice_inds[0] = ff;
+
+            // 1) Create MatSlice for sub-pixel image for given field ff
+            const image_subpx_slice = try image_subpx.getSlice(out_slice_inds[0..],
+               										   0);
+            const image_subpx_mat = try MatSlice(f64).init(image_subpx_slice,
+                                                          subpx_y,
+                                                          subpx_x);
+
+            // 2) Create wrapper MatSlice for actual images dims from last
+            // two dims of the image_out_arr using getSlice()
+            // Need to get it from image_out_arr
+            const image_out_slice = try image_out_arr.getSlice(out_slice_inds[0..],
+                                                              0);
+            var image_out_mat = try MatSlice(f64).init(image_out_slice,
+                                                      camera.pixels_num[1],
+                                                      camera.pixels_num[0]);
+
+            averageImage(&image_subpx_mat, camera.sub_sample, &image_out_mat);
+        }
+    
+        //----------------------------------------------------------------------
+        // DEBUG: SAVE SUB-PIXEL IMAGES TO DISK
+        const cwd = std.fs.cwd();
+        const dir_name = "raster-out";
+
+        cwd.makeDir(dir_name) catch |err| switch (err) {
+         error.PathAlreadyExists => {}, // Path exists do nothing
+         else => return err, // Propagate any other error
+        };
+        var out_dir = try cwd.openDir(dir_name, .{});
+        defer out_dir.close();
+
+
+        var name_buff: [1024]u8 = undefined;
+        var file_name = try std.fmt.bufPrint(name_buff[0..], 
+                                           "depthsp_frame{d}.csv", 
+                                           .{ frame_ind });
+        const depth_mat = try MatSlice(f64).init(depth_subpx.elems[0..],
+                                             subpx_y,
+                                             subpx_x);
+        try depth_mat.saveCSV(out_dir,file_name);                                        
+
+        for (0..num_fields) |ff| {
+            out_slice_inds[0] = ff;
+            
+            file_name = try std.fmt.bufPrint(name_buff[0..], 
+                                             "imagesp_field{d}_frame{d}.csv", 
+                                             .{ ff,frame_ind });
+            const imagesp_slice = try image_subpx.getSlice(out_slice_inds[0..],0);
+            const imagesp_mat = try MatSlice(f64).init(imagesp_slice,subpx_y,subpx_x);
+            try imagesp_mat.saveCSV(out_dir,file_name);
+
+            file_name = try std.fmt.bufPrint(name_buff[0..], 
+                                             "image_field{d}_frame{d}.csv", 
+                                             .{ ff,frame_ind });
+            const image_slice = try image_out_arr.getSlice(out_slice_inds[0..],0);
+            const image_mat = try MatSlice(f64).init(image_slice,
+                                                     camera.pixels_num[1],
+                                                     camera.pixels_num[0]);
+            try image_mat.saveCSV(out_dir,file_name);                                         
+        }
+        
+
+        //----------------------------------------------------------------------
+
+				
 		
-		for (0..num_fields) |ff| {
-			out_slice_inds[0] = ff;
-		
-			// 1) Create MatSlice for sub-pixel image for given field ff
-			const image_subpx_slice = image_subpx.getEndDimSlice(out_slice_inds,
-			                                                     0);
-			const image_subpx_mat = try MatSlice(f64).init(image_subpx_slices,
-			                                               subpx_y,
-			                                               subpx_x);
-			
-			// 2) Create wrapper MatSlice for actual images dims from last
-			// two dims of the image_out_arr using getEndDimSlice()
-			// Need to get it from image_out_arr
-			var image_out_slice = image_out_arr.getEndDimSlice(out_slice_inds,
-			                                                   0);
-			var image_out_mat = try MatSlice(f64).init(image_out_slice,
-			                                           camera.pixels[1],
-			                                           camera.pixels[0]);
-			
-			averageImage(&image_subpx_mat, camera.sub_sample, &image_out_mat);
-			
-		}
     }
 
     pub fn rasterAllFrames(alloc: std.mem.Allocator, 
@@ -476,11 +533,11 @@ pub const Raster = struct {
                                                    .{ ff,tt });
 
 				field_inds[0] = ff;
-				const field_slice = images_arr.getEndDimSlice(field_inds[0..],0);
+				const field_slice = images_arr.getSlice(field_inds[0..],0);
 				
 			    const image_mat = MatSlice(f64).init(field_slice,
-			                                       camera.pixels_num[1],
-			                                       camera.pixels_num[0]);
+			                                         camera.pixels_num[1],
+			                                         camera.pixels_num[0]);
             	try image_mat.saveCSV(out_dir, file_name);
 			}
 			

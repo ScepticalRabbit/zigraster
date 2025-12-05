@@ -61,7 +61,7 @@ pub fn NDArray(comptime EType: type) type {
             self.elems[ind] = in_val;
         }
 
-        pub fn get(self: *Self, indices: []const usize) !EType {
+        pub fn get(self: *const Self, indices: []const usize) !EType {
             const ind: usize = try self.getFlatInd(indices);
             return self.elems[ind];
         }
@@ -152,7 +152,7 @@ pub fn NDArray(comptime EType: type) type {
             }
         }
 
-        pub fn getEndDimSlice(self: *const Self,
+        pub fn getSlice(self: *const Self,
 							  fixed_inds: []usize,	
                               slice_fixed_dim: usize) ![]EType {
                               
@@ -344,7 +344,7 @@ test "calcFlatStride" {
     }
 }
 
-test "getEndDimSlice" {
+test "getSlice" {
 	var dims0 = [_]usize{ 3, 2, 2 };
 	var elems0 = [_]f64{0.0} ** 12;
 	var arr0 = try NDArray(f64).init(talloc, elems0[0..], dims0[0..]);
@@ -374,10 +374,10 @@ test "getEndDimSlice" {
 	const check_arr1 = [_]f64{9} ** 4;
 
 	var fixed_inds = [_]usize{1,10,10};
-	const ext_slice0 = try arr0.getEndDimSlice(fixed_inds[0..],0);
+	const ext_slice0 = try arr0.getSlice(fixed_inds[0..],0);
 
 	fixed_inds[0] = 2;
-	const ext_slice1 = try arr0.getEndDimSlice(fixed_inds[0..],0);
+	const ext_slice1 = try arr0.getSlice(fixed_inds[0..],0);
  
 	// print("test: arr0.elems={any}\n",.{arr0.elems});
 	// print("test: check_arr0={any}\n",.{check_arr0});

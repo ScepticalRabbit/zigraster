@@ -70,7 +70,8 @@ pub const Field = struct {
                 fields_n: usize) !Self {
 
         const buff_array = try alloc.alloc(f64, time_n*coord_n*fields_n);
-
+        @memset(buff_array,0.0);
+        
         var buff_dims = try alloc.alloc(usize,3);
         buff_dims[0] = time_n;
         buff_dims[1] = coord_n;
@@ -95,19 +96,25 @@ pub const Field = struct {
     }
 };
 
-pub fn readCsvToList(allocator: std.mem.Allocator, path: []const u8
+// TODO: should probably pass in an io struct here
+// NOTE: fixed for 0.16-dev to init io
+pub fn readCsvToList(allocator: std.mem.Allocator, 
+                     path: []const u8
                     ) !std.ArrayList([]const u8) {
-    var file = try std.fs.cwd().openFile(path, .{});
+
+    var file = try std.fs.cwd().openFile(path, .{ .mode = .read_only});
     defer file.close();
 
-    // File-backed buffered reader. Keep this struct alive while reading.
-    var buf: [4096]u8 = undefined;
-    var reader = file.reader(&buf); // type: std.fs.File.Reader
+    var single_thread_io: std.Io.Threaded = .init_single_threaded;
+    const io = single_thread_io.io();
 
+    var read_buff: [4096]u8 = undefined;    
+    var reader = file.reader(io,&read_buff); // type: std.fs.File.Reader
+	
     var lines: std.ArrayList([] const u8)  = .{};
 
     // Read lines without the trailing '\n' (exclusive).
-    while (reader.interface.takeDelimiterExclusive('\n')) |line| {
+    while (try reader.interface.takeDelimiter('\n')) |line| {
         // Optional: trim Windows '\r'
         const clean = if (@import("builtin").os.tag == .windows)
             std.mem.trimRight(u8, line, "\r")
@@ -116,12 +123,13 @@ pub fn readCsvToList(allocator: std.mem.Allocator, path: []const u8
 
         const copy = try allocator.dupe(u8, clean);
         try lines.append(allocator,copy);
-    } else |err| if (err != error.EndOfStream) return err;
-
+    } 
+    
     return lines;
 }
 
-pub fn parseCoords(csv_lines: *const std.ArrayList([]const u8), coords: *Coords) !void {
+pub fn parseCoords(csv_lines: *const std.ArrayList([]const u8), 
+                   coords: *Coords) !void {
     const num_coords: u8 = 3;
     var num_count: u8 = 0;
 
@@ -149,9 +157,10 @@ pub fn parseCoords(csv_lines: *const std.ArrayList([]const u8), coords: *Coords)
     }
 }
 
-// TODO: fix this so that connect has an allocator and passes back a reference and does not return the
-// large connectivity table by copying!
-pub fn parseConnect(allocator: std.mem.Allocator, csv_lines: *const std.ArrayList([]const u8)) !Connect {
+// TODO: fix this so that connect has an allocator and passes back a reference 
+// and does not return the large connectivity table by copying!
+pub fn parseConnect(allocator: std.mem.Allocator, 
+                    csv_lines: *const std.ArrayList([]const u8)) !Connect {
     // Get the number of elements and the number of nodes per element
     const elem_count = csv_lines.items.len;
 
@@ -212,26 +221,24 @@ pub fn parseField(csv_lines: *const std.ArrayList([]const u8),
                   field: *Field,
                   field_n: usize) !void {
 
-    var coord: usize = 0;
-    var time_step: usize = 0;
-    var inds = [_]usize{0,0,0};
+    // Each row is a coordinate
+    // Each field csv has row where each column in the row is a time step
+    var inds = [_]usize{0,0,0}; // time_n,coord_n,field_n
     inds[2] = field_n;
 
     for (csv_lines.items, 0..) |line_str, ii| {
-        coord = ii;
-        time_step = 0;
-
         inds[0] = 0;     // time_n
-        inds[1] = ii;    // coord_n 
+        inds[1] = ii;    // coord_n, each row is a new coord
 
         var split_iter = std.mem.splitScalar(u8, line_str, ',');
 
         while (split_iter.next()) |num_str| {
+            
             const num_f: f64 = try std.fmt.parseFloat(f64, num_str);
             
             try field.array.set(inds[0..],num_f);
           
-            time_step += 1;
+            inds[0] += 1; // increment time_n as we step along the row
         }
     }
 }
