@@ -477,19 +477,20 @@ pub const Raster = struct {
                            camera: *const Camera) !NDArray(f64) {
 
 
-        const num_fields: usize = field.getFieldN();
+        const num_fields: usize = field.getFieldsN();
+        const num_time: usize = field.getTimeN();
                            
-        const frame_arr_size: usize = field.time_n 
+        const frame_arr_size: usize = num_time 
 									   * num_fields
                                        * camera.pixels_num[0] 
                                        * camera.pixels_num[1];
 
         const frame_arr_mem = try alloc.alloc(f64, frame_arr_size);
 		
-        var frame_arr_dims = [_]usize{ field.time_n, 
-										num_fields,
-                                        camera.pixels_num[1], 
-                                        camera.pixels_num[0],};
+        var frame_arr_dims = [_]usize{ num_time, 
+									   num_fields,
+                                       camera.pixels_num[1], 
+                                       camera.pixels_num[0],};
                                         
 
         var frame_arr = try NDArray(f64).init(alloc, 
@@ -508,7 +509,7 @@ pub const Raster = struct {
 
         print("Starting rastering frames.\n", .{});
 
-        for (0..field.time_n) |tt| {
+        for (0..num_time) |tt| {
             time_start = try Instant.now();
 
             image_inds[0] = tt;
@@ -516,7 +517,8 @@ pub const Raster = struct {
             const end_ind = start_ind + image_stride;
 
             const images_mem = frame_arr.elems[start_ind..end_ind];
-            var images_arr = try NDArray(f64).init(images_mem, 
+            var images_arr = try NDArray(f64).init(alloc,
+                                                   images_mem, 
             									   frame_arr_dims[1..]);
 
             try rasterOneFrame(alloc, tt, coords, connect, 
@@ -524,13 +526,13 @@ pub const Raster = struct {
 
             for (0..num_fields) |ff| {
 		    	const file_name = try std.fmt.bufPrint(name_buff[0..], 
-                                                   "field{d}_frame{d}.csv", 
+                                                   "all_field{d}_frame{d}.csv", 
                                                    .{ ff,tt });
 
 				field_inds[0] = ff;
-				const field_slice = images_arr.getSlice(field_inds[0..],0);
+				const field_slice = try images_arr.getSlice(field_inds[0..],0);
 				
-			    const image_mat = MatSlice(f64).init(field_slice,
+			    const image_mat = try MatSlice(f64).init(field_slice,
 			                                         camera.pixels_num[1],
 			                                         camera.pixels_num[0]);
             	try image_mat.saveCSV(out_dir, file_name);

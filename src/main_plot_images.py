@@ -7,12 +7,12 @@ import plotopts as po
 def main() -> None:
     data_path = Path.cwd() / "raster-out"
 
-    field_num = 1
+    field_num = 2
     frame_num = 8
     
-    image_path = data_path / f"image_out_field{field_num}_frame{frame_num}.csv"
-    image_subpx_path = data_path / f"imagesp_field{field_num}_frame{frame_num}.csv"
-    depth_subpx_path = data_path / f"depthsp_frame{frame_num}.csv"
+    image_path = data_path / f"all_field{field_num}_frame{frame_num}.csv"
+    image_subpx_path = data_path / f"images_field{field_num}_frame{frame_num}.csv"
+    depth_subpx_path = data_path / f"depths_frame{frame_num}.csv"
 
     if image_path.is_file():
         print(f"Found image file: {image_path.resolve()}")
