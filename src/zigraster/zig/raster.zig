@@ -427,51 +427,46 @@ pub const Raster = struct {
     
         //----------------------------------------------------------------------
         // DEBUG: SAVE SUB-PIXEL IMAGES TO DISK
-        const cwd = std.fs.cwd();
-        const dir_name = "raster-out";
-
-        cwd.makeDir(dir_name) catch |err| switch (err) {
-         error.PathAlreadyExists => {}, // Path exists do nothing
-         else => return err, // Propagate any other error
-        };
-        var out_dir = try cwd.openDir(dir_name, .{});
-        defer out_dir.close();
-
-
-        var name_buff: [1024]u8 = undefined;
-        var file_name = try std.fmt.bufPrint(name_buff[0..], 
-                                           "depthsp_frame{d}.csv", 
-                                           .{ frame_ind });
-        const depth_mat = try MatSlice(f64).init(depth_subpx.elems[0..],
-                                             subpx_y,
-                                             subpx_x);
-        try depth_mat.saveCSV(out_dir,file_name);                                        
-
-        for (0..num_fields) |ff| {
-            out_slice_inds[0] = ff;
-            
-            file_name = try std.fmt.bufPrint(name_buff[0..], 
-                                             "imagesp_field{d}_frame{d}.csv", 
-                                             .{ ff,frame_ind });
-            const imagesp_slice = try image_subpx.getSlice(out_slice_inds[0..],0);
-            const imagesp_mat = try MatSlice(f64).init(imagesp_slice,subpx_y,subpx_x);
-            try imagesp_mat.saveCSV(out_dir,file_name);
-
-            file_name = try std.fmt.bufPrint(name_buff[0..], 
-                                             "image_field{d}_frame{d}.csv", 
-                                             .{ ff,frame_ind });
-            const image_slice = try image_out_arr.getSlice(out_slice_inds[0..],0);
-            const image_mat = try MatSlice(f64).init(image_slice,
-                                                     camera.pixels_num[1],
-                                                     camera.pixels_num[0]);
-            try image_mat.saveCSV(out_dir,file_name);                                         
-        }
-        
-
-        //----------------------------------------------------------------------
-
-				
-		
+//         const cwd = std.fs.cwd();
+//         const dir_name = "raster-out";
+// 
+//         cwd.makeDir(dir_name) catch |err| switch (err) {
+//          error.PathAlreadyExists => {}, // Path exists do nothing
+//          else => return err, // Propagate any other error
+//         };
+//         var out_dir = try cwd.openDir(dir_name, .{});
+//         defer out_dir.close();
+// 
+// 
+//         var name_buff: [1024]u8 = undefined;
+//         var file_name = try std.fmt.bufPrint(name_buff[0..], 
+//                                            "depthsp_frame{d}.csv", 
+//                                            .{ frame_ind });
+//         const depth_mat = try MatSlice(f64).init(depth_subpx.elems[0..],
+//                                              subpx_y,
+//                                              subpx_x);
+//         try depth_mat.saveCSV(out_dir,file_name);                                        
+// 
+//         for (0..num_fields) |ff| {
+//             out_slice_inds[0] = ff;
+//             
+//             file_name = try std.fmt.bufPrint(name_buff[0..], 
+//                                              "imagesp_field{d}_frame{d}.csv", 
+//                                              .{ ff,frame_ind });
+//             const imagesp_slice = try image_subpx.getSlice(out_slice_inds[0..],0);
+//             const imagesp_mat = try MatSlice(f64).init(imagesp_slice,subpx_y,subpx_x);
+//             try imagesp_mat.saveCSV(out_dir,file_name);
+// 
+//             file_name = try std.fmt.bufPrint(name_buff[0..], 
+//                                              "image_field{d}_frame{d}.csv", 
+//                                              .{ ff,frame_ind });
+//             const image_slice = try image_out_arr.getSlice(out_slice_inds[0..],0);
+//             const image_mat = try MatSlice(f64).init(image_slice,
+//                                                      camera.pixels_num[1],
+//                                                      camera.pixels_num[0]);
+//             try image_mat.saveCSV(out_dir,file_name);                                         
+//         }
+        		
     }
 
     pub fn rasterAllFrames(alloc: std.mem.Allocator, 

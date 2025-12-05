@@ -299,5 +299,45 @@ pub fn main() !void {
     const image_max = std.mem.max(f64, images_arr.elems);
     const image_min = std.mem.min(f64, images_arr.elems);
     print("Image: [max, min] = [{d:.6}, {d:.6}]\n\n", .{ image_max, image_min });
+
+    //==========================================================================
+    // 6. Save image to disk
+    const cwd = std.fs.cwd();
+
+    const dir_name = "raster-out";
+    var name_buff: [1024]u8 = undefined;
+
+    cwd.makeDir(dir_name) catch |err| switch (err) {
+        error.PathAlreadyExists => {}, // Path exists do nothing
+        else => return err, // Propagate any other error
+    };
+
+    var out_dir = try cwd.openDir(dir_name, .{});
+    defer out_dir.close();
+    
+    print("Saving output images to: {s}\n", .{dir_name});
+
+    var image_slice_inds = [_]usize{0,0,0};
+    for (0..num_fields) |ff|{
+        image_slice_inds[0] = ff;
+        
+        const file_name = try std.fmt.bufPrint(name_buff[0..], 
+                                       "image_out_field{d}_frame{d}.csv", 
+                                       .{ ff,frame_ind });
+
+        // Grab a matrix slice of the field images
+        const image_slice = try images_arr.getSlice(image_slice_inds[0..],0); 
+        const image_mat = try MatSlice(f64).init(image_slice,
+                                                 camera.pixels_num[1],
+                                                 camera.pixels_num[0]);
+        
+        time_start = try Instant.now();
+        try image_mat.saveCSV(out_dir, file_name);
+        time_end = try Instant.now();
+
+        const time_save_image: f64 = @floatFromInt(time_end.since(time_start));
+        print("Field {d} image save time = {d:.3} ms\n", 
+            .{ff,time_save_image / time.ns_per_ms,});
+    }
  
 } // End main

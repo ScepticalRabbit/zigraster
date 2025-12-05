@@ -10,7 +10,7 @@ def main() -> None:
     field_num = 1
     frame_num = 8
     
-    image_path = data_path / f"image_field{field_num}_frame{frame_num}.csv"
+    image_path = data_path / f"image_out_field{field_num}_frame{frame_num}.csv"
     image_subpx_path = data_path / f"imagesp_field{field_num}_frame{frame_num}.csv"
     depth_subpx_path = data_path / f"depthsp_frame{frame_num}.csv"
 

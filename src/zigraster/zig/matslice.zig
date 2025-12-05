@@ -138,34 +138,6 @@ pub fn MatSlice(comptime EType: type) type {
             print("\n", .{});
         }
 
-        // NOTE: Zig 0.14
-        // pub fn saveCSV(self: *const Self, out_dir: std.fs.Dir, file_name: []const u8) !void {
-
-        //     const csv_file = try out_dir.createFile(file_name, .{});
-        //     defer csv_file.close();
-
-        //     var bw = std.io.bufferedWriter(csv_file.writer());
-        //     const writer = bw.writer();
-
-        //     for (0..self.rows_n) |rr| {
-        //         for (0..self.cols_n) |cc| {
-        //             try writer.print("{}", .{self.get(rr, cc)});
-        //             if (cc < self.cols_n - 1) {
-        //                 try writer.writeAll(",");
-        //             }
-        //         }
-        //         try writer.writeAll("\n");
-        //         // We don't need to manually flush here, the BufferedWriter handles it.
-        //         // It's designed to batch the writes efficiently.
-        //     }
-
-        //     try bw.flush(); // IMPORTANT: Flush the remaining data to the file
-        // }
-
-		// TODO: 
-		// Function to get a slice of the last dim for fixed first dim
-		// Useful for getting a 1D slice for a dot product
-
         pub fn saveCSV(self: *const Self, 
                        out_dir: std.fs.Dir, 
                        file_name: []const u8) !void {
