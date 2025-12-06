@@ -249,12 +249,12 @@ pub fn main() !void {
     cam_pos.vecPrint();
     
     const camera = Camera.init(pixel_num, 
-                            pixel_size, 
-                            cam_pos, 
-                            cam_rot, 
-                            roi_pos, 
-                            focal_leng, 
-                            subsample);
+                               pixel_size, 
+                               cam_pos, 
+                               cam_rot, 
+                               roi_pos, 
+                               focal_leng, 
+                               subsample);
     
     print("\nWorld to camera matrix:\n", .{});
     camera.world_to_cam_mat.matPrint();

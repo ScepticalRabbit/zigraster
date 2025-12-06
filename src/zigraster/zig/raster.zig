@@ -101,7 +101,7 @@ pub const Raster = struct {
         }
     }
 
-    pub fn rasterOneFrame(alloc: std.mem.Allocator, 
+    pub fn rasterOneFrame(allocator: std.mem.Allocator, 
                           frame_ind: usize, 
                           coords: *const Coords, 
                           connect: *const Connect, 
@@ -109,24 +109,28 @@ pub const Raster = struct {
                           camera: *const Camera, 
                           image_out_arr: *NDArray(f64)) !void {
 
+        // We allocate all temporary buffers on our arena so no need to defer
+        // free any temporary buffers in this function
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        const arena_alloc = arena.allocator();
+
         const tol: f64 = 1e-12;
         var elems_in_image: usize = 0;
         const num_fields: usize = field.getFieldsN();
 
-		
-        // NOTE: speed test shows this is way faster than stack allocation.
-        // 71ms per frame vs 115ms per frame for equivalent setup
-        var nodes_raster_buff: []Vec3f = try alloc.alloc(Vec3f, connect.nodes_per_elem);
-        defer alloc.free(nodes_raster_buff);
+        var nodes_raster_buff: []Vec3f = try arena_alloc.alloc(
+            Vec3f, connect.nodes_per_elem);
 
 		// Stores N weights, one for each node in the element
-        var weights_buff: []f64 = try alloc.alloc(f64, connect.nodes_per_elem);
-        defer alloc.free(weights_buff);
+        var weights_buff: []f64 = try arena_alloc.alloc(
+            f64, connect.nodes_per_elem);
 
 		// Stores all F field values at the N nodes per element
 		var field_inds = [_]usize{frame_ind,0,0};
-        const field_buff: []f64 = try alloc.alloc(f64, num_fields*connect.nodes_per_elem);
-        defer alloc.free(field_buff);
+        const field_buff: []f64 = try arena_alloc.alloc(
+            f64, num_fields*connect.nodes_per_elem);
+
 		var field_raster_mat = try MatSlice(f64).init(field_buff,
 		                                              connect.nodes_per_elem,
 		                                              num_fields);
@@ -146,22 +150,19 @@ pub const Raster = struct {
 
         // Sub-pixel image buffer
         var image_subpx_dims = [_]usize{num_fields,subpx_y,subpx_x};
-		const image_subpx_mem = try alloc.alloc(f64,subpx_y*subpx_x*num_fields);
-		defer alloc.free(image_subpx_mem);
-		var image_subpx = try NDArray(f64).init(alloc,
+		const image_subpx_mem = try arena_alloc.alloc(
+		    f64,subpx_y*subpx_x*num_fields);
+		
+		var image_subpx = try NDArray(f64).init(arena_alloc,
 		                                        image_subpx_mem,
 		                                        image_subpx_dims[0..]);
-		defer image_subpx.deinit(alloc);
-		defer alloc.free(image_subpx_mem);
-
+		
 		// Sub-pixel depth buffer
 		var depth_subpx_dims = [_]usize{subpx_y,subpx_x};
-	    const depth_subpx_mem = try alloc.alloc(f64,subpx_y*subpx_x);
-		var depth_subpx = try NDArray(f64).init(alloc,
+	    const depth_subpx_mem = try arena_alloc.alloc(f64,subpx_y*subpx_x);
+		var depth_subpx = try NDArray(f64).init(arena_alloc,
 		                                        depth_subpx_mem,
 		                                        depth_subpx_dims[0..]);
-		defer depth_subpx.deinit(alloc);
-		defer alloc.free(depth_subpx_mem);
 
 		// Set image background to 0.0 and depth buffer to large value.
         image_subpx.fill(0.0);
@@ -407,8 +408,8 @@ pub const Raster = struct {
             out_slice_inds[0] = ff;
 
             // 1) Create MatSlice for sub-pixel image for given field ff
-            const image_subpx_slice = try image_subpx.getSlice(out_slice_inds[0..],
-               										   0);
+            const image_subpx_slice = try image_subpx.getSlice(
+                out_slice_inds[0..],0);
             const image_subpx_mat = try MatSlice(f64).init(image_subpx_slice,
                                                           subpx_y,
                                                           subpx_x);
@@ -416,8 +417,8 @@ pub const Raster = struct {
             // 2) Create wrapper MatSlice for actual images dims from last
             // two dims of the image_out_arr using getSlice()
             // Need to get it from image_out_arr
-            const image_out_slice = try image_out_arr.getSlice(out_slice_inds[0..],
-                                                              0);
+            const image_out_slice = try image_out_arr.getSlice(
+                out_slice_inds[0..],0);
             var image_out_mat = try MatSlice(f64).init(image_out_slice,
                                                       camera.pixels_num[1],
                                                       camera.pixels_num[0]);
@@ -469,13 +470,18 @@ pub const Raster = struct {
         		
     }
 
-    pub fn rasterAllFrames(alloc: std.mem.Allocator, 
+    pub fn rasterAllFrames(allocator: std.mem.Allocator, 
                            out_dir: std.fs.Dir, 
                            coords: *const Coords, 
                            connect: *const Connect, 
                            field: *const Field, 
                            camera: *const Camera) !NDArray(f64) {
 
+        // We allocate all temporary buffers on our arena so no need to defer
+        // free any temporary buffers in this function
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        const arena_alloc = arena.allocator();
 
         const num_fields: usize = field.getFieldsN();
         const num_time: usize = field.getTimeN();
@@ -485,17 +491,20 @@ pub const Raster = struct {
                                        * camera.pixels_num[0] 
                                        * camera.pixels_num[1];
 
-        const frame_arr_mem = try alloc.alloc(f64, frame_arr_size);
+        // We are going to return this so we use the input allocator instead of
+        // the arena.
+        const frame_arr_mem = try allocator.alloc(f64, frame_arr_size);
 		
         var frame_arr_dims = [_]usize{ num_time, 
 									   num_fields,
                                        camera.pixels_num[1], 
                                        camera.pixels_num[0],};
                                         
-
-        var frame_arr = try NDArray(f64).init(alloc, 
-                                               frame_arr_mem, 
-                                               frame_arr_dims[0..]);
+        // We are going to return this so we use the input allocator instead of
+        // the arena. It also owns the memory slice we just allocated.
+        var frame_arr = try NDArray(f64).init(allocator, 
+                                              frame_arr_mem, 
+                                              frame_arr_dims[0..]);
 
         const image_stride: usize = frame_arr.strides[0];
         var image_inds = [_]usize{ 0, 0, 0 ,0}; // frame,field,px_y,px_x
@@ -517,11 +526,15 @@ pub const Raster = struct {
             const end_ind = start_ind + image_stride;
 
             const images_mem = frame_arr.elems[start_ind..end_ind];
-            var images_arr = try NDArray(f64).init(alloc,
+            // This is only temporary so we use our arena - the memory lives on
+            // in the input allocator
+            var images_arr = try NDArray(f64).init(arena_alloc,
                                                    images_mem, 
             									   frame_arr_dims[1..]);
 
-            try rasterOneFrame(alloc, tt, coords, connect, 
+            // This will create it's own arena for temporary storage so we pass
+            // through the input allocator for this.
+            try rasterOneFrame(allocator, tt, coords, connect, 
                                field, camera, &images_arr);
 
             for (0..num_fields) |ff| {

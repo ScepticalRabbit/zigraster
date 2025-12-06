@@ -7,24 +7,21 @@ import plotopts as po
 def main() -> None:
     data_path = Path.cwd() / "raster-out"
 
-    field_num = 2
-    frame_num = 8
+    image_found: bool = False
+    field_num: int = 3
+    frame_num: int = 8
     
-    image_path = data_path / f"all_field{field_num}_frame{frame_num}.csv"
     image_subpx_path = data_path / f"images_field{field_num}_frame{frame_num}.csv"
     depth_subpx_path = data_path / f"depths_frame{frame_num}.csv"
 
-    if image_path.is_file():
-        print(f"Found image file: {image_path.resolve()}")
-        image_buff = pd.read_csv(image_path,header=None)
-        image_buff = image_buff.to_numpy()
-
     if image_subpx_path.is_file():
+        image_found = True
         print(f"Found subpx image file: {image_subpx_path.resolve()}")
         image_subpx_buff = pd.read_csv(image_subpx_path,header=None)
         image_subpx_buff = image_subpx_buff.to_numpy()
 
     if depth_subpx_path.is_file():
+        image_found = True
         print(f"Found depth subpx file: {depth_subpx_path.resolve()}")
         depth_subpx_buff = pd.read_csv(depth_subpx_path,header=None)
         depth_subpx_buff = depth_subpx_buff.to_numpy()
@@ -36,6 +33,30 @@ def main() -> None:
 
     #---------------------------------------------------------------------------
     plot_opts = po.PlotOptsGeneral()
+
+    for ff in range(field_num):
+        image_path = data_path / f"image_out_field{ff}_frame{frame_num}.csv"
+
+        if image_path.is_file():
+            image_found = True
+            print(f"Found image file: {image_path.resolve()}")
+            image_buff = pd.read_csv(image_path,header=None)
+            image_buff = image_buff.to_numpy()    
+        
+            (fig, ax) = plt.subplots(figsize=plot_opts.single_fig_size_square,
+                                    layout='constrained')
+            fig.set_dpi(plot_opts.resolution)
+            cset = plt.imshow(image_buff,
+                            cmap=plt.get_cmap(plot_opts.cmap_seq))
+                            #origin='lower')
+            ax.set_aspect('equal','box')
+            fig.colorbar(cset)
+            ax.set_title(f"Field Image",fontsize=plot_opts.font_head_size)
+            ax.set_xlabel(r"x ($px$)",
+                        fontsize=plot_opts.font_ax_size, fontname=plot_opts.font_name)
+            ax.set_ylabel(r"y ($px$)",
+                        fontsize=plot_opts.font_ax_size, fontname=plot_opts.font_name)
+
 
     if depth_subpx_path.is_file():
         (fig, ax) = plt.subplots(figsize=plot_opts.single_fig_size_square,
@@ -68,20 +89,8 @@ def main() -> None:
         ax.set_ylabel(r"y ($px$)",
                     fontsize=plot_opts.font_ax_size, fontname=plot_opts.font_name)
 
-    if image_path.is_file():
-        (fig, ax) = plt.subplots(figsize=plot_opts.single_fig_size_square,
-                                layout='constrained')
-        fig.set_dpi(plot_opts.resolution)
-        cset = plt.imshow(image_buff,
-                        cmap=plt.get_cmap(plot_opts.cmap_seq))
-                        #origin='lower')
-        ax.set_aspect('equal','box')
-        fig.colorbar(cset)
-        ax.set_title(f"Field Image",fontsize=plot_opts.font_head_size)
-        ax.set_xlabel(r"x ($px$)",
-                    fontsize=plot_opts.font_ax_size, fontname=plot_opts.font_name)
-        ax.set_ylabel(r"y ($px$)",
-                    fontsize=plot_opts.font_ax_size, fontname=plot_opts.font_name)
+    if not image_found:
+        print("No images found, check file names.")
 
     plt.show()
 

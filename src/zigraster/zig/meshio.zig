@@ -100,7 +100,7 @@ pub const Field = struct {
 // NOTE: fixed for 0.16-dev to init io
 pub fn readCsvToList(allocator: std.mem.Allocator, 
                      path: []const u8
-                    ) !std.ArrayList([]const u8) {
+                     ) !std.ArrayList([]const u8) {
 
     var file = try std.fs.cwd().openFile(path, .{ .mode = .read_only});
     defer file.close();
