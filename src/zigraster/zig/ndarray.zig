@@ -40,10 +40,12 @@ pub fn NDArray(comptime EType: type) type {
                 return NDArrayError.ElemsWrongLenForDims;
             }
 
-            const strides = try allocator.alloc(usize, dims.len);
+            const dims_heap = try allocator.dupe(usize, dims);
+            const strides_heap = try allocator.alloc(usize, dims.len);
+
             var ndarray = NDArray(EType){ .elems = elems, 
-            							  .dims = dims, 
-            							  .strides = strides };
+            							  .dims = dims_heap, 
+            							  .strides = strides_heap };
 
             for (0..dims.len) |dd| {
                 ndarray.strides[dd] = try ndarray.calcFlatStride(dd);
@@ -53,6 +55,7 @@ pub fn NDArray(comptime EType: type) type {
         }
 
         pub fn deinit(self: *Self, allocator: std.mem.Allocator) void {
+            allocator.free(self.dims);
             allocator.free(self.strides);
         }
 

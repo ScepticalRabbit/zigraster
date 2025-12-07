@@ -242,3 +242,4 @@ pub fn parseField(csv_lines: *const std.ArrayList([]const u8),
         }
     }
 }
+

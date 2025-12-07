@@ -494,7 +494,9 @@ pub const Raster = struct {
         // We are going to return this so we use the input allocator instead of
         // the arena.
         const frame_arr_mem = try allocator.alloc(f64, frame_arr_size);
-		
+
+		// This is duped and heap allocated inside the NDArray.init so NDArray
+		// is safe to return from this function
         var frame_arr_dims = [_]usize{ num_time, 
 									   num_fields,
                                        camera.pixels_num[1], 
@@ -526,8 +528,8 @@ pub const Raster = struct {
             const end_ind = start_ind + image_stride;
 
             const images_mem = frame_arr.elems[start_ind..end_ind];
-            // This is only temporary so we use our arena - the memory lives on
-            // in the input allocator
+            // This is only temporary so we use our arena - the slice belongs to
+            // the larger NDArray we will return which is on the input allocator
             var images_arr = try NDArray(f64).init(arena_alloc,
                                                    images_mem, 
             									   frame_arr_dims[1..]);
@@ -539,15 +541,15 @@ pub const Raster = struct {
 
             for (0..num_fields) |ff| {
 		    	const file_name = try std.fmt.bufPrint(name_buff[0..], 
-                                                   "all_field{d}_frame{d}.csv", 
+                                                   "raster_all_field{d}_frame{d}.csv", 
                                                    .{ ff,tt });
 
 				field_inds[0] = ff;
 				const field_slice = try images_arr.getSlice(field_inds[0..],0);
 				
 			    const image_mat = try MatSlice(f64).init(field_slice,
-			                                         camera.pixels_num[1],
-			                                         camera.pixels_num[0]);
+			                                             camera.pixels_num[1],
+			                                             camera.pixels_num[0]);
             	try image_mat.saveCSV(out_dir, file_name);
 			}
 			
