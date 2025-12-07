@@ -7,6 +7,7 @@ import plotopts as po
 def main() -> None:
     data_path = Path.cwd() / "raster-out"
 
+    image_tag = "raster_one"
     image_found: bool = False
     field_num: int = 3
     frame_num: int = 8
@@ -35,7 +36,7 @@ def main() -> None:
     plot_opts = po.PlotOptsGeneral()
 
     for ff in range(field_num):
-        image_path = data_path / f"image_out_field{ff}_frame{frame_num}.csv"
+        image_path = data_path / f"{image_tag}_field{ff}_frame{frame_num}.csv"
 
         if image_path.is_file():
             image_found = True
