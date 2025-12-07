@@ -1,5 +1,8 @@
 const std = @import("std");
 const print = std.debug.print;
+const time = std.time;
+const Instant = time.Instant;
+
 const Vec3f = @import("vecstack.zig").Vec3f;
 const slice = @import("sliceops.zig");
 
@@ -243,3 +246,151 @@ pub fn parseField(csv_lines: *const std.ArrayList([]const u8),
     }
 }
 
+pub const SimData = struct {
+    coords: Coords,
+    connect: Connect,
+    field: Field,
+};
+
+pub fn load_sim_data(allocator: std.mem.Allocator,
+                     coord_path: []const u8,
+                     connect_path: []const u8,
+                     field_paths: []const []const u8,
+                     ) !SimData {
+                     
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const arena_alloc = arena.allocator();
+
+    const field_n: usize = field_paths.len;
+    var time_start = try Instant.now();
+    var time_end = try Instant.now();
+
+    //--------------------------------------------------------------------------
+    // Read and parse coordinates csv file
+
+    // Read the csv file into an array list
+    time_start = try Instant.now();
+    var lines = try readCsvToList(arena_alloc, coord_path);
+    time_end = try Instant.now();
+    const time_read_coords: f64 = @floatFromInt(time_end.since(time_start));
+
+    // Print the array list line by line
+    // for (lines.items,0..) |line_str,line_num|{
+    //     print("Line {}: {s}\n", .{line_num,line_str});
+    // }
+    print("\nCoords: read {} lines from csv.\n", .{lines.items.len});
+    print("Coords: read time = {d:.3}ms\n", 
+        .{time_read_coords / time.ns_per_ms});
+
+    // Pass the coords into a series of arrays
+    const coord_count: usize = lines.items.len;
+    var coords = try Coords.init(allocator, coord_count);
+
+    time_start = try Instant.now();
+    try parseCoords(&lines, &coords);
+    time_end = try Instant.now();
+    const time_parse_coords: f64 = @floatFromInt(time_end.since(time_start));
+    print("Coords: parse time = {d:.3}ms\n", 
+        .{time_parse_coords / time.ns_per_ms});
+
+    // print("COORDS:\n",.{});
+    // for (0..coords.len) |cc| {
+    //     coords.getVec3(cc).vecPrint();
+    // }
+    // print("\n",.{});
+
+    // Clear the lines array for next read
+    lines.clearRetainingCapacity();
+
+    //--------------------------------------------------------------------------
+    // Read and parse the connectivity table
+
+    // Read the csv file into an array list
+    time_start = try Instant.now();
+    lines = try readCsvToList(arena_alloc, connect_path);
+    time_end = try Instant.now();
+    const time_read_connect: f64 = @floatFromInt(time_end.since(time_start));
+    print("\nConnect: read {} lines from csv.\n", .{lines.items.len});
+    print("Connect: read time = {d:.3}ms\n", 
+        .{time_read_connect / time.ns_per_ms});
+
+    time_start = try Instant.now();
+    const connect = try parseConnect(allocator, &lines);
+    time_end = try Instant.now();
+    const time_parse_connect: f64 = @floatFromInt(time_end.since(time_start));
+    print("Connect: elements={}, nodes per element={}\n", 
+       .{ connect.elem_n, connect.nodes_per_elem });
+    print("Connect: parse time = {d:.3}ms\n", 
+        .{time_parse_connect / time.ns_per_ms});
+
+    // print("\nCONNECT TABLE\n",.{});
+    // var ii: usize = 0;
+    // for (0..connect.elem_n) |ee| {
+    //     print("{} : ", .{ee});
+    //     for (0..connect.nodes_per_elem) |nn| {
+    //         print("{}," , .{connect.table[ee*connect.nodes_per_elem+nn]});
+    //         ii += 1;
+    //     }
+    //     print("\n",.{});
+    // }
+
+    lines.clearRetainingCapacity();
+
+    //--------------------------------------------------------------------------
+    // Parse fields
+
+    // Read the csv for the first field as this will tell us how many time steps
+    // we have and how many coords to pre-alloc our field struct
+    time_start = try Instant.now();
+    lines = try readCsvToList(arena_alloc, field_paths[0]);
+    time_end = try Instant.now();
+    var time_read_field: f64 = @floatFromInt(time_end.since(time_start));
+    print("\nField 0: read {} lines from csv.\n", .{lines.items.len});
+    print("Field 0: read time = {d:.3}ms\n", 
+        .{time_read_field / time.ns_per_ms});
+                     
+    // Create the field struct to hold all the data
+    const time_n: usize = getFieldTimeN(&lines);
+    const coord_n: usize = lines.items.len;
+    var field = try Field.init(allocator,time_n,coord_n,field_n);   
+
+    // Parse the first field 
+    time_start = try Instant.now();
+    try parseField(&lines,&field,0);
+    time_end = try Instant.now();
+    var time_parse_field: f64 = @floatFromInt(time_end.since(time_start));
+    print("Field 0: coords={}, time steps={}\n", 
+        .{ field.getCoordN(), field.getTimeN() });
+    print("Field 0: parse time = {d:.3}ms\n", 
+        .{time_parse_field / time.ns_per_ms});
+
+    lines.clearRetainingCapacity();
+
+    const remaining_field_paths = field_paths[1..];
+    for (remaining_field_paths,1..) |field_path,ii| {
+    
+        time_start = try Instant.now();
+        lines = try readCsvToList(arena_alloc, field_path);
+        time_end = try Instant.now();
+        time_read_field = @floatFromInt(time_end.since(time_start));
+        print("\nField {d}: read {d} lines from csv.\n", .{ii,lines.items.len});
+        print("Field {d}: read time = {d:.3}ms\n", 
+            .{ii,time_read_field / time.ns_per_ms});
+
+        time_start = try Instant.now();
+        try parseField(&lines,&field,ii);
+        time_end = try Instant.now();
+        time_parse_field = @floatFromInt(time_end.since(time_start));
+        print("Field {d}: parse time = {d:.3}ms\n", 
+            .{ii,time_parse_field / time.ns_per_ms});
+
+        lines.clearRetainingCapacity();      
+    }
+
+    return .{
+      .coords = coords,
+      .connect = connect,
+      .field = field,  
+    };
+}
