@@ -257,8 +257,7 @@ pub fn MatSliceOps(comptime EType: type) type {
     };
 }
 
-//TODO: transfer missing tests for
-
+//TODO: transfer missing tests from stack matrix
 const TestType = f64;
 const talloc = testing.allocator;
 
