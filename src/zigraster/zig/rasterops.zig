@@ -127,7 +127,6 @@ pub fn saveImage(io: std.Io,
                                                       .{ file_name_no_ext, ext });
             try saveScaledPPM(io,out_dir,file_name_ext,image);
         },
-        else => unreachable,
     }
 }
 
