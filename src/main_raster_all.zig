@@ -7,6 +7,7 @@ const meshio = @import("zigraster/zig/meshio.zig");
 const Coords = meshio.Coords;
 const Connect = meshio.Connect;
 const Field = meshio.Field;
+const SimData = meshio.SimData;
 
 const VecStack = @import("zigraster/zig/vecstack.zig");
 const MatStack = @import("zigraster/zig/matstack.zig");
@@ -26,17 +27,12 @@ const NDArray = ndarray.NDArray;
 const Camera = @import("zigraster/zig/camera.zig").Camera;
 const CameraOps = @import("zigraster/zig/camera.zig").CameraOps;
 
-const Raster = @import("zigraster/zig/raster.zig").Raster;
-
-pub const SimData = struct {
-    coords: Coords,
-    connect: Connect,
-    field: Field,
-};
+const rops = @import("zigraster/zig/rasterops.zig");
+const raster = @import("zigraster/zig/raster.zig");
 
 pub fn main() !void {
     const print_break = [_]u8{'-'} ** 80;
-    print("{s}\nZig Rasteriser\n{s}\n", .{ print_break, print_break });
+    print("{s}\nZig rasteriser\n{s}\n", .{ print_break, print_break });
 
     var time_start = try Instant.now();
     var time_end = try Instant.now();
@@ -44,6 +40,11 @@ pub fn main() !void {
     //==========================================================================
     // MEMORY ALLOCATORS
     const page_alloc = std.heap.page_allocator;
+
+    //=========================================================================
+    // IO
+    var single_thread_io: std.Io.Threaded = .init_single_threaded;
+    const io = single_thread_io.io();
     
     //==========================================================================
     // SETUP: load simulation data from file
@@ -59,6 +60,7 @@ pub fn main() !void {
     };
 
     const sim_data = try meshio.load_sim_data(page_alloc,
+                                              io,
                                               path_coords,
                                               path_connect,
                                               path_fields[0..]);
@@ -126,21 +128,21 @@ pub fn main() !void {
     //==========================================================================    
     // Raster All Frames
 
-    const cwd = std.fs.cwd();
-
+    const cwd: std.Io.Dir = std.Io.Dir.cwd();
     const dir_name = "raster-out";
 
-    cwd.makeDir(dir_name) catch |err| switch (err) {
+    cwd.createDir(io, dir_name, .default_dir) catch |err| switch (err) {
         error.PathAlreadyExists => {}, // Path exists do nothing
         else => return err, // Propagate any other error
     };
 
-    var out_dir = try cwd.openDir(dir_name, .{});
-    defer out_dir.close();
+    var out_dir = try cwd.openDir(io, dir_name, .{});
+    defer out_dir.close(io);
 
     time_start = try Instant.now();
 
-    const image_array = try Raster.rasterAllFrames(page_alloc, 
+    const image_array = try raster.rasterAllFrames(page_alloc, 
+                                                   io, 
                                                    out_dir, 
                                                    &sim_data.coords, 
                                                    &sim_data.connect, 

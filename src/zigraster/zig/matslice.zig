@@ -138,27 +138,24 @@ pub fn MatSlice(comptime EType: type) type {
             print("\n", .{});
         }
 
-        pub fn saveCSV(self: *const Self, 
-                       out_dir: std.fs.Dir, 
+        pub fn saveCSV(self: *const Self,
+                       io: std.Io, 
+                       out_dir: std.Io.Dir, 
                        file_name: []const u8) !void {
                        
-            const csv_file = try out_dir.createFile(file_name, .{});
-            defer csv_file.close();
+            const csv_file = try out_dir.createFile(io, file_name, .{});
+            defer csv_file.close(io);
 
-            var write_buf: [8192]u8 = undefined;
-            var file_writer = csv_file.writer(&write_buf);
+            var write_buf: [4096]u8 = undefined;
+            var file_writer = csv_file.writer(io,&write_buf);
             const writer = &file_writer.interface;
 
             for (0..self.rows_n) |rr| {
                 for (0..self.cols_n) |cc| {
-                    try writer.print("{}", .{self.get(rr, cc)});
-                    if (cc < self.cols_n - 1) {
-                        try writer.writeAll(",");
-                    }
+                    try writer.print("{d},", .{self.get(rr, cc)});
                 }
-                try writer.writeAll("\n");
+                try writer.print("\n",.{});
             }
-
             try writer.flush();
         }
     };

@@ -102,22 +102,22 @@ pub const Field = struct {
 // TODO: should probably pass in an io struct here
 // NOTE: fixed for 0.16-dev to init io
 pub fn readCsvToList(allocator: std.mem.Allocator, 
+                     io: std.Io,
                      path: []const u8
                      ) !std.ArrayList([]const u8) {
 
-    var file = try std.fs.cwd().openFile(path, .{ .mode = .read_only});
-    defer file.close();
-
-    var single_thread_io: std.Io.Threaded = .init_single_threaded;
-    const io = single_thread_io.io();
+    const cwd: std.Io.Dir = std.Io.Dir.cwd();
+    var file: std.Io.File = try cwd.openFile(io, path, .{ .mode = .read_only});
+    defer file.close(io);
 
     var read_buff: [4096]u8 = undefined;    
-    var reader = file.reader(io,&read_buff); // type: std.fs.File.Reader
-	
+    var file_reader: std.Io.File.Reader = file.reader(io, &read_buff); 
+    const reader = &file_reader.interface;
+
     var lines: std.ArrayList([] const u8)  = .{};
 
     // Read lines without the trailing '\n' (exclusive).
-    while (try reader.interface.takeDelimiter('\n')) |line| {
+    while (try reader.takeDelimiter('\n')) |line| {
         // Optional: trim Windows '\r'
         const clean = if (@import("builtin").os.tag == .windows)
             std.mem.trimRight(u8, line, "\r")
@@ -253,6 +253,7 @@ pub const SimData = struct {
 };
 
 pub fn load_sim_data(allocator: std.mem.Allocator,
+                     io: std.Io,
                      coord_path: []const u8,
                      connect_path: []const u8,
                      field_paths: []const []const u8,
@@ -271,7 +272,7 @@ pub fn load_sim_data(allocator: std.mem.Allocator,
 
     // Read the csv file into an array list
     time_start = try Instant.now();
-    var lines = try readCsvToList(arena_alloc, coord_path);
+    var lines = try readCsvToList(arena_alloc, io, coord_path);
     time_end = try Instant.now();
     const time_read_coords: f64 = @floatFromInt(time_end.since(time_start));
 
@@ -308,7 +309,7 @@ pub fn load_sim_data(allocator: std.mem.Allocator,
 
     // Read the csv file into an array list
     time_start = try Instant.now();
-    lines = try readCsvToList(arena_alloc, connect_path);
+    lines = try readCsvToList(arena_alloc, io, connect_path);
     time_end = try Instant.now();
     const time_read_connect: f64 = @floatFromInt(time_end.since(time_start));
     print("\nConnect: read {} lines from csv.\n", .{lines.items.len});
@@ -343,7 +344,7 @@ pub fn load_sim_data(allocator: std.mem.Allocator,
     // Read the csv for the first field as this will tell us how many time steps
     // we have and how many coords to pre-alloc our field struct
     time_start = try Instant.now();
-    lines = try readCsvToList(arena_alloc, field_paths[0]);
+    lines = try readCsvToList(arena_alloc, io, field_paths[0]);
     time_end = try Instant.now();
     var time_read_field: f64 = @floatFromInt(time_end.since(time_start));
     print("\nField 0: read {} lines from csv.\n", .{lines.items.len});
@@ -371,7 +372,7 @@ pub fn load_sim_data(allocator: std.mem.Allocator,
     for (remaining_field_paths,1..) |field_path,ii| {
     
         time_start = try Instant.now();
-        lines = try readCsvToList(arena_alloc, field_path);
+        lines = try readCsvToList(arena_alloc, io, field_path);
         time_end = try Instant.now();
         time_read_field = @floatFromInt(time_end.since(time_start));
         print("\nField {d}: read {d} lines from csv.\n", .{ii,lines.items.len});

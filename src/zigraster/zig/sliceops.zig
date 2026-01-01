@@ -70,7 +70,10 @@ pub fn exp(value: anytype) @TypeOf(value) {
 }
 
 // Based on copy forwards in std.mem
-pub fn apply(comptime EType: type, dest: []EType, source: []const EType, func: *const fn (val: anytype) EType) void {
+pub fn apply(comptime EType: type, 
+             dest: []EType, 
+             source: []const EType, 
+             func: *const fn (val: anytype) EType,) void {
     for (dest[0..source.len], source) |*dd, ss| {
         dd.* = func(ss);
     }
@@ -106,7 +109,10 @@ pub fn vecLen(comptime EType: type, vec: []const EType) EType {
     return @sqrt(norm(EType,vec));
 }
 
-pub fn add(comptime EType: type, vec0: []const EType, vec1: []const EType, vec_out: []EType) !void{
+pub fn add(comptime EType: type, 
+           vec0: []const EType, 
+           vec1: []const EType, 
+           vec_out: []EType) !void{
     assert(vec0.len == vec1.len);
     assert(vec0.len == vec_out.len);
 
@@ -115,7 +121,10 @@ pub fn add(comptime EType: type, vec0: []const EType, vec1: []const EType, vec_o
     }
 }
 
-pub fn sub(comptime EType: type, vec0: []const EType, vec1: []const EType, vec_out: []EType) !void{
+pub fn sub(comptime EType: type, 
+           vec0: []const EType, 
+           vec1: []const EType, 
+           vec_out: []EType) !void{
     assert(vec0.len == vec1.len);
     assert(vec0.len == vec_out.len);
 
@@ -124,7 +133,11 @@ pub fn sub(comptime EType: type, vec0: []const EType, vec1: []const EType, vec_o
     }
 }
 
-pub fn mul(comptime EType: type, vec0: []const EType, vec1: []const EType, vec_out: []EType) !void{
+pub fn mul(comptime EType: type, 
+           vec0: []const EType, 
+           vec1: []const EType, 
+           vec_out: []EType,) !void{
+
     assert(vec0.len == vec1.len);
     assert(vec0.len == vec_out.len);
 
