@@ -62,6 +62,7 @@ pub const Connect = struct {
 };
 
 
+// TODO: buffer dims can be removed as NDArray has a copy of this.
 pub const Field = struct {
     array: NDArray(f64),
     buffer_dims: []usize,
@@ -74,13 +75,13 @@ pub const Field = struct {
 
         const buff_array = try alloc.alloc(f64, time_n*coord_n*fields_n);
         @memset(buff_array,0.0);
-        
+
         var buff_dims = try alloc.alloc(usize,3);
-        buff_dims[0] = time_n;
+        buff_dims[0] = time_n; 
         buff_dims[1] = coord_n;
         buff_dims[2] = fields_n;
-
-        const arr = try NDArray(f64).init(alloc,buff_array,buff_dims);
+        
+        const arr = try NDArray(f64).init(alloc,buff_array,buff_dims[0..]);
         
         return .{
             .array = arr,

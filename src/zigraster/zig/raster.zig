@@ -410,9 +410,9 @@ pub fn rasterAllFrames(allocator: std.mem.Allocator,
     const num_time: usize = field.getTimeN();
                        
     const frame_arr_size: usize = num_time 
-					   * num_fields
-                                   * camera.pixels_num[0] 
-                                   * camera.pixels_num[1];
+					              * num_fields
+                                  * camera.pixels_num[0] 
+                                  * camera.pixels_num[1];
 
     // We are going to return this so we use the input allocator instead of
     // the arena.

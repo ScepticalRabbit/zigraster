@@ -4,10 +4,11 @@ const time = std.time;
 const Instant = time.Instant;
 
 const meshio = @import("zigraster/zig/meshio.zig");
-
 const Coords = meshio.Coords;
 const Connect = meshio.Connect;
 const Field = meshio.Field;
+const SimData = meshio.SimData;
+
 const VecStack = @import("zigraster/zig/vecstack.zig");
 const MatStack = @import("zigraster/zig/matstack.zig");
 
@@ -26,13 +27,8 @@ const NDArray = ndarray.NDArray;
 const Camera = @import("zigraster/zig/camera.zig").Camera;
 const CameraOps = @import("zigraster/zig/camera.zig").CameraOps;
 
-const raster = @import("zigraster/zig/raster.zig");
+const tileraster = @import("zigraster/zig/tileraster.zig");
 
-pub const SimData = struct {
-    coords: Coords,
-    connect: Connect,
-    field: Field,
-};
 
 pub fn main() !void {
     const print_break = [_]u8{'-'} ** 80;
@@ -45,9 +41,14 @@ pub fn main() !void {
     // MEMORY ALLOCATORS
     const page_alloc = std.heap.page_allocator;
     
-    var sim_arena = std.heap.ArenaAllocator.init(page_alloc);
-    defer sim_arena.deinit();
-    const sim_alloc = sim_arena.allocator();
+    var render_arena = std.heap.ArenaAllocator.init(page_alloc);
+    defer render_arena.deinit();
+    const render_alloc = render_arena.allocator();
+
+    //=========================================================================
+    // IO
+    var single_thread_io: std.Io.Threaded = .init_single_threaded;
+    const io = single_thread_io.io();
 
     //==========================================================================
     // SETUP: load simulation data from file
@@ -62,10 +63,11 @@ pub fn main() !void {
         path_data ++ "field_disp_z.csv",
     };
 
-    const sim_data = try meshio.load_sim_data(page_alloc,
-                                              path_coords,
-                                              path_connect,
-                                              path_fields[0..]); 
+    const sim_data: SimData = try meshio.load_sim_data(page_alloc,
+                                                       io,
+                                                       path_coords,
+                                                       path_connect,
+                                                       path_fields[0..]); 
 
     //--------------------------------------------------------------------------
     // CHECK FIELD LOADED CORRECTLY
@@ -133,7 +135,7 @@ pub fn main() !void {
     const frame_ind: usize = 8;
     const num_fields = sim_data.field.getFieldsN();
     
-    const images_mem = try sim_alloc.alloc(f64, 
+    const images_mem = try render_alloc.alloc(f64, 
                                            num_fields
                                            * camera.pixels_num[1]
                                            * camera.pixels_num[0]);
@@ -142,7 +144,7 @@ pub fn main() !void {
     var images_dims = [_]usize{num_fields,
                         	   camera.pixels_num[1],
                         	   camera.pixels_num[0]};
-    var images_arr = try NDArray(f64).init(sim_alloc,
+    var images_arr = try NDArray(f64).init(render_alloc,
                                            images_mem,
                                            images_dims[0..]);
     
@@ -150,13 +152,13 @@ pub fn main() !void {
 
     // Creates own arena for temporary render buffers which should be 
     // cleared after rendering a frame.
-    try raster.rasterOneFrame(page_alloc, 
-                              frame_ind, 
-                              &sim_data.coords, 
-                              &sim_data.connect, 
-                              &sim_data.field, 
-                              &camera, 
-                              &images_arr);
+    try tileraster.rasterOneFrame(page_alloc, 
+                                  frame_ind, 
+                                  &sim_data.coords, 
+                                  &sim_data.connect, 
+                                  &sim_data.field, 
+                                  &camera, 
+                                  &images_arr);
                            
     time_end = try Instant.now();
     const time_raster: f64 = @floatFromInt(time_end.since(time_start));
@@ -167,43 +169,4 @@ pub fn main() !void {
     const image_min = std.mem.min(f64, images_arr.elems);
     print("Image: [max, min] = [{d:.6}, {d:.6}]\n\n", .{ image_max, image_min });
     
-    //======================================================================
-    // 6. Save image to disk
-    const cwd = std.fs.cwd();
-    
-    const dir_name = "raster-out";
-    var name_buff: [1024]u8 = undefined;
-    
-    cwd.makeDir(dir_name) catch |err| switch (err) {
-        error.PathAlreadyExists => {}, // Path exists do nothing
-        else => return err, // Propagate any other error
-    };
-    
-    var out_dir = try cwd.openDir(dir_name, .{});
-    defer out_dir.close();
-    
-    print("Saving output images to: {s}\n", .{dir_name});
-    
-    var image_slice_inds = [_]usize{0,0,0};
-    for (0..num_fields) |ff|{
-        image_slice_inds[0] = ff;
-        
-        const file_name = try std.fmt.bufPrint(name_buff[0..], 
-                                       "raster_one_field{d}_frame{d}.csv", 
-                                       .{ ff,frame_ind });
-    
-        // Grab a matrix slice of the field images
-        const image_slice = try images_arr.getSlice(image_slice_inds[0..],0); 
-        const image_mat = try MatSlice(f64).init(image_slice,
-                                                 camera.pixels_num[1],
-                                                 camera.pixels_num[0]);
-        
-        time_start = try Instant.now();
-        try image_mat.saveCSV(out_dir, file_name);
-        time_end = try Instant.now();
-    
-        const time_save_image: f64 = @floatFromInt(time_end.since(time_start));
-        print("Field {d} image save time = {d:.3} ms\n", 
-            .{ff,time_save_image / time.ns_per_ms,});
-        }        
 } // main, end
