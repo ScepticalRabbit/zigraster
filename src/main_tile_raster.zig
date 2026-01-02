@@ -90,7 +90,7 @@ pub fn main() !void {
     //==========================================================================
     // Build Camera
     
-    const pixel_num = [_]u32{960,1280};//[_]u32{ 960, 1280 };
+    const pixel_num = [_]u32{250,400};//[_]u32{ 960, 1280 };
     const pixel_size = [_]f64{ 5.3e-3, 5.3e-3 };
     const focal_leng: f64 = 50.0;
     const alpha_z: f64 = std.math.degreesToRadians(0.0);
@@ -127,11 +127,9 @@ pub fn main() !void {
     print("\nWorld to camera matrix:\n", .{});
     camera.world_to_cam_mat.matPrint();
     
-    print("{s}\n", .{print_break});
-    
     //======================================================================
     // raster One Frame
-    print("rastering Image...\n", .{});
+    print("{s}\nRastering Image\n{s}\n", .{print_break,print_break});
     const frame_ind: usize = 8;
     const num_fields = sim_data.field.getFieldsN();
     
@@ -162,11 +160,13 @@ pub fn main() !void {
                            
     time_end = try Instant.now();
     const time_raster: f64 = @floatFromInt(time_end.since(time_start));
-    print("raster time = {d:.3}ms\n\n", .{time_raster / time.ns_per_ms});
+    print("{s}\n", .{print_break});
+    print("Raster time = {d:.3}ms\n", .{time_raster / time.ns_per_ms});
     
     // Print diagnostics to console to see if there is an image
-    const image_max = std.mem.max(f64, images_arr.elems);
-    const image_min = std.mem.min(f64, images_arr.elems);
-    print("Image: [max, min] = [{d:.6}, {d:.6}]\n\n", .{ image_max, image_min });
-    
+    // const image_max = std.mem.max(f64, images_arr.elems);
+    // const image_min = std.mem.min(f64, images_arr.elems);
+    // print("Image: [max, min] = [{d:.6}, {d:.6}]\n", .{ image_max, image_min });
+    // print("{s}\n", .{print_break});
+        
 } // main, end

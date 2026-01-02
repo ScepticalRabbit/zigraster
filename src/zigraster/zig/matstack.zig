@@ -319,7 +319,11 @@ pub const Mat44Ops = struct {
         return det_a * det_d + det_b * det_c - adj_ab_dc.trace();
     }
 
-    pub fn insertMat22(ElemType: type, mat44: *Mat44T(ElemType), mat22: Mat22T(ElemType), row_start: usize, col_start: usize) void {
+    pub fn insertMat22(ElemType: type, 
+                       mat44: *Mat44T(ElemType), 
+                       mat22: Mat22T(ElemType), 
+                       row_start: usize, 
+                       col_start: usize,) void {
         mat44.set(0 + row_start, 0 + col_start, mat22.get(0, 0));
         mat44.set(0 + row_start, 1 + col_start, mat22.get(0, 1));
         mat44.set(1 + row_start, 0 + col_start, mat22.get(1, 0));
@@ -383,7 +387,10 @@ pub const Mat44Ops = struct {
         return mat_inv;
     }
 
-    pub fn mulVec3(ElemType: type, mat: Mat44T(ElemType), vec: Vec3T(ElemType)) Vec3f {
+    pub fn mulVec3(ElemType: type, 
+                   mat: Mat44T(ElemType), vec: Vec3T(ElemType)
+                   ) Vec3T(ElemType) {
+
         var vec_out: Vec3T(ElemType) = undefined;
         var sum: ElemType = 0;
 

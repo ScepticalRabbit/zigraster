@@ -44,6 +44,22 @@ pub fn VecStack(comptime elem_n: comptime_int, comptime ElemType: type) type {
             self.elems[ind] = val;
         }
 
+        pub fn x(self: Self) ElemType {
+            return self.elems[0];
+        }
+        
+        pub fn y(self: Self) ElemType {
+            return self.elems[1];
+        }
+
+        pub fn z(self: Self) ElemType {
+            return self.elems[2];
+        }
+
+        pub fn w(self: Self) ElemType {
+            return self.elems[2];
+        }
+
         pub fn add(self: *const Self, to_add: Self) Self {
             var vec_out: Self = undefined;
             for (0..elem_n) |ii| {
@@ -130,8 +146,8 @@ pub fn Vec3T(comptime ElemType: type) type {
     return VecStack(3, ElemType);
 }
 
-pub fn initVec2(comptime ElemType: type, x: ElemType, y: ElemType) Vec3T(ElemType) {
-    return Vec3T(ElemType){
+pub fn initVec2(comptime ElemType: type, x: ElemType, y: ElemType) Vec2T(ElemType) {
+    return Vec2T(ElemType){
         .elems = [3]ElemType{ x, y },
     };
 }

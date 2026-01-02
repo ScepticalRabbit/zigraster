@@ -43,49 +43,47 @@ pub fn rasterOneFrame(allocator: std.mem.Allocator,
     var nodes_raster_buff: []Vec3f = try arena_alloc.alloc(
         Vec3f, connect.nodes_per_elem);
 
-// Stores N weights, one for each node in the element
+    // Stores N weights, one for each node in the element
     var weights_buff: []f64 = try arena_alloc.alloc(
-        f64, connect.nodes_per_elem);
+    f64, connect.nodes_per_elem);
 
-// Stores all F field values at the N nodes per element
-var field_inds = [_]usize{frame_ind,0,0};
+    // Stores all F field values at the N nodes per element
+    var field_inds = [_]usize{frame_ind,0,0};
     const field_buff: []f64 = try arena_alloc.alloc(
         f64, num_fields*connect.nodes_per_elem);
 
-var field_raster_mat = try MatSlice(f64).init(field_buff,
+    var field_raster_mat = try MatSlice(f64).init(field_buff,
                                             connect.nodes_per_elem,
                                             num_fields);
 
-// Stores field value at the pixel
-var px_field: f64 = 0.0;
+    // Stores field value at the pixel
+    var px_field: f64 = 0.0;
 
-// Sub-pixel image buffers
+    // Sub-pixel image buffers
     const subpx_x: usize = @as(usize, camera.pixels_num[0]) 
     					   * @as(usize, camera.sub_sample);
     const subpx_y: usize = @as(usize, camera.pixels_num[1]) 
                            * @as(usize, camera.sub_sample);
 
-    
+
     var depth_subpx_inds = [_]usize{0,0};
-var image_subpx_inds = [_]usize{0,0,0};
+    var image_subpx_inds = [_]usize{0,0,0};
 
     // Sub-pixel image buffer
     var image_subpx_dims = [_]usize{num_fields,subpx_y,subpx_x};
-const image_subpx_mem = try arena_alloc.alloc(
-  f64,subpx_y*subpx_x*num_fields);
-
-var image_subpx = try NDArray(f64).init(arena_alloc,
+    const image_subpx_mem = try arena_alloc.alloc(f64,subpx_y*subpx_x*num_fields);
+    var image_subpx = try NDArray(f64).init(arena_alloc,
                                       image_subpx_mem,
                                       image_subpx_dims[0..]);
 
-// Sub-pixel depth buffer
-var depth_subpx_dims = [_]usize{subpx_y,subpx_x};
- const depth_subpx_mem = try arena_alloc.alloc(f64,subpx_y*subpx_x);
-var depth_subpx = try NDArray(f64).init(arena_alloc,
+    // Sub-pixel depth buffer
+    var depth_subpx_dims = [_]usize{subpx_y,subpx_x};
+    const depth_subpx_mem = try arena_alloc.alloc(f64,subpx_y*subpx_x);
+    var depth_subpx = try NDArray(f64).init(arena_alloc,
                                       depth_subpx_mem,
                                       depth_subpx_dims[0..]);
 
-// Set image background to 0.0 and depth buffer to large value.
+    // Set image background to 0.0 and depth buffer to large value.
     image_subpx.fill(0.0);
     depth_subpx.fill(1e6);
 
@@ -96,8 +94,8 @@ var depth_subpx = try NDArray(f64).init(arena_alloc,
     const coord_step: f64 = 1.0 / sub_samp_f;
     const coord_offset: f64 = 1.0 / (2.0 * sub_samp_f);
 
-//----------------------------------------------------------------------
-// Raster Loop
+    //----------------------------------------------------------------------
+    // Raster Loop
     for (0..connect.elem_n) |ee| {
         const coord_inds: []usize = connect.getElem(ee);
 

@@ -3,8 +3,10 @@ const print = std.debug.print;
 const time = std.time;
 const Instant = time.Instant;
 
-const Vec3f = @import("vecstack.zig").Vec3f;
-const Vec3SliceOps = @import("vecstack.zig").Vec3SliceOps;
+const vecstack = @import("vecstack.zig");
+const Vec3f = vecstack.Vec3f;
+const Vec3T = vecstack.Vec3T;
+const Vec3SliceOps = vecstack.Vec3SliceOps;
 
 const Mat44Ops = @import("matstack.zig").Mat44Ops;
 
@@ -17,11 +19,11 @@ const Camera = @import("camera.zig").Camera;
 
 // TODO: comptime these to allow switching from f32 to f64 to compare precision
 
-pub fn worldToRasterCoords(coord_world: Vec3f, camera: *const Camera) Vec3f {
+pub fn worldToRasterCoords(coord_world: Vec3T(f64), camera: *const Camera) Vec3T(f64) {
     // TODO: simplify this to a matrix mult
-    var coord_raster: Vec3f = Mat44Ops.mulVec3(f64, 
-    										   camera.world_to_cam_mat, 
-    										   coord_world);
+    var coord_raster: Vec3T(f64) = Mat44Ops.mulVec3(f64, 
+    										        camera.world_to_cam_mat, 
+    										        coord_world);
 
     coord_raster.elems[0] = camera.image_dist 
                             * coord_raster.elems[0] 
