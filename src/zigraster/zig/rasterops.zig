@@ -46,6 +46,33 @@ pub fn worldToRasterCoords(coord_world: Vec3T(f64), camera: *const Camera) Vec3T
     return coord_raster;
 }
 
+pub fn worldToRasterSIMD(coord_world: Vec3T(f64), camera: *const Camera) Vec3T(f64) {
+    // TODO: simplify this to a matrix mult
+    var coord_raster: Vec3T(f64) = Mat44Ops.mulVec3(f64, 
+    										        camera.world_to_cam_mat, 
+    										        coord_world);
+
+    coord_raster.elems[0] = camera.image_dist 
+                            * coord_raster.elems[0] 
+                            / (-coord_raster.elems[2]);
+    coord_raster.elems[1] = camera.image_dist 
+                            * coord_raster.elems[1] 
+                            / (-coord_raster.elems[2]);
+
+    coord_raster.elems[0] = 2.0 * coord_raster.elems[0] 
+                            / camera.image_dims[0];
+    coord_raster.elems[1] = 2.0 * coord_raster.elems[1] 
+                            / camera.image_dims[1];
+
+    coord_raster.elems[0] = (coord_raster.elems[0] + 1.0) 
+    	/ 2.0 * @as(f64, @floatFromInt(camera.pixels_num[0]));
+    coord_raster.elems[1] = (1.0 - coord_raster.elems[1]) 
+    	/ 2.0 * @as(f64, @floatFromInt(camera.pixels_num[1]));
+    coord_raster.elems[2] = -1.0 * coord_raster.elems[2];
+
+    return coord_raster;
+}
+
 pub fn edgeFun3(vert_0: Vec3f, vert_1: Vec3f, vert_2: Vec3f) f64 {
     return ((vert_2.get(0) - vert_0.get(0)) 
           * (vert_1.get(1) - vert_0.get(1)) 

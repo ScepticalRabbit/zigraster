@@ -14,7 +14,10 @@ pub const Mat22f = Mat22T(f64);
 pub const Mat33f = Mat33T(f64);
 pub const Mat44f = Mat44T(f64);
 
-pub fn MatStack(comptime rows_n: comptime_int, comptime cols_n: comptime_int, comptime ElemType: type) type {
+pub fn MatStack(comptime rows_n: comptime_int, 
+                comptime cols_n: comptime_int, 
+                comptime ElemType: type,) type {
+
     return struct {
         elems: [elem_n]ElemType,
 
@@ -84,7 +87,11 @@ pub fn MatStack(comptime rows_n: comptime_int, comptime cols_n: comptime_int, co
             return vec;
         }
 
-        pub fn getSubMat(self: *const Self, row_start: usize, col_start: usize, comptime rows: usize, comptime cols: usize) MatStack(rows, cols, ElemType) {
+        pub fn getSubMat(self: *const Self, 
+                         row_start: usize, 
+                         col_start: usize, 
+                         comptime rows: usize, 
+                         comptime cols: usize) MatStack(rows, cols, ElemType) {
             // TODO: make this bounds check?
             var sub_mat = MatStack(rows, cols, ElemType).initZeros();
 
@@ -99,19 +106,32 @@ pub fn MatStack(comptime rows_n: comptime_int, comptime cols_n: comptime_int, co
             return sub_mat;
         }
 
-        pub fn insertRowVec(self: *Self, row: usize, col_start: usize, comptime vec_len: usize, vec: VecStack(vec_len, ElemType)) void {
+        pub fn insertRowVec(self: *Self, 
+                            row: usize, 
+                            col_start: usize, 
+                            comptime vec_len: usize, 
+                            vec: VecStack(vec_len, ElemType)) void {
             for (0..vec_len) |cc| {
                 self.set(row, cc + col_start, vec.get(cc));
             }
         }
 
-        pub fn insertColVec(self: *Self, col: usize, row_start: usize, comptime vec_len: usize, vec: VecStack(vec_len, ElemType)) void {
+        pub fn insertColVec(self: *Self, 
+                            col: usize, 
+                            row_start: usize, 
+                            comptime vec_len: usize, 
+                            vec: VecStack(vec_len, ElemType)) void {
             for (0..vec_len) |rr| {
                 self.set(rr + row_start, col, vec.get(rr));
             }
         }
 
-        pub fn insertSubMat(self: *Self, row_start: usize, col_start: usize, comptime mat_rows: usize, comptime mat_cols: usize, mat: MatStack(mat_rows, mat_rows, ElemType)) void {
+        pub fn insertSubMat(self: *Self, 
+                            row_start: usize, 
+                            col_start: usize, 
+                            comptime mat_rows: usize, 
+                            comptime mat_cols: usize, 
+                            mat: MatStack(mat_rows, mat_rows, ElemType)) void {
             for (0..mat_rows) |rr| {
                 for (0..mat_cols) |cc| {
                     self.set(rr + row_start, cc + col_start, mat.get(rr, cc));
@@ -178,7 +198,9 @@ pub fn MatStack(comptime rows_n: comptime_int, comptime cols_n: comptime_int, co
             return mat_out;
         }
 
-        pub fn mulVec(self: *const Self, vec: VecStack(cols_n, ElemType)) VecStack(cols_n, ElemType) {
+        pub fn mulVec(self: *const Self, 
+                      vec: VecStack(cols_n, ElemType)
+                      ) VecStack(cols_n, ElemType) {
             var vec_out: VecStack(rows_n, ElemType) = undefined;
             var sum: ElemType = 0;
 
@@ -388,7 +410,8 @@ pub const Mat44Ops = struct {
     }
 
     pub fn mulVec3(ElemType: type, 
-                   mat: Mat44T(ElemType), vec: Vec3T(ElemType)
+                   mat: Mat44T(ElemType), 
+                   vec: Vec3T(ElemType)
                    ) Vec3T(ElemType) {
 
         var vec_out: Vec3T(ElemType) = undefined;
@@ -406,6 +429,26 @@ pub const Mat44Ops = struct {
 
         return vec_out;
     }
+
+    pub fn mulVec3SIMD(comptime N: usize,
+                       T: type,
+                       mat: Mat44T(ElemType), 
+                       vec: Vec3SIMD(ElemType)
+                       ) Vec3SIMD(N,T) {
+            
+        var vec_res: Vec3SIMD(N,D) = undefined;  
+
+        mat_row = Vec3SIMD.initSplat(mat.get(0,0),mat.get(0,1),mat.get(0,2));
+        vec_res.x = mat_row.dot(vec) + @splat(mat.get(row,3));
+
+        mat_row = Vec3SIMD.initSplat(mat.get(1,0),mat.get(1,1),mat.get(1,2));
+        vec_res.y = mat_row.dot(vec) + @splat(mat.get(row,3));
+
+        mat_row = Vec3SIMD.initSplat(mat.get(2,0),mat.get(2,1),mat.get(2,2));
+        vec_res.z = mat_row.dot(vec) + @splat(mat.get(row,3));
+
+        return vec_res;
+    } 
 };
 
 //------------------------------------------------------------------------------

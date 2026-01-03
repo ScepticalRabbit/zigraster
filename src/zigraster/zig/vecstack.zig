@@ -57,7 +57,7 @@ pub fn VecStack(comptime elem_n: comptime_int, comptime ElemType: type) type {
         }
 
         pub fn w(self: Self) ElemType {
-            return self.elems[2];
+            return self.elems[3];
         }
 
         pub fn add(self: *const Self, to_add: Self) Self {
