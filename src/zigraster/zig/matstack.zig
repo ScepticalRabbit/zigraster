@@ -429,26 +429,7 @@ pub const Mat44Ops = struct {
 
         return vec_out;
     }
-
-    pub fn mulVec3SIMD(comptime N: usize,
-                       T: type,
-                       mat: Mat44T(ElemType), 
-                       vec: Vec3SIMD(ElemType)
-                       ) Vec3SIMD(N,T) {
-            
-        var vec_res: Vec3SIMD(N,D) = undefined;  
-
-        mat_row = Vec3SIMD.initSplat(mat.get(0,0),mat.get(0,1),mat.get(0,2));
-        vec_res.x = mat_row.dot(vec) + @splat(mat.get(row,3));
-
-        mat_row = Vec3SIMD.initSplat(mat.get(1,0),mat.get(1,1),mat.get(1,2));
-        vec_res.y = mat_row.dot(vec) + @splat(mat.get(row,3));
-
-        mat_row = Vec3SIMD.initSplat(mat.get(2,0),mat.get(2,1),mat.get(2,2));
-        vec_res.z = mat_row.dot(vec) + @splat(mat.get(row,3));
-
-        return vec_res;
-    } 
+ 
 };
 
 //------------------------------------------------------------------------------
