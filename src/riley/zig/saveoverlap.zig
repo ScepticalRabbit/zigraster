@@ -43,6 +43,7 @@ pub const SaveSlot = struct {
     num_fields: u8 = 0,
     pixels_num: [2]u32 = .{ 0, 0 },
     out_dir: ?std.Io.Dir = null,
+    out_dir_path: ?[]const u8 = null,
     bench_capture: ?[]report.FrameBenchCapture = null,
     report_storage: FrameReportStorage = .{ .off = .{} },
     frame_times: report.FrameTimes = .{},
@@ -252,6 +253,7 @@ pub const SaveOverlap = struct {
                     job.desc.camera.pixels_num[1],
                 },
                 .out_dir = job.desc.out_dir,
+                .out_dir_path = job.desc.out_dir_path,
                 .bench_capture = job.desc.bench_capture,
                 .frame_times = job.ctx.frame_times,
                 .total_nodes_num = job.ctx.total_nodes_num,
@@ -273,6 +275,7 @@ pub const RenderedFrameMeta = struct {
     cameras_num: usize,
     pixels_num: [2]u32,
     out_dir: ?std.Io.Dir,
+    out_dir_path: ?[]const u8,
     bench_capture: ?[]report.FrameBenchCapture,
     frame_times: report.FrameTimes,
     total_nodes_num: usize,
@@ -455,6 +458,7 @@ pub fn publishRenderedSlot(
     slot.num_fields = @intCast(slot.frame_arr.dims[0]);
     slot.pixels_num = meta.pixels_num;
     slot.out_dir = meta.out_dir;
+    slot.out_dir_path = meta.out_dir_path;
     slot.bench_capture = meta.bench_capture;
     slot.report_storage = report_storage.*;
     report_storage.* = .{ .off = .{} };
@@ -526,6 +530,7 @@ pub fn completeSaveSlot(
         slot.frame_idx,
         slot.cameras_num,
         slot.out_dir,
+        slot.out_dir_path,
         slot.bench_capture,
         &slot.report_storage,
         slot.frame_times,
