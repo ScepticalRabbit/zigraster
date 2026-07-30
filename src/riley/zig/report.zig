@@ -1930,6 +1930,7 @@ pub fn printRenderSummary(
         cameras[0].sub_sample,
         cameras[0].prep_psf.halo_px,
     );
+    _ = actual_tile_size;
 
     const total_frames = cameras.len * num_time;
     const total_render_ms = end_to_end_times.total_time / 1e6;
@@ -1968,10 +1969,10 @@ pub fn printRenderSummary(
         print_break,
         print_break,
     });
-    try writer.print("Actual Tile Size        = {d}x{d}\n", .{
-        actual_tile_size,
-        actual_tile_size,
-    });
+    // try writer.print("Actual Tile Size        = {d}x{d}\n", .{
+    //     actual_tile_size,
+    //     actual_tile_size,
+    // });
     try writer.print("Setup Time              = {d:.3} ms\n", .{setup_ms});
     // try writer.print("Setup other             = {d:.3} ms\n", .{
     //     setup_other_ms,
