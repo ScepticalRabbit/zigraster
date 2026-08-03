@@ -1930,7 +1930,6 @@ pub fn printRenderSummary(
         cameras[0].sub_sample,
         cameras[0].prep_psf.halo_px,
     );
-    _ = actual_tile_size;
 
     const total_frames = cameras.len * num_time;
     const total_render_ms = end_to_end_times.total_time / 1e6;
@@ -1969,10 +1968,23 @@ pub fn printRenderSummary(
         print_break,
         print_break,
     });
-    // try writer.print("Actual Tile Size        = {d}x{d}\n", .{
-    //     actual_tile_size,
-    //     actual_tile_size,
-    // });
+    try writer.print("Buffer Mode             = {s}\n", .{
+        @tagName(config.buffer_mode),
+    });
+    if (config.buffer_mode != .tile_local) {
+        const global_tile_subpx = @as(usize, actual_tile_size) *
+            @as(usize, cameras[0].sub_sample);
+        const requested_stripe_subpx = config.global_subpx_stripe_size_override orelse
+            config.global_subpx_stripe_size_min;
+        const stripe_subpx = @max(
+            @as(usize, cameras[0].sub_sample),
+            (@as(usize, requested_stripe_subpx) /
+                @as(usize, cameras[0].sub_sample)) *
+                @as(usize, cameras[0].sub_sample),
+        );
+        try writer.print("Global Raster Tile      = {d} subpx\n", .{global_tile_subpx});
+        try writer.print("Global Stripe Height    = {d} subpx\n", .{stripe_subpx});
+    }
     try writer.print("Setup Time              = {d:.3} ms\n", .{setup_ms});
     // try writer.print("Setup other             = {d:.3} ms\n", .{
     //     setup_other_ms,

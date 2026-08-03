@@ -87,6 +87,40 @@ pub fn checkRenderInpsErr(
             return error.InvalidTileSizeOverride;
         }
     }
+    if (config.global_subpx_tile_size_min == 0) {
+        return error.InvalidGlobalSubpxTileSizeMin;
+    }
+    if (config.global_subpx_tile_size_max == 0) {
+        return error.InvalidGlobalSubpxTileSizeMax;
+    }
+    if (config.global_subpx_tile_size_min > config.global_subpx_tile_size_max) {
+        return error.InvalidGlobalSubpxTileSizeRange;
+    }
+    if (config.global_subpx_tile_size_override) |tile_size_override| {
+        if (tile_size_override < config.global_subpx_tile_size_min or
+            tile_size_override > config.global_subpx_tile_size_max)
+        {
+            return error.InvalidGlobalSubpxTileSizeOverride;
+        }
+    }
+    if (config.global_subpx_stripe_size_min == 0) {
+        return error.InvalidGlobalSubpxStripeSizeMin;
+    }
+    if (config.global_subpx_stripe_size_max == 0) {
+        return error.InvalidGlobalSubpxStripeSizeMax;
+    }
+    if (config.global_subpx_stripe_size_min >
+        config.global_subpx_stripe_size_max)
+    {
+        return error.InvalidGlobalSubpxStripeSizeRange;
+    }
+    if (config.global_subpx_stripe_size_override) |stripe_size_override| {
+        if (stripe_size_override < config.global_subpx_stripe_size_min or
+            stripe_size_override > config.global_subpx_stripe_size_max)
+        {
+            return error.InvalidGlobalSubpxStripeSizeOverride;
+        }
+    }
     if (!std.math.isFinite(config.background_value)) {
         return error.InvalidBackgroundValue;
     }
@@ -101,6 +135,7 @@ pub fn checkRenderInpsErr(
 
     for (cam_inps) |cam_inp| {
         try checkCamInpErr(cam_inp);
+        try checkGlobalSubpxAlignment(config, cam_inp.sub_sample);
     }
 
     const num_time = mo.countFrames(meshes);
@@ -177,6 +212,29 @@ pub fn checkRenderInpsAssert(
         std.debug.assert(tile_size_override >= config.tile_size_min);
         std.debug.assert(tile_size_override <= config.tile_size_max);
     }
+    std.debug.assert(config.global_subpx_tile_size_min > 0);
+    std.debug.assert(config.global_subpx_tile_size_max > 0);
+    std.debug.assert(
+        config.global_subpx_tile_size_min <= config.global_subpx_tile_size_max,
+    );
+    if (config.global_subpx_tile_size_override) |tile_size_override| {
+        std.debug.assert(tile_size_override >= config.global_subpx_tile_size_min);
+        std.debug.assert(tile_size_override <= config.global_subpx_tile_size_max);
+    }
+    std.debug.assert(config.global_subpx_stripe_size_min > 0);
+    std.debug.assert(config.global_subpx_stripe_size_max > 0);
+    std.debug.assert(
+        config.global_subpx_stripe_size_min <=
+            config.global_subpx_stripe_size_max,
+    );
+    if (config.global_subpx_stripe_size_override) |stripe_size_override| {
+        std.debug.assert(
+            stripe_size_override >= config.global_subpx_stripe_size_min,
+        );
+        std.debug.assert(
+            stripe_size_override <= config.global_subpx_stripe_size_max,
+        );
+    }
     std.debug.assert(std.math.isFinite(config.background_value));
     if (config.save_strategy == .disk or config.save_strategy == .both) {
         std.debug.assert(config.image_save_opts.len > 0);
@@ -187,6 +245,7 @@ pub fn checkRenderInpsAssert(
 
     for (cam_inps) |cam_inp| {
         checkCamInpAssert(cam_inp);
+        checkGlobalSubpxAlignment(config, cam_inp.sub_sample) catch unreachable;
     }
 
     const num_time = mo.countFrames(meshes);
@@ -214,6 +273,26 @@ pub fn checkRenderInpsAssert(
         .out_num_fields = out_num_fields,
         .img_dims = img_dims,
     };
+}
+
+fn checkGlobalSubpxAlignment(
+    config: rastcfg.RasterConfig,
+    sub_samp: u32,
+) !void {
+    if (config.buffer_mode == .tile_local) return;
+
+    const tile_size = config.global_subpx_tile_size_override orelse
+        config.global_subpx_tile_size_min;
+    if (@mod(tile_size, sub_samp) != 0) {
+        return error.GlobalSubpxTileSizeNotAligned;
+    }
+    if (config.buffer_mode == .global_subpx_stripe) {
+        const stripe_size = config.global_subpx_stripe_size_override orelse
+            config.global_subpx_stripe_size_min;
+        if (@mod(stripe_size, sub_samp) != 0) {
+            return error.GlobalSubpxStripeSizeNotAligned;
+        }
+    }
 }
 
 // --------------------------------------------------------------------------------------

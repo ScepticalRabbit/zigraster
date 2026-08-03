@@ -9,6 +9,7 @@
 const std = @import("std");
 const buildconfig = @import("../riley/zig/buildconfig.zig");
 const F = buildconfig.F;
+const riley = @import("../riley/zig/riley.zig");
 const Timestamp = std.Io.Clock.Timestamp;
 const common = @import("../dev_support/tests.zig");
 const suite = @import("../dev_support/psfsuite.zig");
@@ -34,6 +35,11 @@ test "Gold PSF Suite" {
     std.debug.print("Running Gold PSF Tests...\n", .{});
     const suite_start = Timestamp.now(io, .awake);
 
+    const buffer_modes = [_]riley.BufferMode{
+        .tile_local,
+        .global_subpx_full,
+        .global_subpx_stripe,
+    };
     for (suite.distortion_cases) |distortion_case| {
         for (distortion_case.mesh_types) |mesh_type| {
             for (suite.shader_cases) |shader_case| {
@@ -51,61 +57,72 @@ test "Gold PSF Suite" {
                         "{s}/{s}",
                         .{ suite.gold_root, case_dir_name },
                     );
-                    const result = try suite.renderCase(allocator, io, render_case, null);
-                    defer {
-                        allocator.free(result.slice);
-                        var result_mut = result;
-                        result_mut.deinit(allocator);
-                    }
-
-                    const frames_num = if (result.dims.len == 5) result.dims[1] else result.dims[0];
-                    var first_err: ?anyerror = null;
-                    for (0..frames_num) |frame_idx| {
-                        const gold_path = try common.findGoldPath(
-                            aa,
-                            io,
-                            gold_dir,
-                            0,
-                            frame_idx,
-                            0,
-                            false,
-                        );
-
-                        common.compareNDArrayToGold(
+                    for (buffer_modes) |buffer_mode| {
+                        const result = try suite.renderCaseWithBufferMode(
                             allocator,
                             io,
-                            &result,
-                            0,
-                            frame_idx,
-                            0,
-                            1,
-                            gold_path,
-                            tcfg.REL_TOL,
-                            tcfg.ABS_TOL,
-                        ) catch |err| {
-                            if (first_err == null) {
-                                first_err = err;
-                            }
-                            const fail_dir_name = try std.fmt.allocPrint(
-                                aa,
-                                "psf_{s}",
-                                .{case_dir_name},
-                            );
-                            try common.saveComparisonArtifactsFromResult(
+                            render_case,
+                            null,
+                            buffer_mode,
+                        );
+                        defer {
+                            allocator.free(result.slice);
+                            var result_mut = result;
+                            result_mut.deinit(allocator);
+                        }
+
+                        const frames_num = if (result.dims.len == 5)
+                            result.dims[1]
+                        else
+                            result.dims[0];
+                        var first_err: ?anyerror = null;
+                        for (0..frames_num) |frame_idx| {
+                            const gold_path = try common.findGoldPath(
                                 aa,
                                 io,
-                                common.default_fails_root,
-                                fail_dir_name,
+                                gold_dir,
+                                0,
+                                frame_idx,
+                                0,
+                                false,
+                            );
+
+                            common.compareNDArrayToGold(
+                                allocator,
+                                io,
                                 &result,
                                 0,
                                 frame_idx,
                                 0,
-                                gold_path,
                                 1,
-                            );
-                        };
+                                gold_path,
+                                tcfg.REL_TOL,
+                                tcfg.ABS_TOL,
+                            ) catch |err| {
+                                if (first_err == null) {
+                                    first_err = err;
+                                }
+                                const fail_dir_name = try std.fmt.allocPrint(
+                                    aa,
+                                    "psf_{s}_{s}",
+                                    .{ case_dir_name, @tagName(buffer_mode) },
+                                );
+                                try common.saveComparisonArtifactsFromResult(
+                                    aa,
+                                    io,
+                                    common.default_fails_root,
+                                    fail_dir_name,
+                                    &result,
+                                    0,
+                                    frame_idx,
+                                    0,
+                                    gold_path,
+                                    1,
+                                );
+                            };
+                        }
+                        if (first_err) |err| return err;
                     }
-                    if (first_err) |err| return err;
                 }
             }
         }
@@ -165,6 +182,66 @@ test "PSF isotropic gaussian separable and non-separable agree" {
     try suite.expectResultsApproxEq(
         &result_sep,
         &result_nonsep,
+        PSF_REL_TOL,
+        PSF_ABS_TOL,
+    );
+}
+
+test "PSF global buffer modes match tile-local output" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+    const render_case = suite.RenderCase{
+        .distortion_case_name = "distort_shear",
+        .mesh_type = .quad8,
+        .shader_case = suite.shader_cases[0],
+        .psf_case = suite.psf_cases[1],
+    };
+    const tile_local = try suite.renderCaseWithBufferMode(
+        allocator,
+        io,
+        render_case,
+        suite.tile_size_small,
+        .tile_local,
+    );
+    defer {
+        allocator.free(tile_local.slice);
+        var tile_local_mut = tile_local;
+        tile_local_mut.deinit(allocator);
+    }
+    const global_full = try suite.renderCaseWithBufferMode(
+        allocator,
+        io,
+        render_case,
+        suite.tile_size_small,
+        .global_subpx_full,
+    );
+    defer {
+        allocator.free(global_full.slice);
+        var global_full_mut = global_full;
+        global_full_mut.deinit(allocator);
+    }
+    const global_stripe = try suite.renderCaseWithBufferMode(
+        allocator,
+        io,
+        render_case,
+        suite.tile_size_small,
+        .global_subpx_stripe,
+    );
+    defer {
+        allocator.free(global_stripe.slice);
+        var global_stripe_mut = global_stripe;
+        global_stripe_mut.deinit(allocator);
+    }
+
+    try suite.expectResultsApproxEq(
+        &tile_local,
+        &global_full,
+        PSF_REL_TOL,
+        PSF_ABS_TOL,
+    );
+    try suite.expectResultsApproxEq(
+        &tile_local,
+        &global_stripe,
         PSF_REL_TOL,
         PSF_ABS_TOL,
     );

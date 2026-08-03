@@ -64,9 +64,16 @@ pub const SubpxScratchBuffs = struct {
     touched_min_x: []usize,
     touched_max_x: []usize,
     ideal_pix_cent: []align(64) F,
+
+    pub inline fn imageIndex(
+        _: *const SubpxScratchBuffs,
+        local_idx: usize,
+    ) usize {
+        return local_idx;
+    }
 };
 
-const SubpxSimdChunk = struct {
+pub const SubpxSimdChunk = struct {
     scratch_x_u: [S]usize,
     scratch_y_u: [S]usize,
     px_f: [S]F,
@@ -212,6 +219,15 @@ pub fn RasterEngine(
     comptime ShaderKern: type, // shaderkernels.zig
     comptime ShaderData: type, // shaderops_common.zig, ShaderPrepared
 ) type {
+    return RasterEngineFor(SubpxScratchBuffs, Geom, ShaderKern, ShaderData);
+}
+
+pub fn RasterEngineFor(
+    comptime ScratchBuffs: type,
+    comptime Geom: type,
+    comptime ShaderKern: type,
+    comptime ShaderData: type,
+) type {
     return struct {
         pub fn render(
             comptime report_mode: ReportMode,
@@ -223,7 +239,7 @@ pub fn RasterEngine(
             raster_hull: ?*const NDArray(F),
             shader: *const ShaderData,
             shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-            subpx_scratch: *SubpxScratchBuffs,
+            subpx_scratch: *ScratchBuffs,
         ) !u64 {
             const sub_samp_u: usize = @intCast(ctx_rast.camera.sub_sample);
             const sub_samp_f: F = @as(F, @floatFromInt(ctx_rast.camera.sub_sample));
@@ -263,6 +279,7 @@ pub fn RasterEngine(
 
             const shaded_px = if (comptime Geom == geomkerns.Tri3OptKernel())
                 try rasterSteppedSIMD(
+                    ScratchBuffs,
                     Geom,
                     ShaderKern,
                     report_mode,
@@ -344,9 +361,10 @@ pub fn RasterEngine(
             nodes_coords: Vec3Slices(F),
             shader: anytype,
             shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-            subpx_scratch: *SubpxScratchBuffs,
+            subpx_scratch: *ScratchBuffs,
         ) !u64 {
             return rasterDirectSIMDImpl(
+                ScratchBuffs,
                 Geom,
                 ShaderKern,
                 report_mode,
@@ -379,9 +397,10 @@ pub fn RasterEngine(
             nodes_coords: Vec3Slices(F),
             shader: anytype,
             shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-            subpx_scratch: *SubpxScratchBuffs,
+            subpx_scratch: *ScratchBuffs,
         ) !u64 {
             return rasterNewtonSIMDImpl(
+                ScratchBuffs,
                 Geom,
                 ShaderKern,
                 report_mode,
@@ -414,9 +433,10 @@ pub fn RasterEngine(
             nodes_coords: Vec3Slices(F),
             shader: *const ShaderData,
             shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-            subpx_scratch: *SubpxScratchBuffs,
+            subpx_scratch: *ScratchBuffs,
         ) !u64 {
             return rasterDirectImpl(
+                ScratchBuffs,
                 Geom,
                 ShaderKern,
                 ShaderData,
@@ -438,6 +458,7 @@ pub fn RasterEngine(
 }
 
 fn rasterDirectSIMDImpl(
+    comptime ScratchBuffs: type,
     comptime Geom: type,
     comptime ShaderKern: type,
     comptime report_mode: ReportMode,
@@ -451,7 +472,7 @@ fn rasterDirectSIMDImpl(
     nodes_coords: Vec3Slices(F),
     shader: anytype,
     shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-    subpx_scratch: *SubpxScratchBuffs,
+    subpx_scratch: *ScratchBuffs,
 ) !u64 {
     const N = Geom.nodes_num;
     var shaded_px: u64 = 0;
@@ -569,7 +590,7 @@ fn rasterDirectSIMDImpl(
                 .elem_idx = overlap.elem_idx,
                 .fields_num = fields_num,
                 .actual_fields = fields_num,
-                .scratch_idx = scratch_idx,
+                .scratch_idx = subpx_scratch.imageIndex(scratch_idx),
                 .global_subx = comm.globalSubpxForReport(
                     tile.scratch_x_px_min,
                     sub_samp,
@@ -603,6 +624,7 @@ fn rasterDirectSIMDImpl(
 }
 
 fn rasterNewtonSIMDImpl(
+    comptime ScratchBuffs: type,
     comptime Geom: type,
     comptime ShaderKern: type,
     comptime report_mode: ReportMode,
@@ -617,7 +639,7 @@ fn rasterNewtonSIMDImpl(
     nodes_coords: Vec3Slices(F),
     shader: anytype,
     shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-    subpx_scratch: *SubpxScratchBuffs,
+    subpx_scratch: *ScratchBuffs,
 ) !u64 {
     const N = Geom.nodes_num;
     var shaded_px: u64 = 0;
@@ -966,7 +988,7 @@ fn rasterNewtonSIMDImpl(
                 .elem_idx = overlap.elem_idx,
                 .fields_num = fields_num,
                 .actual_fields = fields_num,
-                .scratch_idx = scratch_idx,
+                .scratch_idx = subpx_scratch.imageIndex(scratch_idx),
                 .global_subx = comm.globalSubpxForReport(
                     tile.scratch_x_px_min,
                     sub_samp,
@@ -1001,6 +1023,7 @@ fn rasterNewtonSIMDImpl(
 }
 
 fn rasterDirectImpl(
+    comptime ScratchBuffs: type,
     comptime Geom: type,
     comptime ShaderKern: type,
     comptime ShaderData: type,
@@ -1015,7 +1038,7 @@ fn rasterDirectImpl(
     nodes_coords: Vec3Slices(F),
     shader: *const ShaderData,
     shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-    subpx_scratch: *SubpxScratchBuffs,
+    subpx_scratch: *ScratchBuffs,
 ) !u64 {
     std.debug.assert(subpx_scratch.image.rows_num <= std.math.maxInt(u8));
     const fields_num: u8 = @intCast(subpx_scratch.image.rows_num);
@@ -1024,7 +1047,7 @@ fn rasterDirectImpl(
         ShaderKern,
         ShaderData,
         report_mode,
-        SubpxScratchBuffs,
+        ScratchBuffs,
         ctx_rast,
         ctx_report,
         tile,
@@ -1040,6 +1063,7 @@ fn rasterDirectImpl(
 }
 
 fn rasterSteppedSIMD(
+    comptime ScratchBuffs: type,
     comptime Geom: type,
     comptime ShaderKern: type,
     comptime report_mode: ReportMode,
@@ -1053,7 +1077,7 @@ fn rasterSteppedSIMD(
     nodes_coords: Vec3Slices(F),
     shader: anytype,
     shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-    subpx_scratch: *SubpxScratchBuffs,
+    subpx_scratch: *ScratchBuffs,
 ) !u64 {
     const sub_samp: usize = @intCast(ctx_rast.camera.sub_sample);
     const tile_subpx_x = @as(isize, tile.scratch_x_px_min) *
@@ -1077,6 +1101,7 @@ fn rasterSteppedSIMD(
         max_y_steps,
     )) |fixed| {
         return rasterSteppedSIMDFixP(
+            ScratchBuffs,
             Geom,
             ShaderKern,
             report_mode,
@@ -1096,6 +1121,7 @@ fn rasterSteppedSIMD(
     }
 
     return rasterSteppedSIMDFloat(
+        ScratchBuffs,
         Geom,
         ShaderKern,
         report_mode,
@@ -1114,6 +1140,7 @@ fn rasterSteppedSIMD(
 }
 
 fn rasterSteppedSIMDFixP(
+    comptime ScratchBuffs: type,
     comptime Geom: type,
     comptime ShaderKern: type,
     comptime report_mode: ReportMode,
@@ -1127,7 +1154,7 @@ fn rasterSteppedSIMDFixP(
     nodes_coords: Vec3Slices(F),
     shader: anytype,
     shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-    subpx_scratch: *SubpxScratchBuffs,
+    subpx_scratch: *ScratchBuffs,
     fixed: comm.Tri3FixedEdges,
 ) !u64 {
     var shaded_px: u64 = 0;
@@ -1331,7 +1358,7 @@ fn rasterSteppedSIMDFixP(
                 .elem_idx = overlap.elem_idx,
                 .fields_num = fields_num,
                 .actual_fields = fields_num,
-                .scratch_idx = scratch_idx,
+                .scratch_idx = subpx_scratch.imageIndex(scratch_idx),
                 .global_subx = comm.globalSubpxForReport(
                     tile.scratch_x_px_min,
                     sub_samp,
@@ -1368,6 +1395,7 @@ fn rasterSteppedSIMDFixP(
 }
 
 fn rasterSteppedSIMDFloat(
+    comptime ScratchBuffs: type,
     comptime Geom: type,
     comptime ShaderKern: type,
     comptime report_mode: ReportMode,
@@ -1381,7 +1409,7 @@ fn rasterSteppedSIMDFloat(
     nodes_coords: Vec3Slices(F),
     shader: anytype,
     shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-    subpx_scratch: *SubpxScratchBuffs,
+    subpx_scratch: *ScratchBuffs,
 ) !u64 {
     var shaded_px: u64 = 0;
     const sub_samp: usize = @intCast(ctx_rast.camera.sub_sample);
@@ -1600,7 +1628,7 @@ fn rasterSteppedSIMDFloat(
                 .elem_idx = overlap.elem_idx,
                 .fields_num = fields_num,
                 .actual_fields = fields_num,
-                .scratch_idx = scratch_idx,
+                .scratch_idx = subpx_scratch.imageIndex(scratch_idx),
                 .global_subx = comm.globalSubpxForReport(
                     tile.scratch_x_px_min,
                     sub_samp,
