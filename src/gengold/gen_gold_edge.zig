@@ -51,7 +51,7 @@ pub fn main(init: std.process.Init) !void {
     const pixel_num = [_]u32{ 320, 200 };
     const pixel_num_distort_midside = [_]u32{ 800, 500 };
 
-    var config = tcfg.getRasterConfig(.gold);
+    var config = tcfg.getRasterConfig(.gold_gen);
     config.save_strategy = .disk;
     config.image_save_opts = &[_]iio.ImageSaveOpts{
         .{ .format = .fimg, .bits = null, .scaling = .none },

@@ -191,7 +191,7 @@ fn baseRasterConfig(
     image_save_opts: []const iio.ImageSaveOpts,
     background_value: F,
 ) rastcfg.RasterConfig {
-    var config = tcfg.getRasterConfig(.gold);
+    var config = tcfg.getRasterConfig(.testing);
     config.save_strategy = save_strategy;
     config.tile_size_override = tile_size_override;
     config.background_value = background_value;

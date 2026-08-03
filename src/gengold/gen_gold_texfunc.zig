@@ -145,7 +145,7 @@ pub fn mainWithOutputRoot(
         .lambertian_normal_z,
     };
     const coord_modes = [_]CoordMode{ .uv, .param };
-    var config = tcfg.getRasterConfig(.gold);
+    var config = tcfg.getRasterConfig(.gold_gen);
     config.save_strategy = .disk;
     config.image_save_opts = &[_]iio.ImageSaveOpts{
         .{ .format = .fimg, .bits = null, .scaling = .none },

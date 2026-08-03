@@ -180,7 +180,7 @@ test "Unified Benchmark Tests" {
                         config;
 
                     if (common.shouldRun(run_config, mt, st, sc, data_dir)) {
-                        var r_config = tcfg.getRasterConfig(.bench);
+                        var r_config = tcfg.getRasterConfig(.testing);
                         // Bench tests compare the returned in-memory image directly
                         // against gold, so avoid the disk-save path here.
                         r_config.save_strategy = .memory;

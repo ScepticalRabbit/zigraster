@@ -181,7 +181,7 @@ pub fn main(init: std.process.Init) !void {
             },
         };
 
-        var config = tcfg.getRasterConfig(.gold);
+        var config = tcfg.getRasterConfig(.gold_gen);
         config.save_strategy = .disk;
         config.image_save_opts = &[_]iio.ImageSaveOpts{
             .{

@@ -201,7 +201,7 @@ pub fn renderCase(
     camera_input.sub_sample = ssaa;
     camera_input.distortion = getDistortionModel(distortion_case);
 
-    var config = tcfg.getRasterConfig(.gold);
+    var config = tcfg.getRasterConfig(.testing);
     config.save_strategy = .memory;
     config.image_save_opts = &[_]iio.ImageSaveOpts{
         .{ .format = .csv, .bits = null, .scaling = .none },

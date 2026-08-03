@@ -1624,10 +1624,7 @@ fn rasterFrame(
             const requested_stripe_subpx =
                 input.config.global_subpx_stripe_size_override orelse
                 input.config.global_subpx_stripe_size_min;
-            const stripe_subpx: usize = @divExact(
-                @as(usize, requested_stripe_subpx),
-                sub_samp,
-            );
+            const stripe_subpx: usize = requested_stripe_subpx;
             const first_core_suby_max = @min(image_h_subpx, stripe_subpx);
             var stripe = try subpxframe.SubpxStripe.init(
                 outer_alloc,

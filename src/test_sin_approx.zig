@@ -153,7 +153,7 @@ fn renderSinImage(
         .distortion = camera.distortion,
     };
 
-    var config = tcfg.getRasterConfig(.bench);
+    var config = tcfg.getRasterConfig(.testing);
     config.save_strategy = .memory;
     config.image_save_opts = &[_]iio.ImageSaveOpts{};
 
