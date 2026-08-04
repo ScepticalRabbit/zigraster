@@ -12,6 +12,10 @@ const F = buildconfig.F;
 const cam = @import("camera.zig");
 const ndarray = @import("ndarray.zig");
 const subpxframe = @import("subpxframe.zig");
+const pce = @import("parachunkexec.zig");
+
+const S = buildconfig.SimdWidth;
+const VecSF = buildconfig.VecSF;
 
 // --------------------------------------------------------------------------------------
 // Public Entry-Point Func
@@ -73,6 +77,287 @@ pub fn resolveRows(
                 const sub_samp_f: F = @floatFromInt(sub_samp);
                 image_out_arr.slice[image_out_arr.offset3(ff, yy, xx)] =
                     sum / (sub_samp_f * sub_samp_f);
+            }
+        }
+    }
+}
+
+/// Resolve a global target using independent output-row bands.  The direct
+/// implementation remains the scalar reference for identity and non-separable
+/// PSFs.  Separable PSFs use a compact horizontal intermediate at pixel x
+/// resolution, then a vertical pass; this fuses the SSAA box sum into each
+/// one-dimensional pass and avoids the former SSAA^2 x Kx x Ky stencil.
+pub fn resolveParallel(
+    comptime use_simd: bool,
+    outer_alloc: std.mem.Allocator,
+    io: std.Io,
+    target: *const subpxframe.SubpxTarget,
+    camera: *const cam.CameraPrepared,
+    background_value: F,
+    image_out_arr: *ndarray.NDArray(F),
+    image_y_min: usize,
+    image_y_max: usize,
+    requested_workers: u16,
+) !usize {
+    if (image_y_min == image_y_max) return 0;
+    return switch (camera.prep_psf.mode) {
+        .separable => resolveSeparableParallel(
+            use_simd,
+            outer_alloc,
+            io,
+            target,
+            camera,
+            image_out_arr,
+            image_y_min,
+            image_y_max,
+            requested_workers,
+        ),
+        .identity_fast, .nonseparable => resolveDirectParallel(
+            io,
+            target,
+            camera,
+            background_value,
+            image_out_arr,
+            image_y_min,
+            image_y_max,
+            requested_workers,
+        ),
+    };
+}
+
+fn workersForRows(requested_workers: u16, rows: usize) usize {
+    return @min(
+        @max(@as(usize, 1), @as(usize, requested_workers)),
+        @max(@as(usize, 1), rows),
+    );
+}
+
+fn resolveDirectParallel(
+    io: std.Io,
+    target: *const subpxframe.SubpxTarget,
+    camera: *const cam.CameraPrepared,
+    background_value: F,
+    image_out_arr: *ndarray.NDArray(F),
+    image_y_min: usize,
+    image_y_max: usize,
+    requested_workers: u16,
+) !usize {
+    const workers_num = workersForRows(requested_workers, image_y_max - image_y_min);
+    const Ctx = struct {
+        target: *const subpxframe.SubpxTarget,
+        camera: *const cam.CameraPrepared,
+        background_value: F,
+        image_out_arr: *ndarray.NDArray(F),
+        image_y_min: usize,
+    };
+    const Adapter = struct {
+        fn run(ctx_ptr: *anyopaque, _: usize, range_start: usize, range_end: usize) void {
+            const ctx: *Ctx = @ptrCast(@alignCast(ctx_ptr));
+            // This is intentionally the unchanged direct scalar oracle.  Each
+            // task owns complete output rows, so no accumulation is shared.
+            resolveRows(
+                ctx.target,
+                ctx.camera,
+                ctx.background_value,
+                ctx.image_out_arr,
+                ctx.image_y_min + range_start,
+                ctx.image_y_min + range_end,
+            );
+        }
+    };
+    var exec = pce.ParaChunkExecutor.init(io, @intCast(workers_num));
+    var ctx = Ctx{
+        .target = target,
+        .camera = camera,
+        .background_value = background_value,
+        .image_out_arr = image_out_arr,
+        .image_y_min = image_y_min,
+    };
+    try exec.runStaticRange(&ctx, Adapter.run, image_y_max - image_y_min, 1);
+    return workers_num;
+}
+
+fn resolveSeparableParallel(
+    comptime use_simd: bool,
+    outer_alloc: std.mem.Allocator,
+    io: std.Io,
+    target: *const subpxframe.SubpxTarget,
+    camera: *const cam.CameraPrepared,
+    image_out_arr: *ndarray.NDArray(F),
+    image_y_min: usize,
+    image_y_max: usize,
+    requested_workers: u16,
+) !usize {
+    const sub_samp: usize = @intCast(camera.sub_sample);
+    const image_w_px = target.domain.image_w_subpx / sub_samp;
+    const storage_h = target.domain.storage_h_subpx;
+    const fields_num: usize = target.domain.fields_num;
+    const horizontal_len = try std.math.mul(usize, fields_num, try std.math.mul(usize, storage_h, image_w_px));
+    const horizontal = try outer_alloc.alloc(F, horizontal_len);
+    defer outer_alloc.free(horizontal);
+
+    const HorizontalCtx = struct {
+        target: *const subpxframe.SubpxTarget,
+        camera: *const cam.CameraPrepared,
+        horizontal: []F,
+        image_w_px: usize,
+        storage_h: usize,
+    };
+    const HorizontalAdapter = struct {
+        fn run(ctx_ptr: *anyopaque, _: usize, range_start: usize, range_end: usize) void {
+            const ctx: *HorizontalCtx = @ptrCast(@alignCast(ctx_ptr));
+            horizontalRows(use_simd, ctx.*, range_start, range_end);
+        }
+    };
+
+    const horizontal_workers = workersForRows(requested_workers, storage_h);
+    var horizontal_exec = pce.ParaChunkExecutor.init(io, @intCast(horizontal_workers));
+    var horizontal_ctx = HorizontalCtx{
+        .target = target,
+        .camera = camera,
+        .horizontal = horizontal,
+        .image_w_px = image_w_px,
+        .storage_h = storage_h,
+    };
+    try horizontal_exec.runStaticRange(&horizontal_ctx, HorizontalAdapter.run, storage_h, 1);
+
+    const VerticalCtx = struct {
+        target: *const subpxframe.SubpxTarget,
+        camera: *const cam.CameraPrepared,
+        horizontal: []const F,
+        image_out_arr: *ndarray.NDArray(F),
+        image_w_px: usize,
+        storage_h: usize,
+        image_y_min: usize,
+    };
+    const VerticalAdapter = struct {
+        fn run(ctx_ptr: *anyopaque, _: usize, range_start: usize, range_end: usize) void {
+            const ctx: *VerticalCtx = @ptrCast(@alignCast(ctx_ptr));
+            verticalRows(
+                use_simd,
+                ctx.*,
+                ctx.image_y_min + range_start,
+                ctx.image_y_min + range_end,
+            );
+        }
+    };
+
+    const vertical_workers = workersForRows(requested_workers, image_y_max - image_y_min);
+    var vertical_exec = pce.ParaChunkExecutor.init(io, @intCast(vertical_workers));
+    var vertical_ctx = VerticalCtx{
+        .target = target,
+        .camera = camera,
+        .horizontal = horizontal,
+        .image_out_arr = image_out_arr,
+        .image_w_px = image_w_px,
+        .storage_h = storage_h,
+        .image_y_min = image_y_min,
+    };
+    try vertical_exec.runStaticRange(
+        &vertical_ctx,
+        VerticalAdapter.run,
+        image_y_max - image_y_min,
+        1,
+    );
+    return @min(horizontal_workers, vertical_workers);
+}
+
+fn horizontalRows(
+    comptime use_simd: bool,
+    ctx: anytype,
+    local_y_start: usize,
+    local_y_end: usize,
+) void {
+    const sub_samp: usize = @intCast(ctx.camera.sub_sample);
+    const psf = ctx.camera.prep_psf;
+    const local_core_x: usize = @intCast(-ctx.target.global_subx_min);
+    const source_row_stride = ctx.target.domain.storage_w_subpx;
+    const horizontal_field_stride = ctx.storage_h * ctx.image_w_px;
+
+    for (0..ctx.target.domain.fields_num) |ff| {
+        const source_field_base = ctx.target.image.rowBase(ff);
+        const horizontal_field_base = ff * horizontal_field_stride;
+        for (local_y_start..local_y_end) |local_y| {
+            const source_row = source_field_base + local_y * source_row_stride;
+            const horizontal_row = horizontal_field_base + local_y * ctx.image_w_px;
+            var xx: usize = 0;
+            if (comptime use_simd) {
+                while (xx + S <= ctx.image_w_px) : (xx += S) {
+                    var sum = @as(VecSF, @splat(0.0));
+                    for (0..sub_samp) |sample_x| {
+                        for (psf.weights_x, 0..) |weight, kk| {
+                            var values: [S]F = undefined;
+                            for (0..S) |lane| {
+                                const source_x = local_core_x +
+                                    (xx + lane) * sub_samp + sample_x + kk - psf.radius_x_subpx;
+                                values[lane] = ctx.target.image.slice[source_row + source_x];
+                            }
+                            sum += @as(VecSF, values) * @as(VecSF, @splat(weight));
+                        }
+                    }
+                    const out_ptr: *[S]F = @ptrCast(&ctx.horizontal[horizontal_row + xx]);
+                    out_ptr.* = @bitCast(sum);
+                }
+            }
+            while (xx < ctx.image_w_px) : (xx += 1) {
+                var sum: F = 0.0;
+                for (0..sub_samp) |sample_x| {
+                    for (psf.weights_x, 0..) |weight, kk| {
+                        const source_x = local_core_x + xx * sub_samp + sample_x + kk - psf.radius_x_subpx;
+                        sum += weight * ctx.target.image.slice[source_row + source_x];
+                    }
+                }
+                ctx.horizontal[horizontal_row + xx] = sum;
+            }
+        }
+    }
+}
+
+fn verticalRows(
+    comptime use_simd: bool,
+    ctx: anytype,
+    image_y_start: usize,
+    image_y_end: usize,
+) void {
+    const sub_samp: usize = @intCast(ctx.camera.sub_sample);
+    const psf = ctx.camera.prep_psf;
+    const horizontal_field_stride = ctx.storage_h * ctx.image_w_px;
+    const inv_sub_samp_sq = 1.0 / @as(F, @floatFromInt(sub_samp * sub_samp));
+
+    for (0..ctx.target.domain.fields_num) |ff| {
+        const horizontal_field_base = ff * horizontal_field_stride;
+        for (image_y_start..image_y_end) |image_y| {
+            const global_suby: i32 = @intCast(image_y * sub_samp);
+            const local_core_y: usize = @intCast(global_suby - ctx.target.global_suby_min);
+            const output_row = ctx.image_out_arr.offset3(ff, image_y, 0);
+            var xx: usize = 0;
+            if (comptime use_simd) {
+                while (xx + S <= ctx.image_w_px) : (xx += S) {
+                    var sum = @as(VecSF, @splat(0.0));
+                    for (0..sub_samp) |sample_y| {
+                        for (psf.weights_y, 0..) |weight, kk| {
+                            const source_y = local_core_y + sample_y + kk - psf.radius_y_subpx;
+                            const source_ptr: *const [S]F = @ptrCast(
+                                &ctx.horizontal[horizontal_field_base + source_y * ctx.image_w_px + xx],
+                            );
+                            sum += @as(VecSF, source_ptr.*) * @as(VecSF, @splat(weight));
+                        }
+                    }
+                    const output_ptr: *[S]F = @ptrCast(&ctx.image_out_arr.slice[output_row + xx]);
+                    output_ptr.* = @bitCast(sum * @as(VecSF, @splat(inv_sub_samp_sq)));
+                }
+            }
+            while (xx < ctx.image_w_px) : (xx += 1) {
+                var sum: F = 0.0;
+                for (0..sub_samp) |sample_y| {
+                    for (psf.weights_y, 0..) |weight, kk| {
+                        const source_y = local_core_y + sample_y + kk - psf.radius_y_subpx;
+                        sum += weight * ctx.horizontal[
+                            horizontal_field_base + source_y * ctx.image_w_px + xx
+                        ];
+                    }
+                }
+                ctx.image_out_arr.slice[output_row + xx] = sum * inv_sub_samp_sq;
             }
         }
     }

@@ -15,6 +15,9 @@ import riley
 from riley.pydemos.common import make_demo_out_dir
 
 
+RASTER_THREADS = 8
+
+
 def main() -> None:
     data_dir = riley.data.sphere200_case_path()
     texture_path = riley.data.speckle_texture_path()
@@ -69,11 +72,12 @@ def main() -> None:
         out_dir.mkdir(parents=True, exist_ok=True)
         config = riley.create_raster_config(
             num_frames=1,
-            total_threads=4,
+            total_threads=RASTER_THREADS,
             save_strategy=riley.SaveStrategy.disk,
         )
         config.buffer_mode = mode
 
+        print(f"Rendering {mode.name} with {RASTER_THREADS} raster threads...")
         start_time = perf_counter()
         image_array = riley.raster(mesh, camera, config, out_dir=str(out_dir))
         elapsed_time = perf_counter() - start_time

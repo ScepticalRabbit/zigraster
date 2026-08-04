@@ -20,6 +20,7 @@ const sceneops = @import("riley/zig/sceneops.zig");
 const Rotation = @import("riley/zig/rotation.zig").Rotation;
 
 const F = buildconfig.F;
+const raster_threads: u16 = 8;
 
 pub fn main(init: std.process.Init) !void {
     const outer_alloc = init.gpa;
@@ -29,8 +30,8 @@ pub fn main(init: std.process.Init) !void {
 
     const config_base = riley.RasterConfig{
         .save_strategy = .disk,
-        .total_threads = 4,
-        .max_raster_workers_per_job = 4,
+        .total_threads = raster_threads,
+        .max_raster_workers_per_job = raster_threads,
         .image_save_opts = &[_]iio.ImageSaveOpts{
             .{ .format = .bmp, .bits = 8, .scaling = .auto },
         },
@@ -48,7 +49,10 @@ pub fn main(init: std.process.Init) !void {
     const out_dir_root = "./out/demo-psf";
     const pixel_num = [_]u32{ 800, 500 };
 
-    std.debug.print("Loading sphere simulation data from {s}...\n", .{data_dir});
+    std.debug.print(
+        "Loading sphere simulation data from {s} with {d} raster threads...\n",
+        .{ data_dir, raster_threads },
+    );
     const sim_data = try meshio.loadSimData(
         aa,
         io,

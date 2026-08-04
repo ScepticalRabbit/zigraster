@@ -1573,6 +1573,7 @@ fn rasterFrame(
     const ctx_report = report.ReportContext(report_mode){ .log = report_ptr };
     const time_start_loop = Timestamp.now(io, .awake);
     ctx.frame_times.raster_workers_requested = raster_workers;
+    ctx.frame_times.resolve_workers_requested = raster_workers;
 
     const ctx_rast = rops.RasterContext{
         .camera = input.camera,
@@ -1665,12 +1666,16 @@ fn rasterFrame(
                 time_start_tile_raster.durationTo(Timestamp.now(io, .awake)).raw.nanoseconds,
             );
             const time_start_resolve = Timestamp.now(io, .awake);
-            scratchresolveglobal.resolve(
+            const resolve_workers_used = try scratchresolveglobal.resolve(
+                outer_alloc,
+                io,
                 &target,
                 input.camera,
                 input.config.background_value,
                 &ctx.frame_arr,
+                raster_workers,
             );
+            ctx.frame_times.resolve_workers_used = @intCast(resolve_workers_used);
             global_resolve_time_ns = @floatFromInt(
                 time_start_resolve.durationTo(Timestamp.now(io, .awake)).raw.nanoseconds,
             );
@@ -1791,13 +1796,20 @@ fn rasterFrame(
                     time_start_tile_raster.durationTo(Timestamp.now(io, .awake)).raw.nanoseconds,
                 );
                 const time_start_resolve = Timestamp.now(io, .awake);
-                scratchresolveglobal.resolveRows(
+                const resolve_workers_used = try scratchresolveglobal.resolveRows(
+                    outer_alloc,
+                    io,
                     &stripe.target,
                     input.camera,
                     input.config.background_value,
                     &ctx.frame_arr,
                     core_suby_min / sub_samp,
                     core_suby_max / sub_samp,
+                    raster_workers,
+                );
+                ctx.frame_times.resolve_workers_used = @max(
+                    ctx.frame_times.resolve_workers_used,
+                    @as(u16, @intCast(resolve_workers_used)),
                 );
                 const time_end_resolve = Timestamp.now(io, .awake);
                 global_resolve_time_ns += @floatFromInt(

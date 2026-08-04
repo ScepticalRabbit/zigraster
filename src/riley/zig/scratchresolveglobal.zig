@@ -7,6 +7,7 @@
 // Authors: scepticalrabbit (Lloyd Fletcher)
 // --------------------------------------------------------------------------------------
 const cfg = @import("buildconfig.zig").config;
+const std = @import("std");
 const cam = @import("camera.zig");
 const ndarray = @import("ndarray.zig");
 const buildconfig = @import("buildconfig.zig");
@@ -18,28 +19,45 @@ else
 const subpxframe = @import("subpxframe.zig");
 
 pub fn resolve(
+    outer_alloc: std.mem.Allocator,
+    io: std.Io,
     target: *const subpxframe.SubpxTarget,
     camera: *const cam.CameraPrepared,
     background_value: F,
     image_out_arr: *ndarray.NDArray(F),
-) void {
-    impl.resolve(target, camera, background_value, image_out_arr);
+    requested_workers: u16,
+) !usize {
+    return impl.resolve(
+        outer_alloc,
+        io,
+        target,
+        camera,
+        background_value,
+        image_out_arr,
+        requested_workers,
+    );
 }
 
 pub fn resolveRows(
+    outer_alloc: std.mem.Allocator,
+    io: std.Io,
     target: *const subpxframe.SubpxTarget,
     camera: *const cam.CameraPrepared,
     background_value: F,
     image_out_arr: *ndarray.NDArray(F),
     image_y_min: usize,
     image_y_max: usize,
-) void {
-    impl.resolveRows(
+    requested_workers: u16,
+) !usize {
+    return impl.resolveRows(
+        outer_alloc,
+        io,
         target,
         camera,
         background_value,
         image_out_arr,
         image_y_min,
         image_y_max,
+        requested_workers,
     );
 }

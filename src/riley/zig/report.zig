@@ -62,6 +62,8 @@ pub const FrameTimes = struct {
     raster_loop: F = 0,
     raster_workers_requested: u16 = 0,
     raster_workers_used: u16 = 0,
+    resolve_workers_requested: u16 = 0,
+    resolve_workers_used: u16 = 0,
     cam_invert: F = 0,
     elem_loop: F = 0,
     scratch_resolve: F = 0,
@@ -2043,6 +2045,14 @@ fn globalSubpxStandardReport(
     try writer.print("Scratch Capacity             = {d} x {d} subpx\n", .{
         stats.tile_scratch_subpx,
         stats.tile_scratch_subpx,
+    });
+    try writer.print("Raster Workers (Req / Used)  = {d} / {d}\n", .{
+        frame_times.raster_workers_requested,
+        frame_times.raster_workers_used,
+    });
+    try writer.print("Resolve Workers (Req / Used) = {d} / {d}\n", .{
+        frame_times.resolve_workers_requested,
+        frame_times.resolve_workers_used,
     });
     try writer.print("Tile Grid / Active / Empty   = {d} / {d} / {d}\n", .{
         stats.tile_grid_count,

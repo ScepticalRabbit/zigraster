@@ -14,28 +14,50 @@ const common = @import("scratchresolveglobal_common.zig");
 const subpxframe = @import("subpxframe.zig");
 
 pub fn resolve(
+    outer_alloc: std.mem.Allocator,
+    io: std.Io,
     target: *const subpxframe.SubpxTarget,
     camera: *const cam.CameraPrepared,
     background_value: F,
     image_out_arr: *ndarray.NDArray(F),
-) void {
-    common.resolve(target, camera, background_value, image_out_arr);
+    requested_workers: u16,
+) !usize {
+    return common.resolveParallel(
+        false,
+        outer_alloc,
+        io,
+        target,
+        camera,
+        background_value,
+        image_out_arr,
+        0,
+        target.domain.image_h_subpx / @as(usize, camera.sub_sample),
+        requested_workers,
+    );
 }
 
 pub fn resolveRows(
+    outer_alloc: std.mem.Allocator,
+    io: std.Io,
     target: *const subpxframe.SubpxTarget,
     camera: *const cam.CameraPrepared,
     background_value: F,
     image_out_arr: *ndarray.NDArray(F),
     image_y_min: usize,
     image_y_max: usize,
-) void {
-    common.resolveRows(
+    requested_workers: u16,
+) !usize {
+    return common.resolveParallel(
+        false,
+        outer_alloc,
+        io,
         target,
         camera,
         background_value,
         image_out_arr,
         image_y_min,
         image_y_max,
+        requested_workers,
     );
 }
+const std = @import("std");
