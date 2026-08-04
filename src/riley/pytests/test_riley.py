@@ -74,6 +74,24 @@ DEMO_CASES = (
 )
 
 
+def test_raster_config_exposes_global_subpixel_sizing() -> None:
+    """Python callers can tune both global accumulation tile dimensions."""
+    import riley
+
+    config = riley.RasterConfig()
+    assert config.global_subpx_tile_size_min == 64
+    assert config.global_subpx_tile_size_max == 1024
+    assert config.global_subpx_tile_size_override == 0
+    assert config.global_subpx_stripe_size_min == 256
+    assert config.global_subpx_stripe_size_max == 4096
+    assert config.global_subpx_stripe_size_override == 0
+
+    config.global_subpx_tile_size_override = 128
+    config.global_subpx_stripe_size_override = 512
+    assert config.global_subpx_tile_size_override == 128
+    assert config.global_subpx_stripe_size_override == 512
+
+
 def _repo_assets_available() -> bool:
     required_paths = (
         PROJECT_ROOT / "src/run_all_demos.zig",

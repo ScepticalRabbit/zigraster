@@ -1984,10 +1984,8 @@ fn globalSubpxStandardReport(
     const empty_tiles = stats.tile_grid_count -| stats.active_tile_count;
     const buffer_planning = frame_times.tile_overlap +
         frame_times.global_subpx_times.buffer_setup;
-    const global_stage = rasterStageTime(frame_times);
     const raster_sec = frame_times.global_subpx_times.tile_raster / 1e9;
     const resolve_sec = frame_times.global_subpx_times.resolve / 1e9;
-    const stage_sec = global_stage / 1e9;
     const active_sec = frame_times.active_time / 1e9;
     const shaded = @as(F, @floatFromInt(bench_log.total_shaded_px));
     const shade_rate = if (raster_sec > 0)
@@ -2000,10 +1998,6 @@ fn globalSubpxStandardReport(
         0.0;
     const resolve_rate = if (resolve_sec > 0)
         output_px / (resolve_sec * 1e6)
-    else
-        0.0;
-    const stage_rate = if (stage_sec > 0)
-        output_px / (stage_sec * 1e6)
     else
         0.0;
     const active_rate = if (active_sec > 0)
@@ -2084,22 +2078,20 @@ fn globalSubpxStandardReport(
     }
     try writer.print("{s}\nWALL-CLOCK TIMINGS\n", .{section_break});
     try writer.print("Global Buffer + Planning     = {d:.3} ms\n", .{buffer_planning * conv});
-    try writer.print("Tile Raster                  = {d:.3} ms\n", .{
+    try writer.print("Global Tile Raster           = {d:.3} ms\n", .{
         frame_times.global_subpx_times.tile_raster * conv,
     });
     try writer.print("Global Resolve               = {d:.3} ms\n", .{
         frame_times.global_subpx_times.resolve * conv,
     });
-    try writer.print("Global Raster Stage          = {d:.3} ms\n", .{global_stage * conv});
     try writer.print("Save Frame                   = {d:.3} ms\n", .{frame_times.save_frame * conv});
     try writer.print("Active Frame                 = {d:.3} ms\n", .{frame_times.active_time * conv});
     try writer.print("Frame Latency                = {d:.3} ms\n", .{frame_times.latency_time * conv});
     try writer.print("{s}\nRATES\n", .{section_break});
-    try writer.print("Executed Shade Rate          = {d:.2} Msubpx/s\n", .{shade_rate});
-    try writer.print("Output Sample Rate           = {d:.2} Msubpx/s\n", .{sample_rate});
-    try writer.print("Global Resolve Rate          = {d:.2} MPx/s\n", .{resolve_rate});
-    try writer.print("Global Raster Stage Rate     = {d:.2} MPx/s\n", .{stage_rate});
-    try writer.print("Active Frame Rate            = {d:.2} MPx/s\n", .{active_rate});
+    try writer.print("Executed Shade Rate          = {d:.3} Msubpx/s\n", .{shade_rate});
+    try writer.print("Output Sample Rate           = {d:.3} Msubpx/s\n", .{sample_rate});
+    try writer.print("Global Resolve Rate          = {d:.3} MPx/s\n", .{resolve_rate});
+    try writer.print("Active Frame Rate            = {d:.3} MPx/s\n", .{active_rate});
     try writer.print("{s}\n", .{section_break});
     if (out_dir_path) |path| {
         try writer.print("Output Frame Path            = {s}\n", .{path});

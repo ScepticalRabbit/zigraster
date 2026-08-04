@@ -239,6 +239,12 @@ typedef struct c_raster_config {
     double background_value;
     uint8_t disk_save_overlap;
     uint16_t tile_size_override;
+    uint16_t global_subpx_tile_size_min;
+    uint16_t global_subpx_tile_size_max;
+    uint16_t global_subpx_tile_size_override;
+    uint16_t global_subpx_stripe_size_min;
+    uint16_t global_subpx_stripe_size_max;
+    uint16_t global_subpx_stripe_size_override;
     size_t save_frame_buff_count;
     uint32_t save_format;
     uint32_t save_bits;

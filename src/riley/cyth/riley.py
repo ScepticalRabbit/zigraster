@@ -174,6 +174,12 @@ class RasterConfig:
     background_value: float = 0.0
     disk_save_overlap: bool = False
     tile_size_override: int = 0
+    global_subpx_tile_size_min: int = 64
+    global_subpx_tile_size_max: int = 1024
+    global_subpx_tile_size_override: int = 0
+    global_subpx_stripe_size_min: int = 256
+    global_subpx_stripe_size_max: int = 4096
+    global_subpx_stripe_size_override: int = 0
     save_frame_buffer_count: int = 3
     save_format: int = 3
     save_bits: int = 8
@@ -503,6 +509,20 @@ def _make_raster_config(config: Any) -> cr.CRasterConfig:
     config_out.background_value = float(config.background_value)
     config_out.disk_save_overlap = 1 if config.disk_save_overlap else 0
     config_out.tile_size_override = int(config.tile_size_override)
+    config_out.global_subpx_tile_size_min = int(config.global_subpx_tile_size_min)
+    config_out.global_subpx_tile_size_max = int(config.global_subpx_tile_size_max)
+    config_out.global_subpx_tile_size_override = int(
+        config.global_subpx_tile_size_override,
+    )
+    config_out.global_subpx_stripe_size_min = int(
+        config.global_subpx_stripe_size_min,
+    )
+    config_out.global_subpx_stripe_size_max = int(
+        config.global_subpx_stripe_size_max,
+    )
+    config_out.global_subpx_stripe_size_override = int(
+        config.global_subpx_stripe_size_override,
+    )
     config_out.save_frame_buff_count = int(config.save_frame_buffer_count)
     config_out.save_format = int(config.save_format)
     config_out.save_bits = int(config.save_bits)

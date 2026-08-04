@@ -286,6 +286,12 @@ pub const CRasterConfig = extern struct {
     background_value: F,
     disk_save_overlap: u8,
     tile_size_override: u16,
+    global_subpx_tile_size_min: u16,
+    global_subpx_tile_size_max: u16,
+    global_subpx_tile_size_override: u16,
+    global_subpx_stripe_size_min: u16,
+    global_subpx_stripe_size_max: u16,
+    global_subpx_stripe_size_override: u16,
     save_frame_buff_count: usize,
     save_format: u32,
     save_bits: u32,
@@ -1524,6 +1530,32 @@ fn buildRasterConfig(
         null
     else
         in_config.tile_size_override;
+    config.global_subpx_tile_size_min = if (in_config.global_subpx_tile_size_min == 0)
+        config.global_subpx_tile_size_min
+    else
+        in_config.global_subpx_tile_size_min;
+    config.global_subpx_tile_size_max = if (in_config.global_subpx_tile_size_max == 0)
+        config.global_subpx_tile_size_max
+    else
+        in_config.global_subpx_tile_size_max;
+    config.global_subpx_tile_size_override =
+        if (in_config.global_subpx_tile_size_override == 0)
+            null
+        else
+            in_config.global_subpx_tile_size_override;
+    config.global_subpx_stripe_size_min = if (in_config.global_subpx_stripe_size_min == 0)
+        config.global_subpx_stripe_size_min
+    else
+        in_config.global_subpx_stripe_size_min;
+    config.global_subpx_stripe_size_max = if (in_config.global_subpx_stripe_size_max == 0)
+        config.global_subpx_stripe_size_max
+    else
+        in_config.global_subpx_stripe_size_max;
+    config.global_subpx_stripe_size_override =
+        if (in_config.global_subpx_stripe_size_override == 0)
+            null
+        else
+            in_config.global_subpx_stripe_size_override;
     if (in_config.save_frame_buff_count != 0) {
         config.save_frame_buff_count = in_config.save_frame_buff_count;
     }
