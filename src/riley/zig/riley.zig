@@ -1650,20 +1650,29 @@ fn rasterFrame(
                     halo_subpx,
                     input.config.background_value,
                 );
-                const stripe_tiling = try sceneGlobalTileElemOverlap(
-                    outer_alloc,
-                    ctx.actual_tile_size,
-                    @intCast(input.camera.pixels_num[0]),
-                    @intCast(input.camera.pixels_num[1]),
-                    @intCast(core_suby_min / sub_samp),
-                    @intCast(core_suby_max / sub_samp),
-                    halo_px,
-                    ctx.elems_in_image_by_mesh,
-                    ctx.elem_bboxes_by_mesh,
-                );
+                var stripe_tiling: rops.TilingOverlaps = undefined;
+                var stripe_tiling_owned = false;
+                if (core_suby_min == 0 and core_suby_max == image_h_subpx) {
+                    stripe_tiling = ctx.tiling.?;
+                } else {
+                    stripe_tiling = try sceneGlobalTileElemOverlap(
+                        outer_alloc,
+                        ctx.actual_tile_size,
+                        @intCast(input.camera.pixels_num[0]),
+                        @intCast(input.camera.pixels_num[1]),
+                        @intCast(core_suby_min / sub_samp),
+                        @intCast(core_suby_max / sub_samp),
+                        halo_px,
+                        ctx.elems_in_image_by_mesh,
+                        ctx.elem_bboxes_by_mesh,
+                    );
+                    stripe_tiling_owned = true;
+                }
                 errdefer {
-                    outer_alloc.free(stripe_tiling.active_tiles);
-                    outer_alloc.free(stripe_tiling.overlaps);
+                    if (stripe_tiling_owned) {
+                        outer_alloc.free(stripe_tiling.active_tiles);
+                        outer_alloc.free(stripe_tiling.overlaps);
+                    }
                 }
 
                 try rasterengineglobal.rasterScene(
@@ -1692,8 +1701,10 @@ fn rasterFrame(
                 global_resolve_time_ns += @floatFromInt(
                     time_start_resolve.durationTo(time_end_resolve).raw.nanoseconds,
                 );
-                outer_alloc.free(stripe_tiling.active_tiles);
-                outer_alloc.free(stripe_tiling.overlaps);
+                if (stripe_tiling_owned) {
+                    outer_alloc.free(stripe_tiling.active_tiles);
+                    outer_alloc.free(stripe_tiling.overlaps);
+                }
                 core_suby_min = core_suby_max;
             }
         },

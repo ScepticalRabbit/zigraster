@@ -433,10 +433,12 @@ pub fn rasterSceneGlobalComm(
         }
     };
 
-    const workers_num = scalingpolicy.rasterWorkers(
-        requested_workers,
-        tiling.active_tiles.len,
-    );
+    // Global sub-pixel targets are shared directly by every tile. Unlike the
+    // tile-local backend, their depth state is not merged after rasterisation,
+    // so concurrent tiles can race when their raster domains intersect. Keep
+    // this pass ordered until global depth ownership/merging is introduced.
+    _ = requested_workers;
+    const workers_num: usize = 1;
     var chunk_exec = pce.ParaChunkExecutor.init(io, @intCast(workers_num));
     var arena = std.heap.ArenaAllocator.init(outer_alloc);
     defer arena.deinit();
