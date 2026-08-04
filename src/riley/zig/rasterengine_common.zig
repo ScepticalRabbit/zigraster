@@ -373,8 +373,8 @@ pub fn rasterSceneGlobalComm(
     raster_hulls: []const ?NDArray(F),
     target: *subpxframe.SubpxTarget,
     image_out_arr: *NDArray(F),
-) !void {
-    if (tiling.active_tiles.len == 0) return;
+) !usize {
+    if (tiling.active_tiles.len == 0) return 0;
 
     const WorkerState = comptime ThreadState(RasterBackend, report_mode);
     const GlobalTileRangeCtx = struct {
@@ -412,7 +412,6 @@ pub fn rasterSceneGlobalComm(
                     &worker_state.subpx_scratch,
                     tile_rng_ctx.target,
                     tile,
-                    tile_rng_ctx.ctx_rast.camera.sub_sample,
                 );
                 try rasterTileRaw(
                     RasterBackend,
@@ -429,16 +428,15 @@ pub fn rasterSceneGlobalComm(
                     tile_rng_ctx.fields_num,
                     tile_rng_ctx.subpx_tile_size,
                 );
+                worker_state.rasterized_tiles += 1;
             }
         }
     };
 
-    // Global sub-pixel targets are shared directly by every tile. Unlike the
-    // tile-local backend, their depth state is not merged after rasterisation,
-    // so concurrent tiles can race when their raster domains intersect. Keep
-    // this pass ordered until global depth ownership/merging is introduced.
-    _ = requested_workers;
-    const workers_num: usize = 1;
+    const workers_num = scalingpolicy.rasterWorkers(
+        requested_workers,
+        tiling.active_tiles.len,
+    );
     var chunk_exec = pce.ParaChunkExecutor.init(io, @intCast(workers_num));
     var arena = std.heap.ArenaAllocator.init(outer_alloc);
     defer arena.deinit();
@@ -487,6 +485,11 @@ pub fn rasterSceneGlobalComm(
             }
         }
     }
+    var workers_used: usize = 0;
+    for (worker_states) |worker_state| {
+        if (worker_state.rasterized_tiles > 0) workers_used += 1;
+    }
+    return workers_used;
 }
 
 //------------------------------------------------------------------------------------------
@@ -1295,6 +1298,7 @@ fn ThreadState(
         arena: std.heap.ArenaAllocator,
         subpx_scratch: RasterBackend.SubpxScratchBuffs,
         log: report.LogType(report_mode),
+        rasterized_tiles: usize = 0,
 
         fn init(
             outer_alloc: std.mem.Allocator,

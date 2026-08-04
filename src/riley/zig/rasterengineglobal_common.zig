@@ -33,8 +33,8 @@ pub fn rasterScene(
     raster_hulls: []const ?ndarray.NDArray(F),
     target: *subpxframe.SubpxTarget,
     image_out_arr: *ndarray.NDArray(F),
-) !void {
-    try rasterengine.rasterSceneGlobalComm(
+) !usize {
+    return rasterengine.rasterSceneGlobalComm(
         RasterBackend,
         report_mode,
         outer_alloc,

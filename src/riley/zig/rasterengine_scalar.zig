@@ -42,6 +42,8 @@ const shadekerns = @import("shaderkernels.zig");
 // --------------------------------------------------------------------------------------
 
 pub const SubpxScratchBuffs = struct {
+    pub const exclusive_subpx_target = false;
+
     stride_subpx: usize,
     inv_z: []F,
     image: MatSlice(F),

@@ -396,7 +396,7 @@ pub fn runBenchmark(
             .e2e_ms = e2e_ms,
             .geom_ms = (frame_times.geometry_prep + frame_times.tile_overlap) /
                 1e6,
-            .raster_ms = frame_times.raster_loop / 1e6,
+            .raster_ms = report.rasterStageTime(frame_times) / 1e6,
             .cam_ms = frame_times.cam_invert / 1e6,
             .resolve_ms = frame_times.scratch_resolve / 1e6,
             .fps = if (e2e_ms > 0)
@@ -438,6 +438,16 @@ fn aggregateFrameTimes(
             capture.bench_log.frame_times.tile_overlap;
         frame_times.raster_loop +=
             capture.bench_log.frame_times.raster_loop;
+        frame_times.global_subpx_times.buffer_setup +=
+            capture.bench_log.frame_times.global_subpx_times.buffer_setup;
+        frame_times.global_subpx_times.tile_raster +=
+            capture.bench_log.frame_times.global_subpx_times.tile_raster;
+        frame_times.global_subpx_times.resolve +=
+            capture.bench_log.frame_times.global_subpx_times.resolve;
+        if (frame_times.global_subpx_stats == null) {
+            frame_times.global_subpx_stats =
+                capture.bench_log.frame_times.global_subpx_stats;
+        }
         frame_times.cam_invert +=
             capture.bench_log.frame_times.cam_invert;
         frame_times.elem_loop +=
@@ -479,7 +489,7 @@ fn calcDicuqMetrics(
     frame_times: report.FrameTimes,
     bench_log: report.BenchLog,
 ) common.CalculatedMetrics {
-    const raster_sec = frame_times.raster_loop / 1e9;
+    const raster_sec = report.rasterStageTime(frame_times) / 1e9;
     const geom_tiling_sec =
         (frame_times.geometry_prep + frame_times.tile_overlap) / 1e9;
     const active_sec = frame_times.active_time / 1e9;
@@ -617,7 +627,7 @@ fn buildFrameRows(
             .cam_time_ms = capture.bench_log.frame_times.cam_invert / 1e6,
             .elem_loop_time_ms = capture.bench_log.frame_times.elem_loop / 1e6,
             .resolve_time_ms = capture.bench_log.frame_times.scratch_resolve / 1e6,
-            .raster_time_ms = capture.bench_log.frame_times.raster_loop / 1e6,
+            .raster_time_ms = report.rasterStageTime(capture.bench_log.frame_times) / 1e6,
             .save_time_ms = capture.bench_log.frame_times.save_frame / 1e6,
             .frame_time_ms = capture.bench_log.frame_times.active_time / 1e6,
             .e2e_time_ms = null,
@@ -627,7 +637,7 @@ fn buildFrameRows(
             ),
             .raster_tpx_mpx_s = calcFrameMPxPerSec(
                 camera_inputs[capture.camera_idx],
-                capture.bench_log.frame_times.raster_loop,
+                report.rasterStageTime(capture.bench_log.frame_times),
             ),
             .frame_tpx_mpx_s = calcFrameActiveMPxPerSec(
                 camera_inputs[capture.camera_idx],

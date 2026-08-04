@@ -1034,6 +1034,7 @@ fn sceneTileOverlapBinning(
         try sceneGlobalTileElemOverlap(
             arena_alloc,
             ctx.actual_tile_size,
+            job.camera.sub_sample,
             @intCast(job.camera.pixels_num[0]),
             @intCast(job.camera.pixels_num[1]),
             0,
@@ -1051,6 +1052,7 @@ fn sceneTileOverlapBinning(
 fn sceneGlobalTileElemOverlap(
     outer_alloc: std.mem.Allocator,
     tile_size: u16,
+    sub_sample: u32,
     screen_px_x: u16,
     screen_px_y: u16,
     core_y_px_min: u16,
@@ -1071,6 +1073,7 @@ fn sceneGlobalTileElemOverlap(
     defer tiles.deinit(outer_alloc);
     var overlaps: std.ArrayList(rops.OverlapBBox) = .empty;
     defer overlaps.deinit(outer_alloc);
+    const sub_samp: i32 = @intCast(sub_sample);
 
     for (0..tiles_y) |ty| {
         const y_min: u16 = @intCast(core_y_px_min + ty * tile_size);
@@ -1122,6 +1125,14 @@ fn sceneGlobalTileElemOverlap(
                 .scratch_y_px_min = scratch_y_min,
                 .scratch_x_px_max = scratch_x_max,
                 .scratch_y_px_max = scratch_y_max,
+                .core_subx_min = @as(i32, x_min) * sub_samp,
+                .core_suby_min = @as(i32, y_min) * sub_samp,
+                .core_subx_max = @as(i32, x_max) * sub_samp,
+                .core_suby_max = @as(i32, y_max) * sub_samp,
+                .scratch_subx_min = scratch_x_min * sub_samp,
+                .scratch_suby_min = scratch_y_min * sub_samp,
+                .scratch_subx_max = scratch_x_max * sub_samp,
+                .scratch_suby_max = scratch_y_max * sub_samp,
             });
         }
     }
@@ -1129,6 +1140,19 @@ fn sceneGlobalTileElemOverlap(
         .active_tiles = try tiles.toOwnedSlice(outer_alloc),
         .overlaps = try overlaps.toOwnedSlice(outer_alloc),
     };
+}
+
+fn recordGlobalTilingStats(
+    stats: *report.GlobalSubpxStats,
+    tiling: rops.TilingOverlaps,
+    tile_grid_count: usize,
+) void {
+    stats.tile_grid_count += tile_grid_count;
+    stats.active_tile_count += tiling.active_tiles.len;
+    stats.overlap_refs_total += tiling.overlaps.len;
+    for (tiling.active_tiles) |tile| {
+        stats.overlap_refs_max = @max(stats.overlap_refs_max, tile.overlap_count);
+    }
 }
 
 fn runRasterStage(
@@ -1548,6 +1572,7 @@ fn rasterFrame(
     const report_ptr = getFrameReportPtr(report_mode, ctx);
     const ctx_report = report.ReportContext(report_mode){ .log = report_ptr };
     const time_start_loop = Timestamp.now(io, .awake);
+    ctx.frame_times.raster_workers_requested = raster_workers;
 
     const ctx_rast = rops.RasterContext{
         .camera = input.camera,
@@ -1556,6 +1581,20 @@ fn rasterFrame(
         .tile_size = ctx.actual_tile_size,
     };
     var global_resolve_time_ns: F = 0.0;
+    if (input.config.buffer_mode != .tile_local) {
+        const sub_samp: usize = @intCast(input.camera.sub_sample);
+        const halo_px = input.config.raster_halo_px_override orelse
+            input.camera.prep_psf.halo_px;
+        ctx.frame_times.global_subpx_stats = .{
+            .mode = input.config.buffer_mode,
+            .output_w_subpx = @as(usize, input.camera.pixels_num[0]) * sub_samp,
+            .output_h_subpx = @as(usize, input.camera.pixels_num[1]) * sub_samp,
+            .outer_halo_subpx = @as(usize, halo_px) * sub_samp,
+            .tile_core_subpx = @as(usize, ctx.actual_tile_size) * sub_samp,
+            .tile_scratch_subpx = (@as(usize, ctx.actual_tile_size) + 2 * @as(usize, halo_px)) *
+                sub_samp,
+        };
+    }
 
     switch (input.config.buffer_mode) {
         .tile_local => try rasterengine.rasterScene(
@@ -1571,6 +1610,7 @@ fn rasterFrame(
             &ctx.frame_arr,
         ),
         .global_subpx_full => {
+            const time_start_buffer_setup = Timestamp.now(io, .awake);
             const sub_samp: usize = @intCast(input.camera.sub_sample);
             const halo_px = input.config.raster_halo_px_override orelse
                 input.camera.prep_psf.halo_px;
@@ -1589,8 +1629,25 @@ fn rasterFrame(
                 input.config.background_value,
             );
             defer target.deinit(outer_alloc);
+            ctx.frame_times.global_subpx_times.buffer_setup += @floatFromInt(
+                time_start_buffer_setup.durationTo(Timestamp.now(io, .awake)).raw.nanoseconds,
+            );
+            if (ctx.frame_times.global_subpx_stats) |*stats| {
+                const tiles_x = std.math.divCeil(
+                    usize,
+                    input.camera.pixels_num[0],
+                    ctx.actual_tile_size,
+                ) catch unreachable;
+                const tiles_y = std.math.divCeil(
+                    usize,
+                    input.camera.pixels_num[1],
+                    ctx.actual_tile_size,
+                ) catch unreachable;
+                recordGlobalTilingStats(stats, ctx.tiling.?, tiles_x * tiles_y);
+            }
 
-            try rasterengineglobal.rasterScene(
+            const time_start_tile_raster = Timestamp.now(io, .awake);
+            const workers_used = try rasterengineglobal.rasterScene(
                 report_mode,
                 outer_alloc,
                 io,
@@ -1603,6 +1660,10 @@ fn rasterFrame(
                 &target,
                 &ctx.frame_arr,
             );
+            ctx.frame_times.raster_workers_used = @intCast(workers_used);
+            ctx.frame_times.global_subpx_times.tile_raster += @floatFromInt(
+                time_start_tile_raster.durationTo(Timestamp.now(io, .awake)).raw.nanoseconds,
+            );
             const time_start_resolve = Timestamp.now(io, .awake);
             scratchresolveglobal.resolve(
                 &target,
@@ -1613,6 +1674,7 @@ fn rasterFrame(
             global_resolve_time_ns = @floatFromInt(
                 time_start_resolve.durationTo(Timestamp.now(io, .awake)).raw.nanoseconds,
             );
+            ctx.frame_times.global_subpx_times.resolve += global_resolve_time_ns;
         },
         .global_subpx_stripe => {
             const sub_samp: usize = @intCast(input.camera.sub_sample);
@@ -1626,6 +1688,7 @@ fn rasterFrame(
                 input.config.global_subpx_stripe_size_min;
             const stripe_subpx: usize = requested_stripe_subpx;
             const first_core_suby_max = @min(image_h_subpx, stripe_subpx);
+            const time_start_buffer_setup = Timestamp.now(io, .awake);
             var stripe = try subpxframe.SubpxStripe.init(
                 outer_alloc,
                 input.num_fields,
@@ -1637,6 +1700,9 @@ fn rasterFrame(
                 input.config.background_value,
             );
             defer stripe.deinit(outer_alloc);
+            ctx.frame_times.global_subpx_times.buffer_setup += @floatFromInt(
+                time_start_buffer_setup.durationTo(Timestamp.now(io, .awake)).raw.nanoseconds,
+            );
 
             var core_suby_min: usize = 0;
             while (core_suby_min < image_h_subpx) {
@@ -1644,6 +1710,7 @@ fn rasterFrame(
                     image_h_subpx,
                     core_suby_min + stripe_subpx,
                 );
+                const time_start_buffer_plan = Timestamp.now(io, .awake);
                 stripe.reset(
                     @intCast(core_suby_min),
                     @intCast(core_suby_max),
@@ -1658,6 +1725,7 @@ fn rasterFrame(
                     stripe_tiling = try sceneGlobalTileElemOverlap(
                         outer_alloc,
                         ctx.actual_tile_size,
+                        input.camera.sub_sample,
                         @intCast(input.camera.pixels_num[0]),
                         @intCast(input.camera.pixels_num[1]),
                         @intCast(core_suby_min / sub_samp),
@@ -1668,6 +1736,32 @@ fn rasterFrame(
                     );
                     stripe_tiling_owned = true;
                 }
+                ctx.frame_times.global_subpx_times.buffer_setup += @floatFromInt(
+                    time_start_buffer_plan.durationTo(Timestamp.now(io, .awake)).raw.nanoseconds,
+                );
+                if (ctx.frame_times.global_subpx_stats) |*stats| {
+                    const tiles_x = std.math.divCeil(
+                        usize,
+                        input.camera.pixels_num[0],
+                        ctx.actual_tile_size,
+                    ) catch unreachable;
+                    const stripe_h_px = (core_suby_max - core_suby_min) / sub_samp;
+                    const tiles_y = std.math.divCeil(
+                        usize,
+                        stripe_h_px,
+                        ctx.actual_tile_size,
+                    ) catch unreachable;
+                    recordGlobalTilingStats(stats, stripe_tiling, tiles_x * tiles_y);
+                    stats.stripe_core_subpx = stripe_subpx;
+                    stats.stripe_count += 1;
+                    stats.final_stripe_core_subpx = core_suby_max - core_suby_min;
+                    stats.stripe_storage_w_subpx = stripe.target.domain.storage_w_subpx;
+                    stats.stripe_storage_h_subpx = stripe.target.domain.storage_h_subpx;
+                    stats.stripe_storage_samples_cleared += @intCast(
+                        stripe.target.domain.storage_w_subpx *
+                            stripe.target.domain.storage_h_subpx,
+                    );
+                }
                 errdefer {
                     if (stripe_tiling_owned) {
                         outer_alloc.free(stripe_tiling.active_tiles);
@@ -1675,7 +1769,8 @@ fn rasterFrame(
                     }
                 }
 
-                try rasterengineglobal.rasterScene(
+                const time_start_tile_raster = Timestamp.now(io, .awake);
+                const workers_used = try rasterengineglobal.rasterScene(
                     report_mode,
                     outer_alloc,
                     io,
@@ -1688,6 +1783,13 @@ fn rasterFrame(
                     &stripe.target,
                     &ctx.frame_arr,
                 );
+                ctx.frame_times.raster_workers_used = @max(
+                    ctx.frame_times.raster_workers_used,
+                    @as(u16, @intCast(workers_used)),
+                );
+                ctx.frame_times.global_subpx_times.tile_raster += @floatFromInt(
+                    time_start_tile_raster.durationTo(Timestamp.now(io, .awake)).raw.nanoseconds,
+                );
                 const time_start_resolve = Timestamp.now(io, .awake);
                 scratchresolveglobal.resolveRows(
                     &stripe.target,
@@ -1699,6 +1801,9 @@ fn rasterFrame(
                 );
                 const time_end_resolve = Timestamp.now(io, .awake);
                 global_resolve_time_ns += @floatFromInt(
+                    time_start_resolve.durationTo(time_end_resolve).raw.nanoseconds,
+                );
+                ctx.frame_times.global_subpx_times.resolve += @floatFromInt(
                     time_start_resolve.durationTo(time_end_resolve).raw.nanoseconds,
                 );
                 if (stripe_tiling_owned) {
@@ -1716,6 +1821,10 @@ fn rasterFrame(
     );
     if (input.config.buffer_mode != .tile_local) {
         ctx.frame_times.scratch_resolve = global_resolve_time_ns;
+        if (report.getBenchLog(report_mode, report_ptr)) |bench_log| {
+            ctx.frame_times.cam_invert = bench_log.cam_time_ns;
+            ctx.frame_times.elem_loop = bench_log.elem_time_ns;
+        }
     } else if (report.getBenchLog(report_mode, report_ptr)) |bench_log| {
         ctx.frame_times.cam_invert = bench_log.cam_time_ns;
         ctx.frame_times.elem_loop = bench_log.elem_time_ns;
@@ -1769,4 +1878,74 @@ fn renderGroupSaveIo(render_group: RenderGroupSpec) std.Io {
 
 fn saveOverlapEnabled(config: RasterConfig) bool {
     return config.save_strategy == .disk and config.disk_save_overlap;
+}
+
+test "global sub-pixel tiles own disjoint cores and retain halo only at frame edges" {
+    var elem_bboxes = [_]rops.ElemBBox{.{
+        .elem_idx = 0,
+        .x_min = -2,
+        .x_max = 12,
+        .y_min = -2,
+        .y_max = 11,
+    }};
+    const elems_in_image = [_]usize{1};
+    const elem_bboxes_by_mesh = [_][]rops.ElemBBox{elem_bboxes[0..]};
+    const sub_sample: u32 = 2;
+    const halo_px: u16 = 2;
+    const screen_w_px: u16 = 10;
+    const screen_h_px: u16 = 9;
+    const screen_w_subpx: i32 = screen_w_px * sub_sample;
+    const screen_h_subpx: i32 = screen_h_px * sub_sample;
+    const halo_subpx: i32 = halo_px * sub_sample;
+
+    const tiling = try sceneGlobalTileElemOverlap(
+        std.testing.allocator,
+        4,
+        sub_sample,
+        screen_w_px,
+        screen_h_px,
+        0,
+        screen_h_px,
+        halo_px,
+        elems_in_image[0..],
+        elem_bboxes_by_mesh[0..],
+    );
+    defer std.testing.allocator.free(tiling.active_tiles);
+    defer std.testing.allocator.free(tiling.overlaps);
+
+    try std.testing.expectEqual(@as(usize, 9), tiling.active_tiles.len);
+    for (tiling.active_tiles) |tile| {
+        try std.testing.expectEqual(
+            if (tile.core_subx_min == 0) -halo_subpx else tile.core_subx_min,
+            tile.scratch_subx_min,
+        );
+        try std.testing.expectEqual(
+            if (tile.core_subx_max == screen_w_subpx)
+                screen_w_subpx + halo_subpx
+            else
+                tile.core_subx_max,
+            tile.scratch_subx_max,
+        );
+        try std.testing.expectEqual(
+            if (tile.core_suby_min == 0) -halo_subpx else tile.core_suby_min,
+            tile.scratch_suby_min,
+        );
+        try std.testing.expectEqual(
+            if (tile.core_suby_max == screen_h_subpx)
+                screen_h_subpx + halo_subpx
+            else
+                tile.core_suby_max,
+            tile.scratch_suby_max,
+        );
+    }
+
+    for (tiling.active_tiles, 0..) |tile_a, aa| {
+        for (tiling.active_tiles[aa + 1 ..]) |tile_b| {
+            const overlaps_x = tile_a.scratch_subx_min < tile_b.scratch_subx_max and
+                tile_b.scratch_subx_min < tile_a.scratch_subx_max;
+            const overlaps_y = tile_a.scratch_suby_min < tile_b.scratch_suby_max and
+                tile_b.scratch_suby_min < tile_a.scratch_suby_max;
+            try std.testing.expect(!(overlaps_x and overlaps_y));
+        }
+    }
 }

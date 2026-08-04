@@ -18,6 +18,8 @@ const mo = @import("meshpipeline.zig");
 const subpxframe = @import("subpxframe.zig");
 
 const GlobalSubpxScratchBuffs = struct {
+    pub const exclusive_subpx_target = true;
+
     stride_subpx: usize,
     inv_z: []F,
     image: @import("matslice.zig").MatSlice(F),
@@ -85,14 +87,13 @@ pub const GlobalBackend = struct {
         scratch: *GlobalSubpxScratchBuffs,
         target: *subpxframe.SubpxTarget,
         tile: rops.ActiveTile,
-        sub_sample: u32,
     ) void {
         scratch.image = target.image;
         scratch.target_stride_subpx = target.domain.storage_w_subpx;
         scratch.target_subx_min = target.global_subx_min;
         scratch.target_suby_min = target.global_suby_min;
-        scratch.tile_subx_min = tile.scratch_x_px_min * @as(i32, @intCast(sub_sample));
-        scratch.tile_suby_min = tile.scratch_y_px_min * @as(i32, @intCast(sub_sample));
+        scratch.tile_subx_min = tile.scratch_subx_min;
+        scratch.tile_suby_min = tile.scratch_suby_min;
     }
 
     pub fn RasterEngine(
@@ -121,8 +122,8 @@ pub fn rasterScene(
     raster_hulls: []const ?ndarray.NDArray(F),
     target: *subpxframe.SubpxTarget,
     image_out_arr: *ndarray.NDArray(F),
-) !void {
-    try common.rasterScene(
+) !usize {
+    return common.rasterScene(
         GlobalBackend,
         report_mode,
         outer_alloc,
