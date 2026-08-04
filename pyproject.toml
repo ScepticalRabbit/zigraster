@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "riley-raster"
-version = "2026.7.1"
+version = "2026.8.0"
 description = "A python->Zig CPU rasteriser."
 authors = [
   { name = "scepticalrabbit (Lloyd Fletcher)", email = "thescepticalrabbit@gmail.com" },
