@@ -15,6 +15,7 @@ import sys
 
 _DEMO_FUNCS = {
     "demo_sphere200": "riley.pydemos.demo_sphere200",
+    "demo_psf": "riley.pydemos.demo_psf",
     "demo_rabbits": "riley.pydemos.demo_rabbits",
     "demo_dicuq": "riley.pydemos.demo_dicuq",
     "demo_dic_from_exodus": "riley.pydemos.demo_dic_from_exodus",

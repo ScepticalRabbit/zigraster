@@ -305,6 +305,7 @@ pub const CRasterConfig = extern struct {
     full_stats_save_earlyout_map: u8,
     full_stats_save_pixel_occupancy_map: u8,
     full_stats_save_normals_map: u8,
+    buffer_mode: u32,
 };
 
 const MeshInputBuilt = struct {
@@ -501,6 +502,15 @@ fn reportModeFromC(report_mode: u32) !riley.ReportMode {
         @intFromEnum(riley.ReportMode.bench) => .bench,
         @intFromEnum(riley.ReportMode.full_stats) => .full_stats,
         else => error.InvalidReportMode,
+    };
+}
+
+fn bufferModeFromC(buffer_mode: u32) !rastcfg.BufferMode {
+    return switch (buffer_mode) {
+        @intFromEnum(rastcfg.BufferMode.tile_local) => .tile_local,
+        @intFromEnum(rastcfg.BufferMode.global_subpx_full) => .global_subpx_full,
+        @intFromEnum(rastcfg.BufferMode.global_subpx_stripe) => .global_subpx_stripe,
+        else => error.InvalidBufferMode,
     };
 }
 
@@ -1499,6 +1509,7 @@ fn buildRasterConfig(
         in_config.newton_seed_reuse,
     );
     config.report = try reportModeFromC(in_config.report);
+    config.buffer_mode = try bufferModeFromC(in_config.buffer_mode);
     config.tile_size_min = if (in_config.tile_size_min == 0)
         config.tile_size_min
     else

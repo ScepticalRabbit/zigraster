@@ -95,7 +95,7 @@ test "MIN Suite: sphere200 and multimesh" {
     if (simd_on) {
         for (buffer_modes) |buffer_mode| {
             std.debug.print(
-                "\nRunning MIN Suite sphere200/base tests ({s})...\n",
+                "Running MIN Suite sphere200/base tests ({s})...\n",
                 .{@tagName(buffer_mode)},
             );
             for (mesh_types) |mt| {

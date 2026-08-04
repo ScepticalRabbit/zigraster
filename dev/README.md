@@ -223,6 +223,7 @@ Run a packaged Python demo directly with:
 
 ```shell
 python -m riley demo_sphere200
+python -m riley demo_psf
 python -m riley demo_rabbits
 python -m riley demo_dicuq
 python -m riley demo_dic_from_exodus

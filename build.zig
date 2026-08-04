@@ -96,6 +96,11 @@ pub fn build(b: *std.Build) void {
             .source_path = "src/demo_sphere200.zig",
         },
         .{
+            .step_name = "demo-psf",
+            .description = "Run the Gaussian PSF demo",
+            .source_path = "src/demo_psf.zig",
+        },
+        .{
             .step_name = "demo-rabbits",
             .description = "Run the rabbits demo",
             .source_path = "src/demo_rabbits.zig",

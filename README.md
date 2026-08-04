@@ -95,11 +95,13 @@ or with the build system:
 zig build demo-<CASE> -Doptimize=ReleaseFast
 ```
 
-where `CASE` is one of `sphere200`, `rabbits`, `dicuq`, or `stereocal`. Zig demo output is written to `./out/demo-CASE/`.
+where `CASE` is one of `sphere200`, `psf`, `rabbits`, `dicuq`, or `stereocal`. Zig demo output is written to `./out/demo-CASE/`.
+The `psf` demo writes separate `global_subpx_full` and `global_subpx_stripe` subdirectories.
 
 Zig demo source on GitHub:
 
 - [`demo_sphere200.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo_sphere200.zig)
+- [`demo_psf.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo_psf.zig)
 - [`demo_rabbits.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo_rabbits.zig)
 - [`demo_dicuq.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo_dicuq.zig)
 - [`demo_stereocal.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo_stereocal.zig)
@@ -115,6 +117,7 @@ Python demo output is written to `Path.cwd() / "out-riley-py" / "demo-CASE"`.
 Python demo source on GitHub:
 
 - [`demo_sphere200.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo_sphere200.py)
+- [`demo_psf.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo_psf.py)
 - [`demo_rabbits.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo_rabbits.py)
 - [`demo_dicuq.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo_dicuq.py)
 - [`demo_dic_from_exodus.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo_dic_from_exodus.py)

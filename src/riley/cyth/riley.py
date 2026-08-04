@@ -193,6 +193,7 @@ class RasterConfig:
     full_stats_save_earlyout_map: bool = True
     full_stats_save_pixel_occupancy_map: bool = True
     full_stats_save_normals_map: bool = False
+    buffer_mode: int = 0
 
 
 class MeshType(IntEnum):
@@ -248,6 +249,12 @@ class ReportMode(IntEnum):
     off = 0
     bench = 1
     full_stats = 2
+
+
+class BufferMode(IntEnum):
+    tile_local = 0
+    global_subpx_full = 1
+    global_subpx_stripe = 2
 
 
 class SubPixelCenterMap(IntEnum):
@@ -541,6 +548,7 @@ def _make_raster_config(config: Any) -> cr.CRasterConfig:
     config_out.full_stats_save_normals_map = int(
         config.full_stats_save_normals_map,
     )
+    config_out.buffer_mode = int(config.buffer_mode)
     return config_out
 
 
@@ -1303,6 +1311,7 @@ __all__ = [
     "Camera",
     "CameraInput",
     "CameraCoordSys",
+    "BufferMode",
     "HullMode",
     "Mesh",
     "MeshInput",

@@ -42,6 +42,12 @@ DEMO_CASES = (
         "out-riley-py/demo-sphere200",
     ),
     (
+        "psf",
+        [str(PYTHON_EXE), "-m", "riley", "demo_psf"],
+        "out/demo-psf",
+        "out-riley-py/demo-psf",
+    ),
+    (
         "rabbits",
         [str(PYTHON_EXE), "-m", "riley", "demo_rabbits"],
         "out/demo-rabbits",
