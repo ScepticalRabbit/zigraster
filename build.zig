@@ -238,8 +238,23 @@ pub fn build(b: *std.Build) void {
         bench_bins_step.dependOn(&install_artifact.step);
     }
 
+    // Rooted at the public API module, not shared_lib, whose generated wrapper
+    // root keeps its entry source private where autodoc cannot follow. A
+    // separate object also keeps doc generation out of normal builds. No
+    // build_options is injected here, so the -D config options have no effect:
+    // docs always describe the f64 / SIMD-on / fast-Newton build.
+    const docs_obj = b.addObject(.{
+        .name = "riley",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/riley/zig/riley.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+    });
+
     const docs_install = b.addInstallDirectory(.{
-        .source_dir = shared_lib.getEmittedDocs(),
+        .source_dir = docs_obj.getEmittedDocs(),
         .install_dir = .prefix,
         .install_subdir = "docs",
     });
