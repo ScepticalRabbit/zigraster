@@ -51,11 +51,11 @@ pub fn build(b: *std.Build) void {
         optimize,
         build_options_module,
     );
-    b.installArtifact(shared_lib);
-    _ = b.addInstallHeaderFile(
+    shared_lib.installHeader(
         b.path("src/riley/cyth/riley.h"),
         "riley.h",
     );
+    b.installArtifact(shared_lib);
 
     const tests = [_]TestEntry{
         .{
