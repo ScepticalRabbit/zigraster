@@ -239,12 +239,12 @@ pub fn build(b: *std.Build) void {
     }
 
     const docs_install = b.addInstallDirectory(.{
-        .source_dir = b.path("docs"),
+        .source_dir = shared_lib.getEmittedDocs(),
         .install_dir = .prefix,
         .install_subdir = "docs",
     });
 
-    const docs_step = b.step("docs", "Install documentation");
+    const docs_step = b.step("docs", "Generate API documentation");
     docs_step.dependOn(&docs_install.step);
 }
 
