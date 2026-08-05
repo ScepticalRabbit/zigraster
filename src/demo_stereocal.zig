@@ -8,31 +8,37 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 
+const buildconfig = @import("riley/zig/buildconfig.zig");
 const riley = @import("riley/zig/riley.zig");
 const RasterConfig = riley.RasterConfig;
 const meshio = @import("riley/zig/meshio.zig");
 const uvio = @import("riley/zig/uvio.zig");
 const iio = @import("riley/zig/imageio.zig");
-const mo = @import("riley/zig/meshops.zig");
+const mo = @import("riley/zig/meshpipeline.zig");
 const MeshInput = mo.MeshInput;
 const camera_mod = @import("riley/zig/camera.zig");
 const cameraio = @import("riley/zig/cameraio.zig");
 const cameraops = @import("riley/zig/cameraops.zig");
+const sceneops = @import("riley/zig/sceneops.zig");
 const Rotation = @import("riley/zig/rotation.zig").Rotation;
 const DistortionModel = camera_mod.DistortionModel;
 const BrownConrady = camera_mod.BrownConrady;
 const BrownConradyExt = camera_mod.BrownConradyExt;
 const StereoPairInput = camera_mod.StereoPairInput;
+const F = buildconfig.F;
 
 const DATA_DIR = "data/calplate/tri3_calplate3d/";
 const TEXTURE_PATH = "texture/cal_target-simple.tiff";
 const OUT_DIR_ROOT = "./out/demo-stereocal";
 const PIXELS_NUM = [2]u32{ 2464, 2056 };
-const PIXELS_SIZE = [2]f64{ 3.45e-6, 3.45e-6 };
-const FOCAL_LENGTH: f64 = 50.0e-3;
-const FOV_SCALE_FACTOR: f64 = 1.0;
-const STEREO_ANGLE_DEG: f64 = 20.0;
-const SUB_SAMPLE: u8 = 2;
+const PIXELS_SIZE = [2]F{
+    @floatCast(3.45e-6),
+    @floatCast(3.45e-6),
+};
+const FOCAL_LENGTH: F = @floatCast(50.0e-3);
+const FOV_SCALE_FACTOR: F = 1.0;
+const STEREO_ANGLE_DEG: F = 20.0;
+const SUB_SAMPLE: u32 = 2;
 const DICUQ_CAMERA_DIR = "./out/demo-dicuq";
 
 const TOTAL_THREADS: u16 = 8;
@@ -188,7 +194,7 @@ pub fn main(init: std.process.Init) !void {
 
     const distortion = buildDistortion();
 
-    var roi_pos = cameraops.roiCentFromCoords(&sim_data.coords);
+    var roi_pos = sceneops.boundsCenter(&sim_data.coords);
 
     var stereo_pair = switch (CAMERA_PLACEMENT_MODE) {
         .auto_fov => blk: {
@@ -277,7 +283,7 @@ pub fn main(init: std.process.Init) !void {
                 sim_data.coords.mat.get(nn, 2) + roi_shift.get(2),
             );
         }
-        roi_pos = cameraops.roiCentFromCoords(&sim_data.coords);
+        roi_pos = sceneops.boundsCenter(&sim_data.coords);
         stereo_pair.cameras[0].roi_cent_world = roi_pos;
         stereo_pair.cameras[1].roi_cent_world = roi_pos;
     }
@@ -288,10 +294,10 @@ pub fn main(init: std.process.Init) !void {
         .coords = sim_data.coords,
         .connect = sim_data.connect,
         .disp = sim_data.disp,
-        .shader = .{ .tex = .{
+        .shader = .{ .tex_u8 = .{
             .uvs = uvs.array,
-            .texture = texture,
-            .sample_config = .{
+            .tex = texture,
+            .samp_cfg = .{
                 .sample = .cubic_catmull_rom,
                 .mode = .lut_lerp,
             },

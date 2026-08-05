@@ -1,23 +1,24 @@
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // Riley: A High Performance Rasteriser for DIC UQ
 //
 // Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
 // Licensed under the MIT License (see LICENSE file for details)
 //
 // Authors: scepticalrabbit (Lloyd Fletcher)
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 const std = @import("std");
+const buildconfig = @import("buildconfig.zig");
+const F = buildconfig.F;
 const print = std.debug.print;
-
-const testing = std.testing;
 const assert = std.debug.assert;
-const expectEqual = std.testing.expectEqual;
-const expectApproxEqAbs = testing.expectApproxEqAbs;
-const expectEqualSlices = testing.expectEqualSlices;
 
 const VecSlice = @import("vecslice.zig").VecSlice;
 const sliceops = @import("sliceops.zig");
 const csvio = @import("csvio.zig");
+
+// --------------------------------------------------------------------------------------
+// Public Constants & Public Types
+// --------------------------------------------------------------------------------------
 
 pub fn MatSlice(comptime T: type) type {
     return struct {
@@ -74,19 +75,42 @@ pub fn MatSlice(comptime T: type) type {
         }
 
         pub fn set(self: *Self, row: usize, col: usize, val: T) void {
+            assert(row < self.rows_num);
+            assert(col < self.cols_num);
             self.slice[(row * self.cols_num) + col] = val;
         }
 
-        pub fn transpose(self: *Self, buffer: *Self) void {
-            assert(self.cols_num == buffer.cols_num);
-            assert(self.rows_num == buffer.rows_num);
+        pub fn flatIndex(self: *const Self, row: usize, col: usize) usize {
+            assert(row < self.rows_num);
+            assert(col < self.cols_num);
+            return row * self.cols_num + col;
+        }
 
-            @memcpy(buffer.slice, self.slice);
+        pub fn rowBase(self: *const Self, row: usize) usize {
+            assert(row < self.rows_num);
+            return row * self.cols_num;
+        }
+
+        pub fn getFlat(self: *const Self, flat_idx: usize) T {
+            assert(flat_idx < self.slice.len);
+            return self.slice[flat_idx];
+        }
+
+        pub fn setFlat(self: *Self, flat_idx: usize, val: T) void {
+            assert(flat_idx < self.slice.len);
+            self.slice[flat_idx] = val;
+        }
+
+        pub fn transpose(self: *Self, buff: *Self) void {
+            assert(self.cols_num == buff.cols_num);
+            assert(self.rows_num == buff.rows_num);
+
+            @memcpy(buff.slice, self.slice);
 
             for (0..self.rows_num) |ii| {
                 for (ii..self.cols_num) |jj| {
-                    self.set(ii, jj, buffer.get(jj, ii));
-                    self.set(jj, ii, buffer.get(ii, jj));
+                    self.set(ii, jj, buff.get(jj, ii));
+                    self.set(jj, ii, buff.get(ii, jj));
                 }
             }
         }
@@ -131,14 +155,14 @@ pub fn MatSlice(comptime T: type) type {
             }
         }
 
-        pub fn mulScalarInPlace(self: *const Self, scalar: T) void {
+        pub fn mulScalInPlace(self: *const Self, scal: T) void {
             for (0..self.slice.len) |ee| {
-                self.slice[ee] = scalar * self.slice[ee];
+                self.slice[ee] = scal * self.slice[ee];
             }
         }
 
         pub fn getSlice(self: *const Self, row_to_slice: usize) []T {
-            assert(row_to_slice <= self.rows_num);
+            assert(row_to_slice < self.rows_num);
 
             const start_idx: usize = row_to_slice * self.cols_num;
             const end_idx: usize = start_idx + self.cols_num;
@@ -268,13 +292,13 @@ pub fn MatSliceOps(comptime T: type) type {
             }
         }
 
-        pub fn mulScalar(
+        pub fn mulScal(
             mat0: *const MatSlice(T),
-            scalar: T,
+            scal: T,
             mat_out: *MatSlice(T),
         ) void {
             for (0..mat0.slice.len) |ii| {
-                mat_out.slice[ii] = scalar * mat0.slice[ii];
+                mat_out.slice[ii] = scal * mat0.slice[ii];
             }
         }
 
@@ -320,8 +344,15 @@ pub fn MatSliceOps(comptime T: type) type {
     };
 }
 
-//TODO: transfer missing tests from stack matrix
-const TestType = f64;
+// --------------------------------------------------------------------------------------
+// Tests
+// --------------------------------------------------------------------------------------
+
+const testing = std.testing;
+const expectEqual = std.testing.expectEqual;
+const expectApproxEqAbs = testing.expectApproxEqAbs;
+const expectEqualSlices = testing.expectEqualSlices;
+const TestType = F;
 const talloc = testing.allocator;
 
 test "MatSlice.getSlice" {
@@ -351,6 +382,24 @@ test "MatSlice.getSlice" {
     try expectEqualSlices(TestType, exp0[0..], slice0);
     try expectEqualSlices(TestType, exp1[0..], slice1);
     try expectEqualSlices(TestType, exp2[0..], slice2);
+}
+
+test "MatSlice flat helpers" {
+    const rows: usize = 3;
+    const cols: usize = 4;
+
+    const m0 = try talloc.alloc(TestType, rows * cols);
+    defer talloc.free(m0);
+    var mat0 = MatSlice(TestType).init(m0, rows, cols);
+    mat0.fill(0.0);
+
+    const base = mat0.rowBase(2);
+    const idx = mat0.flatIndex(2, 3);
+    mat0.setFlat(idx, 9.0);
+
+    try expectEqual(@as(usize, 8), base);
+    try expectEqual(@as(usize, 11), idx);
+    try expectApproxEqAbs(@as(TestType, 9.0), mat0.get(2, 3), 1e-12);
 }
 
 test "MatSliceOps.add" {
@@ -440,7 +489,7 @@ test "MatSliceOps.mulElemWise" {
     try expectEqualSlices(TestType, mat_exp.slice, mat_op.slice);
 }
 
-test "MatSliceOps.mulScalar" {
+test "MatSliceOps.mulScal" {
     const rows: usize = 3;
     const cols: usize = 4;
 
@@ -452,7 +501,7 @@ test "MatSliceOps.mulScalar" {
     defer talloc.free(m_exp);
     const mat_exp = MatSlice(TestType).init(m_exp, rows, cols);
 
-    const scalar: TestType = 2.0;
+    const scal: TestType = 2.0;
 
     mat0.fill(1.0);
     mat_exp.fill(2.0);
@@ -461,7 +510,7 @@ test "MatSliceOps.mulScalar" {
     defer talloc.free(m_op);
     var mat_op = MatSlice(TestType).init(m_op, rows, cols);
 
-    MatSliceOps(TestType).mulScalar(&mat0, scalar, &mat_op);
+    MatSliceOps(TestType).mulScal(&mat0, scal, &mat_op);
 
     try expectEqualSlices(TestType, mat_exp.slice, mat_op.slice);
 }
@@ -549,16 +598,16 @@ test "MatSlice.transpose" {
     try expectEqualSlices(TestType, mat_exp.slice, mat0.slice);
 }
 
-test "MatSlice.mulScalar" {
+test "MatSlice.mulScal" {
     var m0 = [_]TestType{ 1, 2, 3, 4 };
     const mat0 = MatSlice(TestType).init(m0[0..], 2, 2);
 
-    const scalar: TestType = 2;
+    const scal: TestType = 2;
 
     var m1 = [_]TestType{ 2, 4, 6, 8 };
     const mat_exp = MatSlice(TestType).init(m1[0..], 2, 2);
 
-    mat0.mulScalarInPlace(scalar);
+    mat0.mulScalInPlace(scal);
 
     try expectEqualSlices(TestType, mat_exp.slice, mat0.slice);
 }

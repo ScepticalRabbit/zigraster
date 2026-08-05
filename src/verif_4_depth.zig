@@ -7,29 +7,32 @@
 // Authors: scepticalrabbit (Lloyd Fletcher)
 // --------------------------------------------------------------------------
 const std = @import("std");
+const buildconfig = @import("riley/zig/buildconfig.zig");
+const F = buildconfig.F;
 
-const benchcommon = @import("common/benchcommon.zig");
-const orch = @import("common/orchestration.zig");
-const tcfg = @import("common/testconfig.zig");
+const benchcommon = @import("dev_support/benchcommon.zig");
+const orch = @import("dev_support/orchestration.zig");
+const tcfg = @import("dev_support/testconfig.zig");
 const cammod = @import("riley/zig/camera.zig");
 const cameraops = @import("riley/zig/cameraops.zig");
 const gk = @import("riley/zig/geometrykernels.zig");
 const iio = @import("riley/zig/imageio.zig");
-const mo = @import("riley/zig/meshops.zig");
+const mo = @import("riley/zig/meshpipeline.zig");
 const meshio = @import("riley/zig/meshio.zig");
 const riley = @import("riley/zig/riley.zig");
 const Rotation = @import("riley/zig/rotation.zig").Rotation;
 const NDArray = @import("riley/zig/ndarray.zig").NDArray;
+const sceneops = @import("riley/zig/sceneops.zig");
 
 const CameraPrepared = cammod.CameraPrepared;
 const MeshInput = mo.MeshInput;
 
-const OVERLAP_X: f64 = 0.85;
-const OVERLAP_Y: f64 = 0.8;
-pub const BEHIND_FACT: f64 = 1.05;
+const OVERLAP_X: F = 0.85;
+const OVERLAP_Y: F = 0.8;
+pub const BEHIND_FACT: F = 1.05;
 
 const pixel_num = [_]u32{ 1200, 600 };
-const fov_scale: f64 = 1.01;
+const fov_scale: F = 1.01;
 const out_root = "verif/verif_4";
 
 const mesh_types = [_]gk.MeshType{
@@ -61,7 +64,7 @@ fn pairedBackMeshType(front_mesh_type: gk.MeshType) gk.MeshType {
     };
 }
 
-fn translateCoords(coords: *meshio.Coords, translation: [3]f64) void {
+fn translateCoords(coords: *meshio.Coords, translation: [3]F) void {
     for (0..coords.mat.rows_num) |nn| {
         coords.mat.set(nn, 0, coords.mat.get(nn, 0) + translation[0]);
         coords.mat.set(nn, 1, coords.mat.get(nn, 1) + translation[1]);
@@ -99,7 +102,7 @@ fn saveImageArtifacts(
     io: std.Io,
     out_dir: std.Io.Dir,
     base_name: []const u8,
-    image: *const NDArray(f64),
+    image: *const NDArray(F),
 ) !void {
     try iio.saveImage(
         io,
@@ -131,10 +134,10 @@ fn saveImageArtifacts(
 
 fn calcDiffImage(
     allocator: std.mem.Allocator,
-    both_image: *const NDArray(f64),
-    frontonly_image: *const NDArray(f64),
-) !NDArray(f64) {
-    var diff = try NDArray(f64).initFlat(allocator, both_image.dims);
+    both_image: *const NDArray(F),
+    frontonly_image: *const NDArray(F),
+) !NDArray(F) {
+    var diff = try NDArray(F).initFlat(allocator, both_image.dims);
     for (0..both_image.slice.len) |ii| {
         diff.slice[ii] = both_image.slice[ii] - frontonly_image.slice[ii];
     }
@@ -146,7 +149,7 @@ fn renderSingle(
     io: std.Io,
     camera_input: cammod.CameraInput,
     meshes: []const MeshInput,
-) !NDArray(f64) {
+) !NDArray(F) {
     var config = tcfg.getRasterConfig(.preview);
     config.save_strategy = .memory;
     config.image_save_opts = &[_]iio.ImageSaveOpts{
@@ -254,7 +257,7 @@ fn runCase(
     const front_coords = try orch.copyCoords(aa, front_sim_data.coords);
     const back_coords = try orch.copyCoords(aa, back_sim_data.coords);
 
-    const bounds = mo.findAlignedCentroid(&front_coords);
+    const bounds = sceneops.boundsForCoords(&front_coords);
     const width = bounds.extent[0];
     const height = bounds.extent[1];
     const x_sep = width * (1.0 - OVERLAP_X);
@@ -278,7 +281,7 @@ fn runCase(
         .disp = null,
         .shader = .{ .func = .{
             .uvs = null,
-            .coord_mode = .parametric,
+            .coord_mode = .para,
             .builtin = .constant,
             .params = .{
                 .output_scale = 0.0,
@@ -296,7 +299,7 @@ fn runCase(
         .disp = null,
         .shader = .{ .func = .{
             .uvs = null,
-            .coord_mode = .parametric,
+            .coord_mode = .para,
             .builtin = .constant,
             .params = .{
                 .output_scale = 0.0,
@@ -309,7 +312,7 @@ fn runCase(
     };
 
     const temp_meshes = [_]MeshInput{ front_mesh, back_mesh };
-    const roi_pos = cameraops.roiCentOverMeshes(&temp_meshes);
+    const roi_pos = sceneops.boundsCenterOverMeshes(&temp_meshes);
     const cam_pos = cameraops.posFillFrameFromRotOverMeshes(
         &temp_meshes,
         pixel_num,
@@ -342,8 +345,8 @@ fn runCase(
         .distortion = camera.distortion,
     };
 
-    const front_centroid = mo.findAlignedCentroid(&front_mesh.coords).centroid;
-    const cam_axis = [3]f64{
+    const front_centroid = sceneops.boundsForCoords(&front_mesh.coords).center;
+    const cam_axis = [3]F{
         camera_input.pos_world.slice[0] - camera_input.roi_cent_world.slice[0],
         camera_input.pos_world.slice[1] - camera_input.roi_cent_world.slice[1],
         camera_input.pos_world.slice[2] - camera_input.roi_cent_world.slice[2],
@@ -353,7 +356,7 @@ fn runCase(
             cam_axis[1] * cam_axis[1] +
             cam_axis[2] * cam_axis[2],
     );
-    const cam_axis_unit = [3]f64{
+    const cam_axis_unit = [3]F{
         cam_axis[0] / cam_axis_norm,
         cam_axis[1] / cam_axis_norm,
         cam_axis[2] / cam_axis_norm,

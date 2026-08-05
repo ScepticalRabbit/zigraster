@@ -7,18 +7,31 @@
 // Authors: scepticalrabbit (Lloyd Fletcher)
 // --------------------------------------------------------------------------
 const std = @import("std");
-const common = @import("common/benchcommon.zig");
-const gengold = @import("common/gengold.zig");
-const minsuite = @import("common/minsuite.zig");
-const tcfg = @import("common/testconfig.zig");
+const common = @import("dev_support/benchcommon.zig");
+const gengold = @import("dev_support/gengold.zig");
+const minsuite = @import("dev_support/minsuite.zig");
+const orch = @import("dev_support/orchestration.zig");
+const tcfg = @import("dev_support/testconfig.zig");
 const riley = @import("riley/zig/riley.zig");
-const mo = @import("riley/zig/meshops.zig");
+const mo = @import("riley/zig/meshpipeline.zig");
 const gk = @import("riley/zig/geometrykernels.zig");
 const iio = @import("riley/zig/imageio.zig");
 const texops = @import("riley/zig/textureops.zig");
+const buildconfig = @import("riley/zig/buildconfig.zig");
 const Rotation = @import("riley/zig/rotation.zig").Rotation;
+const policy = @import("dev_support/testpolicy.zig");
+
+comptime {
+    if (buildconfig.config.simd != .on) {
+        @compileError(
+            "src/gen_gold_min.zig requires .simd = .on. " ++
+                "MIN scalar gold generation is not implemented.",
+        );
+    }
+}
 
 pub fn main(init: std.process.Init) !void {
+    @setEvalBranchQuota(buildconfig.comptime_eval_branch_quota);
     const allocator = init.gpa;
     const io = init.io;
 
@@ -42,7 +55,7 @@ pub fn main(init: std.process.Init) !void {
     );
     defer texture_rgb.deinit(allocator);
 
-    const out_dir = "gold/min";
+    const out_dir = comptime policy.goldRoot(.min);
     const pixel_num_sphere = [_]u32{ 160, 100 };
     const pixel_num_multi = [_]u32{ 640, 400 };
     const render_defaults_sphere = common.BenchRenderDefaults{
@@ -61,7 +74,7 @@ pub fn main(init: std.process.Init) !void {
         .tex8_grey,
         .tex8_rgb,
     };
-    const sample_configs = [_]texops.TextureSampleConfig{
+    const samp_cfgs = [_]texops.TextureSampleConfig{
         .{ .sample = .nearest, .mode = .direct },
         .{ .sample = .linear, .mode = .direct },
         .{ .sample = .cubic_catmull_rom, .mode = .direct },
@@ -83,11 +96,12 @@ pub fn main(init: std.process.Init) !void {
     std.debug.print("Generating MIN Gold Data (sphere200/base)...\n", .{});
     for (mesh_types) |mt| {
         for (shader_types) |st| {
-            for (sample_configs) |sc| {
+            for (samp_cfgs) |sc| {
+                const mesh_name = policy.meshName(.benchmark_data, mt);
                 const data_dir = try std.fmt.allocPrint(
                     allocator,
                     "data/min/{s}_sphere200",
-                    .{@tagName(mt)},
+                    .{mesh_name},
                 );
                 defer allocator.free(data_dir);
 
@@ -117,8 +131,26 @@ pub fn main(init: std.process.Init) !void {
                     var r_config = tcfg.getRasterConfig(.bench);
                     r_config.save_strategy = .disk;
                     r_config.image_save_opts = &opts_with_ch;
+                    const case_name = try minsuite.calcMinCaseName(
+                        allocator,
+                        mt,
+                        st,
+                        sc,
+                    );
+                    defer allocator.free(case_name);
+                    const case_out_dir = try std.fs.path.join(
+                        allocator,
+                        &[_][]const u8{
+                            out_dir,
+                            "sphere200",
+                            "base",
+                            case_name,
+                        },
+                    );
+                    defer allocator.free(case_out_dir);
 
-                    var result = try common.runBenchmarkQuiet(
+                    var result = try common.runBenchmarkQuietWithImageOut(
+                        u8,
                         allocator,
                         io,
                         mt,
@@ -130,7 +162,8 @@ pub fn main(init: std.process.Init) !void {
                         texture_grey,
                         texture_rgb,
                         r_config,
-                        out_dir ++ "/sphere200/base",
+                        "",
+                        case_out_dir,
                     );
                     result.deinit(allocator);
                 }
@@ -141,11 +174,12 @@ pub fn main(init: std.process.Init) !void {
     std.debug.print("Generating MIN Gold Data (sphere200multicull)...\n", .{});
     for (mesh_types) |mt| {
         for (shader_types) |st| {
-            for (sample_configs) |sc| {
+            for (samp_cfgs) |sc| {
+                const mesh_name = policy.meshName(.benchmark_data, mt);
                 const data_dir = try std.fmt.allocPrint(
                     allocator,
                     "data/min/{s}_sphere200",
-                    .{@tagName(mt)},
+                    .{mesh_name},
                 );
                 defer allocator.free(data_dir);
 

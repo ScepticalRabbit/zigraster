@@ -1,0 +1,259 @@
+[[copy]]
+source = "texture/speckle.bmp"
+dest = "textures/speckle.bmp"
+
+[[copy]]
+source = "texture/cal_target-simple.tiff"
+dest = "textures/cal_target-simple.tiff"
+
+[[copy]]
+source = "data/FE/platehole3d_2mr_63f.e"
+dest = "fe/platehole3d_2mr_63f.e"
+
+[[copy]]
+source = "data/min/tri6_sphere200/connect.csv"
+dest = "min/tri6_sphere200/connect.csv"
+
+[[copy]]
+source = "data/min/tri6_sphere200/coords.csv"
+dest = "min/tri6_sphere200/coords.csv"
+
+[[copy]]
+source = "data/min/tri6_sphere200/field.csv"
+dest = "min/tri6_sphere200/field.csv"
+
+[[copy]]
+source = "data/min/tri6_sphere200/uvs.csv"
+dest = "min/tri6_sphere200/uvs.csv"
+
+[[copy]]
+source = "data/FE/platehole3d_2mr_63f/connect.csv"
+dest = "fe/platehole3d_2mr_63f/connect.csv"
+
+[[copy]]
+source = "data/FE/platehole3d_2mr_63f/coords.csv"
+dest = "fe/platehole3d_2mr_63f/coords.csv"
+
+[[copy]]
+source = "data/FE/platehole3d_2mr_63f/field_disp_x.csv"
+dest = "fe/platehole3d_2mr_63f/field_disp_x.csv"
+
+[[copy]]
+source = "data/FE/platehole3d_2mr_63f/field_disp_y.csv"
+dest = "fe/platehole3d_2mr_63f/field_disp_y.csv"
+
+[[copy]]
+source = "data/FE/platehole3d_2mr_63f/field_disp_z.csv"
+dest = "fe/platehole3d_2mr_63f/field_disp_z.csv"
+
+[[copy]]
+source = "data/FE/platehole3d_2mr_63f/uvs.csv"
+dest = "fe/platehole3d_2mr_63f/uvs.csv"
+
+[[copy]]
+source = "data/calplate/tri3_calplate3d/connect.csv"
+dest = "calplate/tri3_calplate3d/connect.csv"
+
+[[copy]]
+source = "data/calplate/tri3_calplate3d/coords.csv"
+dest = "calplate/tri3_calplate3d/coords.csv"
+
+[[copy]]
+source = "data/calplate/tri3_calplate3d/field_disp_x.csv"
+dest = "calplate/tri3_calplate3d/field_disp_x.csv"
+
+[[copy]]
+source = "data/calplate/tri3_calplate3d/field_disp_y.csv"
+dest = "calplate/tri3_calplate3d/field_disp_y.csv"
+
+[[copy]]
+source = "data/calplate/tri3_calplate3d/field_disp_z.csv"
+dest = "calplate/tri3_calplate3d/field_disp_z.csv"
+
+[[copy]]
+source = "data/calplate/tri3_calplate3d/states.csv"
+dest = "calplate/tri3_calplate3d/states.csv"
+
+[[copy]]
+source = "data/calplate/tri3_calplate3d/uvs.csv"
+dest = "calplate/tri3_calplate3d/uvs.csv"
+
+[[copy]]
+source = "data/rabbits/feebs_quad4/connectivity.csv"
+dest = "rabbits/feebs_quad4/connectivity.csv"
+
+[[copy]]
+source = "data/rabbits/feebs_quad4/coords.csv"
+dest = "rabbits/feebs_quad4/coords.csv"
+
+[[copy]]
+source = "data/rabbits/feebs_quad4/uvs.csv"
+dest = "rabbits/feebs_quad4/uvs.csv"
+
+[[copy]]
+source = "data/rabbits/feebs_quad8/connectivity.csv"
+dest = "rabbits/feebs_quad8/connectivity.csv"
+
+[[copy]]
+source = "data/rabbits/feebs_quad8/coords.csv"
+dest = "rabbits/feebs_quad8/coords.csv"
+
+[[copy]]
+source = "data/rabbits/feebs_quad8/uvs.csv"
+dest = "rabbits/feebs_quad8/uvs.csv"
+
+[[copy]]
+source = "data/rabbits/feebs_quad9/connectivity.csv"
+dest = "rabbits/feebs_quad9/connectivity.csv"
+
+[[copy]]
+source = "data/rabbits/feebs_quad9/coords.csv"
+dest = "rabbits/feebs_quad9/coords.csv"
+
+[[copy]]
+source = "data/rabbits/feebs_quad9/uvs.csv"
+dest = "rabbits/feebs_quad9/uvs.csv"
+
+[[copy]]
+source = "data/rabbits/feebs_tri3/connectivity.csv"
+dest = "rabbits/feebs_tri3/connectivity.csv"
+
+[[copy]]
+source = "data/rabbits/feebs_tri3/coords.csv"
+dest = "rabbits/feebs_tri3/coords.csv"
+
+[[copy]]
+source = "data/rabbits/feebs_tri3/uvs.csv"
+dest = "rabbits/feebs_tri3/uvs.csv"
+
+[[copy]]
+source = "data/rabbits/feebs_tri6/connectivity.csv"
+dest = "rabbits/feebs_tri6/connectivity.csv"
+
+[[copy]]
+source = "data/rabbits/feebs_tri6/coords.csv"
+dest = "rabbits/feebs_tri6/coords.csv"
+
+[[copy]]
+source = "data/rabbits/feebs_tri6/uvs.csv"
+dest = "rabbits/feebs_tri6/uvs.csv"
+
+[[copy]]
+source = "data/rabbits/rabbit_quad4/connectivity.csv"
+dest = "rabbits/rabbit_quad4/connectivity.csv"
+
+[[copy]]
+source = "data/rabbits/rabbit_quad4/coords.csv"
+dest = "rabbits/rabbit_quad4/coords.csv"
+
+[[copy]]
+source = "data/rabbits/rabbit_quad4/uvs.csv"
+dest = "rabbits/rabbit_quad4/uvs.csv"
+
+[[copy]]
+source = "data/rabbits/rabbit_quad8/connectivity.csv"
+dest = "rabbits/rabbit_quad8/connectivity.csv"
+
+[[copy]]
+source = "data/rabbits/rabbit_quad8/coords.csv"
+dest = "rabbits/rabbit_quad8/coords.csv"
+
+[[copy]]
+source = "data/rabbits/rabbit_quad8/uvs.csv"
+dest = "rabbits/rabbit_quad8/uvs.csv"
+
+[[copy]]
+source = "data/rabbits/rabbit_quad9/connectivity.csv"
+dest = "rabbits/rabbit_quad9/connectivity.csv"
+
+[[copy]]
+source = "data/rabbits/rabbit_quad9/coords.csv"
+dest = "rabbits/rabbit_quad9/coords.csv"
+
+[[copy]]
+source = "data/rabbits/rabbit_quad9/uvs.csv"
+dest = "rabbits/rabbit_quad9/uvs.csv"
+
+[[copy]]
+source = "data/rabbits/rabbit_tri3/connectivity.csv"
+dest = "rabbits/rabbit_tri3/connectivity.csv"
+
+[[copy]]
+source = "data/rabbits/rabbit_tri3/coords.csv"
+dest = "rabbits/rabbit_tri3/coords.csv"
+
+[[copy]]
+source = "data/rabbits/rabbit_tri3/uvs.csv"
+dest = "rabbits/rabbit_tri3/uvs.csv"
+
+[[copy]]
+source = "data/rabbits/rabbit_tri6/connectivity.csv"
+dest = "rabbits/rabbit_tri6/connectivity.csv"
+
+[[copy]]
+source = "data/rabbits/rabbit_tri6/coords.csv"
+dest = "rabbits/rabbit_tri6/coords.csv"
+
+[[copy]]
+source = "data/rabbits/rabbit_tri6/uvs.csv"
+dest = "rabbits/rabbit_tri6/uvs.csv"
+
+[[copy]]
+source = "data/rabbits/riley_quad4/connectivity.csv"
+dest = "rabbits/riley_quad4/connectivity.csv"
+
+[[copy]]
+source = "data/rabbits/riley_quad4/coords.csv"
+dest = "rabbits/riley_quad4/coords.csv"
+
+[[copy]]
+source = "data/rabbits/riley_quad4/uvs.csv"
+dest = "rabbits/riley_quad4/uvs.csv"
+
+[[copy]]
+source = "data/rabbits/riley_quad8/connectivity.csv"
+dest = "rabbits/riley_quad8/connectivity.csv"
+
+[[copy]]
+source = "data/rabbits/riley_quad8/coords.csv"
+dest = "rabbits/riley_quad8/coords.csv"
+
+[[copy]]
+source = "data/rabbits/riley_quad8/uvs.csv"
+dest = "rabbits/riley_quad8/uvs.csv"
+
+[[copy]]
+source = "data/rabbits/riley_quad9/connectivity.csv"
+dest = "rabbits/riley_quad9/connectivity.csv"
+
+[[copy]]
+source = "data/rabbits/riley_quad9/coords.csv"
+dest = "rabbits/riley_quad9/coords.csv"
+
+[[copy]]
+source = "data/rabbits/riley_quad9/uvs.csv"
+dest = "rabbits/riley_quad9/uvs.csv"
+
+[[copy]]
+source = "data/rabbits/riley_tri3/connectivity.csv"
+dest = "rabbits/riley_tri3/connectivity.csv"
+
+[[copy]]
+source = "data/rabbits/riley_tri3/coords.csv"
+dest = "rabbits/riley_tri3/coords.csv"
+
+[[copy]]
+source = "data/rabbits/riley_tri3/uvs.csv"
+dest = "rabbits/riley_tri3/uvs.csv"
+
+[[copy]]
+source = "data/rabbits/riley_tri6/connectivity.csv"
+dest = "rabbits/riley_tri6/connectivity.csv"
+
+[[copy]]
+source = "data/rabbits/riley_tri6/coords.csv"
+dest = "rabbits/riley_tri6/coords.csv"
+
+[[copy]]
+source = "data/rabbits/riley_tri6/uvs.csv"
+dest = "rabbits/riley_tri6/uvs.csv"

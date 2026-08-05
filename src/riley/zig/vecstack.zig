@@ -1,23 +1,27 @@
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // Riley: A High Performance Rasteriser for DIC UQ
 //
 // Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
 // Licensed under the MIT License (see LICENSE file for details)
 //
 // Authors: scepticalrabbit (Lloyd Fletcher)
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 const std = @import("std");
 const print = std.debug.print;
 const assert = std.debug.assert;
-const expectEqual = std.testing.expectEqual;
-const expectEqualSlices = std.testing.expectEqualSlices;
+const buildconfig = @import("buildconfig.zig");
+const F = buildconfig.F;
 
 const SliceOps = @import("sliceops.zig");
 const ValIdx = SliceOps.ValIdx;
 
-const EType = f64;
+const EType = buildconfig.F;
 pub const Vec2f = Vec2T(EType);
 pub const Vec3f = Vec3T(EType);
+
+// --------------------------------------------------------------------------------------
+// Public Constants & Public Types
+// --------------------------------------------------------------------------------------
 
 pub fn VecStack(comptime elem_n: comptime_int, comptime T: type) type {
     return struct {
@@ -81,10 +85,10 @@ pub fn VecStack(comptime elem_n: comptime_int, comptime T: type) type {
             return vec_out;
         }
 
-        pub fn mulScalar(self: *const Self, scalar: T) Self {
+        pub fn mulScal(self: *const Self, scal: T) Self {
             var vec_out: Self = undefined;
             for (0..elem_n) |ii| {
-                vec_out.slice[ii] = scalar * self.slice[ii];
+                vec_out.slice[ii] = scal * self.slice[ii];
             }
             return vec_out;
         }
@@ -206,19 +210,26 @@ pub const Vec3SliceOps = struct {
     }
 };
 
+// --------------------------------------------------------------------------------------
+// Tests
+// --------------------------------------------------------------------------------------
+
+const expectEqual = std.testing.expectEqual;
+const expectEqualSlices = std.testing.expectEqualSlices;
+
 test "VecSliceOps.max" {
     var vec_slice: [3]Vec3f = undefined;
-    vec_slice[0] = initVec3(f64, -1.0, 2.0, 7.0);
-    vec_slice[1] = initVec3(f64, 2.0, -2.0, 7.0);
-    vec_slice[2] = initVec3(f64, 5.0, -10.0, 0.0);
+    vec_slice[0] = initVec3(F, -1.0, 2.0, 7.0);
+    vec_slice[1] = initVec3(F, 2.0, -2.0, 7.0);
+    vec_slice[2] = initVec3(F, 5.0, -10.0, 0.0);
 
-    const max_x: f64 = Vec3SliceOps.max(f64, vec_slice[0..], 0);
-    const max_y: f64 = Vec3SliceOps.max(f64, vec_slice[0..], 1);
-    const max_z: f64 = Vec3SliceOps.max(f64, vec_slice[0..], 2);
+    const max_x: F = Vec3SliceOps.max(F, vec_slice[0..], 0);
+    const max_y: F = Vec3SliceOps.max(F, vec_slice[0..], 1);
+    const max_z: F = Vec3SliceOps.max(F, vec_slice[0..], 2);
 
-    const exp_max_x: f64 = 5.0;
-    const exp_max_y: f64 = 2.0;
-    const exp_max_z: f64 = 7.0;
+    const exp_max_x: F = 5.0;
+    const exp_max_y: F = 2.0;
+    const exp_max_z: F = 7.0;
 
     try expectEqual(exp_max_x, max_x);
     try expectEqual(exp_max_y, max_y);
@@ -304,12 +315,12 @@ test "Vec3f.sub" {
     try expectEqualSlices(EType, &vec0.sub(vec1).slice, &vec_exp.slice);
 }
 
-test "Vec3f.mulScalar" {
+test "Vec3f.mulScal" {
     var vec0 = Vec3f.initOnes();
-    const scalar: EType = 1.23;
-    const vec_exp = Vec3f.initFill(scalar);
+    const scal: EType = 1.23;
+    const vec_exp = Vec3f.initFill(scal);
 
-    try expectEqualSlices(EType, &vec0.mulScalar(scalar).slice, &vec_exp.slice);
+    try expectEqualSlices(EType, &vec0.mulScal(scal).slice, &vec_exp.slice);
 }
 
 test "Vec3f.dot" {
@@ -346,5 +357,5 @@ test "Vec3Ops.cross" {
     const v2 = [_]EType{ 0.0, 0.0, 1.0 };
     const cross_exp = Vec3f.initSlice(&v2);
 
-    try expectEqual(Vec3Ops.cross(f64, vec0, vec1), cross_exp);
+    try expectEqual(Vec3Ops.cross(F, vec0, vec1), cross_exp);
 }

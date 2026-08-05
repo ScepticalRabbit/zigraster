@@ -7,25 +7,30 @@
 // Authors: scepticalrabbit (Lloyd Fletcher)
 // --------------------------------------------------------------------------
 const std = @import("std");
-const benchargs = @import("common/benchargs.zig");
-const benchstats = @import("common/benchstats.zig");
-const common = @import("common/benchcommon.zig");
-const tcfg = @import("common/testconfig.zig");
+const benchargs = @import("dev_support/benchargs.zig");
+const benchstats = @import("dev_support/benchstats.zig");
+const common = @import("dev_support/benchcommon.zig");
+const tcfg = @import("dev_support/testconfig.zig");
+const buildconfig = @import("riley/zig/buildconfig.zig");
 const rastcfg = @import("riley/zig/rasterconfig.zig");
 const riley = @import("riley/zig/riley.zig");
 const gk = @import("riley/zig/geometrykernels.zig");
 const iio = @import("riley/zig/imageio.zig");
 const texops = @import("riley/zig/textureops.zig");
 const Rotation = @import("riley/zig/rotation.zig").Rotation;
+const F = buildconfig.F;
 
 const DEFAULT_OUT_DIR = "out/bench_stats_sphere2000";
 const DEFAULT_IMAGE_OUT_DIR = "out/bench_images_sphere2000";
 const DEFAULT_DATA_DIR_SUFFIX = "sphere2000";
 const DEFAULT_PIXELS_NUM = [2]u32{ 1600, 1000 };
-const DEFAULT_SUB_SAMPLE: u8 = 1;
-const DEFAULT_FOCAL_LENG: f64 = 50.0e-3;
-const DEFAULT_PIXELS_SIZE = [2]f64{ 5.3e-6, 5.3e-6 };
-const DEFAULT_FOV_SCALE: f64 = 1.0;
+const DEFAULT_SUB_SAMPLE: u32 = 1;
+const DEFAULT_FOCAL_LENG: F = @floatCast(50.0e-3);
+const DEFAULT_PIXELS_SIZE = [2]F{
+    @floatCast(5.3e-6),
+    @floatCast(5.3e-6),
+};
+const DEFAULT_FOV_SCALE: F = 1.0;
 const DEFAULT_TEX_GREY_PATH = "texture/speckle.bmp";
 const DEFAULT_TEX_RGB_PATH = "texture/speckle_rgb.bmp";
 const DEFAULT_ROT = Rotation.init(0, 0, 0);
@@ -95,7 +100,7 @@ pub fn main(init: std.process.Init) !void {
         .func,
         .func_rgb,
     };
-    const sample_configs = [_]texops.TextureSampleConfig{
+    const samp_cfgs = [_]texops.TextureSampleConfig{
         .{ .sample = .linear, .mode = .direct },
         .{ .sample = .cubic_catmull_rom, .mode = .lut_lerp },
         .{ .sample = .cubic_mitchell_netravali, .mode = .lut_lerp },
@@ -156,13 +161,13 @@ pub fn main(init: std.process.Init) !void {
 
     for (mesh_types) |mt| {
         for (shader_types) |st| {
-            for (sample_configs) |sc| {
-                const sample_config = if (st == .tex8_grey or st == .tex8_rgb) sc else null;
+            for (samp_cfgs) |sc| {
+                const samp_cfg = if (st == .tex8_grey or st == .tex8_rgb) sc else null;
                 const case_name = try common.calcCaseName(
                     outer_alloc,
                     mt,
                     st,
-                    sample_config,
+                    samp_cfg,
                     null,
                     DEFAULT_FOV_SCALE,
                 );
@@ -194,11 +199,12 @@ pub fn main(init: std.process.Init) !void {
                         );
 
                     var res = try common.runBenchmarkWithImageOut(
+                        u8,
                         outer_alloc,
                         io,
                         mt,
                         st,
-                        sample_config,
+                        samp_cfg,
                         null,
                         data_dir,
                         render_defaults,
@@ -216,7 +222,7 @@ pub fn main(init: std.process.Init) !void {
                         case_name,
                         mt,
                         st,
-                        sample_config,
+                        samp_cfg,
                         null,
                         res,
                     );
@@ -234,7 +240,7 @@ pub fn main(init: std.process.Init) !void {
                     case_name,
                     mt,
                     st,
-                    sample_config,
+                    samp_cfg,
                     null,
                     &case_samples,
                 );
@@ -279,6 +285,7 @@ pub fn main(init: std.process.Init) !void {
                         );
 
                     var res = try common.runBenchmarkWithImageOut(
+                        u8,
                         outer_alloc,
                         io,
                         mt,

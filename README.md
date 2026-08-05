@@ -1,128 +1,191 @@
 # Riley
-`Riley` is a performant software rasteriser written in Zig specifically designed for digital image correlation (DIC) uncertainty quantification (UQ). `Riley` performs off-line rendering of deformed speckle pattern images from an input finite element simulation. `Riley` supports accurate rendering of higher order finite elements including `tri3`, `tri6`, `quad4`, `quad8` and `quad9` surface elements. Texture shading with higher order texture sampling is also supported for accurate speckle pattern rendering including: cubic sampling (Catmull-Rom, Mitchell-Netravali, BSpline), quintic sampling (BSpline) and Lancsoz (lancsoz3). Rendering multiple meshes with different element types and shading strategies in the same scene is supported.
+`Riley` is a software rasteriser written in Zig for digital image correlation uncertainty quantification (DIC UQ). It renders deformed speckle pattern images from finite element simulations and supports higher order surface elements including `tri3`, `tri6`, `quad4`, `quad8` and `quad9`. `Riley` supports nodal, texture and analytic function shaders, including higher order texture sampling and mixed scenes with multiple mesh and shader types.
 
-We chose to implement `Riley` in Zig as it is a performant, compiled language with manual memory management. Zig allows for compile time code generation and has excellent support for SIMD vector types. We have used `comptime` to generate speciliased kernels for geometry and shader types removing run time dispatch overhead. We have also leveraged Zig's `io` interface to implement hierarchical parallelisation allowing for inter and intra frame parallelisation for offline rendering.
+We chose Zig because it gives us explicit memory control, strong compile-time specialisation and direct SIMD support. `Riley` uses `comptime` to generate specialised raster paths for geometry, shader and build-policy combinations so the hot loop avoids runtime dispatch.
 
 ## Getting Started: Zig
-`Riley` uses the Zig 0.16.0 compiler release which can be downloaded from [here](https://ziglang.org/download/). The `Riley` repository contains a minimal set of regression tests (called the "min" test suite) which should be run before generating a wider set gold regression data and running performance benchmark suites. The min test suite can be run from the project root directory using:
+`Riley` currently targets Zig `0.16.0`, available [here](https://ziglang.org/download/).
+
+The first check to run is the minimal regression suite:
+
 ```shell
 zig test -O ReleaseSafe ./src/test_min.zig
 ```
-The min test suite contains two cases a render of the "multimesh" case which is two elements of each type in a single scene that are rendered with nodal interpolation shading or texture shading. The min test suite also contains a rendering of the "sphere200" case which is a sphere with 200 elements of a single type with every possible combination of nodal or texture shading. the sphere200 case is particularly sensitive to breaking changes due to the range of element orientations. If this test suite passes and you are not interested in developement work on `Riley` you can go ahead and look at the capability demonstration cases below to see how to adapt `Riley` to your use case.
+
+or with the build system:
+
+```shell
+zig build test-min -Doptimize=ReleaseSafe
+```
+
+Plain `zig run` and `zig test` on files under `./src/` default to the standard Riley configuration:
+
+- precision: `f64`
+- SIMD: `on`
+- Newton solver: `fast`
+
+The build system can override these defaults:
+
+```shell
+zig build <STEP> -Dprecision=f64 -Dsimd=on -Doptimize=ReleaseSafe
+zig build <STEP> -Dprecision=f64 -Dsimd=off -Doptimize=ReleaseSafe
+zig build <STEP> -Dprecision=f32 -Dsimd=on -Doptimize=ReleaseSafe
+zig build <STEP> -Dnewton-solver=robust -Doptimize=ReleaseSafe
+zig build <STEP> -Dsimd-vector-width=8 -Doptimize=ReleaseSafe
+```
+
+Run `zig build --help` to see the available build steps.
+
+The min suite contains two high-signal cases:
+
+- `multimesh`: two elements of each supported type in one scene, rendered with nodal and texture shading
+- `sphere200`: a sphere rendered across shader combinations and element orientations
+
+These are the quickest correctness checks and should be your first stop before running wider gold or benchmark suites.
+
+Only the main production-path min gold is kept in the repository by default, so the min suite is intended primarily for `f64` with SIMD enabled. The min suite also requires `.simd = .on`; the scalar min orchestration is not implemented.
+
+For deeper test, gold generation and benchmark workflows, see [dev/README.md](./dev/README.md).
 
 ## Getting Started: Python
-We provide python bindings for the `Riley` dynamic library through Cython. We also provide a `riley-raster` python package on pypi which builds `Riley` from zig source using the `ziglang` python package. You can install `Riley` into a python virtual environment using:
+We provide Python bindings to the Riley C ABI through Cython, and publish a `riley-raster` package on PyPI.
+
+Install from PyPI with:
 
 ```shell
 pip install riley-raster
 ```
 
-Note that as this builds `Riley` from source on your local machine the install will take approximately 1 minute or more depending on your hardware. For all demonstration zig scripts described below we provide python equivalents in the ./pyscripts/ directory in the project root. You can also create an editable install by directly building from source on your local machine. Clone the `Riley` repo, create a python virtual environment of your choice and then with your environment active run the following from the project root:
+This builds Riley from Zig source on your local machine, so installation can take a minute or two depending on hardware.
+
+For local development, clone the repository, create a virtual environment and install from source:
 
 ```shell
 pip install -e .
 ```
 
+Python demos live in `src/riley/pydemos/` and the Python tests live in `src/riley/pytests/`.
+
+Run the packaged Python test suite with:
+
+```shell
+python -m pytest --pyargs riley.pytests -s
+```
+
+or through Riley's module entry point:
+
+```shell
+python -m riley test
+```
+
+The repo parity test inside `riley.pytests` compares Python demo output against Zig demo output. It runs when the repository assets are available from the current working directory and skips cleanly otherwise.
+
 ## Capability Demonstration
-We have included a series of capability demonstrations scripts in the /src/ directory (or in the /pyscripts/ directory for python versions). In Zig, these can be run using
+We include several demonstration scripts in `./src/` and Python equivalents in `./src/riley/pydemos/`.
+
+In Zig:
+
 ```shell
 zig run -O ReleaseFast ./src/demo_<CASE>.zig
 ```
-where CASE is the name of the demonstration script you want to run (CASE = sphere200, rabbits, dicuq, stereocal). The output renders will be saved to /out/demo-CASE/.
 
-In python you should activate your virtual environment with `Riley` installed then you can run the examples using:
+or with the build system:
 
 ```shell
-python ./pyscripts/demo_<CASE>.py
+zig build demo-<CASE> -Doptimize=ReleaseFast
 ```
 
-where CASE is the name of the demonstration script you want to run. The output renders will be saved to /pyout/demo-CASE/.
+where `CASE` is one of `sphere200`, `rabbits`, `dicuq`, or `stereocal`. Zig demo output is written to `./out/demo-CASE/`.
 
-### Speckle Sphere
-For this demonstration we import a mesh of sphere and apply a speckle pattern texture shader to render a speckle pattern on the sphere. This is a simple single mesh and single shader case that would be typical for a DIC UQ workflow. A representative render of the sphere is shown below:
+Zig demo source on GitHub:
+
+- [`demo_sphere200.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo_sphere200.zig)
+- [`demo_rabbits.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo_rabbits.zig)
+- [`demo_dicuq.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo_dicuq.zig)
+- [`demo_stereocal.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo_stereocal.zig)
+
+In Python:
+
+```shell
+python -m riley demo_<CASE>
+```
+
+Python demo output is written to `Path.cwd() / "out-riley-py" / "demo-CASE"`.
+
+Python demo source on GitHub:
+
+- [`demo_sphere200.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo_sphere200.py)
+- [`demo_rabbits.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo_rabbits.py)
+- [`demo_dicuq.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo_dicuq.py)
+- [`demo_dic_from_exodus.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo_dic_from_exodus.py)
+- [`demo_stereocal.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo_stereocal.py)
+
+### Demo 1: Speckle Sphere
+For this demonstration we import a sphere mesh and apply a speckle pattern texture shader. This is a representative single-mesh, single-shader case.
+
 ![fig_sphere](https://raw.githubusercontent.com/Computer-Aided-Validation-Laboratory/riley-raster/main/images/demo_sphere200.bmp)
 
-### Rendering Rabbits
-In this demonstration we render a series of rabbit meshes that are composed of all supported element types: `tri3`, `tri6`, `quad4`, `quad8` and `quad9`. We also demonstrate the usage of all support shader types in the same scene rotating between a texture shader with cubic LUT-lerp sampling, a nodal interpolation shader interpolating the uv coordinates and an analytic function shader producing a sin wave pattern across the rabbit mesh based on the input uvs. The output render is shown below, the top row are the triangular meshes and the bottom row are the quadrilateral meshes:
+### Demo 2: Rendering Rabbits
+This demonstration renders rabbit meshes composed of all supported element types: `tri3`, `tri6`, `quad4`, `quad8` and `quad9`. It also exercises the main shader families in one scene.
 
-![fig_rabbit_render](/images/demo_rabbitrender.bmp)
+![fig_rabbit_render](https://raw.githubusercontent.com/Computer-Aided-Validation-Laboratory/riley-raster/main/images/demo_rabbitrender.bmp)
 
-### Digital Image Correlation Uncertainty Quantification
-For this case we demonstrate a representative DIC UQ rendering using an input finite element model of a plate with a hole loaded in tension imaged by a stereo DIC system consisting of two 5MPx cameras. The simulation mesh was generated with Gmsh and solved using the MOOSE solid mechanics module. The gmsh .geo and MOOSE .i input file can be found in the /data/FE/ directory.
+### Demo 3: Digital Image Correlation Uncertainty Quantification
+This case demonstrates a representative stereo DIC UQ rendering of a plate with a hole in tension. The input FE model is in `./data/FE/`.
 
 | Camera 0 | Camera 1 |
 |:---:|:---:|
 | ![DIC Camera 0](https://raw.githubusercontent.com/Computer-Aided-Validation-Laboratory/riley-raster/main/images/dicuq_cam0_frame0_field0.bmp) | ![DIC Camera 1](https://raw.githubusercontent.com/Computer-Aided-Validation-Laboratory/riley-raster/main/images/dicuq_cam1_frame0_field0.bmp) |
 
-
-### Stereo Calibration
-We now use the camera setup from the previous DIC UQ demo, import it and then render a series of stereo calibration target images with the same camera setup. The input meshes for this case can be found in the /data/calplate/ directory. In this directory there is a python script which can be used to scale the size of the calibration target mesh and to generate different combinations of rigid body translation and rotation within user specified bound. A representative render is shown below:
+### Demo 4: Stereo Calibration
+This demonstration uses the stereo setup from the DIC UQ case and renders stereo calibration target images. The input meshes are in `./data/calplate/`.
 
 | Camera 0 | Camera 1 |
 |:---:|:---:|
 | ![Cal Camera 0](https://raw.githubusercontent.com/Computer-Aided-Validation-Laboratory/riley-raster/main/images/cal_cam0_frame0_field0.bmp) | ![Cal Camera 1](https://raw.githubusercontent.com/Computer-Aided-Validation-Laboratory/riley-raster/main/images/cal_cam1_frame0_field0.bmp) |
 
-## Developement: Zig
-### Extended Regression Test Suites
-Once the min test suite passes the additional gold regression data can be generated for two suites the first is the "all" suite and the second is the "bench" suite. The "bench" suite is based on the benchmarks described in the "Benchmarks" section below. Before we can render the gold images we first need to generate the larger meshes for the "bench" cases using a python script that has numpy as a dependency, run this from the project root:
-```shell
-python ./data/bench/gen_bench_data.py
+## Project Layout
+The main Zig entry point for the rendering pipeline is the `raster(...)` family in `./src/riley/zig/riley.zig`.
+
+Useful top-level locations:
+
+- `src/`: Zig demos, tests, benchmarks and the core Riley source
+- `src/riley/zig/`: core Zig implementation
+- `src/riley/pydemos/`: packaged Python demos
+- `src/riley/pytests/`: packaged Python tests
+- `pyscripts/`: compatibility wrappers for the packaged Python demo/test entry points
+- `scripts/`: benchmark and performance orchestration scripts
+- `gold/`: gold reference renders
+- `out/`: Zig render and benchmark output
+- `out-riley-py/`: Python render output
+- `dev/README.md`: detailed developer testing and benchmark notes
+
+For a mathematical and architectural overview, see the engrXiv preprint: [Riley: A computational framework for higher-order finite element image synthesis applied to digital image correlation uncertainty quantification](https://engrxiv.org/preprint/view/7300/version/9460).
+
+## C Interface
+`Riley` provides a C-compatible API for use from other languages. The Python bindings use this interface through Cython, but it can also be called from C or from any language with a C FFI.
+
+The public C ABI is intentionally fixed to the production Riley build with: precision=`f64`, SIMD=`on`.
+
+This keeps the exported ABI stable for downstream callers. The extern types and functions live in [`src/riley/zig/c-riley.zig`](./src/riley/zig/c-riley.zig).
+
+## Citing Riley
+If you have found `Riley` useful you can cite it using:
+
+> Fletcher, L., Hirst, J., and Bielajewa, W. (2026).
+> *Riley: A computational framework for higher-order finite element image synthesis applied to digital image correlation uncertainty quantification*.
+> engrXiv preprint. https://engrxiv.org/preprint/view/7300
+
+```bibtex
+@article{fletcher2026riley,
+  title   = {Riley: A computational framework for higher-order finite element image synthesis applied to digital image correlation uncertainty quantification},
+  author  = {Fletcher, Lloyd and Hirst, Joel and Bielajewa, Wiera},
+  year    = {2026},
+  journal = {engrXiv},
+  note    = {Preprint},
+  url     = {https://engrxiv.org/preprint/view/7300}
+}
 ```
-
-You should see a range of directories generated in the data/bench directory with different element types and case tags. Once that is done we can render the required gold output with:
-```shell
-zig run -O ReleaseSafe ./src/gen_gold_all.zig
-```
-
-Now we can run the remaining "all" and "bench" test suites:
-```shell
-zig test -O ReleaseSafe ./src/test_gold_all.zig
-zig test -O ReleaseSafe ./src/test_bench.zig
-```
-
-### Single Thread Performance Regression Testing
-If all correctness regression tests pass you will need to generate gold for single threaded performance regressions on you machine. You will first need to compile the binaries for each performance case using the following:
-
-```shell
-python ./scripts/compile_para_simd_benchmarks.py
-```
-
-Once that is complete you can generate gold performance statistics for your local machine using:
-
-```shell
-python ./scripts/gen_gold_perf_all.py
-```
-
-After making changes to the Zig code base you can recompile binaries with the shell script then run performance tests against the gold statistics using:
-
-```shell
-python ./scripts/test_perf_all.py
-```
-
-Depending on the part of the rendering pipeline you are focusing on it may be best to isolate a specific test case:
-
-```shell
-python ./scripts/test_perf_<CASE>.py
-```
-
-where CASE is fullraster (raster loop performance), geom (geometry preprocessor performance), sphere2000 (realistic geometry/balanced case), and sphere2000zoom (realistic case testing all culling functions). We provide representative single threaded performance from an AMD zen4 laptop CPU (Ryzen 7 8845HS) packged with the repo in the X directory.
-
-### Performance Benchmarks
-We used four cases to analyse the performance of `Riley`: 1) Minimum elements filling the screen (2 triangles or 1 quadrilateral), called "fullraster", 2) 1e5 elements filling screen, called "geom", 3) A sphere in the centre of the screen with 2000 elements, called sphere2000. Case 1 is intended to test the throughput of the raster hot loop. Case 2 is intended to test the throughput of the geometry pre-processing. Case 3 is a more realistic case with a balance of element orientations. Case 4 tests thread scaling on the same case as the DIC UQ demonstration. These benchmark suites can be run using:
-
-```shell
-zig run -O ReleaseFast ./src/bench_fullraster.zig
-zig run -O ReleaseFast ./src/bench_geom.zig
-zig run -O ReleaseFast ./src/bench_sphere2000.zig
-zig run -O ReleaseFast ./src/bench_dicuq.zig
-```
-You will find the rendered output for these benchmarks in ./out/bench_images_CASE and the statistics for the runs in ./out/bench_stats_CASE where CASE is fullraster, geom, sphere2000 or dicuq.
-
-### Navigating the Codebase
-The main entry point for the `Riley` rendering pipeline is the `raster(...)` functions in /src/riley/zig/riley.zig.
-
-### C Interface
-`Riley` provides a small C-compatible API for use from other languages. The Python bindings use this interface through Cython, but it can also be called from C or from languages with C FFI support. The extern types and functions for this interface can be found in /src/riley/zig/c-riley.zig.
 
 ## Contributors
 - Lloyd Fletcher ([ScepticalRabbit](https://github.com/ScepticalRabbit)), UK Atomic Energy Authority
@@ -130,7 +193,6 @@ The main entry point for the `Riley` rendering pipeline is the `raster(...)` fun
 - Wiera Bielajewa ([WieraB](https://github.com/WieraB)), UK Atomic Energy Authority
 
 ## Dedication
-
 Named in memory of Riley, and for Feebee, her sister and bondmate. Without your love and support, this project would never have happened.
 
 ![Riley](https://raw.githubusercontent.com/Computer-Aided-Validation-Laboratory/riley-raster/main/images/RileyHelping.jpg)

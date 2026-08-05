@@ -8,28 +8,29 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const buildconfig = @import("riley/zig/buildconfig.zig");
+const F = buildconfig.F;
 const cam = @import("riley/zig/camera.zig");
-const orch = @import("common/orchestration.zig");
-const verif = @import("common/verif.zig");
-const vconst = @import("common/verifconstants.zig");
+const orch = @import("dev_support/orchestration.zig");
+const verif = @import("dev_support/verif.zig");
+const vconst = @import("dev_support/verifconstants.zig");
 
 const sample_grid_rows_num: usize = 250;
 const sample_grid_cols_num: usize = 250;
 const verif_subdir_name = "verif_5";
 
 const DistortionRoundTripRecord = struct {
-    ideal_x_true: f64,
-    ideal_y_true: f64,
-    ideal_x_rec: f64,
-    ideal_y_rec: f64,
-    observed_x: f64,
-    observed_y: f64,
-    observed_reproj_x: f64,
-    observed_reproj_y: f64,
-    err_x: f64,
-    err_y: f64,
-    err_dist: f64,
-    observed_reproj_err: f64,
+    ideal_x_true: F,
+    ideal_y_true: F,
+    ideal_x_rec: F,
+    ideal_y_rec: F,
+    observed_x: F,
+    observed_y: F,
+    observed_reproj_x: F,
+    observed_reproj_y: F,
+    err_x: F,
+    err_y: F,
+    err_dist: F,
+    observed_reproj_err: F,
     iters: u8,
     converged: bool,
     in_bounds: bool,
@@ -38,15 +39,15 @@ const DistortionRoundTripRecord = struct {
 };
 
 const PixelSample = struct {
-    ideal_x: f64,
-    ideal_y: f64,
+    ideal_x: F,
+    ideal_y: F,
     row_idx: usize,
     col_idx: usize,
 };
 
 const DistortionInverseResult = struct {
-    x: f64,
-    y: f64,
+    x: F,
+    y: F,
     iters: u8,
 };
 
@@ -64,8 +65,8 @@ fn statsFileName(buf: []u8) ![]const u8 {
 fn inverseDistortionWithIters(
     comptime DistortionType: type,
     distortion: DistortionType,
-    x_dist: f64,
-    y_dist: f64,
+    x_dist: F,
+    y_dist: F,
 ) !DistortionInverseResult {
     const tol = buildconfig.config.tolerance;
     const max_iters = buildconfig.config.distortion_newton_iter_max;
@@ -74,16 +75,11 @@ fn inverseDistortionWithIters(
     var y_guess = y_dist;
 
     for (0..max_iters) |ii| {
-        const fwd = cam.forwardDistortionWithJacScalar(
-            DistortionType,
-            distortion,
-            x_guess,
-            y_guess,
-        );
+        const fwd = distortion.forwardWithJac(x_guess, y_guess);
         const resid_x = fwd.x_d - x_dist;
         const resid_y = fwd.y_d - y_dist;
 
-        if (@max(@abs(resid_x), @abs(resid_y)) < tol.distortion.residual) {
+        if (@max(@abs(resid_x), @abs(resid_y)) < tol.distortion.resid) {
             return .{
                 .x = x_guess,
                 .y = y_guess,
@@ -97,7 +93,7 @@ fn inverseDistortionWithIters(
         const jac11 = fwd.jac[1][1];
         const det = jac00 * jac11 - jac01 * jac10;
 
-        if (@abs(det) < tol.distortion.determinant) {
+        if (@abs(det) < tol.distortion.det) {
             return error.SingularJacobian;
         }
 
@@ -121,7 +117,7 @@ fn inverseDistortionWithIters(
 
 fn observedToIdealRasterWithIters(
     camera: *const cam.CameraPrepared,
-    observed_xy: [2]f64,
+    observed_xy: [2]F,
 ) !DistortionInverseResult {
     const focal_px = camera.calcFocalPx();
     const offsets = camera.calcRasterOffsets();
@@ -188,23 +184,23 @@ fn buildPixelSampleGrid(
         sample_grid_rows_num * sample_grid_cols_num,
     );
 
-    const width_px = @as(f64, @floatFromInt(camera_input.pixels_num[0]));
-    const height_px = @as(f64, @floatFromInt(camera_input.pixels_num[1]));
+    const width_px = @as(F, @floatFromInt(camera_input.pixels_num[0]));
+    const height_px = @as(F, @floatFromInt(camera_input.pixels_num[1]));
 
     for (0..sample_grid_rows_num) |rr| {
         const row_blend = if (sample_grid_rows_num == 1)
             0.0
         else
-            @as(f64, @floatFromInt(rr)) /
-                @as(f64, @floatFromInt(sample_grid_rows_num - 1));
+            @as(F, @floatFromInt(rr)) /
+                @as(F, @floatFromInt(sample_grid_rows_num - 1));
         const ideal_y = 0.5 + row_blend * (height_px - 1.0);
 
         for (0..sample_grid_cols_num) |cc| {
             const col_blend = if (sample_grid_cols_num == 1)
                 0.0
             else
-                @as(f64, @floatFromInt(cc)) /
-                    @as(f64, @floatFromInt(sample_grid_cols_num - 1));
+                @as(F, @floatFromInt(cc)) /
+                    @as(F, @floatFromInt(sample_grid_cols_num - 1));
             const ideal_x = 0.5 + col_blend * (width_px - 1.0);
             try sample_list.append(allocator, .{
                 .ideal_x = ideal_x,
@@ -220,11 +216,11 @@ fn buildPixelSampleGrid(
 
 fn isInSensorBounds(
     camera_input: cam.CameraInput,
-    ideal_x: f64,
-    ideal_y: f64,
+    ideal_x: F,
+    ideal_y: F,
 ) bool {
-    const width_px = @as(f64, @floatFromInt(camera_input.pixels_num[0]));
-    const height_px = @as(f64, @floatFromInt(camera_input.pixels_num[1]));
+    const width_px = @as(F, @floatFromInt(camera_input.pixels_num[0]));
+    const height_px = @as(F, @floatFromInt(camera_input.pixels_num[1]));
     return ideal_x >= 0.5 and ideal_x <= width_px - 0.5 and
         ideal_y >= 0.5 and ideal_y <= height_px - 0.5;
 }
@@ -234,7 +230,7 @@ fn evalPixelSample(
     camera_input: cam.CameraInput,
     sample: PixelSample,
 ) DistortionRoundTripRecord {
-    const nan = std.math.nan(f64);
+    const nan = std.math.nan(F);
     const observed_xy = verif.idealToObservedRaster(
         camera,
         .{ sample.ideal_x, sample.ideal_y },
@@ -351,8 +347,8 @@ fn saveFieldMaps(
     out_dir: std.Io.Dir,
     rows_num: usize,
     cols_num: usize,
-    field0: []const f64,
-    field1: []const f64,
+    field0: []const F,
+    field1: []const F,
 ) !void {
     var field0_stem_buf: [128]u8 = undefined;
     var field0_csv_buf: [128]u8 = undefined;
@@ -488,18 +484,18 @@ fn runDistortionCase(
     defer out_dir.close(io);
 
     const map_len = sample_grid_rows_num * sample_grid_cols_num;
-    var ideal_x_rec_map = try allocator.alloc(f64, map_len);
+    var ideal_x_rec_map = try allocator.alloc(F, map_len);
     defer allocator.free(ideal_x_rec_map);
-    var ideal_y_rec_map = try allocator.alloc(f64, map_len);
+    var ideal_y_rec_map = try allocator.alloc(F, map_len);
     defer allocator.free(ideal_y_rec_map);
-    @memset(ideal_x_rec_map, std.math.nan(f64));
-    @memset(ideal_y_rec_map, std.math.nan(f64));
+    @memset(ideal_x_rec_map, std.math.nan(F));
+    @memset(ideal_y_rec_map, std.math.nan(F));
 
     var records: std.ArrayList(DistortionRoundTripRecord) = .empty;
     defer records.deinit(allocator);
     try records.ensureTotalCapacity(allocator, sample_list.items.len);
 
-    var err_vals: std.ArrayList(f64) = .empty;
+    var err_vals: std.ArrayList(F) = .empty;
     defer err_vals.deinit(allocator);
 
     for (sample_list.items) |sample| {

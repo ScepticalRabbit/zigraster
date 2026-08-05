@@ -1,14 +1,15 @@
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // Riley: A High Performance Rasteriser for DIC UQ
 //
 // Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
 // Licensed under the MIT License (see LICENSE file for details)
 //
 // Authors: scepticalrabbit (Lloyd Fletcher)
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 const std = @import("std");
 const buildconfig = @import("buildconfig.zig");
-const tol = buildconfig.config.tolerance;
+const F = buildconfig.F;
+const tol = buildconfig.config.tol;
 const ndarray = @import("ndarray.zig");
 const meshio = @import("meshio.zig");
 const shapefun = @import("shapefun.zig");
@@ -18,24 +19,24 @@ const geomkerns = @import("geometrykernels.zig");
 const MeshType = geomkerns.MeshType;
 const rops = @import("rasterops.zig");
 
-//------------------------------------------------------------------------------------------
-// Core Normal Calculation Primitives
-//------------------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
+// Public Entry-Point Func
+// --------------------------------------------------------------------------------------
 
-pub fn calcElementNodeNormal(
+pub fn calcElemNodeNormal(
     comptime N: usize,
     nodal_derivs: shapefun.NodalDerivs,
-    sx: []const f64,
-    sy: []const f64,
-    sz: []const f64,
+    sx: []const F,
+    sy: []const F,
+    sz: []const F,
     node_idx: usize,
-) [3]f64 {
-    var dx_dxi: f64 = 0;
-    var dx_deta: f64 = 0;
-    var dy_dxi: f64 = 0;
-    var dy_deta: f64 = 0;
-    var dz_dxi: f64 = 0;
-    var dz_deta: f64 = 0;
+) [3]F {
+    var dx_dxi: F = 0;
+    var dx_deta: F = 0;
+    var dy_dxi: F = 0;
+    var dy_deta: F = 0;
+    var dz_dxi: F = 0;
+    var dz_deta: F = 0;
 
     for (0..N) |nn| {
         const du = nodal_derivs.dNu[node_idx][nn];
@@ -55,7 +56,7 @@ pub fn calcElementNodeNormal(
     };
 }
 
-pub fn normalizeNormal(normal_vec: *[3]f64) void {
+pub fn normaliseNormal(normal_vec: *[3]F) void {
     const nx = normal_vec[0];
     const ny = normal_vec[1];
     const nz = normal_vec[2];
@@ -68,23 +69,36 @@ pub fn normalizeNormal(normal_vec: *[3]f64) void {
     }
 }
 
+fn writePrepNormal(
+    prep_normals: *ndarray.NDArray(F),
+    pp: usize,
+    nn: usize,
+    normal_vec: [3]F,
+) void {
+    const elem_base = prep_normals.planeBase(pp);
+    const field_stride = prep_normals.strides[1];
+    prep_normals.slice[elem_base + 0 * field_stride + nn] = normal_vec[0];
+    prep_normals.slice[elem_base + 1 * field_stride + nn] = normal_vec[1];
+    prep_normals.slice[elem_base + 2 * field_stride + nn] = normal_vec[2];
+}
+
 //------------------------------------------------------------------------------------------
 // Serial Normal Calculation Implementations
 //------------------------------------------------------------------------------------------
 
-pub fn calculateVisibleExactNormals(
+pub fn calcVisExactNormals(
     coords_nodes: *const meshio.Coords,
     connect: *const meshio.Connect,
-    visible_orig_elem_indices: []const usize,
-    prep_normals: *ndarray.NDArray(f64),
+    vis_orig_elem_inds: []const usize,
+    prep_normals: *ndarray.NDArray(F),
     comptime N: usize,
 ) void {
     const nodal_derivs = comptime shapefun.getNodalDerivs(N);
 
-    for (visible_orig_elem_indices, 0..) |orig_ee, pp| {
+    for (vis_orig_elem_inds, 0..) |orig_ee, pp| {
         const coords_elem = rops.gatherElemNodeCoords(N, coords_nodes, connect, orig_ee);
         for (0..N) |nn| {
-            var normal_vec = calcElementNodeNormal(
+            var normal_vec = calcElemNodeNormal(
                 N,
                 nodal_derivs,
                 &coords_elem.x,
@@ -92,20 +106,18 @@ pub fn calculateVisibleExactNormals(
                 &coords_elem.z,
                 nn,
             );
-            normalizeNormal(&normal_vec);
-            prep_normals.set(&[_]usize{ pp, 0, nn }, normal_vec[0]);
-            prep_normals.set(&[_]usize{ pp, 1, nn }, normal_vec[1]);
-            prep_normals.set(&[_]usize{ pp, 2, nn }, normal_vec[2]);
+            normaliseNormal(&normal_vec);
+            writePrepNormal(prep_normals, pp, nn, normal_vec);
         }
     }
 }
 
-pub fn calculateVisibleAveragedNormals(
+pub fn calcVisAvgNormals(
     allocator: std.mem.Allocator,
     coords_nodes: *const meshio.Coords,
     connect: *const meshio.Connect,
-    visible_orig_elem_indices: []const usize,
-    prep_normals: *ndarray.NDArray(f64),
+    vis_orig_elem_inds: []const usize,
+    prep_normals: *ndarray.NDArray(F),
     comptime N: usize,
 ) !void {
     const nodal_derivs = comptime shapefun.getNodalDerivs(N);
@@ -115,7 +127,7 @@ pub fn calculateVisibleAveragedNormals(
     }
 
     const nodes_num = max_node_idx + 1;
-    const node_normals = try allocator.alloc(f64, nodes_num * 3);
+    const node_normals = try allocator.alloc(F, nodes_num * 3);
     defer allocator.free(node_normals);
     @memset(node_normals, 0.0);
 
@@ -124,7 +136,7 @@ pub fn calculateVisibleAveragedNormals(
         const coord_inds = connect.getElem(ee);
 
         for (0..N) |nn| {
-            const normal_vec = calcElementNodeNormal(
+            const normal_vec = calcElemNodeNormal(
                 N,
                 nodal_derivs,
                 &coords_elem.x,
@@ -139,51 +151,49 @@ pub fn calculateVisibleAveragedNormals(
         }
     }
 
-    for (visible_orig_elem_indices, 0..) |orig_ee, pp| {
+    for (vis_orig_elem_inds, 0..) |orig_ee, pp| {
         const coord_inds = connect.getElem(orig_ee);
         for (0..N) |nn| {
             const node_idx = coord_inds[nn];
-            var normal_vec = [3]f64{
+            var normal_vec = [3]F{
                 node_normals[node_idx * 3 + 0],
                 node_normals[node_idx * 3 + 1],
                 node_normals[node_idx * 3 + 2],
             };
-            normalizeNormal(&normal_vec);
-            prep_normals.set(&[_]usize{ pp, 0, nn }, normal_vec[0]);
-            prep_normals.set(&[_]usize{ pp, 1, nn }, normal_vec[1]);
-            prep_normals.set(&[_]usize{ pp, 2, nn }, normal_vec[2]);
+            normaliseNormal(&normal_vec);
+            writePrepNormal(prep_normals, pp, nn, normal_vec);
         }
     }
 }
 
-pub fn prepareVisibleNormals(
+pub fn prepVisNormals(
     comptime MT: MeshType,
     allocator: std.mem.Allocator,
     coords_nodes: *const meshio.Coords,
     connect: *const meshio.Connect,
-    visible_orig_elem_indices: []const usize,
+    vis_orig_elem_inds: []const usize,
     normal_type: shaderops.NormalType,
-) !ndarray.MappedNDArray(f64) {
+) !ndarray.MappedNDArray(F) {
     const N = comptime MT.getNodesNum();
     var prep_normals = try initIdentityMappedNormals(
         N,
         allocator,
-        visible_orig_elem_indices.len,
+        vis_orig_elem_inds.len,
     );
     switch (normal_type) {
         .none => unreachable,
-        .exact => calculateVisibleExactNormals(
+        .exact => calcVisExactNormals(
             coords_nodes,
             connect,
-            visible_orig_elem_indices,
+            vis_orig_elem_inds,
             &prep_normals.array,
             N,
         ),
-        .averaged => try calculateVisibleAveragedNormals(
+        .avg => try calcVisAvgNormals(
             allocator,
             coords_nodes,
             connect,
-            visible_orig_elem_indices,
+            vis_orig_elem_inds,
             &prep_normals.array,
             N,
         ),
@@ -195,23 +205,23 @@ pub fn prepareVisibleNormals(
 // Threaded Normal Calculation Stages
 //------------------------------------------------------------------------------------------
 
-pub fn prepareVisibleExactNormalsRange(
+pub fn prepVisExactNormalsRange(
     comptime MT: MeshType,
     coords_nodes: *const meshio.Coords,
     connect: *const meshio.Connect,
-    visible_orig_elem_indices: []const usize,
-    prep_normals: *ndarray.NDArray(f64),
-    visible_start: usize,
-    visible_end: usize,
+    vis_orig_elem_inds: []const usize,
+    prep_normals: *ndarray.NDArray(F),
+    vis_start: usize,
+    vis_end: usize,
 ) void {
     const N = comptime MT.getNodesNum();
     const nodal_derivs = comptime shapefun.getNodalDerivs(N);
 
-    for (visible_start..visible_end) |pp| {
-        const orig_ee = visible_orig_elem_indices[pp];
+    for (vis_start..vis_end) |pp| {
+        const orig_ee = vis_orig_elem_inds[pp];
         const coords_elem = rops.gatherElemNodeCoords(N, coords_nodes, connect, orig_ee);
         for (0..N) |nn| {
-            var normal_vec = calcElementNodeNormal(
+            var normal_vec = calcElemNodeNormal(
                 N,
                 nodal_derivs,
                 &coords_elem.x,
@@ -219,19 +229,17 @@ pub fn prepareVisibleExactNormalsRange(
                 &coords_elem.z,
                 nn,
             );
-            normalizeNormal(&normal_vec);
-            prep_normals.set(&[_]usize{ pp, 0, nn }, normal_vec[0]);
-            prep_normals.set(&[_]usize{ pp, 1, nn }, normal_vec[1]);
-            prep_normals.set(&[_]usize{ pp, 2, nn }, normal_vec[2]);
+            normaliseNormal(&normal_vec);
+            writePrepNormal(prep_normals, pp, nn, normal_vec);
         }
     }
 }
 
-pub fn accumulateAveragedNodeNormalsRange(
+pub fn accumAvgNodeNormalsRange(
     comptime MT: MeshType,
     coords_nodes: *const meshio.Coords,
     connect: *const meshio.Connect,
-    node_normals: []f64,
+    node_normals: []F,
     elem_start: usize,
     elem_end: usize,
 ) void {
@@ -243,7 +251,7 @@ pub fn accumulateAveragedNodeNormalsRange(
         const coord_inds = connect.getElem(ee);
 
         for (0..N) |nn| {
-            const normal_vec = calcElementNodeNormal(
+            const normal_vec = calcElemNodeNormal(
                 N,
                 nodal_derivs,
                 &coords_elem.x,
@@ -259,29 +267,27 @@ pub fn accumulateAveragedNodeNormalsRange(
     }
 }
 
-pub fn writeVisibleAveragedNormalsRange(
+pub fn writeVisAvgNormalsRange(
     comptime MT: MeshType,
     connect: *const meshio.Connect,
-    visible_orig_elem_indices: []const usize,
-    node_normals: []const f64,
-    prep_normals: *ndarray.NDArray(f64),
-    visible_start: usize,
-    visible_end: usize,
+    vis_orig_elem_inds: []const usize,
+    node_normals: []const F,
+    prep_normals: *ndarray.NDArray(F),
+    vis_start: usize,
+    vis_end: usize,
 ) void {
     const N = comptime MT.getNodesNum();
-    for (visible_start..visible_end) |pp| {
-        const coord_inds = connect.getElem(visible_orig_elem_indices[pp]);
+    for (vis_start..vis_end) |pp| {
+        const coord_inds = connect.getElem(vis_orig_elem_inds[pp]);
         for (0..N) |nn| {
             const node_idx = coord_inds[nn];
-            var normal_vec = [3]f64{
+            var normal_vec = [3]F{
                 node_normals[node_idx * 3 + 0],
                 node_normals[node_idx * 3 + 1],
                 node_normals[node_idx * 3 + 2],
             };
-            normalizeNormal(&normal_vec);
-            prep_normals.set(&[_]usize{ pp, 0, nn }, normal_vec[0]);
-            prep_normals.set(&[_]usize{ pp, 1, nn }, normal_vec[1]);
-            prep_normals.set(&[_]usize{ pp, 2, nn }, normal_vec[2]);
+            normaliseNormal(&normal_vec);
+            writePrepNormal(prep_normals, pp, nn, normal_vec);
         }
     }
 }
@@ -291,11 +297,11 @@ pub fn NormalStages(comptime MT: MeshType) type {
         const ExactNormalsStage = struct {
             coords_nodes: *const meshio.Coords,
             connect: *const meshio.Connect,
-            visible_orig_elem_indices: []const usize,
-            prep_normals: *ndarray.NDArray(f64),
+            vis_orig_elem_inds: []const usize,
+            prep_normals: *ndarray.NDArray(F),
         };
 
-        pub fn runPrepareVisibleExactNormals(
+        pub fn runPrepVisExactNormals(
             ctx_ptr: *anyopaque,
             chunk_idx: usize,
             range_start: usize,
@@ -303,34 +309,34 @@ pub fn NormalStages(comptime MT: MeshType) type {
         ) void {
             _ = chunk_idx;
             const stage: *ExactNormalsStage = @ptrCast(@alignCast(ctx_ptr));
-            prepareVisibleExactNormalsRange(
+            prepVisExactNormalsRange(
                 MT,
                 stage.coords_nodes,
                 stage.connect,
-                stage.visible_orig_elem_indices,
+                stage.vis_orig_elem_inds,
                 stage.prep_normals,
                 range_start,
                 range_end,
             );
         }
 
-        const AccumulateAveragedNormalsStage = struct {
+        const AccumAvgNormalsStage = struct {
             coords_nodes: *const meshio.Coords,
             connect: *const meshio.Connect,
-            chunk_node_normals: []f64,
+            chunk_node_normals: []F,
             node_normals_stride: usize,
         };
 
-        pub fn runAccumulateAveragedNormals(
+        pub fn runAccumAvgNormals(
             ctx_ptr: *anyopaque,
             chunk_idx: usize,
             range_start: usize,
             range_end: usize,
         ) void {
-            const stage: *AccumulateAveragedNormalsStage = @ptrCast(@alignCast(ctx_ptr));
+            const stage: *AccumAvgNormalsStage = @ptrCast(@alignCast(ctx_ptr));
             const accum_start = chunk_idx * stage.node_normals_stride;
             const accum_end = accum_start + stage.node_normals_stride;
-            accumulateAveragedNodeNormalsRange(
+            accumAvgNodeNormalsRange(
                 MT,
                 stage.coords_nodes,
                 stage.connect,
@@ -340,25 +346,25 @@ pub fn NormalStages(comptime MT: MeshType) type {
             );
         }
 
-        const WriteVisibleAveragedNormalsStage = struct {
+        const WriteVisAvgNormalsStage = struct {
             connect: *const meshio.Connect,
-            visible_orig_elem_indices: []const usize,
-            node_normals: []const f64,
-            prep_normals: *ndarray.NDArray(f64),
+            vis_orig_elem_inds: []const usize,
+            node_normals: []const F,
+            prep_normals: *ndarray.NDArray(F),
         };
 
-        pub fn runWriteVisibleAveragedNormals(
+        pub fn runWriteVisAvgNormals(
             ctx_ptr: *anyopaque,
             chunk_idx: usize,
             range_start: usize,
             range_end: usize,
         ) void {
             _ = chunk_idx;
-            const stage: *WriteVisibleAveragedNormalsStage = @ptrCast(@alignCast(ctx_ptr));
-            writeVisibleAveragedNormalsRange(
+            const stage: *WriteVisAvgNormalsStage = @ptrCast(@alignCast(ctx_ptr));
+            writeVisAvgNormalsRange(
                 MT,
                 stage.connect,
-                stage.visible_orig_elem_indices,
+                stage.vis_orig_elem_inds,
                 stage.node_normals,
                 stage.prep_normals,
                 range_start,
@@ -372,47 +378,47 @@ pub fn NormalStages(comptime MT: MeshType) type {
 // Pipeline Integration Helpers
 //------------------------------------------------------------------------------------------
 
-pub fn prepareVisibleNormalsThreaded(
+pub fn prepVisNormalsThreaded(
     comptime MT: MeshType,
     allocator: std.mem.Allocator,
     coords_nodes: *const meshio.Coords,
     connect: *const meshio.Connect,
-    visible_orig_elem_indices: []const usize,
+    vis_orig_elem_inds: []const usize,
     normal_type: shaderops.NormalType,
     chunk_exec: *pce.ParaChunkExecutor,
     elem_chunk_size: usize,
-    visible_chunk_size: usize,
-) !ndarray.MappedNDArray(f64) {
-    return try prepareVisibleNormalsThreadedN(
+    vis_chunk_size: usize,
+) !ndarray.MappedNDArray(F) {
+    return try prepVisNormalsThreadedN(
         comptime MT.getNodesNum(),
         MT,
         allocator,
         coords_nodes,
         connect,
-        visible_orig_elem_indices,
+        vis_orig_elem_inds,
         normal_type,
         chunk_exec,
         elem_chunk_size,
-        visible_chunk_size,
+        vis_chunk_size,
     );
 }
 
-pub fn prepareVisibleNormalsThreadedN(
+pub fn prepVisNormalsThreadedN(
     comptime N: usize,
     comptime MT: MeshType,
     allocator: std.mem.Allocator,
     coords_nodes: *const meshio.Coords,
     connect: *const meshio.Connect,
-    visible_orig_elem_indices: []const usize,
+    vis_orig_elem_inds: []const usize,
     normal_type: shaderops.NormalType,
     chunk_exec: *pce.ParaChunkExecutor,
     elem_chunk_size: usize,
-    visible_chunk_size: usize,
-) !ndarray.MappedNDArray(f64) {
+    vis_chunk_size: usize,
+) !ndarray.MappedNDArray(F) {
     var prep_normals = try initIdentityMappedNormals(
         N,
         allocator,
-        visible_orig_elem_indices.len,
+        vis_orig_elem_inds.len,
     );
 
     const Stages = NormalStages(MT);
@@ -423,18 +429,18 @@ pub fn prepareVisibleNormalsThreadedN(
             var exact_stage = Stages.ExactNormalsStage{
                 .coords_nodes = coords_nodes,
                 .connect = connect,
-                .visible_orig_elem_indices = visible_orig_elem_indices,
+                .vis_orig_elem_inds = vis_orig_elem_inds,
                 .prep_normals = &prep_normals.array,
             };
             pce.runStaticRange(
                 chunk_exec,
                 &exact_stage,
-                Stages.runPrepareVisibleExactNormals,
-                visible_orig_elem_indices.len,
-                visible_chunk_size,
+                Stages.runPrepVisExactNormals,
+                vis_orig_elem_inds.len,
+                vis_chunk_size,
             );
         },
-        .averaged => {
+        .avg => {
             const nodes_num = getConnectNodesNum(connect);
             const elem_chunks_num = pce.getStaticPartitionsNum(
                 chunk_exec,
@@ -443,13 +449,13 @@ pub fn prepareVisibleNormalsThreadedN(
             );
             const node_normals_stride = nodes_num * 3;
             const chunk_node_normals = try allocator.alloc(
-                f64,
+                F,
                 elem_chunks_num * node_normals_stride,
             );
             defer allocator.free(chunk_node_normals);
             @memset(chunk_node_normals, 0.0);
 
-            var accum_stage = Stages.AccumulateAveragedNormalsStage{
+            var accum_stage = Stages.AccumAvgNormalsStage{
                 .coords_nodes = coords_nodes,
                 .connect = connect,
                 .chunk_node_normals = chunk_node_normals,
@@ -458,12 +464,12 @@ pub fn prepareVisibleNormalsThreadedN(
             pce.runStaticRange(
                 chunk_exec,
                 &accum_stage,
-                Stages.runAccumulateAveragedNormals,
+                Stages.runAccumAvgNormals,
                 connect.getElemsNum(),
                 elem_chunk_size,
             );
 
-            const node_normals = try allocator.alloc(f64, node_normals_stride);
+            const node_normals = try allocator.alloc(F, node_normals_stride);
             defer allocator.free(node_normals);
             @memset(node_normals, 0.0);
 
@@ -475,18 +481,18 @@ pub fn prepareVisibleNormalsThreadedN(
                 }
             }
 
-            var write_stage = Stages.WriteVisibleAveragedNormalsStage{
+            var write_stage = Stages.WriteVisAvgNormalsStage{
                 .connect = connect,
-                .visible_orig_elem_indices = visible_orig_elem_indices,
+                .vis_orig_elem_inds = vis_orig_elem_inds,
                 .node_normals = node_normals,
                 .prep_normals = &prep_normals.array,
             };
             pce.runStaticRange(
                 chunk_exec,
                 &write_stage,
-                Stages.runWriteVisibleAveragedNormals,
-                visible_orig_elem_indices.len,
-                visible_chunk_size,
+                Stages.runWriteVisAvgNormals,
+                vis_orig_elem_inds.len,
+                vis_chunk_size,
             );
         },
     }
@@ -506,8 +512,8 @@ pub fn initIdentityMappedNormals(
     comptime N: usize,
     allocator: std.mem.Allocator,
     prep_count: usize,
-) !ndarray.MappedNDArray(f64) {
-    const prep_normals = try ndarray.NDArray(f64).initFlat(
+) !ndarray.MappedNDArray(F) {
+    const prep_normals = try ndarray.NDArray(F).initFlat(
         allocator,
         &[_]usize{ prep_count, 3, N },
     );

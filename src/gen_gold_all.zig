@@ -7,17 +7,21 @@
 // Authors: scepticalrabbit (Lloyd Fletcher)
 // --------------------------------------------------------------------------
 const std = @import("std");
-const gen_small = @import("gen_gold_small.zig");
-const gen_simple = @import("gen_gold_simple.zig");
-const gen_edge = @import("gen_gold_edge.zig");
-const gen_multimesh = @import("gen_gold_multimesh.zig");
-const gen_multicamera = @import("gen_gold_multicamera.zig");
-const gen_hull = @import("gen_gold_hull.zig");
-const gen_fullscreen = @import("gen_gold_fullscreen.zig");
-const gen_sphere = @import("gen_gold_sphere.zig");
-const gen_texfunc = @import("gen_gold_texfunc.zig");
-const gen_ssaa = @import("gen_gold_ssaa.zig");
-const gen_psf = @import("gen_gold_psf.zig");
+const gen_small = @import("gengold/gen_gold_small.zig");
+const gen_simple = @import("gengold/gen_gold_simple.zig");
+const gen_edge = @import("gengold/gen_gold_edge.zig");
+const gen_multimesh = @import("gengold/gen_gold_multimesh.zig");
+const gen_multicamera = @import("gengold/gen_gold_multicamera.zig");
+const gen_hull = @import("gengold/gen_gold_hull.zig");
+const gen_fullscreen = @import("gengold/gen_gold_fullscreen.zig");
+const gen_bench_ssaa1 = @import("gengold/gen_gold_bench_ssaa1.zig");
+const gen_sphere = @import("gengold/gen_gold_sphere.zig");
+const gen_texfunc = @import("gengold/gen_gold_texfunc.zig");
+const gen_ssaa = @import("gengold/gen_gold_ssaa.zig");
+const gen_psf = @import("gengold/gen_gold_psf.zig");
+const buildconfig = @import("riley/zig/buildconfig.zig");
+
+const cfg = buildconfig.config;
 
 pub fn main(init: std.process.Init) !void {
     var arena = std.heap.ArenaAllocator.init(init.gpa);
@@ -25,6 +29,28 @@ pub fn main(init: std.process.Init) !void {
 
     // Intentionally excludes the committed `min` suite, which is
     // generated separately by `gen_gold_min.zig`.
+    if (cfg.simd == .off) {
+        std.debug.print(
+            "Generating scalar-only gold data for split SIMD/scalar suites...\n\n",
+            .{},
+        );
+
+        std.debug.print("--- Bench SSAA=1 Sphere ---\n", .{});
+        try gen_bench_ssaa1.mainSphereOnly(init);
+
+        std.debug.print("\n--- Sphere ---\n", .{});
+        try gen_sphere.main(init);
+
+        std.debug.print("\n--- Multicamera ---\n", .{});
+        try gen_multicamera.main(init);
+
+        std.debug.print(
+            "\nScalar-only split gold data generation complete.\n",
+            .{},
+        );
+        return;
+    }
+
     std.debug.print("Generating ALL SIMD Gold Data...\n\n", .{});
 
     std.debug.print("--- Small ---\n", .{});
@@ -47,6 +73,9 @@ pub fn main(init: std.process.Init) !void {
 
     std.debug.print("\n--- Fullscreen ---\n", .{});
     try gen_fullscreen.main(init);
+
+    std.debug.print("\n--- Bench SSAA=1 ---\n", .{});
+    try gen_bench_ssaa1.main(init);
 
     std.debug.print("\n--- Sphere ---\n", .{});
     try gen_sphere.main(init);

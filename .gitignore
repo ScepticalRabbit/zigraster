@@ -2,14 +2,19 @@
 *.so
 *.a
 *.o
+*.out
 build/
 file-out/
 .zig-cache/
 zig-out/
-
+out/
+bin/
+.*
+!.gitignore
 
 # Do not keep any large output directories with images or other output in them
 out/
+out*/
 gold/*
 verif/
 demo*/
@@ -18,8 +23,9 @@ bin/
 # Remove temp files and temporary test fail renders
 archive/
 temp-*/
+temp*/
 temp/
-tmp-tests/
+temp-tests/
 plans/
 fails/
 fails*/
@@ -27,7 +33,6 @@ debug/
 examples/
 pyout/
 refs/
-perf/
 
 # Don't commit large mesh, simulation or image files to the repo unless we have to
 *.ppm
@@ -60,15 +65,26 @@ perf/
 # Other mesh data to keep
 !data/rabbits/**/*.csv
 !data/FE/platehole3d_2mr_63f/*.csv
+!data/FE/platehole3d_2mr_63f.e
 !data/calplate/**/*.csv
 
 # We need to keep the textures for the tests
 !texture/*.bmp
 !texture/*.tiff
 
+# Generated Python package demo data
+src/riley/data/bench/
+src/riley/data/calplate/
+src/riley/data/fe/
+src/riley/data/rabbits/
+src/riley/data/textures/
+
 # We need to keep the demo images for the README
 !images/*.bmp
 !images/*.tiff
+
+# Keep llvmpipe performance comparison figures
+!perf/*.csv
 
 # Misc
 *.swp
@@ -82,6 +98,11 @@ uv.lock
 *.html
 src/riley/cyth/riley.c
 src/riley/cyth/riley.html
+
+# Windows :(
+*.dll
+*.pdb
+*.lib
 
 #-----------------------------------------------------------------------------
 # Standard Python Ignore

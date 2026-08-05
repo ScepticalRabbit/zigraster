@@ -1,20 +1,25 @@
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // Riley: A High Performance Rasteriser for DIC UQ
 //
 // Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
 // Licensed under the MIT License (see LICENSE file for details)
 //
 // Authors: scepticalrabbit (Lloyd Fletcher)
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 const std = @import("std");
 const rops = @import("rasterops.zig");
 const cam = @import("camera.zig");
 const buildconfig = @import("buildconfig.zig");
+const F = buildconfig.F;
 
 const geomkerns = @import("geometrykernels.zig");
 const MeshType = geomkerns.MeshType;
 
-const tol = buildconfig.config.tolerance;
+const tol = buildconfig.config.tol;
+
+// --------------------------------------------------------------------------------------
+// Public Entry-Point Functions
+// --------------------------------------------------------------------------------------
 
 pub fn AdaptiveHullPoints(comptime N: usize) type {
     const NH = blk: {
@@ -28,19 +33,19 @@ pub fn AdaptiveHullPoints(comptime N: usize) type {
     };
 
     return struct {
-        x: [NH]f64,
-        y: [NH]f64,
+        x: [NH]F,
+        y: [NH]F,
     };
 }
 
 fn calcCornerMidsideCosTheta(
-    cx: f64,
-    cy: f64,
-    px: f64,
-    py: f64,
-    nx: f64,
-    ny: f64,
-) ?f64 {
+    cx: F,
+    cy: F,
+    px: F,
+    py: F,
+    nx: F,
+    ny: F,
+) ?F {
     const ax = px - cx;
     const ay = py - cy;
     const bx = nx - cx;
@@ -58,13 +63,13 @@ fn calcCornerMidsideCosTheta(
 }
 
 fn calcBezierCtrlPoint(
-    c0x: f64,
-    c0y: f64,
-    c1x: f64,
-    c1y: f64,
-    mx: f64,
-    my: f64,
-) [2]f64 {
+    c0x: F,
+    c0y: F,
+    c1x: F,
+    c1y: F,
+    mx: F,
+    my: F,
+) [2]F {
     return .{
         2.0 * mx - 0.5 * (c0x + c1x),
         2.0 * my - 0.5 * (c0y + c1y),
@@ -72,8 +77,8 @@ fn calcBezierCtrlPoint(
 }
 
 fn buildAdaptiveHullTri6(
-    lx: *const [6]f64,
-    ly: *const [6]f64,
+    lx: *const [6]F,
+    ly: *const [6]F,
 ) AdaptiveHullPoints(6) {
     const edges = [3][3]usize{
         .{ 0, 1, 3 },
@@ -104,8 +109,8 @@ fn buildAdaptiveHullTri6(
 
 fn buildAdaptiveHullQuad(
     comptime N: usize,
-    lx: *const [N]f64,
-    ly: *const [N]f64,
+    lx: *const [N]F,
+    ly: *const [N]F,
 ) AdaptiveHullPoints(N) {
     const edges = [4][3]usize{
         .{ 0, 1, 4 },
@@ -135,7 +140,7 @@ fn buildAdaptiveHullQuad(
     return hull;
 }
 
-fn convexifyHullInPlace(comptime NH: usize, hull_x: *[NH]f64, hull_y: *[NH]f64) void {
+fn convexifyHullInPlace(comptime NH: usize, hull_x: *[NH]F, hull_y: *[NH]F) void {
     var ii: usize = 0;
     while (ii < 10) : (ii += 1) {
         var changed = false;
@@ -143,7 +148,7 @@ fn convexifyHullInPlace(comptime NH: usize, hull_x: *[NH]f64, hull_y: *[NH]f64) 
             const pp = (nn + NH - 1) % NH;
             const mm = (nn + 1) % NH;
 
-            // Visible elements are CW. For CW: convex is val < 0, concave is val > 0.
+            // Vis elems are CW. For CW: convex is val < 0, concave is val > 0.
             const val = rops.edgeFun3(
                 hull_x[pp],
                 hull_y[pp],
@@ -168,11 +173,11 @@ pub fn buildAdaptiveHullPointsFromClip(
     coords_elem: rops.GatheredElemCoords(N),
     hull_convex_fallback_on: bool,
 ) AdaptiveHullPoints(N) {
-    const x_off = 0.5 * @as(f64, @floatFromInt(camera.pixels_num[0]));
-    const y_off = 0.5 * @as(f64, @floatFromInt(camera.pixels_num[1]));
+    const x_off = 0.5 * @as(F, @floatFromInt(camera.pixels_num[0]));
+    const y_off = 0.5 * @as(F, @floatFromInt(camera.pixels_num[1]));
 
-    var lx: [N]f64 = undefined;
-    var ly: [N]f64 = undefined;
+    var lx: [N]F = undefined;
+    var ly: [N]F = undefined;
     for (0..N) |nn| {
         lx[nn] = coords_elem.x[nn] / coords_elem.z[nn] + x_off;
         ly[nn] = coords_elem.y[nn] / coords_elem.z[nn] + y_off;
@@ -192,9 +197,11 @@ pub fn buildAdaptiveHullPointsFromClip(
 
     if (N == 6) {
         var hull = buildAdaptiveHullTri6(&lx, &ly);
+
         if (hull_convex_fallback_on) {
             const corner_midsides = [3][2]usize{ .{ 5, 3 }, .{ 3, 4 }, .{ 4, 5 } };
             var trigger = false;
+
             for (corner_midsides, 0..) |mids, nn| {
                 const cos_theta = calcCornerMidsideCosTheta(
                     lx[nn],
@@ -209,6 +216,7 @@ pub fn buildAdaptiveHullPointsFromClip(
                     break;
                 }
             }
+
             if (trigger) convexifyHullInPlace(6, &hull.x, &hull.y);
         }
         return hull;
@@ -216,6 +224,7 @@ pub fn buildAdaptiveHullPointsFromClip(
 
     if (N == 8 or N == 9) {
         var hull = buildAdaptiveHullQuad(N, &lx, &ly);
+
         if (hull_convex_fallback_on) {
             const corner_midsides = [4][2]usize{ .{ 7, 4 }, .{ 4, 5 }, .{ 5, 6 }, .{ 6, 7 } };
             var trigger = false;
@@ -233,6 +242,7 @@ pub fn buildAdaptiveHullPointsFromClip(
                     break;
                 }
             }
+
             if (trigger) convexifyHullInPlace(8, &hull.x, &hull.y);
         }
         return hull;

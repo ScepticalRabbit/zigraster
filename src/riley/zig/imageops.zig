@@ -1,32 +1,41 @@
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // Riley: A High Performance Rasteriser for DIC UQ
 //
 // Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
 // Licensed under the MIT License (see LICENSE file for details)
 //
 // Authors: scepticalrabbit (Lloyd Fletcher)
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 const std = @import("std");
 const buildconfig = @import("buildconfig.zig");
-const tol = buildconfig.config.tolerance;
+const F = buildconfig.F;
+const tol = buildconfig.config.tol;
 const matslice = @import("matslice.zig");
 const ndarray = @import("ndarray.zig");
 const texops = @import("textureops.zig");
 
+// --------------------------------------------------------------------------------------
+// Public Constants & Public Types
+// --------------------------------------------------------------------------------------
+
 pub const ScaleStrategy = union(enum) {
     none,
     auto,
-    fixed: [2]f64, // [min, max]
-    frac: [2]f64, // [min_frac, max_frac]
+    fixed: [2]F, // [min, max]
+    frac: [2]F, // [min_frac, max_frac]
 };
 
-pub const ScalingParams = struct { min: f64, range: f64 };
-pub const ScaleFactors = struct { mul: f64, add: f64 };
+pub const ScalingParams = struct { min: F, range: F };
+pub const ScaleFactors = struct { mul: F, add: F };
 
-pub fn getScaleMax(bits: ?u8) f64 {
+// --------------------------------------------------------------------------------------
+// Public Entry-Point Func
+// --------------------------------------------------------------------------------------
+
+pub fn getScaleMax(bits: ?u8) F {
     if (bits) |b| {
         const max_u32 = (@as(u32, 1) << @as(u5, @intCast(b))) - 1;
-        return @as(f64, @floatFromInt(max_u32));
+        return @as(F, @floatFromInt(max_u32));
     }
     return 1.0;
 }
@@ -58,19 +67,21 @@ pub fn getScaleFactors(
     return .{ .mul = mul, .add = add };
 }
 
-pub fn getScalingParamsTexture(
+pub fn getScalingParamsTex(
+    comptime T: type,
     comptime channels: usize,
-    texture: *const texops.Texture(channels),
+    tex: *const texops.Tex(T, channels),
     strategy: ScaleStrategy,
 ) ScalingParams {
     switch (strategy) {
         .none => return .{ .min = 0.0, .range = 1.0 },
         .auto, .frac => {
-            var px_min: f64 = std.math.inf(f64);
-            var px_max: f64 = -std.math.inf(f64);
-            for (texture.array.slice) |val| {
-                if (val < px_min) px_min = val;
-                if (val > px_max) px_max = val;
+            var px_min: F = std.math.inf(F);
+            var px_max: F = -std.math.inf(F);
+            for (tex.array.slice) |val| {
+                const val_f = texops.texelToFloat(T, val);
+                if (val_f < px_min) px_min = val_f;
+                if (val_f > px_max) px_max = val_f;
             }
             const range = if (@abs(px_max - px_min) < tol.image.auto_scale_range)
                 1.0
@@ -86,14 +97,14 @@ pub fn getScalingParamsTexture(
 }
 
 pub fn getScalingParams(
-    image: *const matslice.MatSlice(f64),
+    image: *const matslice.MatSlice(F),
     strategy: ScaleStrategy,
 ) ScalingParams {
     switch (strategy) {
         .none => return .{ .min = 0.0, .range = 1.0 },
         .auto, .frac => {
-            const px_min = std.mem.min(f64, image.slice);
-            const px_max = std.mem.max(f64, image.slice);
+            const px_min = std.mem.min(F, image.slice);
+            const px_max = std.mem.max(F, image.slice);
             const px_rng = if (px_max > px_min) px_max - px_min else 1.0;
             return .{ .min = px_min, .range = px_rng };
         },
@@ -105,25 +116,25 @@ pub fn getScalingParams(
 }
 
 pub fn getScalingParamsNDArray(
-    array: *const ndarray.NDArray(f64),
+    array: *const ndarray.NDArray(F),
     frame_idx: ?usize,
     strategy: ScaleStrategy,
 ) ScalingParams {
     switch (strategy) {
         .none => return .{ .min = 0.0, .range = 1.0 },
         .auto, .frac => {
-            var px_min: f64 = std.math.inf(f64);
-            var px_max: f64 = -std.math.inf(f64);
+            var px_min: F = std.math.inf(F);
+            var px_max: F = -std.math.inf(F);
 
             if (frame_idx) |fi| {
                 const safe_fi = @min(fi, array.dims[0] - 1);
                 const stride = array.strides[0];
                 const frame_mem = array.slice[safe_fi * stride .. (safe_fi + 1) * stride];
-                px_min = std.mem.min(f64, frame_mem);
-                px_max = std.mem.max(f64, frame_mem);
+                px_min = std.mem.min(F, frame_mem);
+                px_max = std.mem.max(F, frame_mem);
             } else {
-                px_min = std.mem.min(f64, array.slice);
-                px_max = std.mem.max(f64, array.slice);
+                px_min = std.mem.min(F, array.slice);
+                px_max = std.mem.max(F, array.slice);
             }
 
             const px_rng = if (px_max > px_min) px_max - px_min else 1.0;
@@ -137,11 +148,11 @@ pub fn getScalingParamsNDArray(
 }
 
 pub fn applyScaling(
-    val: f64,
+    val: F,
     strategy: ScaleStrategy,
     bits: ?u8,
     params: ScalingParams,
-) f64 {
+) F {
     const norm = switch (strategy) {
         .none => return val,
         .auto, .fixed => (val - params.min) / params.range,
@@ -154,7 +165,7 @@ pub fn applyScaling(
     return norm;
 }
 
-pub fn applyClamping(val: f64, bits: ?u8) f64 {
+pub fn applyClamping(val: F, bits: ?u8) F {
     if (bits) |b| {
         const max_v = getScaleMax(b);
         return @round(@max(0.0, @min(max_v, val)));
@@ -162,18 +173,18 @@ pub fn applyClamping(val: f64, bits: ?u8) f64 {
     return val;
 }
 
-pub fn averageImage(
-    image_subpx: *const matslice.MatSlice(f64),
-    sub_samp: u8,
-    image_avg: *matslice.MatSlice(f64),
+pub fn avgImage(
+    image_subpx: *const matslice.MatSlice(F),
+    sub_samp: u32,
+    image_avg: *matslice.MatSlice(F),
 ) void {
     const num_px_x: usize = (image_subpx.cols_n) / @as(usize, sub_samp);
     const num_px_y: usize = (image_subpx.rows_n) / @as(usize, sub_samp);
     const sub_samp_us: usize = @as(usize, sub_samp);
-    const sub_samp_f: f64 = @as(f64, @floatFromInt(sub_samp));
-    const subpx_per_px: f64 = sub_samp_f * sub_samp_f;
+    const sub_samp_f: F = @as(F, @floatFromInt(sub_samp));
+    const subpx_per_px: F = sub_samp_f * sub_samp_f;
 
-    var px_sum: f64 = 0.0;
+    var px_sum: F = 0.0;
 
     for (0..num_px_y) |iy| {
         for (0..num_px_x) |ix| {

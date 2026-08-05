@@ -1,20 +1,25 @@
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // Riley: A High Performance Rasteriser for DIC UQ
 //
 // Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
 // Licensed under the MIT License (see LICENSE file for details)
 //
 // Authors: scepticalrabbit (Lloyd Fletcher)
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 const std = @import("std");
 const buildconfig = @import("buildconfig.zig");
+const F = buildconfig.F;
 
 const common = @import("cameramodels_common.zig");
 const cfg = buildconfig.config;
 const S = buildconfig.SimdWidth;
 const VecSB = buildconfig.VecSB;
 const VecSF = buildconfig.VecSF;
-const tol = cfg.tolerance;
+const tol = cfg.tol;
+
+// --------------------------------------------------------------------------------------
+// Public Constants & Public Types
+// --------------------------------------------------------------------------------------
 
 pub const DistortionForwardJacSIMDResult = struct {
     x_d: VecSF,
@@ -25,13 +30,18 @@ pub const DistortionForwardJacSIMDResult = struct {
     j22: VecSF,
 };
 
-pub const DistortionInverseSIMDResult = struct {
+pub const DistortionInvSIMDResult = struct {
     x: VecSF,
     y: VecSF,
 };
 
-const poly_powers_u = [10]u8{ 0, 1, 0, 2, 1, 0, 3, 2, 1, 0 };
-const poly_powers_v = [10]u8{ 0, 0, 1, 0, 1, 2, 0, 1, 2, 3 };
+// --------------------------------------------------------------------------------------
+// Brown Conrady
+// --------------------------------------------------------------------------------------
+
+// --------------------------------------------------------------------------------------
+// Public Entry-Point Func
+// --------------------------------------------------------------------------------------
 
 pub fn forwardDistortionSIMD(
     comptime DistortionType: type,
@@ -140,16 +150,16 @@ pub fn forwardDistortionWithJacSIMD(
     };
 }
 
-pub fn inverseDistortionSIMD(
+pub fn invDistortionSIMD(
     comptime DistortionType: type,
     distortion: DistortionType,
     v_x_d: VecSF,
     v_y_d: VecSF,
     v_lane_active_init: VecSB,
-) !DistortionInverseSIMDResult {
-    const v_resid_tol: VecSF = @splat(tol.distortion.residual);
+) !DistortionInvSIMDResult {
+    const v_resid_tol: VecSF = @splat(tol.distortion.resid);
     const v_delta_tol: VecSF = @splat(tol.distortion.delta);
-    const v_det_tol: VecSF = @splat(tol.distortion.determinant);
+    const v_det_tol: VecSF = @splat(tol.distortion.det);
 
     var v_x = v_x_d;
     var v_y = v_y_d;
@@ -178,11 +188,11 @@ pub fn inverseDistortionSIMD(
         const v_det = fwd.j11 * fwd.j22 - fwd.j12 * fwd.j21;
         const v_bad_det = @abs(v_det) < v_det_tol;
         if (@reduce(.Or, v_active & v_bad_det)) {
-            return error.SingularJacobian;
+            return error.SingularJac;
         }
 
         const v_safe_det = @select(
-            f64,
+            F,
             v_active,
             v_det,
             @as(VecSF, @splat(1.0)),
@@ -190,8 +200,8 @@ pub fn inverseDistortionSIMD(
         const v_delta_x = (-f0 * fwd.j22 + fwd.j12 * f1) / v_safe_det;
         const v_delta_y = (fwd.j21 * f0 - fwd.j11 * f1) / v_safe_det;
 
-        v_x += @select(f64, v_active, v_delta_x, @as(VecSF, @splat(0.0)));
-        v_y += @select(f64, v_active, v_delta_y, @as(VecSF, @splat(0.0)));
+        v_x += @select(F, v_active, v_delta_x, @as(VecSF, @splat(0.0)));
+        v_y += @select(F, v_active, v_delta_y, @as(VecSF, @splat(0.0)));
 
         const v_met_delta =
             (@abs(v_delta_x) < v_delta_tol) & (@abs(v_delta_y) < v_delta_tol);
@@ -199,82 +209,23 @@ pub fn inverseDistortionSIMD(
     }
 
     if (@reduce(.Or, v_active)) {
-        return error.DistortionInverseFailed;
+        return error.DistortionInvFailed;
     }
     return .{ .x = v_x, .y = v_y };
 }
 
-pub const DistortionModel = common.DistortionModel;
+// --------------------------------------------------------------------------------------
+// Polynomial Distortion
+// --------------------------------------------------------------------------------------
 
-pub fn inverseDistortionModelSIMD(
-    distortion: DistortionModel,
-    v_x_d: VecSF,
-    v_y_d: VecSF,
-    v_lane_active: VecSB,
-) !DistortionInverseSIMDResult {
-    return switch (distortion) {
-        .none => .{ .x = v_x_d, .y = v_y_d },
-        .brown_conrady => |bc| inverseDistortionSIMD(
-            common.BrownConrady,
-            bc,
-            v_x_d,
-            v_y_d,
-            v_lane_active,
-        ),
-        .brown_conrady_ext => |bc_ext| inverseDistortionSIMD(
-            common.BrownConradyExt,
-            bc_ext,
-            v_x_d,
-            v_y_d,
-            v_lane_active,
-        ),
-        .polynomial => |poly| inversePolynomialSIMD(
-            poly,
-            v_x_d,
-            v_y_d,
-            v_lane_active,
-        ),
-        .brown_conrady_polynomial => |chain| blk: {
-            const poly_inv = try inversePolynomialSIMD(
-                chain.polynomial,
-                v_x_d,
-                v_y_d,
-                v_lane_active,
-            );
-            break :blk try inverseDistortionSIMD(
-                common.BrownConrady,
-                chain.brown_conrady,
-                poly_inv.x,
-                poly_inv.y,
-                v_lane_active,
-            );
-        },
-        .brown_conrady_ext_polynomial => |chain| blk: {
-            const poly_inv = try inversePolynomialSIMD(
-                chain.polynomial,
-                v_x_d,
-                v_y_d,
-                v_lane_active,
-            );
-            break :blk try inverseDistortionSIMD(
-                common.BrownConradyExt,
-                chain.brown_conrady_ext,
-                poly_inv.x,
-                poly_inv.y,
-                v_lane_active,
-            );
-        },
-    };
-}
-
-fn inversePolynomialSIMD(
+fn invPolynomialSIMD(
     polynomial: common.BidirectionalPolynomial,
     v_x_d: VecSF,
     v_y_d: VecSF,
     v_lane_active: VecSB,
-) !DistortionInverseSIMDResult {
-    if (polynomial.inverse_map) |inverse_map| {
-        const eval = evaluatePolynomialMapSIMD(inverse_map, v_x_d, v_y_d);
+) !DistortionInvSIMDResult {
+    if (polynomial.inv_map) |inv_map| {
+        const eval = evaluatePolynomialMapSIMD(inv_map, v_x_d, v_y_d);
         return .{ .x = eval.x_d, .y = eval.y_d };
     }
     if (polynomial.forward_map) |forward_map| {
@@ -311,21 +262,21 @@ fn evaluatePolynomialMapWithJacSIMD(
     const term_count = polynomial.order.termCount();
 
     for (0..term_count) |ii| {
-        const pu = poly_powers_u[ii];
-        const pv = poly_powers_v[ii];
+        const pu = common.poly_powers_u[ii];
+        const pv = common.poly_powers_v[ii];
         const basis = powSmallSIMD(x, pu) * powSmallSIMD(y, pv);
         du += @as(VecSF, @splat(polynomial.coeffs_u[ii])) * basis;
         dv += @as(VecSF, @splat(polynomial.coeffs_v[ii])) * basis;
 
         if (pu > 0) {
-            const basis_dx = @as(VecSF, @splat(@as(f64, @floatFromInt(pu)))) *
+            const basis_dx = @as(VecSF, @splat(@as(F, @floatFromInt(pu)))) *
                 powSmallSIMD(x, pu - 1) *
                 powSmallSIMD(y, pv);
             ddu_dx += @as(VecSF, @splat(polynomial.coeffs_u[ii])) * basis_dx;
             ddv_dx += @as(VecSF, @splat(polynomial.coeffs_v[ii])) * basis_dx;
         }
         if (pv > 0) {
-            const basis_dy = @as(VecSF, @splat(@as(f64, @floatFromInt(pv)))) *
+            const basis_dy = @as(VecSF, @splat(@as(F, @floatFromInt(pv)))) *
                 powSmallSIMD(x, pu) *
                 powSmallSIMD(y, pv - 1);
             ddu_dy += @as(VecSF, @splat(polynomial.coeffs_u[ii])) * basis_dy;
@@ -348,10 +299,10 @@ fn invertPolynomialMapSIMD(
     v_x_d: VecSF,
     v_y_d: VecSF,
     v_lane_active_init: VecSB,
-) !DistortionInverseSIMDResult {
-    const v_resid_tol: VecSF = @splat(tol.distortion.residual);
+) !DistortionInvSIMDResult {
+    const v_resid_tol: VecSF = @splat(tol.distortion.resid);
     const v_delta_tol: VecSF = @splat(tol.distortion.delta);
-    const v_det_tol: VecSF = @splat(tol.distortion.determinant);
+    const v_det_tol: VecSF = @splat(tol.distortion.det);
 
     var v_x = v_x_d;
     var v_y = v_y_d;
@@ -375,11 +326,11 @@ fn invertPolynomialMapSIMD(
         const v_det = fwd.j11 * fwd.j22 - fwd.j12 * fwd.j21;
         const v_bad_det = @abs(v_det) < v_det_tol;
         if (@reduce(.Or, v_active & v_bad_det)) {
-            return error.SingularJacobian;
+            return error.SingularJac;
         }
 
         const v_safe_det = @select(
-            f64,
+            F,
             v_active,
             v_det,
             @as(VecSF, @splat(1.0)),
@@ -387,8 +338,8 @@ fn invertPolynomialMapSIMD(
         const v_delta_x = (-f0 * fwd.j22 + fwd.j12 * f1) / v_safe_det;
         const v_delta_y = (fwd.j21 * f0 - fwd.j11 * f1) / v_safe_det;
 
-        v_x += @select(f64, v_active, v_delta_x, @as(VecSF, @splat(0.0)));
-        v_y += @select(f64, v_active, v_delta_y, @as(VecSF, @splat(0.0)));
+        v_x += @select(F, v_active, v_delta_x, @as(VecSF, @splat(0.0)));
+        v_y += @select(F, v_active, v_delta_y, @as(VecSF, @splat(0.0)));
 
         const v_met_delta =
             (@abs(v_delta_x) < v_delta_tol) & (@abs(v_delta_y) < v_delta_tol);
@@ -396,7 +347,7 @@ fn invertPolynomialMapSIMD(
     }
 
     if (@reduce(.Or, v_active)) {
-        return error.DistortionInverseFailed;
+        return error.DistortionInvFailed;
     }
     return .{ .x = v_x, .y = v_y };
 }
@@ -410,4 +361,71 @@ fn powSmallSIMD(
         out *= x;
     }
     return out;
+}
+
+// --------------------------------------------------------------------------------------
+// Distortion Unions
+// --------------------------------------------------------------------------------------
+
+pub const DistortionModel = common.DistortionModel;
+
+pub fn invDistortionModelSIMD(
+    distortion: DistortionModel,
+    v_x_d: VecSF,
+    v_y_d: VecSF,
+    v_lane_active: VecSB,
+) !DistortionInvSIMDResult {
+    return switch (distortion) {
+        .none => .{ .x = v_x_d, .y = v_y_d },
+        .brown_conrady => |bc| invDistortionSIMD(
+            common.BrownConrady,
+            bc,
+            v_x_d,
+            v_y_d,
+            v_lane_active,
+        ),
+        .brown_conrady_ext => |bc_ext| invDistortionSIMD(
+            common.BrownConradyExt,
+            bc_ext,
+            v_x_d,
+            v_y_d,
+            v_lane_active,
+        ),
+        .polynomial => |poly| invPolynomialSIMD(
+            poly,
+            v_x_d,
+            v_y_d,
+            v_lane_active,
+        ),
+        .brown_conrady_polynomial => |chain| blk: {
+            const poly_inv = try invPolynomialSIMD(
+                chain.polynomial,
+                v_x_d,
+                v_y_d,
+                v_lane_active,
+            );
+            break :blk try invDistortionSIMD(
+                common.BrownConrady,
+                chain.brown_conrady,
+                poly_inv.x,
+                poly_inv.y,
+                v_lane_active,
+            );
+        },
+        .brown_conrady_ext_polynomial => |chain| blk: {
+            const poly_inv = try invPolynomialSIMD(
+                chain.polynomial,
+                v_x_d,
+                v_y_d,
+                v_lane_active,
+            );
+            break :blk try invDistortionSIMD(
+                common.BrownConradyExt,
+                chain.brown_conrady_ext,
+                poly_inv.x,
+                poly_inv.y,
+                v_lane_active,
+            );
+        },
+    };
 }

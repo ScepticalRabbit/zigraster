@@ -8,21 +8,26 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 
-const benchargs = @import("common/benchargs.zig");
-const benchdicuq = @import("common/benchdicuq.zig");
-const common = @import("common/benchcommon.zig");
+const benchargs = @import("dev_support/benchargs.zig");
+const benchdicuq = @import("dev_support/benchdicuq.zig");
+const common = @import("dev_support/benchcommon.zig");
+const buildconfig = @import("riley/zig/buildconfig.zig");
 const riley = @import("riley/zig/riley.zig");
 const rastcfg = @import("riley/zig/rasterconfig.zig");
+const F = buildconfig.F;
 
 const DEFAULT_OUT_DIR = "out/bench_stats_dicuq";
 const DEFAULT_IMAGE_OUT_DIR = "out/bench_images_dicuq";
 const DEFAULT_DATA_DIR = "data/FE/platehole3d_6mr_63f/";
 const DEFAULT_PIXELS_NUM = [2]u32{ 2464, 2056 };
-const DEFAULT_SUB_SAMPLE: u8 = 2;
-const DEFAULT_FOCAL_LENG: f64 = 50.0e-3;
-const DEFAULT_PIXELS_SIZE = [2]f64{ 3.45e-6, 3.45e-6 };
-const DEFAULT_FOV_SCALE: f64 = 0.65;
-const DEFAULT_STEREO_ANG: f64 = 20.0;
+const DEFAULT_SUB_SAMPLE: u32 = 2;
+const DEFAULT_FOCAL_LENG: F = @floatCast(50.0e-3);
+const DEFAULT_PIXELS_SIZE = [2]F{
+    @floatCast(3.45e-6),
+    @floatCast(3.45e-6),
+};
+const DEFAULT_FOV_SCALE: F = @floatCast(0.65);
+const DEFAULT_STEREO_ANG: F = 20.0;
 const DEFAULT_TEX_PATH = "texture/speckle.bmp";
 const DEFAULT_RENDER_MODE = rastcfg.RenderMode.offline;
 const DEFAULT_SAVE_STRATEGY = rastcfg.SaveStrategy.disk;
@@ -137,7 +142,7 @@ pub fn main(init: std.process.Init) !void {
     }
     const io = render_groups[0].io;
 
-    const sample_config = try benchdicuq.makeSampleConfig(bench_args);
+    const samp_cfg = try benchdicuq.makeSampleConfig(bench_args);
 
     var arena = std.heap.ArenaAllocator.init(outer_alloc);
     defer arena.deinit();
@@ -157,7 +162,7 @@ pub fn main(init: std.process.Init) !void {
         aa,
         io,
         dicuq_defaults,
-        sample_config,
+        samp_cfg,
     );
 
     const raster_config = benchargs.applyRasterConfig(
@@ -187,7 +192,7 @@ pub fn main(init: std.process.Init) !void {
         actual_tile_size,
     );
 
-    const case_name = try benchdicuq.calcCaseName(outer_alloc, sample_config);
+    const case_name = try benchdicuq.calcCaseName(outer_alloc, samp_cfg);
     defer outer_alloc.free(case_name);
 
     std.debug.print(

@@ -8,17 +8,27 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const buildconfig = @import("riley/zig/buildconfig.zig");
-const common = @import("common/benchcommon.zig");
-const minsuite = @import("common/minsuite.zig");
-const tcfg = @import("common/testconfig.zig");
-const tests = @import("common/tests.zig");
-const mo = @import("riley/zig/meshops.zig");
+const common = @import("dev_support/benchcommon.zig");
+const minsuite = @import("dev_support/minsuite.zig");
+const policy = @import("dev_support/testpolicy.zig");
+const tcfg = @import("dev_support/testconfig.zig");
+const tests = @import("dev_support/tests.zig");
+const mo = @import("riley/zig/meshpipeline.zig");
 const gk = @import("riley/zig/geometrykernels.zig");
 const iio = @import("riley/zig/imageio.zig");
 const texops = @import("riley/zig/textureops.zig");
 const Rotation = @import("riley/zig/rotation.zig").Rotation;
 
 const simd_on = buildconfig.config.simd == .on;
+
+comptime {
+    if (!simd_on) {
+        @compileError(
+            "src/test_min.zig requires .simd = .on. " ++
+                "MIN scalar gold/test orchestration is not implemented.",
+        );
+    }
+}
 
 test "MIN Suite: sphere200 and multimesh" {
     const allocator = std.testing.allocator;
@@ -44,7 +54,7 @@ test "MIN Suite: sphere200 and multimesh" {
     );
     defer texture_rgb.deinit(allocator);
 
-    const gold_dir = "gold/min";
+    const gold_dir = comptime policy.goldRoot(.min);
     const pixel_num_sphere = [_]u32{ 160, 100 };
     const pixel_num_multi = [_]u32{ 640, 400 };
     const render_defaults_sphere = common.BenchRenderDefaults{
@@ -63,7 +73,7 @@ test "MIN Suite: sphere200 and multimesh" {
         .tex8_grey,
         .tex8_rgb,
     };
-    const sample_configs = [_]texops.TextureSampleConfig{
+    const samp_cfgs = [_]texops.TextureSampleConfig{
         .{ .sample = .nearest, .mode = .direct },
         .{ .sample = .linear, .mode = .direct },
         .{ .sample = .cubic_catmull_rom, .mode = .direct },
@@ -80,11 +90,15 @@ test "MIN Suite: sphere200 and multimesh" {
         std.debug.print("\nRunning MIN Suite sphere200/base tests...\n", .{});
         for (mesh_types) |mt| {
             for (shader_types) |st| {
-                for (sample_configs) |sc| {
+                for (samp_cfgs) |sc| {
+                    const folder_name = policy.meshName(
+                        .benchmark_data,
+                        mt,
+                    );
                     const data_dir = try std.fmt.allocPrint(
                         allocator,
                         "data/min/{s}_sphere200",
-                        .{@tagName(mt)},
+                        .{folder_name},
                     );
                     defer allocator.free(data_dir);
 
@@ -115,6 +129,7 @@ test "MIN Suite: sphere200 and multimesh" {
                         );
                         defer allocator.free(case_name);
                         var result = try common.runBenchmarkQuiet(
+                            u8,
                             allocator,
                             io,
                             mt,
@@ -190,11 +205,15 @@ test "MIN Suite: sphere200 and multimesh" {
         std.debug.print("Running MIN Suite sphere200multicull tests...\n", .{});
         for (mesh_types) |mt| {
             for (shader_types) |st| {
-                for (sample_configs) |sc| {
+                for (samp_cfgs) |sc| {
+                    const folder_name = policy.meshName(
+                        .benchmark_data,
+                        mt,
+                    );
                     const data_dir = try std.fmt.allocPrint(
                         allocator,
                         "data/min/{s}_sphere200",
-                        .{@tagName(mt)},
+                        .{folder_name},
                     );
                     defer allocator.free(data_dir);
 

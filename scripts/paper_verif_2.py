@@ -63,9 +63,12 @@ def find_bmp_path(row: dict[str, str]) -> pathlib.Path:
 def ensure_summary_rows() -> list[dict[str, str]]:
     summary_path = repo_root() / SUMMARY_PATH
     if not summary_path.exists():
-        print("Missing verif_2 summary, generating it with scripts/verif_2.py...")
+        print(
+            "Missing verif_2 summary, generating it with "
+            "scripts/paper_verif_2_helper.py..."
+        )
         subprocess.run(
-            [".venv/bin/python", "scripts/verif_2.py"],
+            [".venv/bin/python", "scripts/paper_verif_2_helper.py"],
             cwd=repo_root(),
             check=True,
         )
@@ -89,10 +92,15 @@ def ensure_summary_rows() -> list[dict[str, str]]:
     if missing_pairs:
         print(
             "verif_2 summary is missing required rows; regenerating with "
-            "scripts/verif_2.py...",
+            "scripts/paper_verif_2_helper.py...",
         )
         subprocess.run(
-            [".venv/bin/python", "scripts/verif_2.py", "--subset", "all"],
+            [
+                ".venv/bin/python",
+                "scripts/paper_verif_2_helper.py",
+                "--subset",
+                "all",
+            ],
             cwd=repo_root(),
             check=True,
         )

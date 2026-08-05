@@ -1,23 +1,23 @@
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // Riley: A High Performance Rasteriser for DIC UQ
 //
 // Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
 // Licensed under the MIT License (see LICENSE file for details)
 //
 // Authors: scepticalrabbit (Lloyd Fletcher)
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 const std = @import("std");
+const buildconfig = @import("buildconfig.zig");
+const F = buildconfig.F;
 const print = std.debug.print;
-
-const testing = std.testing;
 const assert = std.debug.assert;
-const expect = std.testing.expect;
-const expectEqual = std.testing.expectEqual;
-const expectApproxEqAbs = testing.expectApproxEqAbs;
-const expectEqualSlices = testing.expectEqualSlices;
 
 const MatSlice = @import("matslice.zig").MatSlice;
 const sliceops = @import("sliceops.zig");
+
+// --------------------------------------------------------------------------------------
+// Public Constants & Public Types
+// --------------------------------------------------------------------------------------
 
 pub fn NDArray(comptime T: type) type {
     return struct {
@@ -77,6 +77,16 @@ pub fn NDArray(comptime T: type) type {
             return self.slice[idx];
         }
 
+        pub fn getFlat(self: *const Self, flat_idx: usize) T {
+            assert(flat_idx < self.slice.len);
+            return self.slice[flat_idx];
+        }
+
+        pub fn setFlat(self: *Self, flat_idx: usize, in_val: T) void {
+            assert(flat_idx < self.slice.len);
+            self.slice[flat_idx] = in_val;
+        }
+
         pub fn getFlatIdx(self: *const Self, indices: []const usize) usize {
             assert(indices.len == self.dims.len);
 
@@ -88,6 +98,57 @@ pub fn NDArray(comptime T: type) type {
             }
 
             return flat;
+        }
+
+        pub fn planeBase(self: *const Self, idx0: usize) usize {
+            assert(self.dims.len >= 1);
+            assert(idx0 < self.dims[0]);
+            return idx0 * self.strides[0];
+        }
+
+        pub fn subBase2(self: *const Self, idx0: usize, idx1: usize) usize {
+            assert(self.dims.len >= 2);
+            assert(idx0 < self.dims[0]);
+            assert(idx1 < self.dims[1]);
+            return idx0 * self.strides[0] + idx1 * self.strides[1];
+        }
+
+        pub fn offset2(
+            self: *const Self,
+            idx0: usize,
+            idx1: usize,
+        ) usize {
+            assert(self.dims.len == 2);
+            return self.subBase2(idx0, idx1);
+        }
+
+        pub fn offset3(
+            self: *const Self,
+            idx0: usize,
+            idx1: usize,
+            idx2: usize,
+        ) usize {
+            assert(self.dims.len == 3);
+            assert(idx2 < self.dims[2]);
+            return self.subBase2(idx0, idx1) + idx2;
+        }
+
+        pub fn offset4(
+            self: *const Self,
+            idx0: usize,
+            idx1: usize,
+            idx2: usize,
+            idx3: usize,
+        ) usize {
+            assert(self.dims.len == 4);
+            assert(idx0 < self.dims[0]);
+            assert(idx1 < self.dims[1]);
+            assert(idx2 < self.dims[2]);
+            assert(idx3 < self.dims[3]);
+            return idx0 * self.strides[0] +
+                idx1 * self.strides[1] +
+                idx2 * self.strides[2] +
+                idx3;
         }
 
         pub fn calcFlatStride(self: *const Self, dim_idx: usize) usize {
@@ -139,9 +200,9 @@ pub fn NDArray(comptime T: type) type {
             }
         }
 
-        pub fn mulScalarInPlace(self: *const Self, scalar: T) void {
+        pub fn mulScalInPlace(self: *const Self, scal: T) void {
             for (0..self.slice.len) |ii| {
-                self.slice[ii] *= scalar;
+                self.slice[ii] *= scal;
             }
         }
 
@@ -300,29 +361,38 @@ pub fn matchArrayDims(
     return true;
 }
 
+// --------------------------------------------------------------------------------------
+// Tests
+// --------------------------------------------------------------------------------------
+
+const testing = std.testing;
+const expect = std.testing.expect;
+const expectEqual = std.testing.expectEqual;
+const expectApproxEqAbs = testing.expectApproxEqAbs;
+const expectEqualSlices = testing.expectEqualSlices;
 const talloc = testing.allocator;
 
 test "matchArrayDims" {
     var dims0 = [_]usize{ 3, 3, 2 };
-    const slice0 = try talloc.alloc(f64, 18);
+    const slice0 = try talloc.alloc(F, 18);
     defer talloc.free(slice0);
-    var arr0 = try NDArray(f64).init(talloc, slice0, dims0[0..]);
+    var arr0 = try NDArray(F).init(talloc, slice0, dims0[0..]);
     defer arr0.deinit(talloc);
 
     var dims1 = [_]usize{ 3, 3, 2 };
-    const slice1 = try talloc.alloc(f64, 18);
+    const slice1 = try talloc.alloc(F, 18);
     defer talloc.free(slice1);
-    var arr1 = try NDArray(f64).init(talloc, slice1, dims1[0..]);
+    var arr1 = try NDArray(F).init(talloc, slice1, dims1[0..]);
     defer arr1.deinit(talloc);
 
-    try expect(matchArrayDims(f64, &arr0, &arr1));
+    try expect(matchArrayDims(F, &arr0, &arr1));
 }
 
 test "getFlatIdx" {
     var dims0 = [_]usize{ 2, 3, 3 };
-    const slice0 = try talloc.alloc(f64, 18);
+    const slice0 = try talloc.alloc(F, 18);
     defer talloc.free(slice0);
-    var arr0 = try NDArray(f64).init(talloc, slice0, dims0[0..]);
+    var arr0 = try NDArray(F).init(talloc, slice0, dims0[0..]);
     defer arr0.deinit(talloc);
 
     const idxs0 = [_]usize{ 1, 2, 1 };
@@ -334,9 +404,9 @@ test "getFlatIdx" {
 
 test "calcFlatStride" {
     var dims0 = [_]usize{ 2, 3, 3 };
-    const slice0 = try talloc.alloc(f64, 18);
+    const slice0 = try talloc.alloc(F, 18);
     defer talloc.free(slice0);
-    var arr0 = try NDArray(f64).init(talloc, slice0, dims0[0..]);
+    var arr0 = try NDArray(F).init(talloc, slice0, dims0[0..]);
     defer arr0.deinit(talloc);
     const check0 = [_]usize{ 9, 3, 1 };
 
@@ -347,9 +417,9 @@ test "calcFlatStride" {
 
 test "getSlice" {
     var dims0 = [_]usize{ 3, 2, 2 };
-    const slice0 = try talloc.alloc(f64, 12);
+    const slice0 = try talloc.alloc(F, 12);
     defer talloc.free(slice0);
-    var arr0 = try NDArray(f64).init(talloc, slice0, dims0[0..]);
+    var arr0 = try NDArray(F).init(talloc, slice0, dims0[0..]);
     defer arr0.deinit(talloc);
 
     var set_idxs = [_]usize{ 1, 0, 0 };
@@ -370,10 +440,10 @@ test "getSlice" {
 
 test "fixedPrefixView" {
     var dims0 = [_]usize{ 2, 3, 2, 2 };
-    const slice0 = try talloc.alloc(f64, 24);
+    const slice0 = try talloc.alloc(F, 24);
     defer talloc.free(slice0);
     for (0..slice0.len) |ii| slice0[ii] = @floatFromInt(ii);
-    var arr0 = try NDArray(f64).init(talloc, slice0, dims0[0..]);
+    var arr0 = try NDArray(F).init(talloc, slice0, dims0[0..]);
     defer arr0.deinit(talloc);
 
     const fixed = [_]usize{ 1, 2 };
@@ -385,4 +455,28 @@ test "fixedPrefixView" {
     try expectEqual(@as(usize, 2), view.dims[1]);
     try expectEqual(arr0.get(&[_]usize{ 1, 2, 0, 0 }), view.get(&[_]usize{ 0, 0 }));
     try expectEqual(arr0.get(&[_]usize{ 1, 2, 1, 1 }), view.get(&[_]usize{ 1, 1 }));
+}
+
+test "offset helpers" {
+    var dims3 = [_]usize{ 2, 3, 4 };
+    const slice3 = try talloc.alloc(F, 2 * 3 * 4);
+    defer talloc.free(slice3);
+    var arr3 = try NDArray(F).init(talloc, slice3, dims3[0..]);
+    defer arr3.deinit(talloc);
+
+    var dims0 = [_]usize{ 2, 3, 4, 5 };
+    const slice0 = try talloc.alloc(F, 2 * 3 * 4 * 5);
+    defer talloc.free(slice0);
+    var arr0 = try NDArray(F).init(talloc, slice0, dims0[0..]);
+    defer arr0.deinit(talloc);
+
+    const base0 = arr0.planeBase(1);
+    const base1 = arr0.subBase2(1, 2);
+    const off3 = arr3.offset3(1, 2, 3);
+    const off4 = arr0.offset4(1, 2, 3, 4);
+
+    try expectEqual(@as(usize, 60), base0);
+    try expectEqual(@as(usize, 100), base1);
+    try expectEqual(@as(usize, 23), off3);
+    try expectEqual(@as(usize, 119), off4);
 }

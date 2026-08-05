@@ -1,17 +1,22 @@
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // Riley: A High Performance Rasteriser for DIC UQ
 //
 // Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
 // Licensed under the MIT License (see LICENSE file for details)
 //
 // Authors: scepticalrabbit (Lloyd Fletcher)
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 const std = @import("std");
-
+const buildconfig = @import("buildconfig.zig");
 const matrix = @import("matstack.zig");
 const meshio = @import("meshio.zig");
 const rotation = @import("rotation.zig");
-const vector = @import("vecstack.zig");
+const vec = @import("vecstack.zig");
+const F = buildconfig.F;
+
+// --------------------------------------------------------------------------------------
+// Public Constants & Public Types
+// --------------------------------------------------------------------------------------
 
 pub const AxisAnchor = enum {
     min,
@@ -20,10 +25,10 @@ pub const AxisAnchor = enum {
 };
 
 pub const Bounds3D = struct {
-    min: [3]f64,
-    max: [3]f64,
-    center: [3]f64,
-    extent: [3]f64,
+    min: [3]F,
+    max: [3]F,
+    center: [3]F,
+    extent: [3]F,
 };
 
 pub const MeshGroupSpan = struct {
@@ -37,7 +42,7 @@ pub const MeshGroup = union(enum) {
 };
 
 pub const GridSpec = struct {
-    gap: [3]f64,
+    gap: [3]F,
     max_divs: [3]usize,
 };
 
@@ -48,14 +53,14 @@ pub const OverlapDirection = enum {
 };
 
 pub const BoundsOverlapSpec = struct {
-    overlap_frac: [3]f64,
+    overlap_frac: [3]F,
     enabled_axes: [3]bool = .{ true, true, true },
     direction: [3]OverlapDirection = .{
         .current,
         .current,
         .current,
     },
-    extra_offset: [3]f64 = .{ 0.0, 0.0, 0.0 },
+    extra_offset: [3]F = .{ 0.0, 0.0, 0.0 },
 };
 
 pub const RadialAxis = enum {
@@ -65,11 +70,15 @@ pub const RadialAxis = enum {
 };
 
 pub const RadialSpec = struct {
-    center: [3]f64,
-    radius: f64,
+    center: [3]F,
+    radius: F,
     axis: RadialAxis = .z,
-    angle_offset_rad: f64 = 0.0,
+    angle_offset_rad: F = 0.0,
 };
+
+// --------------------------------------------------------------------------------------
+// Public Entry-Point Func
+// --------------------------------------------------------------------------------------
 
 pub fn meshGroupSpan(
     mesh_start: usize,
@@ -187,14 +196,14 @@ pub fn boundsForCoords(coords: *const meshio.Coords) Bounds3D {
 
     var bounds = Bounds3D{
         .min = .{
-            std.math.inf(f64),
-            std.math.inf(f64),
-            std.math.inf(f64),
+            std.math.inf(F),
+            std.math.inf(F),
+            std.math.inf(F),
         },
         .max = .{
-            -std.math.inf(f64),
-            -std.math.inf(f64),
-            -std.math.inf(f64),
+            -std.math.inf(F),
+            -std.math.inf(F),
+            -std.math.inf(F),
         },
         .center = .{ 0.0, 0.0, 0.0 },
         .extent = .{ 0.0, 0.0, 0.0 },
@@ -246,8 +255,8 @@ pub fn boundsForMeshGroup(
     return bounds;
 }
 
-pub fn meanCenter(coords: *const meshio.Coords) vector.Vec3f {
-    var center_world = vector.Vec3f.initZeros();
+pub fn meanCenter(coords: *const meshio.Coords) vec.Vec3f {
+    var center_world = vec.Vec3f.initZeros();
     const coords_num = coords.mat.rows_num;
 
     for (0..coords_num) |nn| {
@@ -256,25 +265,25 @@ pub fn meanCenter(coords: *const meshio.Coords) vector.Vec3f {
         center_world.slice[2] += coords.mat.get(nn, 2);
     }
 
-    return center_world.mulScalar(
-        1.0 / @as(f64, @floatFromInt(coords_num)),
+    return center_world.mulScal(
+        1.0 / @as(F, @floatFromInt(coords_num)),
     );
 }
 
-pub fn boundsCenter(coords: *const meshio.Coords) vector.Vec3f {
+pub fn boundsCenter(coords: *const meshio.Coords) vec.Vec3f {
     const bounds = boundsForCoords(coords);
-    return vector.initVec3(
-        f64,
+    return vec.initVec3(
+        F,
         bounds.center[0],
         bounds.center[1],
         bounds.center[2],
     );
 }
 
-pub fn boundsCenterOverMeshes(meshes: anytype) vector.Vec3f {
+pub fn boundsCenterOverMeshes(meshes: anytype) vec.Vec3f {
     const bounds = boundsForMeshes(meshes);
-    return vector.initVec3(
-        f64,
+    return vec.initVec3(
+        F,
         bounds.center[0],
         bounds.center[1],
         bounds.center[2],
@@ -284,13 +293,13 @@ pub fn boundsCenterOverMeshes(meshes: anytype) vector.Vec3f {
 pub fn extentInRotatedFrame(
     cam_rot: rotation.Rotation,
     coords_world: *const meshio.Coords,
-) [2]f64 {
+) [2]F {
     std.debug.assert(coords_world.mat.rows_num > 0);
 
-    const world_to_cam_mat = matrix.Mat33Ops.inv(f64, cam_rot.matrix);
+    const world_to_cam_mat = matrix.Mat33Ops.inv(F, cam_rot.matrix);
     var coord_cam = world_to_cam_mat.mulVec(coords_world.getVec3(0));
-    var bb_max = [_]f64{ coord_cam.get(0), coord_cam.get(1) };
-    var bb_min = [_]f64{ coord_cam.get(0), coord_cam.get(1) };
+    var bb_max = [_]F{ coord_cam.get(0), coord_cam.get(1) };
+    var bb_min = [_]F{ coord_cam.get(0), coord_cam.get(1) };
 
     for (1..coords_world.mat.rows_num) |nn| {
         coord_cam = world_to_cam_mat.mulVec(coords_world.getVec3(nn));
@@ -310,13 +319,13 @@ pub fn extentInRotatedFrame(
 pub fn extentInRotatedFrameOverMeshes(
     cam_rot: rotation.Rotation,
     meshes: anytype,
-) [2]f64 {
+) [2]F {
     std.debug.assert(meshes.len > 0);
 
-    const world_to_cam_mat = matrix.Mat33Ops.inv(f64, cam_rot.matrix);
+    const world_to_cam_mat = matrix.Mat33Ops.inv(F, cam_rot.matrix);
     var is_first = true;
-    var bb_max = [_]f64{ 0.0, 0.0 };
-    var bb_min = [_]f64{ 0.0, 0.0 };
+    var bb_max = [_]F{ 0.0, 0.0 };
+    var bb_min = [_]F{ 0.0, 0.0 };
 
     for (meshes) |mesh| {
         for (0..mesh.coords.mat.rows_num) |nn| {
@@ -348,11 +357,7 @@ pub fn transformCoords(
 ) void {
     for (0..coords.mat.rows_num) |nn| {
         const coord_world = coords.getVec3(nn);
-        const coord_out = matrix.Mat44Ops.mulVec3(
-            f64,
-            transform,
-            coord_world,
-        );
+        const coord_out = matrix.Mat44Ops.mulVec3(F, transform, coord_world);
         coords.mat.set(nn, 0, coord_out.get(0));
         coords.mat.set(nn, 1, coord_out.get(1));
         coords.mat.set(nn, 2, coord_out.get(2));
@@ -381,7 +386,7 @@ pub fn moveMeshGroup(
 
 pub fn translateCoords(
     coords: *meshio.Coords,
-    translation: [3]f64,
+    translation: [3]F,
 ) void {
     for (0..coords.mat.rows_num) |nn| {
         coords.mat.set(nn, 0, coords.mat.get(nn, 0) + translation[0]);
@@ -391,7 +396,7 @@ pub fn translateCoords(
 }
 
 pub fn translateMesh(
-    translation: [3]f64,
+    translation: [3]F,
     mesh: anytype,
 ) void {
     translateCoords(&mesh.coords, translation);
@@ -399,7 +404,7 @@ pub fn translateMesh(
 
 pub fn translateMeshes(
     meshes: anytype,
-    translation: [3]f64,
+    translation: [3]F,
 ) void {
     for (meshes) |*mesh| {
         translateMesh(translation, mesh);
@@ -409,7 +414,7 @@ pub fn translateMeshes(
 pub fn translateMeshGroup(
     meshes: anytype,
     group: MeshGroup,
-    translation: [3]f64,
+    translation: [3]F,
 ) void {
     validateMeshGroup(meshes.len, group);
     const mesh_num = meshGroupLen(group);
@@ -421,33 +426,33 @@ pub fn translateMeshGroup(
 
 pub fn centerCoordsAt(
     coords: *meshio.Coords,
-    target_center: [3]f64,
+    targ_center: [3]F,
 ) void {
     const bounds = boundsForCoords(coords);
     translateCoords(coords, .{
-        target_center[0] - bounds.center[0],
-        target_center[1] - bounds.center[1],
-        target_center[2] - bounds.center[2],
+        targ_center[0] - bounds.center[0],
+        targ_center[1] - bounds.center[1],
+        targ_center[2] - bounds.center[2],
     });
 }
 
 pub fn centerMeshAt(
-    target_center: [3]f64,
+    targ_center: [3]F,
     mesh: anytype,
 ) void {
-    centerCoordsAt(&mesh.coords, target_center);
+    centerCoordsAt(&mesh.coords, targ_center);
 }
 
 pub fn centerMeshGroupAt(
     meshes: anytype,
     group: MeshGroup,
-    target_center: [3]f64,
+    targ_center: [3]F,
 ) void {
     const group_bounds = boundsForMeshGroup(meshes, group);
     translateMeshGroup(meshes, group, .{
-        target_center[0] - group_bounds.center[0],
-        target_center[1] - group_bounds.center[1],
-        target_center[2] - group_bounds.center[2],
+        targ_center[0] - group_bounds.center[0],
+        targ_center[1] - group_bounds.center[1],
+        targ_center[2] - group_bounds.center[2],
     });
 }
 
@@ -456,10 +461,10 @@ pub fn positionCoordsRelative(
     reference_bounds: Bounds3D,
     reference_anchor: [3]AxisAnchor,
     moving_anchor: [3]AxisAnchor,
-    offset: [3]f64,
+    offset: [3]F,
 ) void {
     const moving_bounds = boundsForCoords(coords);
-    var translation = [3]f64{ 0.0, 0.0, 0.0 };
+    var translation = [3]F{ 0.0, 0.0, 0.0 };
 
     for (0..3) |dd| {
         const reference_pos = anchorValue(
@@ -483,7 +488,7 @@ pub fn positionMeshRelative(
     moving_mesh: anytype,
     reference_anchor: [3]AxisAnchor,
     moving_anchor: [3]AxisAnchor,
-    offset: [3]f64,
+    offset: [3]F,
 ) void {
     const reference_bounds = boundsForCoords(&reference_mesh.coords);
     positionCoordsRelative(
@@ -501,11 +506,11 @@ pub fn alignMeshGroupToMeshGroup(
     moving_group: MeshGroup,
     fixed_anchor: [3]AxisAnchor,
     moving_anchor: [3]AxisAnchor,
-    offset: [3]f64,
+    offset: [3]F,
 ) void {
     const fixed_bounds = boundsForMeshGroup(meshes, fixed_group);
     const moving_bounds = boundsForMeshGroup(meshes, moving_group);
-    var translation = [3]f64{ 0.0, 0.0, 0.0 };
+    var translation = [3]F{ 0.0, 0.0, 0.0 };
 
     for (0..3) |dd| {
         const fixed_pos = anchorValue(
@@ -532,7 +537,7 @@ pub fn overlapMeshGroupBounds(
 ) void {
     const fixed_bounds = boundsForMeshGroup(meshes, fixed_group);
     const moving_bounds = boundsForMeshGroup(meshes, moving_group);
-    var translation = [3]f64{
+    var translation = [3]F{
         spec.extra_offset[0],
         spec.extra_offset[1],
         spec.extra_offset[2],
@@ -546,9 +551,9 @@ pub fn overlapMeshGroupBounds(
         const center_sep_mag = 0.5 * (fixed_bounds.extent[dd] + moving_bounds.extent[dd]) - desired_overlap;
         const current_sep = moving_bounds.center[dd] - fixed_bounds.center[dd];
         const sep_sign = overlapSign(current_sep, spec.direction[dd]);
-        const target_center = fixed_bounds.center[dd] +
+        const targ_center = fixed_bounds.center[dd] +
             sep_sign * center_sep_mag + spec.extra_offset[dd];
-        translation[dd] = target_center - moving_bounds.center[dd];
+        translation[dd] = targ_center - moving_bounds.center[dd];
     }
 
     translateMeshGroup(meshes, moving_group, translation);
@@ -558,7 +563,7 @@ pub fn arrangeMeshesGrid(
     meshes: anytype,
     spec: GridSpec,
 ) void {
-    var max_extent = [3]f64{ 0.0, 0.0, 0.0 };
+    var max_extent = [3]F{ 0.0, 0.0, 0.0 };
 
     for (meshes) |mesh| {
         const bounds = boundsForCoords(&mesh.coords);
@@ -567,7 +572,7 @@ pub fn arrangeMeshesGrid(
         }
     }
 
-    const stride = [3]f64{
+    const stride = [3]F{
         max_extent[0] + spec.gap[0],
         max_extent[1] + spec.gap[1],
         max_extent[2] + spec.gap[2],
@@ -579,9 +584,9 @@ pub fn arrangeMeshesGrid(
         const zz = nn / (spec.max_divs[0] * spec.max_divs[1]);
 
         centerMeshAt(.{
-            @as(f64, @floatFromInt(xx)) * stride[0],
-            @as(f64, @floatFromInt(yy)) * stride[1],
-            @as(f64, @floatFromInt(zz)) * stride[2],
+            @as(F, @floatFromInt(xx)) * stride[0],
+            @as(F, @floatFromInt(yy)) * stride[1],
+            @as(F, @floatFromInt(zz)) * stride[2],
         }, mesh);
     }
 }
@@ -593,7 +598,7 @@ pub fn arrangeMeshGroupsGrid(
 ) void {
     std.debug.assert(groups.len > 0);
 
-    var max_extent = [3]f64{ 0.0, 0.0, 0.0 };
+    var max_extent = [3]F{ 0.0, 0.0, 0.0 };
     for (groups) |group| {
         const bounds = boundsForMeshGroup(meshes, group);
         for (0..3) |dd| {
@@ -601,7 +606,7 @@ pub fn arrangeMeshGroupsGrid(
         }
     }
 
-    const stride = [3]f64{
+    const stride = [3]F{
         max_extent[0] + spec.gap[0],
         max_extent[1] + spec.gap[1],
         max_extent[2] + spec.gap[2],
@@ -613,9 +618,9 @@ pub fn arrangeMeshGroupsGrid(
         const zz = nn / (spec.max_divs[0] * spec.max_divs[1]);
 
         centerMeshGroupAt(meshes, group, .{
-            @as(f64, @floatFromInt(xx)) * stride[0],
-            @as(f64, @floatFromInt(yy)) * stride[1],
-            @as(f64, @floatFromInt(zz)) * stride[2],
+            @as(F, @floatFromInt(xx)) * stride[0],
+            @as(F, @floatFromInt(yy)) * stride[1],
+            @as(F, @floatFromInt(zz)) * stride[2],
         });
     }
 }
@@ -623,22 +628,22 @@ pub fn arrangeMeshGroupsGrid(
 pub fn arrangeMeshesLine(
     meshes: anytype,
     axis: usize,
-    gap: f64,
+    gap: F,
 ) void {
     std.debug.assert(axis < 3);
     std.debug.assert(meshes.len > 0);
 
-    var cursor: f64 = 0.0;
+    var cursor: F = 0.0;
     for (meshes, 0..) |*mesh, nn| {
         const mesh_bounds = boundsForCoords(&mesh.coords);
-        var center_target = mesh_bounds.center;
+        var center_targ = mesh_bounds.center;
         if (nn == 0) {
-            center_target[axis] = 0.0;
+            center_targ[axis] = 0.0;
         } else {
-            center_target[axis] = cursor + 0.5 * mesh_bounds.extent[axis];
+            center_targ[axis] = cursor + 0.5 * mesh_bounds.extent[axis];
         }
-        centerMeshAt(center_target, mesh);
-        cursor = center_target[axis] + 0.5 * mesh_bounds.extent[axis] + gap;
+        centerMeshAt(center_targ, mesh);
+        cursor = center_targ[axis] + 0.5 * mesh_bounds.extent[axis] + gap;
     }
 }
 
@@ -646,22 +651,22 @@ pub fn arrangeMeshGroupsLine(
     meshes: anytype,
     groups: []const MeshGroup,
     axis: usize,
-    gap: f64,
+    gap: F,
 ) void {
     std.debug.assert(axis < 3);
     std.debug.assert(groups.len > 0);
 
-    var cursor: f64 = 0.0;
+    var cursor: F = 0.0;
     for (groups, 0..) |group, nn| {
         const group_bounds = boundsForMeshGroup(meshes, group);
-        var center_target = group_bounds.center;
+        var center_targ = group_bounds.center;
         if (nn == 0) {
-            center_target[axis] = 0.0;
+            center_targ[axis] = 0.0;
         } else {
-            center_target[axis] = cursor + 0.5 * group_bounds.extent[axis];
+            center_targ[axis] = cursor + 0.5 * group_bounds.extent[axis];
         }
-        centerMeshGroupAt(meshes, group, center_target);
-        cursor = center_target[axis] + 0.5 * group_bounds.extent[axis] + gap;
+        centerMeshGroupAt(meshes, group, center_targ);
+        cursor = center_targ[axis] + 0.5 * group_bounds.extent[axis] + gap;
     }
 }
 
@@ -672,11 +677,11 @@ pub fn arrangeMeshesRadial(
     if (meshes.len == 0) return;
 
     const angle_step = 2.0 * std.math.pi /
-        @as(f64, @floatFromInt(meshes.len));
+        @as(F, @floatFromInt(meshes.len));
 
     for (meshes, 0..) |*mesh, nn| {
         const angle = spec.angle_offset_rad +
-            @as(f64, @floatFromInt(nn)) * angle_step;
+            @as(F, @floatFromInt(nn)) * angle_step;
         centerMeshAt(calcRadialCenter(spec, angle), mesh);
     }
 }
@@ -689,11 +694,11 @@ pub fn arrangeMeshGroupsRadial(
     if (groups.len == 0) return;
 
     const angle_step = 2.0 * std.math.pi /
-        @as(f64, @floatFromInt(groups.len));
+        @as(F, @floatFromInt(groups.len));
 
     for (groups, 0..) |group, nn| {
         const angle = spec.angle_offset_rad +
-            @as(f64, @floatFromInt(nn)) * angle_step;
+            @as(F, @floatFromInt(nn)) * angle_step;
         centerMeshGroupAt(meshes, group, calcRadialCenter(spec, angle));
     }
 }
@@ -702,7 +707,7 @@ fn anchorValue(
     bounds: Bounds3D,
     axis: usize,
     anchor: AxisAnchor,
-) f64 {
+) F {
     return switch (anchor) {
         .min => bounds.min[axis],
         .center => bounds.center[axis],
@@ -712,24 +717,24 @@ fn anchorValue(
 
 fn calcRadialCenter(
     spec: RadialSpec,
-    angle: f64,
-) [3]f64 {
-    var target_center = spec.center;
+    angle: F,
+) [3]F {
+    var targ_center = spec.center;
     switch (spec.axis) {
         .x => {
-            target_center[1] += spec.radius * std.math.cos(angle);
-            target_center[2] += spec.radius * std.math.sin(angle);
+            targ_center[1] += spec.radius * std.math.cos(angle);
+            targ_center[2] += spec.radius * std.math.sin(angle);
         },
         .y => {
-            target_center[0] += spec.radius * std.math.cos(angle);
-            target_center[2] += spec.radius * std.math.sin(angle);
+            targ_center[0] += spec.radius * std.math.cos(angle);
+            targ_center[2] += spec.radius * std.math.sin(angle);
         },
         .z => {
-            target_center[0] += spec.radius * std.math.cos(angle);
-            target_center[1] += spec.radius * std.math.sin(angle);
+            targ_center[0] += spec.radius * std.math.cos(angle);
+            targ_center[1] += spec.radius * std.math.sin(angle);
         },
     }
-    return target_center;
+    return targ_center;
 }
 
 fn groupMeshIdx(
@@ -764,9 +769,9 @@ fn mergeBounds(
 }
 
 fn overlapSign(
-    current_sep: f64,
+    current_sep: F,
     direction: OverlapDirection,
-) f64 {
+) F {
     return switch (direction) {
         .negative => -1.0,
         .positive => 1.0,
@@ -792,6 +797,10 @@ fn validateMeshGroup(
     }
 }
 
+// --------------------------------------------------------------------------------------
+// Tests
+// --------------------------------------------------------------------------------------
+
 test "boundsForCoords and meanCenter" {
     var coords = try meshio.Coords.initAlloc(std.testing.allocator, 3);
     defer std.testing.allocator.free(coords.mem);
@@ -807,10 +816,10 @@ test "boundsForCoords and meanCenter" {
     coords.mat.set(2, 2, -3.0);
 
     const bounds = boundsForCoords(&coords);
-    try std.testing.expectEqualDeep([3]f64{ -1.0, -2.0, -3.0 }, bounds.min);
-    try std.testing.expectEqualDeep([3]f64{ 3.0, 5.0, 4.0 }, bounds.max);
-    try std.testing.expectEqualDeep([3]f64{ 1.0, 1.5, 0.5 }, bounds.center);
-    try std.testing.expectEqualDeep([3]f64{ 4.0, 7.0, 7.0 }, bounds.extent);
+    try std.testing.expectEqualDeep([3]F{ -1.0, -2.0, -3.0 }, bounds.min);
+    try std.testing.expectEqualDeep([3]F{ 3.0, 5.0, 4.0 }, bounds.max);
+    try std.testing.expectEqualDeep([3]F{ 1.0, 1.5, 0.5 }, bounds.center);
+    try std.testing.expectEqualDeep([3]F{ 4.0, 7.0, 7.0 }, bounds.extent);
 
     const center_mean = meanCenter(&coords);
     try std.testing.expectApproxEqAbs(4.0 / 3.0, center_mean.get(0), 1e-12);
@@ -818,7 +827,7 @@ test "boundsForCoords and meanCenter" {
     try std.testing.expectApproxEqAbs(1.0, center_mean.get(2), 1e-12);
 }
 
-test "boundsForMeshGroup supports explicit indices" {
+test "boundsForMeshGroup supps explicit indices" {
     const TestMesh = struct {
         coords: meshio.Coords,
     };
@@ -855,8 +864,8 @@ test "boundsForMeshGroup supports explicit indices" {
         .{ .indices = mesh_indices[0..] },
     );
 
-    try std.testing.expectEqualDeep([3]f64{ -2.0, 0.0, 0.0 }, bounds.min);
-    try std.testing.expectEqualDeep([3]f64{ 1.0, 5.0, 0.0 }, bounds.max);
+    try std.testing.expectEqualDeep([3]F{ -2.0, 0.0, 0.0 }, bounds.min);
+    try std.testing.expectEqualDeep([3]F{ 1.0, 5.0, 0.0 }, bounds.max);
 }
 
 test "translateCoords and centerCoordsAt" {
@@ -877,7 +886,7 @@ test "translateCoords and centerCoordsAt" {
 
     centerCoordsAt(&coords, .{ 0.0, 0.0, 0.0 });
     const bounds = boundsForCoords(&coords);
-    try std.testing.expectEqualDeep([3]f64{ 0.0, 0.0, 0.0 }, bounds.center);
+    try std.testing.expectEqualDeep([3]F{ 0.0, 0.0, 0.0 }, bounds.center);
 }
 
 test "overlapMeshGroupBounds overlaps selected axes" {

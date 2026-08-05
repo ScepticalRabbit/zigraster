@@ -1,14 +1,15 @@
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // Riley: A High Performance Rasteriser for DIC UQ
 //
 // Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
 // Licensed under the MIT License (see LICENSE file for details)
 //
 // Authors: scepticalrabbit (Lloyd Fletcher)
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 const std = @import("std");
 const print = std.debug.print;
-const expectEqual = std.testing.expectEqual;
+const buildconfig = @import("buildconfig.zig");
+const F = buildconfig.F;
 
 const vecstack = @import("vecstack.zig");
 const VecStack = vecstack.VecStack;
@@ -17,10 +18,14 @@ const Vec3T = vecstack.Vec3T;
 const Vec2f = vecstack.Vec2f;
 const Vec3f = vecstack.Vec3f;
 
-const TestType = f64;
-pub const Mat22f = Mat22T(f64);
-pub const Mat33f = Mat33T(f64);
-pub const Mat44f = Mat44T(f64);
+const TestType = F;
+pub const Mat22f = Mat22T(buildconfig.F);
+pub const Mat33f = Mat33T(buildconfig.F);
+pub const Mat44f = Mat44T(buildconfig.F);
+
+// --------------------------------------------------------------------------------------
+// Public Constants & Public Types
+// --------------------------------------------------------------------------------------
 
 pub fn MatStack(
     comptime rows_n: comptime_int,
@@ -202,11 +207,11 @@ pub fn MatStack(
             return mat_out;
         }
 
-        pub fn mulScalar(self: *const Self, scalar: T) Self {
+        pub fn mulScal(self: *const Self, scal: T) Self {
             var mat_out: Self = undefined;
 
             for (0..elem_n) |ee| {
-                mat_out.slice[ee] = scalar * self.slice[ee];
+                mat_out.slice[ee] = scal * self.slice[ee];
             }
 
             return mat_out;
@@ -288,10 +293,10 @@ pub const Mat22Ops = struct {
     }
 
     pub fn inv(comptime T: type, mat22: Mat22T(T)) Mat22T(T) {
-        var inverse: Mat22T(T) = adj(T, mat22);
-        const determinant: T = det(T, mat22);
-        inverse = inverse.mulScalar(1 / determinant);
-        return inverse;
+        var inv_mat: Mat22T(T) = adj(T, mat22);
+        const mat_det: T = det(T, mat22);
+        inv_mat = inv_mat.mulScal(1 / mat_det);
+        return inv_mat;
     }
 };
 
@@ -396,24 +401,24 @@ pub const Mat44Ops = struct {
 
         const det_m: T = det_a * det_d + det_b * det_c - adj_ab_dc.trace();
 
-        var inv_a = mat_a.mulScalar(det_d);
+        var inv_a = mat_a.mulScal(det_d);
         const b_adj_dc = mat_b.mulMat(adj_dc);
         inv_a = inv_a.sub(b_adj_dc);
         inv_a = Mat22Ops.adj(T, inv_a);
 
-        var inv_b = mat_c.mulScalar(det_b);
+        var inv_b = mat_c.mulScal(det_b);
         const adj_ab_adj = Mat22Ops.adj(T, adj_ab);
         const d_adj_ab_adj = mat_d.mulMat(adj_ab_adj);
         inv_b = inv_b.sub(d_adj_ab_adj);
         inv_b = Mat22Ops.adj(T, inv_b);
 
-        var inv_c = mat_b.mulScalar(det_c);
+        var inv_c = mat_b.mulScal(det_c);
         const adj_dc_adj = Mat22Ops.adj(T, adj_dc);
         const a_adj_dc_adj = mat_a.mulMat(adj_dc_adj);
         inv_c = inv_c.sub(a_adj_dc_adj);
         inv_c = Mat22Ops.adj(T, inv_c);
 
-        var inv_d = mat_d.mulScalar(det_a);
+        var inv_d = mat_d.mulScal(det_a);
         const c_adj_ab = mat_c.mulMat(adj_ab);
         inv_d = inv_d.sub(c_adj_ab);
         inv_d = Mat22Ops.adj(T, inv_d);
@@ -425,7 +430,7 @@ pub const Mat44Ops = struct {
         insertMat22(T, &mat_inv, inv_c, 2, 0);
         insertMat22(T, &mat_inv, inv_d, 2, 2);
 
-        mat_inv = mat_inv.mulScalar(1 / det_m);
+        mat_inv = mat_inv.mulScal(1 / det_m);
         return mat_inv;
     }
 
@@ -446,7 +451,12 @@ pub const Mat44Ops = struct {
     }
 };
 
-//------------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
+// Tests
+// --------------------------------------------------------------------------------------
+
+const expectEqual = std.testing.expectEqual;
+
 test "Mat22f.getRowVec" {
     const m0 = [_]TestType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
@@ -512,15 +522,15 @@ test "Mat22f.transpose" {
     try expectEqual(mat_exp, mat0.transpose());
 }
 
-test "Mat22f.mulScalar" {
+test "Mat22f.mulScal" {
     const m0 = [_]TestType{ 1, 2, 3, 4 };
     const mat0 = Mat22f.initSlice(&m0);
 
-    const scalar: TestType = 2;
+    const scal: TestType = 2;
     const m1 = [_]TestType{ 2, 4, 6, 8 };
     const mat_exp = Mat22f.initSlice(&m1);
 
-    try expectEqual(mat_exp, mat0.mulScalar(scalar));
+    try expectEqual(mat_exp, mat0.mulScal(scal));
 }
 
 test "Mat22f.mulVec" {
@@ -625,16 +635,16 @@ test "Mat33f.transpose" {
     try expectEqual(mat_exp, mat0.transpose());
 }
 
-test "Mat33f.mulScalar" {
+test "Mat33f.mulScal" {
     const m0 = [_]TestType{ 1, 2, 3, 4, 5, 6, 7, 8, 9 };
     const mat0 = Mat33f.initSlice(&m0);
 
-    const scalar: TestType = 2;
+    const scal: TestType = 2;
 
     const m1 = [_]TestType{ 2, 4, 6, 8, 10, 12, 14, 16, 18 };
     const mat_exp = Mat33f.initSlice(&m1);
 
-    try expectEqual(mat_exp, mat0.mulScalar(scalar));
+    try expectEqual(mat_exp, mat0.mulScal(scal));
 }
 
 test "Mat33f.mulVec" {

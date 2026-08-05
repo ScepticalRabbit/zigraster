@@ -9,16 +9,18 @@
 const std = @import("std");
 
 // NOTE: pub const needed here for refAllDecls to work!
-pub const small = @import("test_gold_small.zig");
-pub const simple = @import("test_gold_simple.zig");
-pub const edge = @import("test_gold_edge.zig");
-pub const multimesh = @import("test_gold_multimesh.zig");
-pub const multicamera = @import("test_gold_multicamera.zig");
-pub const hull = @import("test_hull.zig");
-pub const nodal_normals = @import("test_nodal_normals.zig");
-pub const texfunc = @import("test_texfunc.zig");
-pub const ssaa = @import("test_gold_ssaa.zig");
-pub const psf = @import("test_gold_psf.zig");
+pub const small = @import("tests/test_gold_small.zig");
+pub const simple = @import("tests/test_gold_simple.zig");
+pub const edge = @import("tests/test_gold_edge.zig");
+pub const multimesh = @import("tests/test_gold_multimesh.zig");
+pub const multicamera = @import("tests/test_gold_multicamera.zig");
+pub const hull = @import("tests/test_hull.zig");
+pub const nodal_normals = @import("tests/test_nodal_normals.zig");
+pub const texfunc = @import("tests/test_texfunc.zig");
+pub const texfloat = @import("tests/test_texfloat.zig");
+pub const ssaa = @import("tests/test_gold_ssaa.zig");
+pub const psf = @import("tests/test_gold_psf.zig");
+pub const visibility = @import("tests/test_visibility.zig");
 
 pub fn main(init: std.process.Init) !void {
     _ = init;

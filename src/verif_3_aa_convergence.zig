@@ -7,13 +7,15 @@
 // Authors: scepticalrabbit (Lloyd Fletcher)
 // --------------------------------------------------------------------------
 const std = @import("std");
+const buildconfig = @import("riley/zig/buildconfig.zig");
+const F = buildconfig.F;
 
-const orch = @import("common/orchestration.zig");
+const orch = @import("dev_support/orchestration.zig");
 const riley = @import("riley/zig/riley.zig");
 const rastcfg = @import("riley/zig/rasterconfig.zig");
 const meshio = @import("riley/zig/meshio.zig");
 const uvio = @import("riley/zig/uvio.zig");
-const mo = @import("riley/zig/meshops.zig");
+const mo = @import("riley/zig/meshpipeline.zig");
 const gk = @import("riley/zig/geometrykernels.zig");
 const iio = @import("riley/zig/imageio.zig");
 const imageops = @import("riley/zig/imageops.zig");
@@ -22,12 +24,13 @@ const ndarray = @import("riley/zig/ndarray.zig");
 const camera_mod = @import("riley/zig/camera.zig");
 const cameraops = @import("riley/zig/cameraops.zig");
 const Rotation = @import("riley/zig/rotation.zig").Rotation;
+const sceneops = @import("riley/zig/sceneops.zig");
 
 const MeshInput = mo.MeshInput;
 const CameraPrepared = camera_mod.CameraPrepared;
 const CameraInput = camera_mod.CameraInput;
-const NDArrayOps = ndarray.NDArrayOps(f64);
-const MatSlice = matslice.MatSlice(f64);
+const NDArrayOps = ndarray.NDArrayOps(F);
+const MatSlice = matslice.MatSlice(F);
 
 const bunny_mesh_types = [_]gk.MeshType{
     .tri3,
@@ -82,7 +85,7 @@ pub fn main(init: std.process.Init) !void {
     const aa = arena.allocator();
 
     const out_verif_root = "verif/verif_3";
-    const fov_scale: f64 = 1.02;
+    const fov_scale: F = 1.02;
 
     std.debug.print("Loading speckle texture...\n", .{});
     const texture = try iio.loadImage(
@@ -171,10 +174,10 @@ pub fn main(init: std.process.Init) !void {
                             .normal_type = .none,
                         } };
                     } else {
-                        mesh_input.shader = .{ .tex = .{
+                        mesh_input.shader = .{ .tex_u8 = .{
                             .uvs = uv_map.array,
-                            .texture = texture,
-                            .sample_config = .{
+                            .tex = texture,
+                            .samp_cfg = .{
                                 .sample = .cubic_catmull_rom,
                                 .mode = .lut_lerp,
                             },
@@ -185,7 +188,7 @@ pub fn main(init: std.process.Init) !void {
                     }
 
                     const mesh_inputs = &[_]MeshInput{mesh_input};
-                    const roi_pos = cameraops.roiCentOverMeshes(mesh_inputs);
+                    const roi_pos = sceneops.boundsCenterOverMeshes(mesh_inputs);
                     const cam_pos = cameraops.posFillFrameFromRotOverMeshes(
                         mesh_inputs,
                         pixel_num,

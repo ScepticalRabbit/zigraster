@@ -8,21 +8,24 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 
+const buildconfig = @import("riley/zig/buildconfig.zig");
 const riley = @import("riley/zig/riley.zig");
 const RasterConfig = riley.RasterConfig;
 const meshio = @import("riley/zig/meshio.zig");
 const uvio = @import("riley/zig/uvio.zig");
 const iio = @import("riley/zig/imageio.zig");
-const mo = @import("riley/zig/meshops.zig");
+const mo = @import("riley/zig/meshpipeline.zig");
 const MeshInput = mo.MeshInput;
 const gk = @import("riley/zig/geometrykernels.zig");
 const MeshType = gk.MeshType;
 const camera_mod = @import("riley/zig/camera.zig");
 const cameraops = @import("riley/zig/cameraops.zig");
+const sceneops = @import("riley/zig/sceneops.zig");
 const CameraInput = camera_mod.CameraInput;
 const Rotation = @import("riley/zig/rotation.zig").Rotation;
 const CameraPrepared = camera_mod.CameraPrepared;
 const MatSlice = @import("riley/zig/matslice.zig").MatSlice;
+const F = buildconfig.F;
 
 pub fn main(init: std.process.Init) !void {
     const outer_alloc = init.gpa;
@@ -49,7 +52,7 @@ pub fn main(init: std.process.Init) !void {
     defer threaded_io.deinit();
     const io = threaded_io.io();
 
-    const data_dir = "data/bench/tri6_sphere200/";
+    const data_dir = "data/min/tri6_sphere200/";
     const out_dir_root = "./out/demo-sphere200";
     const pixel_num = [_]u32{ 800, 500 };
 
@@ -83,10 +86,10 @@ pub fn main(init: std.process.Init) !void {
         .coords = sim_data.coords,
         .connect = sim_data.connect,
         .disp = null,
-        .shader = .{ .tex = .{
+        .shader = .{ .tex_u8 = .{
             .uvs = uvs.array,
-            .texture = texture,
-            .sample_config = .{
+            .tex = texture,
+            .samp_cfg = .{
                 .sample = .cubic_catmull_rom,
                 .mode = .lut_lerp,
             },
@@ -98,12 +101,15 @@ pub fn main(init: std.process.Init) !void {
     // 6. Setup Camera
     // Position camera to frame the sphere
     std.debug.print("Setting up camera...\n", .{});
-    const pixel_size = [_]f64{ 5.3e-6, 5.3e-6 };
-    const focal_leng: f64 = 50.0e-3;
+    const pixel_size = [_]F{
+        @floatCast(5.3e-6),
+        @floatCast(5.3e-6),
+    };
+    const focal_leng: F = @floatCast(50.0e-3);
     const rot = Rotation.init(0, 0, 0);
-    const fov_scale_factor: f64 = 1.0;
+    const fov_scale_factor: F = 1.0;
 
-    const roi_pos = cameraops.roiCentFromCoords(&sim_data.coords);
+    const roi_pos = sceneops.boundsCenter(&sim_data.coords);
     const cam_pos = cameraops.posFillFrameFromRot(
         &sim_data.coords,
         pixel_num,
@@ -142,7 +148,7 @@ pub fn main(init: std.process.Init) !void {
     const render_groups = [_]riley.RenderGroupSpec{
         .{ .io = io, .workers = @max(@as(u16, 1), config.total_threads) },
     };
-    
+
     const images = try riley.raster(
         aa,
         &render_groups,

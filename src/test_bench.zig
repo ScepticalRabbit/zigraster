@@ -7,13 +7,15 @@
 // Authors: scepticalrabbit (Lloyd Fletcher)
 // --------------------------------------------------------------------------
 const std = @import("std");
-const common = @import("common/benchcommon.zig");
-const testcommon = @import("common/tests.zig");
-const tcfg = @import("common/testconfig.zig");
+const common = @import("dev_support/benchcommon.zig");
+const policy = @import("dev_support/testpolicy.zig");
+const testcommon = @import("dev_support/tests.zig");
+const tcfg = @import("dev_support/testconfig.zig");
 const buildconfig = @import("riley/zig/buildconfig.zig");
+const F = buildconfig.F;
 const cfg = buildconfig.config;
 const gk = @import("riley/zig/geometrykernels.zig");
-const mo = @import("riley/zig/meshops.zig");
+const mo = @import("riley/zig/meshpipeline.zig");
 const iio = @import("riley/zig/imageio.zig");
 const texops = @import("riley/zig/textureops.zig");
 
@@ -51,37 +53,54 @@ test "Unified Benchmark Tests" {
         gold_dir: []const u8,
         out_dir: []const u8,
         is_sphere: bool = false,
-        fov_scale: f64 = 1.0,
+        fov_scale: F = 1.0,
+        sub_sample: u32 = 2,
+        skip_quad4ibi_sphere: bool = false,
     }{
         .{
             .name = "fullraster",
             .data_name = "fullraster",
-            .gold_dir = "gold/fullscreen",
+            .gold_dir = policy.goldRoot(.fullscreen),
             .out_dir = "out/fullraster",
+        },
+        .{
+            .name = "fullraster_ssaa1",
+            .data_name = "fullraster",
+            .gold_dir = policy.goldRoot(.fullscreen_ssaa1),
+            .out_dir = "out/fullraster_ssaa1",
+            .sub_sample = 1,
         },
         .{
             .name = "geom",
             .data_name = "geom",
-            .gold_dir = "gold/fullscreen",
+            .gold_dir = policy.goldRoot(.fullscreen),
             .out_dir = "out/geom",
         },
         .{
             .name = "sphere2000",
             .data_name = "sphere2000",
-            .gold_dir = if (simd_on) "gold/sphere2000-simd" else "gold/sphere2000",
+            .gold_dir = policy.goldRoot(.sphere2000),
             .out_dir = "out/sphere2000",
             .is_sphere = true,
+            .skip_quad4ibi_sphere = true,
+        },
+        .{
+            .name = "sphere2000_ssaa1",
+            .data_name = "sphere2000",
+            .gold_dir = policy.goldRoot(.sphere2000_ssaa1),
+            .out_dir = "out/sphere2000_ssaa1",
+            .is_sphere = true,
+            .sub_sample = 1,
+            .skip_quad4ibi_sphere = true,
         },
         .{
             .name = "sphere2000zoom",
             .data_name = "sphere2000",
-            .gold_dir = if (simd_on)
-                "gold/sphere2000zoom-simd"
-            else
-                "gold/sphere2000zoom",
+            .gold_dir = policy.goldRoot(.sphere2000zoom),
             .out_dir = "out/sphere2000zoom",
             .is_sphere = true,
             .fov_scale = 0.5,
+            .skip_quad4ibi_sphere = true,
         },
     };
 
@@ -102,7 +121,7 @@ test "Unified Benchmark Tests" {
         .tex8_grey,
         .tex8_rgb,
     };
-    const sample_configs = [_]texops.TextureSampleConfig{
+    const samp_cfgs = [_]texops.TextureSampleConfig{
         .{ .sample = .nearest, .mode = .direct },
         .{ .sample = .linear, .mode = .direct },
         .{ .sample = .cubic_catmull_rom, .mode = .direct },
@@ -115,6 +134,7 @@ test "Unified Benchmark Tests" {
     };
 
     var total_fails: usize = 0;
+    var printed_tri3opt_geom_warning = false;
 
     std.debug.print("Running Unified Benchmark Tests...\n", .{});
 
@@ -125,27 +145,37 @@ test "Unified Benchmark Tests" {
     for (cases) |cc| {
         std.debug.print("\n--- Testing benchmark: {s} ---\n", .{cc.name});
 
-        if (!simd_on and cc.is_sphere) {
-            std.debug.print(
-                "Skipping scalar sphere benchmark comparisons.\n",
-                .{},
-            );
-            continue;
-        }
-
         for (mesh_types) |mt| {
             for (shader_types) |st| {
-                for (sample_configs) |sc| {
+                for (samp_cfgs) |sc| {
                     _ = arena.reset(.free_all);
 
+                    if (policy.shouldSkipBenchGeomTest(mt, cc.name)) {
+                        if (!printed_tri3opt_geom_warning) {
+                            std.debug.print(
+                                "WARNING: {s}\n",
+                                .{policy.benchGeomSkipWarning()},
+                            );
+                            printed_tri3opt_geom_warning = true;
+                        }
+                        continue;
+                    }
+
+                    const folder_name = policy.meshName(
+                        .benchmark_data,
+                        mt,
+                    );
                     const data_dir = try std.fmt.allocPrint(
                         aa,
                         "data/bench/{s}_{s}",
-                        .{ @tagName(mt), cc.data_name },
+                        .{ folder_name, cc.data_name },
                     );
 
                     const run_config = if (cc.is_sphere)
-                        common.BenchConfig{ .run = .all, .skip_quad4ibi_sphere = true }
+                        common.BenchConfig{
+                            .run = .all,
+                            .skip_quad4ibi_sphere = cc.skip_quad4ibi_sphere,
+                        }
                     else
                         config;
 
@@ -158,7 +188,10 @@ test "Unified Benchmark Tests" {
 
                         const case_name = try common.calcCaseName(
                             aa,
-                            mt,
+                            if (cc.is_sphere)
+                                policy.sphereGoldCaseMeshType(mt)
+                            else
+                                mt,
                             st,
                             sc,
                             null,
@@ -169,6 +202,7 @@ test "Unified Benchmark Tests" {
 
                         // 1. Run benchmark
                         var result = try common.runBenchmarkQuiet(
+                            u8,
                             outer_alloc,
                             io,
                             mt,
@@ -178,7 +212,7 @@ test "Unified Benchmark Tests" {
                             data_dir,
                             .{
                                 .pixels_num = render_defaults_base.pixels_num,
-                                .sub_sample = render_defaults_base.sub_sample,
+                                .sub_sample = cc.sub_sample,
                                 .focal_leng = render_defaults_base.focal_leng,
                                 .pixels_size = render_defaults_base.pixels_size,
                                 .fov_scale = cc.fov_scale,

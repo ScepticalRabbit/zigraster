@@ -8,25 +8,28 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 
-const orch = @import("common/orchestration.zig");
+const orch = @import("dev_support/orchestration.zig");
 const cammod = @import("riley/zig/camera.zig");
 const cameraops = @import("riley/zig/cameraops.zig");
 const gk = @import("riley/zig/geometrykernels.zig");
 const iio = @import("riley/zig/imageio.zig");
 const meshio = @import("riley/zig/meshio.zig");
-const mo = @import("riley/zig/meshops.zig");
+const mo = @import("riley/zig/meshpipeline.zig");
 const rastcfg = @import("riley/zig/rasterconfig.zig");
 const riley = @import("riley/zig/riley.zig");
 const Rotation = @import("riley/zig/rotation.zig").Rotation;
 const sceneops = @import("riley/zig/sceneops.zig");
 const shaderops = @import("riley/zig/shaderops_common.zig");
+const texops = @import("riley/zig/textureops.zig");
 const uvio = @import("riley/zig/uvio.zig");
+const buildconfig = @import("riley/zig/buildconfig.zig");
 
 const CameraInput = cammod.CameraInput;
 const CameraPrepared = cammod.CameraPrepared;
 const MeshInput = mo.MeshInput;
 const FuncShaderBuiltin = shaderops.FuncShaderBuiltin;
 const FuncShaderParams = shaderops.FuncShaderParams;
+const F = buildconfig.F;
 
 const rabbit_mesh_types = [_]gk.MeshType{
     .tri3,
@@ -38,10 +41,10 @@ const rabbit_mesh_types = [_]gk.MeshType{
 
 const out_dir_root = "./out/demo-rabbits-rgb";
 const pixel_num = [_]u32{ 1600, 800 };
-const fov_scale: f64 = 1.01;
-const overlap_frac_xy = [2]f64{ 0.85, 0.8 };
-const checker_squares_per_axis: f64 = 36.0;
-const background_value: f64 = 0.5 * @as(f64, std.math.maxInt(u8));
+const fov_scale: F = @floatCast(1.01);
+const overlap_frac_xy = [2]F{ 0.85, 0.8 };
+const checker_squares_per_axis: F = 36.0;
+const background_value: F = 0.5 * @as(F, std.math.maxInt(u8));
 
 const ShaderMode = enum {
     tex,
@@ -131,17 +134,17 @@ fn makeRgbMeshInput(
     rabbit_name: []const u8,
     mesh_type: gk.MeshType,
     shader_mode: ShaderMode,
-    texture: iio.Texture(3),
+    texture: texops.Tex(u8, 3),
 ) !MeshInput {
     const data_dir = try buildRabbitDir(allocator, rabbit_name, mesh_type);
     const sim_data = try loadStaticMesh(allocator, io, data_dir);
     const uvs = try loadRabbitUvMap(allocator, io, data_dir);
 
     const shader: shaderops.ShaderInput = switch (shader_mode) {
-        .tex => .{ .tex_rgb = .{
+        .tex => .{ .tex_rgb_u8 = .{
             .uvs = uvs.array,
-            .texture = texture,
-            .sample_config = .{
+            .tex = texture,
+            .samp_cfg = .{
                 .sample = .cubic_catmull_rom,
                 .mode = .lut_lerp,
             },
@@ -184,7 +187,7 @@ fn makeRgbMeshInput(
 fn buildRabbitPairScene(
     allocator: std.mem.Allocator,
     io: std.Io,
-    texture: iio.Texture(3),
+    texture: texops.Tex(u8, 3),
 ) ![]MeshInput {
     var mesh_list = std.ArrayList(MeshInput).empty;
     var group_list = std.ArrayList(sceneops.MeshGroup).empty;
@@ -258,7 +261,7 @@ pub fn main(init: std.process.Init) !void {
 
     const mesh_inputs = try buildRabbitPairScene(aa, io, texture);
     const rot = Rotation.init(0.0, std.math.pi, 0.0);
-    const roi_pos = cameraops.roiCentOverMeshes(mesh_inputs);
+    const roi_pos = sceneops.boundsCenterOverMeshes(mesh_inputs);
     const cam_pos = cameraops.posFillFrameFromRotOverMeshes(
         mesh_inputs,
         pixel_num,
@@ -293,7 +296,7 @@ pub fn main(init: std.process.Init) !void {
     };
     const config = rastcfg.RasterConfig{
         .save_strategy = .disk,
-        .image_mode = .rgb,
+        .image_save_mode = .rgb,
         .background_value = background_value,
         .image_save_opts = &[_]iio.ImageSaveOpts{
             .{ .format = .bmp, .bits = 8, .scaling = .none },

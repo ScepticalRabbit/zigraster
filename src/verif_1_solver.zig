@@ -8,12 +8,13 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const buildconfig = @import("riley/zig/buildconfig.zig");
+const F = buildconfig.F;
 const cam = @import("riley/zig/camera.zig");
 const gk = @import("riley/zig/geometrykernels.zig");
 const meshio = @import("riley/zig/meshio.zig");
-const orch = @import("common/orchestration.zig");
-const verif = @import("common/verif.zig");
-const vconst = @import("common/verifconstants.zig");
+const orch = @import("dev_support/orchestration.zig");
+const verif = @import("dev_support/verif.zig");
+const vconst = @import("dev_support/verifconstants.zig");
 
 const structured_grid_quad_num: usize = 250;
 const structured_grid_tri_num: usize = 250;
@@ -40,20 +41,20 @@ fn frameStatsFileName(
     return std.fmt.bufPrint(buf, "solver_stats_frame{d}.csv", .{frame_idx});
 }
 
-fn isFinite(val: f64) bool {
+fn isFinite(val: F) bool {
     return !std.math.isNan(val) and !std.math.isInf(val);
 }
 
 fn evalSample(
     comptime mesh_type: gk.MeshType,
     camera: *const cam.CameraPrepared,
-    node_x: []const f64,
-    node_y: []const f64,
-    node_z: []const f64,
+    node_x: []const F,
+    node_y: []const F,
+    node_z: []const F,
     solver_nodes: *const verif.ElementNodes(mesh_type.getNodesNum()),
     sample: verif.SamplePoint,
 ) !verif.SampleRecord {
-    const nan = std.math.nan(f64);
+    const nan = std.math.nan(F);
     const world_true = verif.forwardMapWorldForMeshType(
         mesh_type,
         sample.xi_true,
@@ -77,7 +78,7 @@ fn evalSample(
     var eta_rec = nan;
     var xi_reproj = nan;
     var eta_reproj = nan;
-    var observed_reproj = [2]f64{ nan, nan };
+    var observed_reproj = [2]F{ nan, nan };
     var reproj_err = nan;
     var err_xi = nan;
     var err_eta = nan;
@@ -177,8 +178,8 @@ fn saveFieldMaps(
     frame_idx: usize,
     rows_num: usize,
     cols_num: usize,
-    field0: []const f64,
-    field1: []const f64,
+    field0: []const F,
+    field1: []const F,
 ) !void {
     var field0_stem_buf: [128]u8 = undefined;
     var field0_csv_buf: [128]u8 = undefined;
@@ -255,12 +256,12 @@ fn saveIdealMaps(
     defer ideal_dir.close(io);
 
     const map_len = rows_num * cols_num;
-    var xi_map = try allocator.alloc(f64, map_len);
+    var xi_map = try allocator.alloc(F, map_len);
     defer allocator.free(xi_map);
-    var eta_map = try allocator.alloc(f64, map_len);
+    var eta_map = try allocator.alloc(F, map_len);
     defer allocator.free(eta_map);
-    @memset(xi_map, std.math.nan(f64));
-    @memset(eta_map, std.math.nan(f64));
+    @memset(xi_map, std.math.nan(F));
+    @memset(eta_map, std.math.nan(F));
 
     for (sample_list) |sample| {
         const map_idx = sample.row_idx * cols_num + sample.col_idx;
@@ -370,7 +371,7 @@ fn runDistortCase(
     case_spec: vconst.DistortCase,
     allocator: std.mem.Allocator,
     io: std.Io,
-    global_reproj_errs: *std.ArrayList(f64),
+    global_reproj_errs: *std.ArrayList(F),
 ) !void {
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
@@ -416,20 +417,20 @@ fn runDistortCase(
             nodes.z[0..],
         );
 
-        var xi_map = try allocator.alloc(f64, map_len);
+        var xi_map = try allocator.alloc(F, map_len);
         defer allocator.free(xi_map);
-        var eta_map = try allocator.alloc(f64, map_len);
+        var eta_map = try allocator.alloc(F, map_len);
         defer allocator.free(eta_map);
-        @memset(xi_map, std.math.nan(f64));
-        @memset(eta_map, std.math.nan(f64));
+        @memset(xi_map, std.math.nan(F));
+        @memset(eta_map, std.math.nan(F));
 
         var records: std.ArrayList(verif.SampleRecord) = .empty;
         defer records.deinit(allocator);
         try records.ensureTotalCapacity(allocator, sample_data.list.items.len);
 
-        var reproj_vals: std.ArrayList(f64) = .empty;
+        var reproj_vals: std.ArrayList(F) = .empty;
         defer reproj_vals.deinit(allocator);
-        var param_vals: std.ArrayList(f64) = .empty;
+        var param_vals: std.ArrayList(F) = .empty;
         defer param_vals.deinit(allocator);
 
         for (sample_data.list.items) |sample| {
@@ -515,7 +516,7 @@ pub fn main(init: std.process.Init) !void {
     var root_dir = try orch.openDirEnsured(io, root_dir_path);
     defer root_dir.close(io);
 
-    var global_reproj_errs: std.ArrayList(f64) = .empty;
+    var global_reproj_errs: std.ArrayList(F) = .empty;
     defer global_reproj_errs.deinit(allocator);
 
     for (vconst.distort_cases) |case_spec| {
@@ -570,7 +571,7 @@ pub fn main(init: std.process.Init) !void {
             allocator,
             global_reproj_errs.items,
         );
-        const newton_tol = buildconfig.config.tolerance.newton.residual;
+        const newton_tol = buildconfig.config.tolerance.newton.resid;
 
         std.debug.print(
             "\nGlobal reprojection error summary (px):\n" ++
@@ -588,7 +589,7 @@ pub fn main(init: std.process.Init) !void {
         );
         std.debug.print(
             "Tolerance comparison:\n" ++
-                "  newton residual tol = {e:.6}\n" ++
+                "  newton resid tol = {e:.6}\n" ++
                 "  max / newton tol = {e:.3}\n" ++
                 "  median / newton tol = {e:.3}\n",
             .{

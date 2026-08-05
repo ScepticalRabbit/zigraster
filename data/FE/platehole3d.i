@@ -7,11 +7,11 @@
 
 timeStep = 1
 
-# endTime = 63
-# maxDisp = 0.01e-3
-
-endTime = 1
+endTime = 63
 maxDisp = 0.01e-3
+
+# endTime = 1
+# maxDisp = 0.01e-3
 
 # Mechanical Loads/BCs
 topDispRate = ${fparse maxDisp / endTime}  # m/s

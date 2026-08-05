@@ -1,13 +1,18 @@
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // Riley: A High Performance Rasteriser for DIC UQ
 //
 // Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
 // Licensed under the MIT License (see LICENSE file for details)
 //
 // Authors: scepticalrabbit (Lloyd Fletcher)
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 const iio = @import("imageio.zig");
 const buildconfig = @import("buildconfig.zig");
+const F = buildconfig.F;
+
+// --------------------------------------------------------------------------------------
+// Public Constants & Public Types
+// --------------------------------------------------------------------------------------
 
 // Parallelism convention:
 // Let each render group g have W_g work-capable threads, including the caller.
@@ -47,20 +52,23 @@ pub const RasterConfig = struct {
     max_raster_workers_per_job: u16 = 1,
     save_strategy: SaveStrategy = .memory,
     disk_save_overlap: bool = false,
-    image_mode: ImageMode = .multifield,
+    image_save_mode: ImageSaveMode = .multifield,
     image_save_opts: []const iio.ImageSaveOpts = &[_]iio.ImageSaveOpts{
         .{ .format = .bmp, .bits = 8, .scaling = .none },
     },
     tile_size_override: ?u16 = null,
-    tile_size_min: u16 = 4,
+    tile_size_min: u16 = 1,
     tile_size_max: u16 = 256,
-    background_value: f64 = 0.0,
+    // Test/development override for exercising the extended raster domain
+    // without changing the camera PSF or resolve operation.
+    raster_halo_px_override: ?u16 = null,
+    background_value: F = 0.0,
     hull_mode: HullMode = .on_no_fallback,
     newton_seed_mode: NewtonSeedMode = .centroid,
     newton_seed_reuse: NewtonSeedReuse = .off,
     report: ReportMode = .bench,
     full_stats_opts: FullStatsOpts = .{},
-    save_frame_buffer_count: usize = buildconfig.SaveFrameBufferCount,
+    save_frame_buff_count: usize = buildconfig.SaveFrameBuffCount,
 };
 
 pub const RenderMode = enum {
@@ -82,7 +90,7 @@ pub const GeometrySchedulingMode = enum {
     // before starting additional geometry jobs.
     pack,
     // Resolve at runtime from the scene size in scalingpolicy.zig:
-    // smaller scenes default to spread, larger scenes default to pack.
+    // smaller scenes def to spread, larger scenes def to pack.
     auto,
 };
 
@@ -93,7 +101,7 @@ pub const SaveStrategy = enum {
     none,
 };
 
-pub const ImageMode = enum {
+pub const ImageSaveMode = enum {
     grey,
     rgb,
     multifield,
@@ -118,7 +126,7 @@ pub const NewtonSeedMode = enum {
 
 pub const NewtonSeedReuse = enum {
     off,
-    last_converged,
+    last_conv,
 };
 
 pub const FullStatsOpts = struct {
@@ -126,11 +134,12 @@ pub const FullStatsOpts = struct {
         .{ .format = .bmp, .bits = 8, .scaling = .auto },
         .{ .format = .csv, .bits = null, .scaling = .none },
     },
-    save_iteration_map: bool = true,
+    save_solver_csv: bool = false,
+    save_iter_map: bool = true,
     save_xi_map: bool = true,
     save_eta_map: bool = true,
-    save_converged_map: bool = true,
-    save_jacobian_det_map: bool = true,
+    save_conv_map: bool = true,
+    save_jac_det_map: bool = true,
     save_tile_timing_map: bool = true,
     save_tile_density_map: bool = true,
     save_tile_occupancy_map: bool = true,

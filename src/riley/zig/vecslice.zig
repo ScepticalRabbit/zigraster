@@ -1,24 +1,25 @@
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // Riley: A High Performance Rasteriser for DIC UQ
 //
 // Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
 // Licensed under the MIT License (see LICENSE file for details)
 //
 // Authors: scepticalrabbit (Lloyd Fletcher)
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 const std = @import("std");
+const buildconfig = @import("buildconfig.zig");
+const F = buildconfig.F;
 const print = std.debug.print;
-
-const testing = std.testing;
 const assert = std.debug.assert;
-const expectEqual = std.testing.expectEqual;
-const expectApproxEqAbs = testing.expectApproxEqAbs;
-const expectEqualSlices = testing.expectEqualSlices;
 
 const SliceOps = @import("sliceops.zig");
 const ValIdx = SliceOps.ValIdx;
 
-const TestType = f64;
+const TestType = F;
+
+// --------------------------------------------------------------------------------------
+// Public Constants & Public Types
+// --------------------------------------------------------------------------------------
 
 pub fn VecSlice(comptime T: type) type {
     return struct {
@@ -68,9 +69,9 @@ pub fn VecSlice(comptime T: type) type {
             }
         }
 
-        pub fn mulScalarInPlace(self: *const Self, scalar: T) void {
+        pub fn mulScalInPlace(self: *const Self, scal: T) void {
             for (0..self.slice.len) |ii| {
-                self.slice[ii] = scalar * self.slice[ii];
+                self.slice[ii] = scal * self.slice[ii];
             }
         }
 
@@ -129,16 +130,25 @@ pub fn VecSlice(comptime T: type) type {
     };
 }
 
+// --------------------------------------------------------------------------------------
+// Tests
+// --------------------------------------------------------------------------------------
+
+const testing = std.testing;
+const expectEqual = std.testing.expectEqual;
+const expectApproxEqAbs = testing.expectApproxEqAbs;
+const expectEqualSlices = testing.expectEqualSlices;
+
 test "VecSlice.addInPlace" {
     const vec_len: usize = 10;
 
-    var v0 = [_]f64{0.0} ** vec_len;
+    var v0 = [_]F{0.0} ** vec_len;
     const vec0 = VecSlice(TestType).init(v0[0..]);
 
-    var v1 = [_]f64{0.0} ** vec_len;
+    var v1 = [_]F{0.0} ** vec_len;
     const vec1 = VecSlice(TestType).init(v1[0..]);
 
-    var ve = [_]f64{0.0} ** vec_len;
+    var ve = [_]F{0.0} ** vec_len;
     const vec_exp = VecSlice(TestType).init(ve[0..]);
 
     vec0.fill(1.0);
@@ -153,13 +163,13 @@ test "VecSlice.addInPlace" {
 test "VecSlice.subInPlace" {
     const vec_len: usize = 10;
 
-    var v0 = [_]f64{0.0} ** vec_len;
+    var v0 = [_]F{0.0} ** vec_len;
     const vec0 = VecSlice(TestType).init(v0[0..]);
 
-    var v1 = [_]f64{0.0} ** vec_len;
+    var v1 = [_]F{0.0} ** vec_len;
     const vec1 = VecSlice(TestType).init(v1[0..]);
 
-    var ve = [_]f64{0.0} ** vec_len;
+    var ve = [_]F{0.0} ** vec_len;
     const vec_exp = VecSlice(TestType).init(ve[0..]);
 
     vec0.fill(1.0);
@@ -174,13 +184,13 @@ test "VecSlice.subInPlace" {
 test "VecSlice.mulInPlace" {
     const vec_len: usize = 10;
 
-    var v0 = [_]f64{0.0} ** vec_len;
+    var v0 = [_]F{0.0} ** vec_len;
     const vec0 = VecSlice(TestType).init(v0[0..]);
 
-    var v1 = [_]f64{0.0} ** vec_len;
+    var v1 = [_]F{0.0} ** vec_len;
     const vec1 = VecSlice(TestType).init(v1[0..]);
 
-    var ve = [_]f64{0.0} ** vec_len;
+    var ve = [_]F{0.0} ** vec_len;
     const vec_exp = VecSlice(TestType).init(ve[0..]);
 
     vec0.fill(1.0);
@@ -195,13 +205,13 @@ test "VecSlice.mulInPlace" {
 test "VecSlice.divInPlace" {
     const vec_len: usize = 10;
 
-    var v0 = [_]f64{0.0} ** vec_len;
+    var v0 = [_]F{0.0} ** vec_len;
     const vec0 = VecSlice(TestType).init(v0[0..]);
 
-    var v1 = [_]f64{0.0} ** vec_len;
+    var v1 = [_]F{0.0} ** vec_len;
     const vec1 = VecSlice(TestType).init(v1[0..]);
 
-    var ve = [_]f64{0.0} ** vec_len;
+    var ve = [_]F{0.0} ** vec_len;
     const vec_exp = VecSlice(TestType).init(ve[0..]);
 
     vec0.fill(1.0);
@@ -213,31 +223,31 @@ test "VecSlice.divInPlace" {
     try expectEqualSlices(TestType, vec_exp.slice, vec0.slice);
 }
 
-test "VecSlice.mulScalarInPlace" {
+test "VecSlice.mulScalInPlace" {
     const vec_len: usize = 10;
 
-    var v0 = [_]f64{0.0} ** vec_len;
+    var v0 = [_]F{0.0} ** vec_len;
     const vec0 = VecSlice(TestType).init(v0[0..]);
 
-    var ve = [_]f64{0.0} ** vec_len;
+    var ve = [_]F{0.0} ** vec_len;
     const vec_exp = VecSlice(TestType).init(ve[0..]);
 
     vec0.fill(1.0);
     vec_exp.fill(2.0);
 
-    const scalar: TestType = 2.0;
+    const scal: TestType = 2.0;
 
-    vec0.mulScalarInPlace(scalar);
+    vec0.mulScalInPlace(scal);
 
     try expectEqualSlices(TestType, vec_exp.slice, vec0.slice);
 }
 
 test "VecSlice.max" {
-    var v0 = [_]f64{0.0} ** 10;
+    var v0 = [_]F{0.0} ** 10;
     const vec0 = VecSlice(TestType).init(v0[0..]);
 
     const exp_idx: usize = 4;
-    const exp_val: f64 = 8.0;
+    const exp_val: F = 8.0;
 
     vec0.fill(0.0);
     vec0.set(exp_idx, exp_val);
@@ -251,11 +261,11 @@ test "VecSlice.max" {
 }
 
 test "VecSlice.min" {
-    var v0 = [_]f64{0.0} ** 10;
+    var v0 = [_]F{0.0} ** 10;
     const vec0 = VecSlice(TestType).init(v0[0..]);
 
     const exp_idx: usize = 7;
-    const exp_val: f64 = -3.0;
+    const exp_val: F = -3.0;
 
     vec0.fill(0.0);
     vec0.set(exp_idx, exp_val);
@@ -269,7 +279,7 @@ test "VecSlice.min" {
 }
 
 test "VecSlice.sum" {
-    var v0 = [_]f64{0.0} ** 12;
+    var v0 = [_]F{0.0} ** 12;
     const vec0 = VecSlice(TestType).init(v0[0..]);
 
     vec0.fill(1.0);
@@ -281,7 +291,7 @@ test "VecSlice.sum" {
 }
 
 test "VecSlice.mean" {
-    var v0 = [_]f64{0.0} ** 10;
+    var v0 = [_]F{0.0} ** 10;
     const vec0 = VecSlice(TestType).init(v0[0..]);
 
     vec0.fill(1.0);
@@ -296,13 +306,13 @@ test "VecSlice.mean" {
 test "VecSlice.apply" {
     const vec_len: usize = 7;
 
-    var v0 = [_]f64{0.0} ** vec_len;
+    var v0 = [_]F{0.0} ** vec_len;
     var vec0 = VecSlice(TestType).init(v0[0..]);
 
-    var ve1 = [_]f64{1.0} ** vec_len;
+    var ve1 = [_]F{1.0} ** vec_len;
     const vec_exp_ones = VecSlice(TestType).init(ve1[0..]);
 
-    var ve0 = [_]f64{0.0} ** vec_len;
+    var ve0 = [_]F{0.0} ** vec_len;
     const vec_exp_zeros = VecSlice(TestType).init(ve0[0..]);
 
     vec0.fill(1.0);
@@ -313,7 +323,7 @@ test "VecSlice.apply" {
 
     try expectEqualSlices(TestType, vec_exp_ones.slice, vec0.slice);
 
-    var v1 = [_]f64{0.0} ** vec_len;
+    var v1 = [_]F{0.0} ** vec_len;
     var vec1 = VecSlice(TestType).init(v1[0..]);
 
     vec1.fill(0.0);

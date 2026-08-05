@@ -2,6 +2,8 @@ include LICENSE
 include README.md
 include pyproject.toml
 include setup.py
+include scripts/sync_python_package_data.py
+include scripts/python_package_data.toml
 
 recursive-include src/riley *.py *.pxd *.h *.zig
 

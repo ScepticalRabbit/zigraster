@@ -50,9 +50,15 @@ def load_summary(summary_path: pathlib.Path) -> list[dict[str, str]]:
 def ensure_summary_rows() -> list[dict[str, str]]:
     summary_path = repo_root() / SUMMARY_PATH
     if not summary_path.exists():
-        print("Missing verif_6 summary, generating it with scripts/verif_6.py...")
+        print(
+            "Missing verif_6 summary, generating it with "
+            "scripts/paper_verif_6_helper.py..."
+        )
         subprocess.run(
-            [str(python_path()), "scripts/verif_6.py"],
+            [
+                str(python_path()),
+                "scripts/paper_verif_6_helper.py",
+            ],
             cwd=repo_root(),
             check=True,
         )

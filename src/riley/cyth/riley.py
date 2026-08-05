@@ -15,11 +15,6 @@ from typing import Any
 import numpy as np
 from cython.cimports.libc.stdlib import free, malloc
 from cython.cimports.riley.cyth import riley as cr
-from riley.python.helpers import (
-    build_config,
-    load_sim_csvs,
-    load_texture,
-)
 
 
 @dataclass(slots=True)
@@ -56,6 +51,7 @@ class Camera:
         0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
     )
     coord_sys: int = 0
+    subpixel_center_map: int = 1
     psf_type: int = 0
     psf_sigma_x: float = 0.0
     psf_sigma_y: float = 0.0
@@ -73,8 +69,50 @@ class FuncShaderParams:
     coord_offset: tuple[float, float] = (0.0, 0.0)
     output_scale: float = 1.0
     output_offset: float = 0.0
+    constant_value: float = 0.5
+    constant_value_rgb: tuple[float, float, float] = (0.2, 0.5, 0.8)
+    linear_coeffs: tuple[float, float, float] = (0.5, 0.25, 0.2)
+    linear_coeffs_rgb: tuple[
+        tuple[float, float, float],
+        tuple[float, float, float],
+        tuple[float, float, float],
+    ] = (
+        (0.5, 0.25, 0.0),
+        (0.5, 0.0, 0.25),
+        (0.5, 0.15, -0.15),
+    )
+    quadratic_coeffs: tuple[float, float, float, float, float, float] = (
+        0.35, 0.2, 0.15, 0.1, -0.08, 0.06,
+    )
+    quadratic_coeffs_rgb: tuple[
+        tuple[float, float, float, float, float, float],
+        tuple[float, float, float, float, float, float],
+        tuple[float, float, float, float, float, float],
+    ] = (
+        (0.3, 0.0, 0.0, 0.2, 0.0, 0.0),
+        (0.3, 0.0, 0.0, 0.0, 0.0, 0.2),
+        (0.3, 0.0, 0.0, 0.0, 0.12, 0.0),
+    )
     wave_num_scalar: tuple[float, float] = (6.0, 5.0)
     wave_num_rgb: tuple[float, float, float] = (6.0, 6.0, 4.0)
+    sinusoidal_bias: float = 0.5
+    sinusoidal_amplitudes: tuple[float, float] = (0.25, 0.2)
+    sinusoidal_bias_rgb: tuple[float, float, float] = (0.5, 0.5, 0.5)
+    sinusoidal_amplitudes_rgb: tuple[float, float, float] = (
+        0.25, 0.25, 0.2,
+    )
+    checker_levels: tuple[float, float] = (0.0, 1.0)
+    checker_smooth_frequency: float = 8.0
+    lambertian_coeffs: tuple[float, float] = (0.5, 0.5)
+    lambertian_coeffs_rgb: tuple[
+        tuple[float, float],
+        tuple[float, float],
+        tuple[float, float],
+    ] = (
+        (0.5, 0.5),
+        (0.375, 0.375),
+        (0.25, 0.25),
+    )
     eggbox_mean: float = 0.5
     eggbox_contrast: float = 0.4
     eggbox_pitch: tuple[float, float] = (1.0, 1.0)
@@ -96,6 +134,7 @@ class Mesh:
     shader_type: int = 0
     uvs: np.ndarray | None = None
     texture: np.ndarray | None = None
+    texture_storage: int = 0
     sample: int = 2
     sample_mode: int = 2
     bits: int = 8
@@ -125,28 +164,45 @@ class RasterConfig:
     geom_scheduling_mode: int = 2
     max_raster_workers_per_job: int = 1
     save_strategy: int = 1
-    image_mode: int = 2
-    subpixel_center_map: int = 1
+    image_save_mode: int = 2
+    hull_mode: int = 1
+    newton_seed_mode: int = 0
+    newton_seed_reuse: int = 0
     report: int = 1
-    tile_size_min: int = 8
+    tile_size_min: int = 1
     tile_size_max: int = 256
     background_value: float = 0.0
     disk_save_overlap: bool = False
     tile_size_override: int = 0
+    save_frame_buffer_count: int = 3
     save_format: int = 3
     save_bits: int = 8
-    save_scaling: int = 1
+    save_scaling: int = 0
     save_scaling_min: float = 0.0
     save_scaling_max: float = 0.0
+    full_stats_save_solver_csv: bool = False
+    full_stats_save_iter_map: bool = True
+    full_stats_save_xi_map: bool = True
+    full_stats_save_eta_map: bool = True
+    full_stats_save_conv_map: bool = True
+    full_stats_save_jac_det_map: bool = True
+    full_stats_save_tile_timing_map: bool = True
+    full_stats_save_tile_density_map: bool = True
+    full_stats_save_tile_occupancy_map: bool = True
+    full_stats_save_depth_map: bool = True
+    full_stats_save_earlyout_map: bool = True
+    full_stats_save_pixel_occupancy_map: bool = True
+    full_stats_save_normals_map: bool = False
 
 
 class MeshType(IntEnum):
     tri3 = 0
-    tri6 = 1
-    quad4ibi = 2
-    quad4newton = 3
-    quad8 = 4
-    quad9 = 5
+    tri3opt = 1
+    tri6 = 2
+    quad4ibi = 3
+    quad4newton = 4
+    quad8 = 5
+    quad9 = 6
 
 
 class ShaderType(IntEnum):
@@ -156,6 +212,12 @@ class ShaderType(IntEnum):
     func = 3
     func_rgb = 4
     nodal_rgb = 5
+
+
+class TextureStorage(IntEnum):
+    u8 = 0
+    u16 = 1
+    floating = 2
 
 
 class RenderMode(IntEnum):
@@ -176,7 +238,7 @@ class SaveStrategy(IntEnum):
     none = 3
 
 
-class ImageMode(IntEnum):
+class ImageSaveMode(IntEnum):
     grey = 0
     rgb = 1
     multifield = 2
@@ -202,6 +264,7 @@ class TextureSample(IntEnum):
     lanczos3 = 4
     cubic_bspline = 5
     quintic_bspline = 6
+    lanczos2 = 7
 
 
 class TextureSampleMode(IntEnum):
@@ -227,10 +290,11 @@ class FuncShaderBuiltin(IntEnum):
     linear = 1
     quadratic = 2
     sinusoidal = 3
-    checker = 4
-    checker_smooth = 5
-    lambertian_normal_z = 6
-    eggbox = 7
+    sinusoidal_approx = 4
+    checker = 5
+    checker_smooth = 6
+    lambertian_normal_z = 7
+    eggbox = 8
 
 
 class FuncCoordMode(IntEnum):
@@ -244,6 +308,22 @@ class NormalType(IntEnum):
     none = 0
     exact = 1
     averaged = 2
+
+
+class HullMode(IntEnum):
+    off = 0
+    on_no_fallback = 1
+    on_convex_fallback = 2
+
+
+class NewtonSeedMode(IntEnum):
+    centroid = 0
+    hull = 1
+
+
+class NewtonSeedReuse(IntEnum):
+    off = 0
+    last_converged = 1
 
 
 class CameraCoordSys(IntEnum):
@@ -306,7 +386,7 @@ def _make_camera_input(camera: Any) -> cr.CCameraInput:
     camera_out.distortion_p2 = float(camera.distortion_p2)
     camera_out.distortion_poly_order = int(camera.distortion_poly_order)
     camera_out.distortion_poly_has_forward = int(camera.distortion_poly_has_forward)
-    camera_out.distortion_poly_has_inverse = int(camera.distortion_poly_has_inverse)
+    camera_out.distortion_poly_has_inv = int(camera.distortion_poly_has_inverse)
     for idx in range(10):
         camera_out.distortion_poly_forward_u[idx] = float(
             camera.distortion_poly_forward_u[idx]
@@ -314,18 +394,19 @@ def _make_camera_input(camera: Any) -> cr.CCameraInput:
         camera_out.distortion_poly_forward_v[idx] = float(
             camera.distortion_poly_forward_v[idx]
         )
-        camera_out.distortion_poly_inverse_u[idx] = float(
+        camera_out.distortion_poly_inv_u[idx] = float(
             camera.distortion_poly_inverse_u[idx]
         )
-        camera_out.distortion_poly_inverse_v[idx] = float(
+        camera_out.distortion_poly_inv_v[idx] = float(
             camera.distortion_poly_inverse_v[idx]
         )
     camera_out.coord_sys = int(camera.coord_sys)
+    camera_out.subpixel_center_map = int(camera.subpixel_center_map)
     camera_out.psf_type = int(camera.psf_type)
     camera_out.psf_sigma_x = float(camera.psf_sigma_x)
     camera_out.psf_sigma_y = float(camera.psf_sigma_y)
     camera_out.psf_theta = float(camera.psf_theta)
-    camera_out.psf_support_rad = float(camera.psf_support_rad)
+    camera_out.psf_supp_rad = float(camera.psf_support_rad)
     camera_out.psf_separable = int(camera.psf_separable)
     return camera_out
 
@@ -339,8 +420,8 @@ def _camera_input_from_c(camera_in: cr.CCameraInput) -> Camera:
     for idx in range(10):
         forward_u[idx] = camera_in.distortion_poly_forward_u[idx]
         forward_v[idx] = camera_in.distortion_poly_forward_v[idx]
-        inverse_u[idx] = camera_in.distortion_poly_inverse_u[idx]
-        inverse_v[idx] = camera_in.distortion_poly_inverse_v[idx]
+        inverse_u[idx] = camera_in.distortion_poly_inv_u[idx]
+        inverse_v[idx] = camera_in.distortion_poly_inv_v[idx]
     return Camera(
         pixels_num=(camera_in.pixels_num.x, camera_in.pixels_num.y),
         pixels_size=(camera_in.pixels_size.x, camera_in.pixels_size.y),
@@ -372,17 +453,18 @@ def _camera_input_from_c(camera_in: cr.CCameraInput) -> Camera:
         distortion_p2=camera_in.distortion_p2,
         distortion_poly_order=camera_in.distortion_poly_order,
         distortion_poly_has_forward=bool(camera_in.distortion_poly_has_forward),
-        distortion_poly_has_inverse=bool(camera_in.distortion_poly_has_inverse),
+        distortion_poly_has_inverse=bool(camera_in.distortion_poly_has_inv),
         distortion_poly_forward_u=tuple(forward_u),
         distortion_poly_forward_v=tuple(forward_v),
         distortion_poly_inverse_u=tuple(inverse_u),
         distortion_poly_inverse_v=tuple(inverse_v),
         coord_sys=camera_in.coord_sys,
+        subpixel_center_map=camera_in.subpixel_center_map,
         psf_type=camera_in.psf_type,
         psf_sigma_x=camera_in.psf_sigma_x,
         psf_sigma_y=camera_in.psf_sigma_y,
         psf_theta=camera_in.psf_theta,
-        psf_support_rad=camera_in.psf_support_rad,
+        psf_support_rad=camera_in.psf_supp_rad,
         psf_separable=camera_in.psf_separable,
     )
 
@@ -404,47 +486,211 @@ def _make_raster_config(config: Any) -> cr.CRasterConfig:
         config.max_raster_workers_per_job,
     )
     config_out.save_strategy = int(config.save_strategy)
-    config_out.image_mode = int(config.image_mode)
-    config_out.subpixel_center_map = int(config.subpixel_center_map)
+    config_out.image_save_mode = int(config.image_save_mode)
+    config_out.hull_mode = int(config.hull_mode)
+    config_out.newton_seed_mode = int(config.newton_seed_mode)
+    config_out.newton_seed_reuse = int(config.newton_seed_reuse)
     config_out.report = int(config.report)
     config_out.tile_size_min = int(config.tile_size_min)
     config_out.tile_size_max = int(config.tile_size_max)
     config_out.background_value = float(config.background_value)
     config_out.disk_save_overlap = 1 if config.disk_save_overlap else 0
     config_out.tile_size_override = int(config.tile_size_override)
+    config_out.save_frame_buff_count = int(config.save_frame_buffer_count)
     config_out.save_format = int(config.save_format)
     config_out.save_bits = int(config.save_bits)
     config_out.save_scaling = int(config.save_scaling)
     config_out.save_scaling_min = float(config.save_scaling_min)
     config_out.save_scaling_max = float(config.save_scaling_max)
+    config_out.full_stats_save_solver_csv = int(
+        config.full_stats_save_solver_csv,
+    )
+    config_out.full_stats_save_iter_map = int(
+        config.full_stats_save_iter_map,
+    )
+    config_out.full_stats_save_xi_map = int(
+        config.full_stats_save_xi_map,
+    )
+    config_out.full_stats_save_eta_map = int(
+        config.full_stats_save_eta_map,
+    )
+    config_out.full_stats_save_conv_map = int(
+        config.full_stats_save_conv_map,
+    )
+    config_out.full_stats_save_jac_det_map = int(
+        config.full_stats_save_jac_det_map,
+    )
+    config_out.full_stats_save_tile_timing_map = int(
+        config.full_stats_save_tile_timing_map,
+    )
+    config_out.full_stats_save_tile_density_map = int(
+        config.full_stats_save_tile_density_map,
+    )
+    config_out.full_stats_save_tile_occupancy_map = int(
+        config.full_stats_save_tile_occupancy_map,
+    )
+    config_out.full_stats_save_depth_map = int(
+        config.full_stats_save_depth_map,
+    )
+    config_out.full_stats_save_earlyout_map = int(
+        config.full_stats_save_earlyout_map,
+    )
+    config_out.full_stats_save_pixel_occupancy_map = int(
+        config.full_stats_save_pixel_occupancy_map,
+    )
+    config_out.full_stats_save_normals_map = int(
+        config.full_stats_save_normals_map,
+    )
     return config_out
 
 
 @cython.cfunc
 def _make_func_params(params_in: Any) -> cr.CFuncShaderParams:
-    return cr.CFuncShaderParams(
-        float(params_in.coord_scale[0]),
-        float(params_in.coord_scale[1]),
-        float(params_in.coord_offset[0]),
-        float(params_in.coord_offset[1]),
-        float(params_in.output_scale),
-        float(params_in.output_offset),
-        float(params_in.wave_num_scalar[0]),
-        float(params_in.wave_num_scalar[1]),
-        float(params_in.wave_num_rgb[0]),
-        float(params_in.wave_num_rgb[1]),
-        float(params_in.wave_num_rgb[2]),
-        float(params_in.eggbox_mean),
-        float(params_in.eggbox_contrast),
-        float(params_in.eggbox_pitch[0]),
-        float(params_in.eggbox_pitch[1]),
-        float(params_in.eggbox_phase[0]),
-        float(params_in.eggbox_phase[1]),
-        float(params_in.extra[0]),
-        float(params_in.extra[1]),
-        float(params_in.extra[2]),
-        float(params_in.extra[3]),
+    params_out: cr.CFuncShaderParams
+    params_out.coord_scale_0 = float(params_in.coord_scale[0])
+    params_out.coord_scale_1 = float(params_in.coord_scale[1])
+    params_out.coord_offset_0 = float(params_in.coord_offset[0])
+    params_out.coord_offset_1 = float(params_in.coord_offset[1])
+    params_out.output_scale = float(params_in.output_scale)
+    params_out.output_offset = float(params_in.output_offset)
+    params_out.constant_value = float(params_in.constant_value)
+    params_out.constant_value_rgb_0 = float(params_in.constant_value_rgb[0])
+    params_out.constant_value_rgb_1 = float(params_in.constant_value_rgb[1])
+    params_out.constant_value_rgb_2 = float(params_in.constant_value_rgb[2])
+    params_out.linear_coeff_0 = float(params_in.linear_coeffs[0])
+    params_out.linear_coeff_1 = float(params_in.linear_coeffs[1])
+    params_out.linear_coeff_2 = float(params_in.linear_coeffs[2])
+    params_out.linear_coeff_rgb_00 = float(params_in.linear_coeffs_rgb[0][0])
+    params_out.linear_coeff_rgb_01 = float(params_in.linear_coeffs_rgb[0][1])
+    params_out.linear_coeff_rgb_02 = float(params_in.linear_coeffs_rgb[0][2])
+    params_out.linear_coeff_rgb_10 = float(params_in.linear_coeffs_rgb[1][0])
+    params_out.linear_coeff_rgb_11 = float(params_in.linear_coeffs_rgb[1][1])
+    params_out.linear_coeff_rgb_12 = float(params_in.linear_coeffs_rgb[1][2])
+    params_out.linear_coeff_rgb_20 = float(params_in.linear_coeffs_rgb[2][0])
+    params_out.linear_coeff_rgb_21 = float(params_in.linear_coeffs_rgb[2][1])
+    params_out.linear_coeff_rgb_22 = float(params_in.linear_coeffs_rgb[2][2])
+    params_out.quadratic_coeff_0 = float(params_in.quadratic_coeffs[0])
+    params_out.quadratic_coeff_1 = float(params_in.quadratic_coeffs[1])
+    params_out.quadratic_coeff_2 = float(params_in.quadratic_coeffs[2])
+    params_out.quadratic_coeff_3 = float(params_in.quadratic_coeffs[3])
+    params_out.quadratic_coeff_4 = float(params_in.quadratic_coeffs[4])
+    params_out.quadratic_coeff_5 = float(params_in.quadratic_coeffs[5])
+    params_out.quadratic_coeff_rgb_00 = float(
+        params_in.quadratic_coeffs_rgb[0][0],
     )
+    params_out.quadratic_coeff_rgb_01 = float(
+        params_in.quadratic_coeffs_rgb[0][1],
+    )
+    params_out.quadratic_coeff_rgb_02 = float(
+        params_in.quadratic_coeffs_rgb[0][2],
+    )
+    params_out.quadratic_coeff_rgb_03 = float(
+        params_in.quadratic_coeffs_rgb[0][3],
+    )
+    params_out.quadratic_coeff_rgb_04 = float(
+        params_in.quadratic_coeffs_rgb[0][4],
+    )
+    params_out.quadratic_coeff_rgb_05 = float(
+        params_in.quadratic_coeffs_rgb[0][5],
+    )
+    params_out.quadratic_coeff_rgb_10 = float(
+        params_in.quadratic_coeffs_rgb[1][0],
+    )
+    params_out.quadratic_coeff_rgb_11 = float(
+        params_in.quadratic_coeffs_rgb[1][1],
+    )
+    params_out.quadratic_coeff_rgb_12 = float(
+        params_in.quadratic_coeffs_rgb[1][2],
+    )
+    params_out.quadratic_coeff_rgb_13 = float(
+        params_in.quadratic_coeffs_rgb[1][3],
+    )
+    params_out.quadratic_coeff_rgb_14 = float(
+        params_in.quadratic_coeffs_rgb[1][4],
+    )
+    params_out.quadratic_coeff_rgb_15 = float(
+        params_in.quadratic_coeffs_rgb[1][5],
+    )
+    params_out.quadratic_coeff_rgb_20 = float(
+        params_in.quadratic_coeffs_rgb[2][0],
+    )
+    params_out.quadratic_coeff_rgb_21 = float(
+        params_in.quadratic_coeffs_rgb[2][1],
+    )
+    params_out.quadratic_coeff_rgb_22 = float(
+        params_in.quadratic_coeffs_rgb[2][2],
+    )
+    params_out.quadratic_coeff_rgb_23 = float(
+        params_in.quadratic_coeffs_rgb[2][3],
+    )
+    params_out.quadratic_coeff_rgb_24 = float(
+        params_in.quadratic_coeffs_rgb[2][4],
+    )
+    params_out.quadratic_coeff_rgb_25 = float(
+        params_in.quadratic_coeffs_rgb[2][5],
+    )
+    params_out.wave_num_scalar_0 = float(params_in.wave_num_scalar[0])
+    params_out.wave_num_scalar_1 = float(params_in.wave_num_scalar[1])
+    params_out.wave_num_rgb_0 = float(params_in.wave_num_rgb[0])
+    params_out.wave_num_rgb_1 = float(params_in.wave_num_rgb[1])
+    params_out.wave_num_rgb_2 = float(params_in.wave_num_rgb[2])
+    params_out.sinusoidal_bias = float(params_in.sinusoidal_bias)
+    params_out.sinusoidal_amp_0 = float(params_in.sinusoidal_amplitudes[0])
+    params_out.sinusoidal_amp_1 = float(params_in.sinusoidal_amplitudes[1])
+    params_out.sinusoidal_bias_rgb_0 = float(
+        params_in.sinusoidal_bias_rgb[0],
+    )
+    params_out.sinusoidal_bias_rgb_1 = float(
+        params_in.sinusoidal_bias_rgb[1],
+    )
+    params_out.sinusoidal_bias_rgb_2 = float(
+        params_in.sinusoidal_bias_rgb[2],
+    )
+    params_out.sinusoidal_amp_rgb_0 = float(
+        params_in.sinusoidal_amplitudes_rgb[0],
+    )
+    params_out.sinusoidal_amp_rgb_1 = float(
+        params_in.sinusoidal_amplitudes_rgb[1],
+    )
+    params_out.sinusoidal_amp_rgb_2 = float(
+        params_in.sinusoidal_amplitudes_rgb[2],
+    )
+    params_out.checker_level_0 = float(params_in.checker_levels[0])
+    params_out.checker_level_1 = float(params_in.checker_levels[1])
+    params_out.checker_smooth_frequency = float(
+        params_in.checker_smooth_frequency,
+    )
+    params_out.lambertian_coeff_0 = float(params_in.lambertian_coeffs[0])
+    params_out.lambertian_coeff_1 = float(params_in.lambertian_coeffs[1])
+    params_out.lambertian_coeff_rgb_00 = float(
+        params_in.lambertian_coeffs_rgb[0][0],
+    )
+    params_out.lambertian_coeff_rgb_01 = float(
+        params_in.lambertian_coeffs_rgb[0][1],
+    )
+    params_out.lambertian_coeff_rgb_10 = float(
+        params_in.lambertian_coeffs_rgb[1][0],
+    )
+    params_out.lambertian_coeff_rgb_11 = float(
+        params_in.lambertian_coeffs_rgb[1][1],
+    )
+    params_out.lambertian_coeff_rgb_20 = float(
+        params_in.lambertian_coeffs_rgb[2][0],
+    )
+    params_out.lambertian_coeff_rgb_21 = float(
+        params_in.lambertian_coeffs_rgb[2][1],
+    )
+    params_out.eggbox_mean = float(params_in.eggbox_mean)
+    params_out.eggbox_contrast = float(params_in.eggbox_contrast)
+    params_out.eggbox_pitch_0 = float(params_in.eggbox_pitch[0])
+    params_out.eggbox_pitch_1 = float(params_in.eggbox_pitch[1])
+    params_out.eggbox_phase_0 = float(params_in.eggbox_phase[0])
+    params_out.eggbox_phase_1 = float(params_in.eggbox_phase[1])
+    params_out.extra_0 = float(params_in.extra[0])
+    params_out.extra_1 = float(params_in.extra[1])
+    params_out.extra_2 = float(params_in.extra[2])
+    params_out.extra_3 = float(params_in.extra[3])
+    return params_out
 
 
 @cython.cfunc
@@ -489,6 +735,26 @@ def _make_array_3d_f64(
 
 
 @cython.cfunc
+def _make_array_3d_u8(
+    view_in: cython.uchar[:, :, ::1],
+    dim0: cython.Py_ssize_t,
+    dim1: cython.Py_ssize_t,
+    dim2: cython.Py_ssize_t,
+) -> cr.CArray3DU8:
+    return cr.CArray3DU8(cython.address(view_in[0, 0, 0]), dim0, dim1, dim2)
+
+
+@cython.cfunc
+def _make_array_3d_u16(
+    view_in: cython.ushort[:, :, ::1],
+    dim0: cython.Py_ssize_t,
+    dim1: cython.Py_ssize_t,
+    dim2: cython.Py_ssize_t,
+) -> cr.CArray3DU16:
+    return cr.CArray3DU16(cython.address(view_in[0, 0, 0]), dim0, dim1, dim2)
+
+
+@cython.cfunc
 def _empty_array_2d_f64() -> cr.CArray2DF64:
     return cr.CArray2DF64(cython.NULL, 0, 0)
 
@@ -501,6 +767,16 @@ def _empty_array_2d_usize() -> cr.CArray2DUsize:
 @cython.cfunc
 def _empty_array_3d_f64() -> cr.CArray3DF64:
     return cr.CArray3DF64(cython.NULL, 0, 0, 0)
+
+
+@cython.cfunc
+def _empty_array_3d_u8() -> cr.CArray3DU8:
+    return cr.CArray3DU8(cython.NULL, 0, 0, 0)
+
+
+@cython.cfunc
+def _empty_array_3d_u16() -> cr.CArray3DU16:
+    return cr.CArray3DU16(cython.NULL, 0, 0, 0)
 
 
 def _last_error_message() -> str:
@@ -563,19 +839,33 @@ def _contig_f64_3d(array_in: Any, label: str) -> np.ndarray:
     return array_np
 
 
-def _contig_texture(texture_in: Any, channels_num: int) -> np.ndarray:
-    texture_np = np.ascontiguousarray(texture_in, dtype=np.float64)
+def _contig_texture(
+    texture_in: Any,
+    channels_num: int,
+    storage: int,
+) -> np.ndarray:
+    texture_base = np.asarray(texture_in)
+    texture_np = np.array(texture_base, copy=True, order="C")
     if getattr(texture_np, "ndim", None) == 2:
         if channels_num != 1:
             raise ValueError("rgb texture must have shape (3, rows, cols)")
-        texture_np = np.ascontiguousarray(
-            texture_np[None, :, :],
-            dtype=np.float64,
-        )
+        texture_np = np.ascontiguousarray(texture_np[None, :, :])
     if getattr(texture_np, "ndim", None) != 3:
         raise ValueError("texture must have shape (channels, rows, cols)")
     if int(texture_np.shape[0]) != channels_num:
         raise ValueError("texture channel count does not match shader type")
+    if storage == int(TextureStorage.u8):
+        if texture_np.dtype != np.uint8:
+            raise ValueError("u8 texture storage requires a uint8 array")
+    elif storage == int(TextureStorage.u16):
+        if texture_np.dtype != np.uint16:
+            raise ValueError("u16 texture storage requires a uint16 array")
+    elif storage == int(TextureStorage.floating):
+        if texture_np.dtype not in (np.float32, np.float64):
+            raise ValueError("floating texture storage requires a float32 or float64 array")
+        texture_np = np.ascontiguousarray(texture_np, dtype=np.float64)
+    else:
+        raise ValueError("unsupported texture storage")
     return texture_np
 
 
@@ -678,6 +968,8 @@ def _fill_mesh_array(
 
         shader_tag = int(mesh.shader_type)
         mesh_array[nn].shader_tag = shader_tag
+        texture_storage = int(mesh.texture_storage)
+        mesh_array[nn].texture_storage = texture_storage
         mesh_array[nn].sample = int(mesh.sample)
         mesh_array[nn].sample_mode = int(mesh.sample_mode)
         mesh_array[nn].bits = int(mesh.bits)
@@ -712,19 +1004,39 @@ def _fill_mesh_array(
             texture_channels = 3
 
         if mesh.texture is None:
-            mesh_array[nn].texture = _empty_array_3d_f64()
+            mesh_array[nn].tex = _empty_array_3d_f64()
+            mesh_array[nn].tex_u8 = _empty_array_3d_u8()
+            mesh_array[nn].tex_u16 = _empty_array_3d_u16()
         else:
             if texture_channels == 0:
                 raise ValueError("texture provided for non-texture shader")
-            texture_np = _contig_texture(mesh.texture, texture_channels)
-            texture_shape = _as_shape_3d(texture_np)
-            texture_view: cython.double[:, :, ::1] = texture_np
-            mesh_array[nn].texture = _make_array_3d_f64(
-                texture_view,
-                texture_shape[0],
-                texture_shape[1],
-                texture_shape[2],
+            texture_np = _contig_texture(
+                mesh.texture,
+                texture_channels,
+                texture_storage,
             )
+            texture_shape = _as_shape_3d(texture_np)
+            mesh_array[nn].tex = _empty_array_3d_f64()
+            mesh_array[nn].tex_u8 = _empty_array_3d_u8()
+            mesh_array[nn].tex_u16 = _empty_array_3d_u16()
+            if texture_storage == int(TextureStorage.u8):
+                texture_view_u8: cython.uchar[:, :, ::1] = texture_np
+                mesh_array[nn].tex_u8 = _make_array_3d_u8(
+                    texture_view_u8,
+                    texture_shape[0], texture_shape[1], texture_shape[2],
+                )
+            elif texture_storage == int(TextureStorage.u16):
+                texture_view_u16: cython.ushort[:, :, ::1] = texture_np
+                mesh_array[nn].tex_u16 = _make_array_3d_u16(
+                    texture_view_u16,
+                    texture_shape[0], texture_shape[1], texture_shape[2],
+                )
+            else:
+                texture_view_f: cython.double[:, :, ::1] = texture_np
+                mesh_array[nn].tex = _make_array_3d_f64(
+                    texture_view_f,
+                    texture_shape[0], texture_shape[1], texture_shape[2],
+                )
             keepalive.append(texture_np)
 
         if mesh.nodal_field is None:
@@ -763,7 +1075,7 @@ def roi_cent_over_meshes(meshes: Any) -> tuple[float, float, float]:
     )
     out_cent: cr.CVec3F64
     keepalive: list[Any] = []
-    image_c: cr.CImageBufferF64
+    image_c: cr.CImageBuffF64
     if mesh_array == cython.NULL:
         raise MemoryError()
     try:
@@ -913,11 +1225,11 @@ def raster(
     )
     config_c: cr.CRasterConfig = _make_raster_config(config)
     image_np: np.ndarray | None = None
-    image_ptr: cython.pointer[cr.CImageBufferF64] = cython.cast(
-        cython.pointer[cr.CImageBufferF64],
+    image_ptr: cython.pointer[cr.CImageBuffF64] = cython.cast(
+        cython.pointer[cr.CImageBuffF64],
         cython.NULL,
     )
-    image_c: cr.CImageBufferF64
+    image_c: cr.CImageBuffF64
     keepalive: list[Any] = []
 
     if mesh_array == cython.NULL or camera_array == cython.NULL:
@@ -991,13 +1303,15 @@ __all__ = [
     "Camera",
     "CameraInput",
     "CameraCoordSys",
+    "HullMode",
     "Mesh",
     "MeshInput",
     "MeshType",
+    "NewtonSeedMode",
+    "NewtonSeedReuse",
     "NormalType",
     "GeometrySchedulingMode",
-    "ImageMode",
-    "build_config",
+    "ImageSaveMode",
     "RasterConfig",
     "RenderMode",
     "ReportMode",
@@ -1005,6 +1319,7 @@ __all__ = [
     "ScaleOver",
     "ScaleStrategy",
     "ShaderType",
+    "TextureStorage",
     "SubPixelCenterMap",
     "FuncShaderBuiltin",
     "FuncCoordMode",
@@ -1013,8 +1328,6 @@ __all__ = [
     "TextureSampleMode",
     "PsfType",
     "ImageFormat",
-    "load_sim_csvs",
-    "load_texture",
     "load_camera",
     "load_stereo_pair",
     "pos_fill_frame_from_rot",

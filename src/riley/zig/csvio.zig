@@ -1,13 +1,20 @@
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // Riley: A High Performance Rasteriser for DIC UQ
 //
 // Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
 // Licensed under the MIT License (see LICENSE file for details)
 //
 // Authors: scepticalrabbit (Lloyd Fletcher)
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 const std = @import("std");
+const buildconfig = @import("buildconfig.zig");
+const F = buildconfig.F;
 const NDArray = @import("ndarray.zig").NDArray;
+
+
+// --------------------------------------------------------------------------------------
+// Public Entry-Point Func
+// --------------------------------------------------------------------------------------
 
 pub fn readCsvToList(
     allocator: std.mem.Allocator,
@@ -59,15 +66,12 @@ pub fn hasPackedChannels(line: []const u8) bool {
     return false;
 }
 
-fn parseCellFloat(cell: []const u8) !f64 {
-    return std.fmt.parseFloat(f64, std.mem.trim(u8, cell, " \r\n\t"));
-}
 
 pub fn loadScalarCsv2D(
     allocator: std.mem.Allocator,
     io: std.Io,
     path: []const u8,
-) !NDArray(f64) {
+) !NDArray(F) {
     var lines = try readCsvToList(allocator, io, path);
     defer freeCsvLines(allocator, &lines);
     return loadScalarCsv2DFromLines(allocator, lines.items);
@@ -76,12 +80,12 @@ pub fn loadScalarCsv2D(
 pub fn loadScalarCsv2DFromLines(
     allocator: std.mem.Allocator,
     lines: []const []const u8,
-) !NDArray(f64) {
+) !NDArray(F) {
     if (lines.len == 0) return error.EmptyCsv;
 
     const rows_num = lines.len;
     const cols_num = countCsvCols(lines[0]);
-    var array = try NDArray(f64).initFlat(
+    var array = try NDArray(F).initFlat(
         allocator,
         &[_]usize{ rows_num, cols_num },
     );
@@ -105,12 +109,16 @@ pub fn loadScalarCsv2DFromLines(
     return array;
 }
 
+fn parseCellFloat(cell: []const u8) !F {
+    return std.fmt.parseFloat(F, std.mem.trim(u8, cell, " \r\n\t"));
+}
+
 pub fn loadPackedCsv2D(
     allocator: std.mem.Allocator,
     io: std.Io,
     path: []const u8,
     channels: usize,
-) !NDArray(f64) {
+) !NDArray(F) {
     var lines = try readCsvToList(allocator, io, path);
     defer freeCsvLines(allocator, &lines);
     return loadPackedCsv2DFromLines(allocator, lines.items, channels);
@@ -120,12 +128,12 @@ pub fn loadPackedCsv2DFromLines(
     allocator: std.mem.Allocator,
     lines: []const []const u8,
     channels: usize,
-) !NDArray(f64) {
+) !NDArray(F) {
     if (lines.len == 0) return error.EmptyCsv;
 
     const rows_num = lines.len;
     const cols_num = countCsvCols(lines[0]);
-    var array = try NDArray(f64).initFlat(
+    var array = try NDArray(F).initFlat(
         allocator,
         &[_]usize{ rows_num, cols_num, channels },
     );

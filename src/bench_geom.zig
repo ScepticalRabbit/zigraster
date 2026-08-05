@@ -7,16 +7,18 @@
 // Authors: scepticalrabbit (Lloyd Fletcher)
 // --------------------------------------------------------------------------
 const std = @import("std");
-const benchargs = @import("common/benchargs.zig");
-const benchstats = @import("common/benchstats.zig");
-const common = @import("common/benchcommon.zig");
-const tcfg = @import("common/testconfig.zig");
+const benchargs = @import("dev_support/benchargs.zig");
+const benchstats = @import("dev_support/benchstats.zig");
+const common = @import("dev_support/benchcommon.zig");
+const tcfg = @import("dev_support/testconfig.zig");
+const buildconfig = @import("riley/zig/buildconfig.zig");
 const rastcfg = @import("riley/zig/rasterconfig.zig");
 const riley = @import("riley/zig/riley.zig");
 const gk = @import("riley/zig/geometrykernels.zig");
 const iio = @import("riley/zig/imageio.zig");
 const texops = @import("riley/zig/textureops.zig");
 const Rotation = @import("riley/zig/rotation.zig").Rotation;
+const F = buildconfig.F;
 
 const config = common.BenchConfig{ .run = .all };
 
@@ -24,10 +26,13 @@ const DEFAULT_OUT_DIR = "out/bench_stats_geom";
 const DEFAULT_IMAGE_OUT_DIR = "out/bench_images_geom";
 const DEFAULT_DATA_DIR_SUFFIX = "geom";
 const DEFAULT_PIXELS_NUM = [2]u32{ 1600, 1000 };
-const DEFAULT_SUB_SAMPLE: u8 = 1;
-const DEFAULT_FOCAL_LENG: f64 = 50.0e-3;
-const DEFAULT_PIXELS_SIZE = [2]f64{ 5.3e-6, 5.3e-6 };
-const DEFAULT_FOV_SCALE: f64 = 1.0;
+const DEFAULT_SUB_SAMPLE: u32 = 1;
+const DEFAULT_FOCAL_LENG: F = @floatCast(50.0e-3);
+const DEFAULT_PIXELS_SIZE = [2]F{
+    @floatCast(5.3e-6),
+    @floatCast(5.3e-6),
+};
+const DEFAULT_FOV_SCALE: F = 1.0;
 const DEFAULT_TEX_GREY_PATH = "texture/speckle.bmp";
 const DEFAULT_TEX_RGB_PATH = "texture/speckle_rgb.bmp";
 const DEFAULT_ROT = Rotation.init(0, 0, 0);
@@ -97,7 +102,7 @@ pub fn main(init: std.process.Init) !void {
         .func,
         .func_rgb,
     };
-    const sample_configs = [_]texops.TextureSampleConfig{
+    const samp_cfgs = [_]texops.TextureSampleConfig{
         .{ .sample = .linear, .mode = .direct },
         .{ .sample = .cubic_catmull_rom, .mode = .direct },
         .{ .sample = .cubic_catmull_rom, .mode = .lut_lerp },
@@ -160,7 +165,7 @@ pub fn main(init: std.process.Init) !void {
 
     for (mesh_types) |mt| {
         for (shader_types) |st| {
-            for (sample_configs) |sc| {
+            for (samp_cfgs) |sc| {
                 var data_dir_buf: [256]u8 = undefined;
                 const data_dir = try std.fmt.bufPrint(
                     &data_dir_buf,
@@ -169,12 +174,12 @@ pub fn main(init: std.process.Init) !void {
                 );
 
                 if (common.shouldRun(config, mt, st, sc, data_dir)) {
-                    const sample_config = if (st == .tex8_grey or st == .tex8_rgb) sc else null;
+                    const samp_cfg = if (st == .tex8_grey or st == .tex8_rgb) sc else null;
                     const case_name = try common.calcCaseName(
                         outer_alloc,
                         mt,
                         st,
-                        sample_config,
+                        samp_cfg,
                         null,
                         1.0,
                     );
@@ -201,11 +206,12 @@ pub fn main(init: std.process.Init) !void {
                             );
 
                         var res = try common.runBenchmarkWithImageOut(
+                            u8,
                             outer_alloc,
                             io,
                             mt,
                             st,
-                            sample_config,
+                            samp_cfg,
                             null,
                             data_dir,
                             render_defaults,
@@ -223,7 +229,7 @@ pub fn main(init: std.process.Init) !void {
                             case_name,
                             mt,
                             st,
-                            sample_config,
+                            samp_cfg,
                             null,
                             res,
                         );
@@ -241,7 +247,7 @@ pub fn main(init: std.process.Init) !void {
                         case_name,
                         mt,
                         st,
-                        sample_config,
+                        samp_cfg,
                         null,
                         &case_samples,
                     );
@@ -289,6 +295,7 @@ pub fn main(init: std.process.Init) !void {
                         );
 
                     var res = try common.runBenchmarkWithImageOut(
+                        u8,
                         outer_alloc,
                         io,
                         mt,

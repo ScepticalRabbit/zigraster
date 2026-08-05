@@ -1,11 +1,11 @@
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // Riley: A High Performance Rasteriser for DIC UQ
 //
 // Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
 // Licensed under the MIT License (see LICENSE file for details)
 //
 // Authors: scepticalrabbit (Lloyd Fletcher)
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 const std = @import("std");
 const print = std.debug.print;
 
@@ -14,6 +14,10 @@ const Mat44Ops = matstack.Mat44Ops;
 const Mat44T = matstack.Mat44T;
 
 const NDArray = @import("ndarray.zig").NDArray;
+
+// --------------------------------------------------------------------------------------
+// Public Entry-Point Func
+// --------------------------------------------------------------------------------------
 
 pub fn Vec3SIMD(comptime N: usize, comptime T: type) type {
     return struct {
@@ -86,7 +90,7 @@ pub fn Vec3SIMD(comptime N: usize, comptime T: type) type {
     };
 }
 
-// NOTE: this is not a general function, it only works with NDArrays representing a
+// NOTE: this is not a general func, it only works with NDArrays representing a
 // mesh with dims=(elems_num,3,nodes_per_elem) where 3 is the coord[x,y,z].
 // N should be nodes_per_elem.
 pub fn loadElemVec3SIMD(
@@ -108,7 +112,7 @@ pub fn loadElemVec3SIMD(
     return Vec3SIMD(N, T).init(x_slice, y_slice, z_slice);
 }
 
-// NOTE: this is not a general function, it only works with NDArrays representing a
+// NOTE: this is not a general func, it only works with NDArrays representing a
 // mesh with dims=(elems_num,3,nodes_per_elem) where 3 is the coord[x,y,z].
 // N should be nodes_per_elem.
 pub fn saveElemVec3SIMD(

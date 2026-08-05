@@ -29,8 +29,8 @@ def run_script(script_name: str) -> None:
 
 def main() -> int:
     verif_scripts = [
-        "verif_2.py",
-        "verif_6.py",
+        "paper_verif_2_helper.py",
+        "paper_verif_6_helper.py",
     ]
     paper_scripts = [
         "paper_verif_1.py",

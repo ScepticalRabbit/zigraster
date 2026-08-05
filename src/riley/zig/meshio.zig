@@ -1,12 +1,14 @@
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 // Riley: A High Performance Rasteriser for DIC UQ
 //
 // Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
 // Licensed under the MIT License (see LICENSE file for details)
 //
 // Authors: scepticalrabbit (Lloyd Fletcher)
-// --------------------------------------------------------------------------
+// --------------------------------------------------------------------------------------
 const std = @import("std");
+const buildconfig = @import("buildconfig.zig");
+const F = buildconfig.F;
 const print = std.debug.print;
 const time = std.time;
 const assert = std.debug.assert;
@@ -18,15 +20,19 @@ const MatSlice = @import("matslice.zig").MatSlice;
 const NDArray = @import("ndarray.zig").NDArray;
 const csvio = @import("csvio.zig");
 
+// --------------------------------------------------------------------------------------
+// Public Constants & Public Types
+// --------------------------------------------------------------------------------------
+
 pub const Coords = struct {
-    mat: MatSlice(f64),
-    mem: []f64,
+    mat: MatSlice(F),
+    mem: []F,
 
     const Self: type = @This();
 
-    pub fn init(mem: []f64, coords_num: usize) Self {
+    pub fn init(mem: []F, coords_num: usize) Self {
         assert(mem.len == coords_num * 3);
-        const mat_coords = MatSlice(f64).init(mem, coords_num, 3);
+        const mat_coords = MatSlice(F).init(mem, coords_num, 3);
 
         return .{
             .mat = mat_coords,
@@ -35,24 +41,24 @@ pub const Coords = struct {
     }
 
     pub fn initAlloc(outer_alloc: std.mem.Allocator, coords_num: usize) !Self {
-        const mat_mem = try outer_alloc.alloc(f64, coords_num * 3);
+        const mat_mem = try outer_alloc.alloc(F, coords_num * 3);
 
         return init(mat_mem, coords_num);
     }
 
-    pub inline fn x(self: *const Self, ind: usize) f64 {
+    pub inline fn x(self: *const Self, ind: usize) F {
         return self.mat.get(ind, 0);
     }
 
-    pub inline fn y(self: *const Self, ind: usize) f64 {
+    pub inline fn y(self: *const Self, ind: usize) F {
         return self.mat.get(ind, 1);
     }
 
-    pub inline fn z(self: *const Self, ind: usize) f64 {
+    pub inline fn z(self: *const Self, ind: usize) F {
         return self.mat.get(ind, 2);
     }
 
-    pub fn getVecSlice(self: *const Self, ind: usize) []f64 {
+    pub fn getVecSlice(self: *const Self, ind: usize) []F {
         return self.mat.getSlice(ind);
     }
 
@@ -110,8 +116,8 @@ pub const Connect = struct {
 };
 
 pub const Field = struct {
-    array: NDArray(f64),
-    array_mem: []f64,
+    array: NDArray(F),
+    array_mem: []F,
 
     const Self = @This();
 
@@ -121,11 +127,11 @@ pub const Field = struct {
         coord_n: usize,
         fields_n: u8,
     ) !Self {
-        const mem_array = try outer_alloc.alloc(f64, time_n * coord_n * fields_n);
+        const mem_array = try outer_alloc.alloc(F, time_n * coord_n * fields_n);
         @memset(mem_array, 0.0);
 
         const mem_dims = [3]usize{ time_n, coord_n, @as(usize, fields_n) };
-        const arr = try NDArray(f64).init(outer_alloc, mem_array, mem_dims[0..]);
+        const arr = try NDArray(F).init(outer_alloc, mem_array, mem_dims[0..]);
 
         return .{
             .array = arr,
@@ -150,13 +156,9 @@ pub const Field = struct {
     }
 };
 
-pub fn readCsvToList(
-    outer_alloc: std.mem.Allocator,
-    io: std.Io,
-    path: []const u8,
-) !std.ArrayList([]const u8) {
-    return csvio.readCsvToList(outer_alloc, io, path);
-}
+// --------------------------------------------------------------------------------------
+// Public Entry-Point Func
+// --------------------------------------------------------------------------------------
 
 pub fn parseCoords(
     outer_alloc: std.mem.Allocator,
@@ -173,7 +175,7 @@ pub fn parseCoords(
         var split_iter = std.mem.splitScalar(u8, line_str, ',');
 
         while (split_iter.next()) |num_str| {
-            const num: f64 = try std.fmt.parseFloat(f64, num_str);
+            const num: F = try std.fmt.parseFloat(F, num_str);
 
             coords.mat.set(ii, num_count, num);
 
@@ -212,7 +214,7 @@ pub fn parseConnect(
         split_iter = std.mem.splitScalar(u8, line_str, ',');
 
         while (split_iter.next()) |num_str| {
-            const num_f: f64 = try std.fmt.parseFloat(f64, num_str);
+            const num_f: F = try std.fmt.parseFloat(F, num_str);
             const num_i: usize = @intFromFloat(num_f);
 
             connect.table_mem[elem * nodes_per_elem + node] = num_i;
@@ -252,7 +254,7 @@ pub fn parseField(
         var split_iter = std.mem.splitScalar(u8, line_str, ',');
 
         while (split_iter.next()) |num_str| {
-            const num_f: f64 = try std.fmt.parseFloat(f64, num_str);
+            const num_f: F = try std.fmt.parseFloat(F, num_str);
 
             field.array.set(inds[0..], num_f);
 
@@ -302,13 +304,13 @@ pub fn loadSimData(
 
     //--------------------------------------------------------------------------
     // Read and parse coordinates csv file
-    var lines = try readCsvToList(arena_alloc, io, coord_path);
+    var lines = try csvio.readCsvToList(arena_alloc, io, coord_path);
     const coords = try parseCoords(outer_alloc, &lines);
     lines.clearRetainingCapacity();
 
     //--------------------------------------------------------------------------
     // Read and parse the connectivity table csv file
-    lines = try readCsvToList(arena_alloc, io, connect_path);
+    lines = try csvio.readCsvToList(arena_alloc, io, connect_path);
     const connect = try parseConnect(outer_alloc, &lines);
     lines.clearRetainingCapacity();
 
@@ -317,7 +319,7 @@ pub fn loadSimData(
     var field: ?Field = null;
     if (field_paths) |fp| {
         if (fp.len > 0) {
-            lines = try readCsvToList(arena_alloc, io, fp[0]);
+            lines = try csvio.readCsvToList(arena_alloc, io, fp[0]);
             const time_n: usize = getFieldTimeN(&lines);
             const coord_n: usize = lines.items.len;
             std.debug.assert(fp.len <= std.math.maxInt(u8));
@@ -326,7 +328,7 @@ pub fn loadSimData(
             lines.clearRetainingCapacity();
 
             for (fp[1..], 1..) |path, ii| {
-                lines = try readCsvToList(arena_alloc, io, path);
+                lines = try csvio.readCsvToList(arena_alloc, io, path);
                 try parseField(&lines, &field.?, @intCast(ii));
                 lines.clearRetainingCapacity();
             }
@@ -338,7 +340,7 @@ pub fn loadSimData(
     var disp: ?Field = null;
     if (disp_paths) |dp| {
         if (dp.len > 0) {
-            lines = try readCsvToList(arena_alloc, io, dp[0]);
+            lines = try csvio.readCsvToList(arena_alloc, io, dp[0]);
             const time_n: usize = getFieldTimeN(&lines);
             const coord_n: usize = lines.items.len;
             std.debug.assert(dp.len <= std.math.maxInt(u8));
@@ -347,7 +349,7 @@ pub fn loadSimData(
             lines.clearRetainingCapacity();
 
             for (dp[1..], 1..) |path, ii| {
-                lines = try readCsvToList(arena_alloc, io, path);
+                lines = try csvio.readCsvToList(arena_alloc, io, path);
                 try parseField(&lines, &disp.?, @intCast(ii));
                 lines.clearRetainingCapacity();
             }
@@ -436,9 +438,6 @@ pub fn loadMultiSimData(
     }
     return sim_data_slice;
 }
-
-//------------------------------------------------------------------------------------------
-// Tests
 
 test "loadMultiSimData twoelems" {
     const allocator = std.testing.allocator;

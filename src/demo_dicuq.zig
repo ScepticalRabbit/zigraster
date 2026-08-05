@@ -9,35 +9,41 @@
 const std = @import("std");
 const print = std.debug.print;
 
+const buildconfig = @import("riley/zig/buildconfig.zig");
 const riley = @import("riley/zig/riley.zig");
 const RasterConfig = riley.RasterConfig;
 const meshio = @import("riley/zig/meshio.zig");
 const uvio = @import("riley/zig/uvio.zig");
 const iio = @import("riley/zig/imageio.zig");
-const mo = @import("riley/zig/meshops.zig");
+const mo = @import("riley/zig/meshpipeline.zig");
 const MeshInput = mo.MeshInput;
 const gk = @import("riley/zig/geometrykernels.zig");
 const MeshType = gk.MeshType;
 const camera_mod = @import("riley/zig/camera.zig");
 const cameraio = @import("riley/zig/cameraio.zig");
 const cameraops = @import("riley/zig/cameraops.zig");
+const sceneops = @import("riley/zig/sceneops.zig");
 const Rotation = @import("riley/zig/rotation.zig").Rotation;
 const CameraInput = camera_mod.CameraInput;
 const DistortionModel = camera_mod.DistortionModel;
 const BrownConrady = camera_mod.BrownConrady;
 const BrownConradyExt = camera_mod.BrownConradyExt;
 const MatSlice = @import("riley/zig/matslice.zig").MatSlice;
+const F = buildconfig.F;
 
 const DATA_DIR = "data/FE/platehole3d_2mr_63f/";
 const TEXTURE_PATH = "texture/speckle.bmp";
 const OUT_DIR_ROOT = "./out/demo-dicuq";
 
 const PIXELS_NUM = [2]u32{ 2464, 2056 };
-const PIXELS_SIZE = [2]f64{ 3.45e-6, 3.45e-6 };
-const FOCAL_LENGTH: f64 = 50.0e-3;
-const FOV_SCALE_FACTOR: f64 = 0.65;
-const SUB_SAMPLE: u8 = 2;
-const STEREO_ANGLE_DEG: f64 = 20.0;
+const PIXELS_SIZE = [2]F{
+    @floatCast(3.45e-6),
+    @floatCast(3.45e-6),
+};
+const FOCAL_LENGTH: F = @floatCast(50.0e-3);
+const FOV_SCALE_FACTOR: F = @floatCast(0.65);
+const SUB_SAMPLE: u32 = 2;
+const STEREO_ANGLE_DEG: F = 20.0;
 
 const TOTAL_THREADS: u16 = 8;
 const FRAME_BATCH_SIZE_PER_GROUP: u16 = 1;
@@ -170,10 +176,10 @@ pub fn main(init: std.process.Init) !void {
         .coords = sim_data.coords,
         .connect = sim_data.connect,
         .disp = sim_data.disp,
-        .shader = .{ .tex = .{
+        .shader = .{ .tex_u8 = .{
             .uvs = uvs.array,
-            .texture = texture,
-            .sample_config = .{
+            .tex = texture,
+            .samp_cfg = .{
                 .sample = .cubic_catmull_rom,
                 .mode = .lut_lerp,
             },
@@ -184,7 +190,7 @@ pub fn main(init: std.process.Init) !void {
 
     // 6. Setup Camera
     std.debug.print("Setting up camera...\n", .{});
-    const roi_pos = cameraops.roiCentFromCoords(&sim_data.coords);
+    const roi_pos = sceneops.boundsCenter(&sim_data.coords);
 
     const distortion = buildDistortion();
 
@@ -260,7 +266,6 @@ pub fn main(init: std.process.Init) !void {
         aa.free(img.slice);
         img.deinit(aa);
     }
-
 
     var out_dir = try std.Io.Dir.cwd().openDir(io, OUT_DIR_ROOT, .{});
     defer out_dir.close(io);

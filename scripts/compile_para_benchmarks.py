@@ -2,50 +2,53 @@
 from __future__ import annotations
 
 import pathlib
-import shutil
 import subprocess
-import tempfile
 
-from perf_common import (
-    repo_root,
-    update_buildconfig_simd,
-)
+from perf_common import repo_root
 
 
 BENCH_NAMES = [
-    "bench_cam",
     "bench_dicuq",
     "bench_fullraster",
+    "bench_tiltraster",
     "bench_geom",
     "bench_sphere2000",
     "bench_sphere2000zoom",
+    "bench_thread_geom",
 ]
 
 
-def compile_mode_parallel(suffix: str) -> None:
+BATCH_SIZE = 4
+
+
+def compile_mode_parallel(simd_mode: str, suffix: str) -> None:
     root = repo_root()
-    processes: list[tuple[str, subprocess.Popen[str]]] = []
-
-    for bench_name in BENCH_NAMES:
-        print(f"Compiling {bench_name}_{suffix}...")
-        process = subprocess.Popen(
-            [
-                "zig",
-                "build-exe",
-                "-O",
-                "ReleaseFast",
-                str(root / "src" / f"{bench_name}.zig"),
-                f"-femit-bin={root / 'bin' / f'{bench_name}_{suffix}'}",
-            ],
-            cwd=root,
-            text=True,
-        )
-        processes.append((bench_name, process))
-
     failures: list[str] = []
-    for bench_name, process in processes:
-        if process.wait() != 0:
-            failures.append(bench_name)
+
+    for ii in range(0, len(BENCH_NAMES), BATCH_SIZE):
+        batch = BENCH_NAMES[ii : ii + BATCH_SIZE]
+        processes: list[tuple[str, subprocess.Popen[str]]] = []
+        for bench_name in batch:
+            print(f"Compiling {bench_name}_{suffix}...")
+            process = subprocess.Popen(
+                [
+                    "zig",
+                    "build",
+                    f"install-{bench_name.replace('_', '-')}",
+                    "--prefix",
+                    ".",
+                    "-Doptimize=ReleaseFast",
+                    "-Dprecision=f64",
+                    f"-Dsimd={simd_mode}",
+                ],
+                cwd=root,
+                text=True,
+            )
+            processes.append((bench_name, process))
+
+        for bench_name, process in processes:
+            if process.wait() != 0:
+                failures.append(bench_name)
 
     if failures:
         joined = ", ".join(failures)
@@ -53,24 +56,21 @@ def compile_mode_parallel(suffix: str) -> None:
             f"One or more {suffix} benchmark compilations failed: {joined}.",
         )
 
+    for bench_name in BENCH_NAMES:
+        src = root / "bin" / f"{bench_name}_f64_{suffix}"
+        dst = root / "bin" / f"{bench_name}_{suffix}"
+        if src.exists():
+            import shutil
+            shutil.copy2(src, dst)
+
 
 
 def main() -> int:
     root = repo_root()
-    buildconfig_path = root / "src" / "riley" / "zig" / "buildconfig.zig"
-    backup_dir = pathlib.Path(tempfile.mkdtemp(prefix="riley-buildconfig-"))
-    backup_path = backup_dir / "buildconfig.zig"
-    shutil.copy2(buildconfig_path, backup_path)
     (root / "bin").mkdir(parents=True, exist_ok=True)
 
-    try:
-        update_buildconfig_simd("off")
-        compile_mode_parallel("scalar")
-        update_buildconfig_simd("on")
-        compile_mode_parallel("simd")
-    finally:
-        shutil.copy2(backup_path, buildconfig_path)
-        shutil.rmtree(backup_dir)
+    compile_mode_parallel("off", "scalar")
+    compile_mode_parallel("on", "simd")
 
     print(f"Benchmark executables written to {root / 'bin'}")
     return 0

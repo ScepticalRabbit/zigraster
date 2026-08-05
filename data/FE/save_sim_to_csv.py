@@ -1,8 +1,15 @@
 from pathlib import Path
+import sys
 import numpy as np
 import pyvale.mooseherder as mh
 
 from extract_surface_mesh import extract_surf_mesh
+
+SRC_ROOT = Path(__file__).resolve().parents[2] / "src"
+if str(SRC_ROOT) not in sys.path:
+    sys.path.insert(0, str(SRC_ROOT))
+
+import riley
 
 def main() -> None:
     #---------------------------------------------------------------------------
@@ -26,50 +33,15 @@ def main() -> None:
             sim_data = mh.ExodusLoader(sim_file).load_all_sim_data()
             mesh_world = extract_surf_mesh(sim_data)
 
-            (num_coords, _) = mesh_world.coords.shape
-            uvs = np.zeros((num_coords, 2), dtype=np.float64)
-
-            x_max = np.max(mesh_world.coords[:, 0])
-            x_min = np.min(mesh_world.coords[:, 0])
-            y_max = np.max(mesh_world.coords[:, 1])
-            y_min = np.min(mesh_world.coords[:, 1])
-
-            dx_mesh = x_max - x_min
-            dy_mesh = y_max - y_min
-            mesh_AR = dx_mesh / dy_mesh
-
-            uv_span_max = 0.8
-            # Texture AR (Width/Height)
-            tex_AR = 2464.0 / 2056.0 
-
-            # To maintain square pixels: (d_u / d_v) = mesh_AR / tex_AR
-            # Let R be the ratio of aspect ratios
-            R = mesh_AR / tex_AR
-
-            if R > 1:
-                # Mesh is wider than texture relative to its height
-                # U is the constraining dimension
-                d_u = uv_span_max
-                d_v = d_u / R
-            else:
-                # Mesh is taller than texture relative to its width
-                # V is the constraining dimension
-                d_v = uv_span_max
-                d_u = d_v * R
-
-            u_min = (1 - d_u) / 2
-            u_max = 1 - u_min
-            v_min = (1 - d_v) / 2
-            v_max = 1 - v_min
-
-            u_slope = (u_max - u_min) / (x_max - x_min)
-            u_int = u_min - u_slope * x_min
-
-            v_slope = (v_max - v_min) / (y_max - y_min)
-            v_int = v_min - v_slope * y_min
-
-            uvs[:, 0] = u_slope * mesh_world.coords[:, 0] + u_int
-            uvs[:, 1] = v_slope * mesh_world.coords[:, 1] + v_int
+            uvs = riley.project_uvs_planar_centered(
+                mesh_world.coords,
+                (2464, 2056),
+                uv_span_max=0.8,
+                projection_plane=(
+                    np.array((0.0, 0.0, -1.0), dtype=np.float64),
+                    np.array((0.0, 0.0, 0.0), dtype=np.float64),
+                ),
+            )
 
             connect_keys = sorted(mesh_world.connect.keys())
             if len(connect_keys) != 1:
@@ -95,9 +67,6 @@ def main() -> None:
             print()
             print(f"{np.min(mesh_world.coords,axis=0)=}")
             print(f"{np.max(mesh_world.coords,axis=0)=}")
-            print()
-            print(f"{u_min=},{u_max=},{v_min=},{v_max=}")
-            print(f"{x_min=},{x_max=},{y_min=},{y_max=}")
             print()
             print(f"{np.min(uvs,axis=0)=}")
             print(f"{np.max(uvs,axis=0)=}")
