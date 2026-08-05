@@ -1,10 +1,10 @@
+name: Tests
 
 on:
   push:
     branches: [main, dev]
   pull_request:
     branches: [main, dev]
-
 
 jobs:
   build_and_test:
@@ -14,14 +14,14 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     runs-on: ${{ matrix.os }}
-    
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: latest
+          version: 0.16.0
 
       - name: Run Zig tests
         run: zig test -O ReleaseSafe ./src/test_min.zig
