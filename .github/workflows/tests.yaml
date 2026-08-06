@@ -37,3 +37,31 @@ jobs:
 
       - name: Run Zig tests
         run: zig test -O ReleaseSafe ./src/test_min.zig
+
+  python_tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reclaim runner disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h /
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.16.0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install package
+        run: pip install .
+
+      - name: Run Python tests
+        run: python -m pytest --pyargs riley.pytests
