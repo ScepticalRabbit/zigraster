@@ -239,6 +239,75 @@ pub const EggboxParams = struct {
     phase: [2]F = .{ 0.0, 0.0 },
 };
 
+pub const Speckle2DParams = struct {
+    seed: u32 = 0xa511e9b3,
+    cells_per_uv: [2]F = .{ 192.0, 160.0 },
+    uv_offset: [2]F = .{ 0.0, 0.0 },
+    occupancy: F = 0.9,
+    radius_mean: F = 0.45,
+    radius_jitter: F = 0.08,
+    edge_softness: F = 0.035,
+    foreground: F = 0.0,
+    background: F = 1.0,
+
+    pub fn validate(self: Speckle2DParams) !void {
+        for (self.cells_per_uv) |cell_count| {
+            if (!std.math.isFinite(cell_count) or cell_count <= 0.0) {
+                return error.InvalidSpeckleCellsPerUV;
+            }
+        }
+        for (self.uv_offset) |offset| {
+            if (!std.math.isFinite(offset)) {
+                return error.InvalidSpeckleUVOffset;
+            }
+        }
+        if (!std.math.isFinite(self.occupancy) or
+            self.occupancy < 0.0 or self.occupancy > 1.0)
+        {
+            return error.InvalidSpeckleOccupancy;
+        }
+        if (!std.math.isFinite(self.radius_mean) or self.radius_mean <= 0.0) {
+            return error.InvalidSpeckleRadiusMean;
+        }
+        if (!std.math.isFinite(self.radius_jitter) or self.radius_jitter < 0.0) {
+            return error.InvalidSpeckleRadiusJitter;
+        }
+        if (self.radius_jitter > self.radius_mean) {
+            return error.InvalidSpeckleRadiusRange;
+        }
+        if (!std.math.isFinite(self.edge_softness) or self.edge_softness < 0.0) {
+            return error.InvalidSpeckleEdgeSoftness;
+        }
+        if (self.radius_mean + self.radius_jitter + self.edge_softness > 1.0) {
+            return error.InvalidSpeckleNeighborhoodRadius;
+        }
+        if (!std.math.isFinite(self.foreground) or
+            self.foreground < 0.0 or self.foreground > 1.0)
+        {
+            return error.InvalidSpeckleForeground;
+        }
+        if (!std.math.isFinite(self.background) or
+            self.background < 0.0 or self.background > 1.0)
+        {
+            return error.InvalidSpeckleBackground;
+        }
+
+        const cell_coord_lim: F = if (F == f32)
+            65_536.0
+        else
+            35_184_372_088_832.0;
+        for (0..2) |axis| {
+            const coord_min = self.uv_offset[axis] - 1.0;
+            const coord_max = self.uv_offset[axis] + self.cells_per_uv[axis] + 1.0;
+            if (!std.math.isFinite(coord_max) or
+                coord_min < -cell_coord_lim or coord_max > cell_coord_lim)
+            {
+                return error.SpeckleCellCoordinateOutOfRange;
+            }
+        }
+    }
+};
+
 pub const FuncShaderParams = struct {
     coord_scale: [2]F = .{ 1.0, 1.0 },
     coord_offset: [2]F = .{ 0.0, 0.0 },
@@ -462,6 +531,71 @@ pub inline fn normFuncShaderParams(
         },
     };
     return out;
+}
+
+// --------------------------------------------------------------------------------------
+// Procedural Speckle Shader
+// --------------------------------------------------------------------------------------
+
+pub fn hashSpeckleCell(cell_x: i64, cell_y: i64, seed: u32) u64 {
+    var key: [16]u8 = undefined;
+    std.mem.writeInt(u64, key[0..8], @bitCast(cell_x), .little);
+    std.mem.writeInt(u64, key[8..16], @bitCast(cell_y), .little);
+    return std.hash.Wyhash.hash(seed, &key);
+}
+
+fn randomUnitFromHash(hash: u64, comptime shift: u6) F {
+    const bits: u16 = @truncate(hash >> shift);
+    return @as(F, @floatFromInt(bits)) / 65_536.0;
+}
+
+fn speckleDiskMask(distance2: F, radius: F, edge_softness: F) F {
+    const inner_radius = @max(0.0, radius - edge_softness);
+    const outer_radius = radius + edge_softness;
+    const inner2 = inner_radius * inner_radius;
+    const outer2 = outer_radius * outer_radius;
+
+    if (distance2 <= inner2) return 1.0;
+    if (distance2 >= outer2) return 0.0;
+
+    const transition = (distance2 - inner2) / (outer2 - inner2);
+    return 1.0 - cubicSmoothStep(transition);
+}
+
+pub fn evalSpeckle2D(uv: [2]F, params: Speckle2DParams) F {
+    const proc_x = @max(0.0, @min(1.0, uv[0])) * params.cells_per_uv[0] +
+        params.uv_offset[0];
+    const proc_y = @max(0.0, @min(1.0, uv[1])) * params.cells_per_uv[1] +
+        params.uv_offset[1];
+    const cell_x: i64 = @intFromFloat(@floor(proc_x));
+    const cell_y: i64 = @intFromFloat(@floor(proc_y));
+    const neighbor_offsets = [_]i64{ -1, 0, 1 };
+
+    var coverage: F = 0.0;
+    for (neighbor_offsets) |offset_y| {
+        for (neighbor_offsets) |offset_x| {
+            const candidate_x = cell_x + offset_x;
+            const candidate_y = cell_y + offset_y;
+            const hash = hashSpeckleCell(candidate_x, candidate_y, params.seed);
+            if (randomUnitFromHash(hash, 0) >= params.occupancy) continue;
+
+            const center_x = @as(F, @floatFromInt(candidate_x)) +
+                randomUnitFromHash(hash, 16);
+            const center_y = @as(F, @floatFromInt(candidate_y)) +
+                randomUnitFromHash(hash, 32);
+            const radius_variation = 2.0 * randomUnitFromHash(hash, 48) - 1.0;
+            const radius = params.radius_mean + params.radius_jitter * radius_variation;
+            const delta_x = proc_x - center_x;
+            const delta_y = proc_y - center_y;
+            const distance2 = delta_x * delta_x + delta_y * delta_y;
+            coverage = @max(
+                coverage,
+                speckleDiskMask(distance2, radius, params.edge_softness),
+            );
+        }
+    }
+
+    return params.background + coverage * (params.foreground - params.background);
 }
 
 inline fn cubicSmoothStep(val: F) F {
@@ -963,4 +1097,83 @@ test "SIMD func builtin matches scalar builtin per lane" {
             }
         }
     }
+}
+
+
+test "procedural speckle hash has stable known vectors" {
+    try testing.expectEqual(@as(u64, 0x42cc592e95069169), hashSpeckleCell(0, 0, 0));
+    try testing.expectEqual(@as(u64, 0xe4214bce0919ce5d), hashSpeckleCell(17, 29, 12345));
+    try testing.expectEqual(@as(u64, 0xcbba3e407b1fa232), hashSpeckleCell(-7, -11, 0xa511e9b3));
+    try testing.expectEqual(@as(u64, 0x833cd6c57d01169f), hashSpeckleCell(-1, 5, std.math.maxInt(u32)));
+}
+
+test "procedural speckle parameters validate defaults and radius bounds" {
+    try (Speckle2DParams{}).validate();
+    var invalid = Speckle2DParams{};
+    invalid.radius_jitter = invalid.radius_mean + 0.01;
+    try testing.expectError(error.InvalidSpeckleRadiusRange, invalid.validate());
+    invalid = Speckle2DParams{};
+    invalid.radius_mean = 0.8;
+    invalid.radius_jitter = 0.15;
+    invalid.edge_softness = 0.1;
+    try testing.expectError(error.InvalidSpeckleNeighborhoodRadius, invalid.validate());
+}
+
+test "procedural speckle disk supports hard and soft edges" {
+    try testing.expectEqual(@as(F, 1.0), speckleDiskMask(0.25, 0.5, 0.0));
+    try testing.expectEqual(@as(F, 0.0), speckleDiskMask(0.251, 0.5, 0.0));
+    const transition = speckleDiskMask(0.25, 0.5, 0.1);
+    try testing.expect(transition > 0.0);
+    try testing.expect(transition < 1.0);
+}
+
+test "procedural speckle is deterministic bounded and UV clamped" {
+    var params = Speckle2DParams{};
+    params.cells_per_uv = .{ 12.0, 10.0 };
+    const value = evalSpeckle2D(.{ 0.37, 0.61 }, params);
+    try testing.expectEqual(value, evalSpeckle2D(.{ 0.37, 0.61 }, params));
+    try testing.expectEqual(evalSpeckle2D(.{ 0.0, 1.0 }, params), evalSpeckle2D(.{ -2.0, 3.0 }, params));
+    var changed = params;
+    changed.seed +%= 1;
+    var found_difference = false;
+    for (0..16) |yy| {
+        for (0..16) |xx| {
+            const uv = [2]F{
+                @as(F, @floatFromInt(xx)) / 15.0,
+                @as(F, @floatFromInt(yy)) / 15.0,
+            };
+            const sample = evalSpeckle2D(uv, params);
+            try testing.expect(sample >= @min(params.foreground, params.background));
+            try testing.expect(sample <= @max(params.foreground, params.background));
+            if (sample != evalSpeckle2D(uv, changed)) found_difference = true;
+        }
+    }
+    try testing.expect(found_difference);
+}
+
+test "procedural speckle occupancy endpoints behave exactly" {
+    var params = Speckle2DParams{};
+    params.cells_per_uv = .{ 8.0, 8.0 };
+    params.occupancy = 0.0;
+    for (0..8) |yy| {
+        for (0..8) |xx| {
+            const uv = [2]F{
+                @as(F, @floatFromInt(xx)) / 7.0,
+                @as(F, @floatFromInt(yy)) / 7.0,
+            };
+            try testing.expectEqual(params.background, evalSpeckle2D(uv, params));
+        }
+    }
+    params.occupancy = 1.0;
+    var found_speckle = false;
+    for (0..16) |yy| {
+        for (0..16) |xx| {
+            const uv = [2]F{
+                @as(F, @floatFromInt(xx)) / 15.0,
+                @as(F, @floatFromInt(yy)) / 15.0,
+            };
+            if (evalSpeckle2D(uv, params) < params.background) found_speckle = true;
+        }
+    }
+    try testing.expect(found_speckle);
 }

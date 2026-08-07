@@ -20,6 +20,7 @@ pub const NormalType = comm.NormalType;
 pub const FuncCoordMode = comm.FuncCoordMode;
 pub const FuncShaderBuiltin = comm.FuncShaderBuiltin;
 pub const FuncShaderParams = comm.FuncShaderParams;
+pub const Speckle2DParams = comm.Speckle2DParams;
 pub const LocalShaderBuff = comm.LocalShaderBuff;
 pub const NodalInput = comm.NodalInput;
 pub const NodalPrepared = comm.NodalPrepared;
