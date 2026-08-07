@@ -32,6 +32,7 @@ pub const ShadeContext = comm.ShadeContext;
 pub const InterpData = comm.InterpData;
 pub const ShaderInput = comm.ShaderInput;
 pub const normFuncShaderParams = comm.normFuncShaderParams;
+pub const validateSpeckleInput = comm.validateSpeckleInput;
 pub const NodalStatic = comm.NodalStatic;
 pub const TexStatic = comm.TexStatic;
 pub const FuncStatic = comm.FuncStatic;

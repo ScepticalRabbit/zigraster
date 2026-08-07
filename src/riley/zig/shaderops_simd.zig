@@ -357,6 +357,22 @@ pub inline fn evalFuncShaderGreyNormSIMD(
             break :blk v_mean + v_half_contrast * (v_one + @cos(v_phase_x)) *
                 (v_one + @cos(v_phase_y)) - v_contrast;
         },
+        .speckle => blk: {
+            const coord_0: [S]F = coord.coord_0;
+            const coord_1: [S]F = coord.coord_1;
+            var values: [S]F = undefined;
+            for (0..S) |lane| {
+                values[lane] = if (std.math.isFinite(coord_0[lane]) and
+                    std.math.isFinite(coord_1[lane]))
+                    comm.evalSpeckle2D(
+                        .{ coord_0[lane], coord_1[lane] },
+                        params.settings.speckle,
+                    )
+                else
+                    params.settings.speckle.background;
+            }
+            break :blk @as(VecSF, values);
+        },
     };
     return comm.applyFuncShaderOutputParamsSIMD(v_value, params);
 }
@@ -534,6 +550,7 @@ pub inline fn evalFuncShaderRGBNormSIMD(
 
             break :blk .{ v_value, v_value, v_value };
         },
+        .speckle => unreachable,
     };
     return .{
         comm.applyFuncShaderOutputParamsSIMD(v_vals[0], params),

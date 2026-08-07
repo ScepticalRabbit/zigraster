@@ -270,6 +270,20 @@ pub fn initMeshStatic(
     allocator: std.mem.Allocator,
     mesh_input: *const MeshInput,
 ) !MeshStatic {
+    switch (mesh_input.shader) {
+        .func => |func_input| try shaderops.validateSpeckleInput(
+            func_input,
+            false,
+            &mesh_input.connect,
+        ),
+        .func_rgb => |func_input| try shaderops.validateSpeckleInput(
+            func_input,
+            true,
+            &mesh_input.connect,
+        ),
+        else => {},
+    }
+
     const coords_orig = try sceneops.duplicateCoords(
         allocator,
         mesh_input.coords,

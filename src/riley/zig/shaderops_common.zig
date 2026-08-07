@@ -181,6 +181,7 @@ pub const FuncShaderBuiltin = enum {
     checker_smooth,
     lambertian_normal_z,
     eggbox,
+    speckle,
 };
 
 pub const ConstantParams = struct {
@@ -249,6 +250,10 @@ pub const Speckle2DParams = struct {
     edge_softness: F = 0.035,
     foreground: F = 0.0,
     background: F = 1.0,
+
+    pub fn toFuncShaderParams(self: Speckle2DParams) FuncShaderParams {
+        return .{ .settings = .{ .speckle = self } };
+    }
 
     pub fn validate(self: Speckle2DParams) !void {
         for (self.cells_per_uv) |cell_count| {
@@ -323,6 +328,7 @@ pub const FuncShaderParams = struct {
         checker_smooth: CheckerSmoothParams,
         lambertian_normal_z: LambertianParams,
         eggbox: EggboxParams,
+        speckle: Speckle2DParams,
     } = .{ .constant = .{} },
 };
 
@@ -529,8 +535,45 @@ pub inline fn normFuncShaderParams(
             else
                 EggboxParams{},
         },
+        .speckle => .{
+            .speckle = if (params.settings == .speckle)
+                params.settings.speckle
+            else
+                Speckle2DParams{},
+        },
     };
     return out;
+}
+
+pub fn validateSpeckleInput(
+    input: FuncInput,
+    is_rgb: bool,
+    connect: *const meshio.Connect,
+) !void {
+    if (input.builtin != .speckle) return;
+    if (is_rgb) return error.SpeckleRequiresGrayscale;
+    if (input.coord_mode != .uv) return error.SpeckleRequiresUVCoordinates;
+    const uvs = input.uvs orelse return error.MissingUVsForSpeckleShader;
+    if (input.normal_type != .none) return error.SpeckleRequiresNoNormals;
+    if (uvs.dims.len != 2 or uvs.dims[1] != 2) {
+        return error.InvalidSpeckleUVShape;
+    }
+    for (connect.table_mem) |node_idx| {
+        if (node_idx >= uvs.dims[0]) return error.InvalidSpeckleUVNodeIndex;
+    }
+    for (uvs.slice) |value| {
+        if (!std.math.isFinite(value)) return error.InvalidSpeckleUVValue;
+    }
+    if (input.params.coord_scale[0] != 1.0 or
+        input.params.coord_scale[1] != 1.0 or
+        input.params.coord_offset[0] != 0.0 or
+        input.params.coord_offset[1] != 0.0)
+    {
+        return error.SpeckleUsesTypedCoordinateParams;
+    }
+
+    const params = normFuncShaderParams(.speckle, input.params);
+    try params.settings.speckle.validate();
 }
 
 // --------------------------------------------------------------------------------------
@@ -729,6 +772,10 @@ pub inline fn evalFuncShaderBuiltinGreyNorm(
                 0.5 * p.contrast * (1.0 + @cos(phase_x)) * (1.0 + @cos(phase_y)) -
                 p.contrast;
         },
+        .speckle => evalSpeckle2D(
+            .{ coord.coord_0, coord.coord_1 },
+            params.settings.speckle,
+        ),
     };
     return applyFuncShaderOutputParams(value, params);
 }
@@ -836,6 +883,7 @@ pub inline fn evalFuncShaderBuiltinRGBNorm(
                 p.contrast;
             break :blk .{ value, value, value };
         },
+        .speckle => unreachable,
     };
     return .{
         applyFuncShaderOutputParams(vals[0], params),
@@ -1176,4 +1224,46 @@ test "procedural speckle occupancy endpoints behave exactly" {
         }
     }
     try testing.expect(found_speckle);
+}
+
+
+test "procedural speckle SIMD fallback matches scalar evaluation" {
+    var speckle_params = Speckle2DParams{};
+    speckle_params.cells_per_uv = .{ 11.0, 9.0 };
+    speckle_params.seed = 42;
+    const params = speckle_params.toFuncShaderParams();
+
+    var coords_0: [S]F = undefined;
+    var coords_1: [S]F = undefined;
+    for (0..S) |lane| {
+        coords_0[lane] = @as(F, @floatFromInt(lane)) / @as(F, @floatFromInt(S));
+        coords_1[lane] = 1.0 - coords_0[lane];
+    }
+    const coord_simd = FuncCoordSIMD{
+        .coord_0 = coords_0,
+        .coord_1 = coords_1,
+        .normal_x = @splat(0.0),
+        .normal_y = @splat(0.0),
+        .normal_z = @splat(1.0),
+    };
+    const values_simd: [S]F = simd_impl.evalFuncShaderGreyNormSIMD(
+        .speckle,
+        coord_simd,
+        params,
+    );
+
+    for (0..S) |lane| {
+        const expected = evalFuncShaderBuiltinGreyNorm(
+            .speckle,
+            .{
+                .coord_0 = coords_0[lane],
+                .coord_1 = coords_1[lane],
+                .normal_x = 0.0,
+                .normal_y = 0.0,
+                .normal_z = 1.0,
+            },
+            params,
+        );
+        try testing.expectEqual(expected, values_simd[lane]);
+    }
 }
