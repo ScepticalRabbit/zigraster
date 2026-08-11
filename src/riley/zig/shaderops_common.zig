@@ -12,6 +12,7 @@ const buildconfig = @import("buildconfig.zig");
 const cfg = @import("buildconfig.zig").config;
 const F = buildconfig.F;
 const S = buildconfig.SimdWidth;
+const speckle_boundary_blur = buildconfig.speckle_boundary_blur;
 const VecSF = buildconfig.VecSF;
 
 const ndarray = @import("ndarray.zig");
@@ -283,7 +284,11 @@ pub const Speckle2DParams = struct {
         if (!std.math.isFinite(self.edge_softness) or self.edge_softness < 0.0) {
             return error.InvalidSpeckleEdgeSoftness;
         }
-        if (self.radius_mean + self.radius_jitter + self.edge_softness > 1.0) {
+        const effective_softness = if (comptime speckle_boundary_blur)
+            self.edge_softness
+        else
+            0.0;
+        if (self.radius_mean + self.radius_jitter + effective_softness > 1.0) {
             return error.InvalidSpeckleNeighborhoodRadius;
         }
         if (!std.math.isFinite(self.foreground) or
@@ -595,6 +600,9 @@ fn randomUnitFromHash(hash: u64, comptime shift: u6) F {
 }
 
 fn speckleDiskMask(distance2: F, radius: F, edge_softness: F) F {
+    if (comptime !speckle_boundary_blur) {
+        return if (distance2 <= radius * radius) 1.0 else 0.0;
+    }
     if (edge_softness == 0.0) return if (distance2 <= radius * radius) 1.0 else 0.0;
 
     const inner_radius = @max(0.0, radius - edge_softness);
@@ -627,8 +635,12 @@ pub fn evalSpeckle2D(uv: [2]F, params: Speckle2DParams) F {
     const neighbor_offsets = [_]i64{ -1, 0, 1 };
     const min_delta_x = [_]F{ frac_x, 0.0, 1.0 - frac_x };
     const min_delta_y = [_]F{ frac_y, 0.0, 1.0 - frac_y };
+    const edge_softness = if (comptime speckle_boundary_blur)
+        params.edge_softness
+    else
+        0.0;
     const max_outer_radius = params.radius_mean + params.radius_jitter +
-        params.edge_softness;
+        edge_softness;
     const max_outer_radius2 = max_outer_radius * max_outer_radius;
 
     var coverage: F = 0.0;
@@ -657,7 +669,7 @@ pub fn evalSpeckle2D(uv: [2]F, params: Speckle2DParams) F {
             const distance2 = delta_x * delta_x + delta_y * delta_y;
             coverage = @max(
                 coverage,
-                speckleDiskMask(distance2, radius, params.edge_softness),
+                speckleDiskMask(distance2, radius, edge_softness),
             );
             if (coverage == 1.0) break :neighbor_loop;
         }
@@ -1172,43 +1184,63 @@ test "SIMD func builtin matches scalar builtin per lane" {
     }
 }
 
-
 test "procedural speckle hash has stable known vectors" {
     try testing.expectEqual(@as(u64, 0x42cc592e95069169), hashSpeckleCell(0, 0, 0));
     try testing.expectEqual(@as(u64, 0xe4214bce0919ce5d), hashSpeckleCell(17, 29, 12345));
-    try testing.expectEqual(@as(u64, 0xcbba3e407b1fa232), hashSpeckleCell(-7, -11, 0xa511e9b3));
-    try testing.expectEqual(@as(u64, 0x833cd6c57d01169f), hashSpeckleCell(-1, 5, std.math.maxInt(u32)));
+    try testing.expectEqual(
+        @as(u64, 0xcbba3e407b1fa232),
+        hashSpeckleCell(-7, -11, 0xa511e9b3),
+    );
+    try testing.expectEqual(
+        @as(u64, 0x833cd6c57d01169f),
+        hashSpeckleCell(-1, 5, std.math.maxInt(u32)),
+    );
 }
 
 test "procedural speckle parameters validate defaults and radius bounds" {
     try (Speckle2DParams{}).validate();
+
     var invalid = Speckle2DParams{};
     invalid.radius_jitter = invalid.radius_mean + 0.01;
     try testing.expectError(error.InvalidSpeckleRadiusRange, invalid.validate());
+
     invalid = Speckle2DParams{};
-    invalid.radius_mean = 0.8;
+    invalid.radius_mean = 0.9;
     invalid.radius_jitter = 0.15;
     invalid.edge_softness = 0.1;
-    try testing.expectError(error.InvalidSpeckleNeighborhoodRadius, invalid.validate());
+    try testing.expectError(
+        error.InvalidSpeckleNeighborhoodRadius,
+        invalid.validate(),
+    );
 }
 
-test "procedural speckle disk supports hard and soft edges" {
+test "procedural speckle disk supports configured edge mode" {
     try testing.expectEqual(@as(F, 1.0), speckleDiskMask(0.25, 0.5, 0.0));
     try testing.expectEqual(@as(F, 0.0), speckleDiskMask(0.251, 0.5, 0.0));
+
     const transition = speckleDiskMask(0.25, 0.5, 0.1);
-    try testing.expect(transition > 0.0);
-    try testing.expect(transition < 1.0);
+    if (comptime speckle_boundary_blur) {
+        try testing.expect(transition > 0.0);
+        try testing.expect(transition < 1.0);
+    } else {
+        try testing.expectEqual(@as(F, 1.0), transition);
+    }
 }
 
 test "procedural speckle is deterministic bounded and UV clamped" {
     var params = Speckle2DParams{};
     params.cells_per_uv = .{ 12.0, 10.0 };
+
     const value = evalSpeckle2D(.{ 0.37, 0.61 }, params);
     try testing.expectEqual(value, evalSpeckle2D(.{ 0.37, 0.61 }, params));
-    try testing.expectEqual(evalSpeckle2D(.{ 0.0, 1.0 }, params), evalSpeckle2D(.{ -2.0, 3.0 }, params));
-    var changed = params;
-    changed.seed +%= 1;
-    var found_difference = false;
+    try testing.expectEqual(
+        evalSpeckle2D(.{ 0.0, 1.0 }, params),
+        evalSpeckle2D(.{ -2.0, 3.0 }, params),
+    );
+
+    var seed_changed = params;
+    seed_changed.seed +%= 1;
+    var found_seed_difference = false;
     for (0..16) |yy| {
         for (0..16) |xx| {
             const uv = [2]F{
@@ -1218,39 +1250,13 @@ test "procedural speckle is deterministic bounded and UV clamped" {
             const sample = evalSpeckle2D(uv, params);
             try testing.expect(sample >= @min(params.foreground, params.background));
             try testing.expect(sample <= @max(params.foreground, params.background));
-            if (sample != evalSpeckle2D(uv, changed)) found_difference = true;
+            if (sample != evalSpeckle2D(uv, seed_changed)) {
+                found_seed_difference = true;
+            }
         }
     }
-    try testing.expect(found_difference);
+    try testing.expect(found_seed_difference);
 }
-
-test "procedural speckle occupancy endpoints behave exactly" {
-    var params = Speckle2DParams{};
-    params.cells_per_uv = .{ 8.0, 8.0 };
-    params.occupancy = 0.0;
-    for (0..8) |yy| {
-        for (0..8) |xx| {
-            const uv = [2]F{
-                @as(F, @floatFromInt(xx)) / 7.0,
-                @as(F, @floatFromInt(yy)) / 7.0,
-            };
-            try testing.expectEqual(params.background, evalSpeckle2D(uv, params));
-        }
-    }
-    params.occupancy = 1.0;
-    var found_speckle = false;
-    for (0..16) |yy| {
-        for (0..16) |xx| {
-            const uv = [2]F{
-                @as(F, @floatFromInt(xx)) / 15.0,
-                @as(F, @floatFromInt(yy)) / 15.0,
-            };
-            if (evalSpeckle2D(uv, params) < params.background) found_speckle = true;
-        }
-    }
-    try testing.expect(found_speckle);
-}
-
 
 test "procedural speckle SIMD fallback matches scalar evaluation" {
     var speckle_params = Speckle2DParams{};
@@ -1291,6 +1297,36 @@ test "procedural speckle SIMD fallback matches scalar evaluation" {
         );
         try testing.expectEqual(expected, values_simd[lane]);
     }
+}
+
+test "procedural speckle occupancy endpoints behave exactly" {
+    var params = Speckle2DParams{};
+    params.cells_per_uv = .{ 8.0, 8.0 };
+    params.occupancy = 0.0;
+    for (0..8) |yy| {
+        for (0..8) |xx| {
+            const uv = [2]F{
+                @as(F, @floatFromInt(xx)) / 7.0,
+                @as(F, @floatFromInt(yy)) / 7.0,
+            };
+            try testing.expectEqual(params.background, evalSpeckle2D(uv, params));
+        }
+    }
+
+    params.occupancy = 1.0;
+    var found_speckle = false;
+    for (0..16) |yy| {
+        for (0..16) |xx| {
+            const uv = [2]F{
+                @as(F, @floatFromInt(xx)) / 15.0,
+                @as(F, @floatFromInt(yy)) / 15.0,
+            };
+            if (evalSpeckle2D(uv, params) < params.background) {
+                found_speckle = true;
+            }
+        }
+    }
+    try testing.expect(found_speckle);
 }
 
 test "procedural speckle exact fast paths preserve endpoint behavior" {

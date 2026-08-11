@@ -18,6 +18,7 @@ else
         pub const newton_solver = "fast";
         pub const simd_vec_width: comptime_int = 0;
         pub const simd_vector_width: comptime_int = 0;
+        pub const speckle_boundary_blur = false;
     };
 
 pub const comptime_eval_branch_quota: comptime_int = 50000;
@@ -48,6 +49,7 @@ pub const Scalar = Scal;
 pub const default_simd = parseSimd(build_options.simd);
 pub const default_newton_solver_mode =
     parseNewtonSolverMode(build_options.newton_solver);
+pub const speckle_boundary_blur = buildOptionsSpeckleBoundaryBlur();
 
 pub const config = configForPrecision(F);
 
@@ -135,6 +137,13 @@ fn parsePrecision(comptime precision: []const u8) type {
         return f64;
     }
     @compileError("build_options.precision must be \"f32\" or \"f64\".");
+}
+
+fn buildOptionsSpeckleBoundaryBlur() bool {
+    if (@hasDecl(build_options, "speckle_boundary_blur")) {
+        return build_options.speckle_boundary_blur;
+    }
+    return false;
 }
 
 fn buildOptionsSimdVecWidth() comptime_int {

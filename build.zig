@@ -34,6 +34,11 @@ pub fn build(b: *std.Build) void {
         "simd-vector-width",
         "SIMD vector width (0 to use default for precision)",
     ) orelse 0;
+    const speckle_boundary_blur = b.option(
+        bool,
+        "speckle-boundary-blur",
+        "Enable smooth procedural speckle boundaries",
+    ) orelse false;
     validatePrecision(precision);
     validateSimd(simd);
     validateNewtonSolver(newton_solver);
@@ -44,6 +49,7 @@ pub fn build(b: *std.Build) void {
         simd,
         newton_solver,
         simd_vector_width,
+        speckle_boundary_blur,
     );
     const shared_lib = addRileySharedLibrary(
         b,
@@ -85,6 +91,7 @@ pub fn build(b: *std.Build) void {
             simd,
             newton_solver,
             simd_vector_width,
+            speckle_boundary_blur,
         );
         test_step.dependOn(&test_run.step);
     }
@@ -270,6 +277,7 @@ fn addTestRunStep(
     simd: []const u8,
     newton_solver: []const u8,
     simd_vector_width: u32,
+    speckle_boundary_blur: bool,
 ) *std.Build.Step.Run {
     const run_step = b.addSystemCommand(&.{
         "sh",
@@ -281,8 +289,9 @@ fn addTestRunStep(
         \\simd="$4"
         \\newton_solver="$5"
         \\simd_vector_width="$6"
-        \\zigexe="$7"
-        \\opt="$8"
+        \\speckle_boundary_blur="$7"
+        \\zigexe="$8"
+        \\opt="$9"
         \\cache_root=".zig-cache/riley-test"
         \\mkdir -p "$cache_root"
         \\src_hash="$(
@@ -292,7 +301,7 @@ fn addTestRunStep(
         \\    sha256sum |
         \\    cut -d' ' -f1
         \\)"
-        \\tree_dir="${cache_root}/${step_name}_${precision}_${simd}_${newton_solver}_${opt}_${src_hash}"
+        \\tree_dir="${cache_root}/${step_name}_${precision}_${simd}_${newton_solver}_${simd_vector_width}_${speckle_boundary_blur}_${opt}_${src_hash}"
         \\if [ ! -d "$tree_dir" ]; then
         \\    lock_dir="${tree_dir}.lock"
         \\    while ! mkdir "$lock_dir" 2>/dev/null; do
@@ -314,6 +323,7 @@ fn addTestRunStep(
         \\            printf '    pub const simd = "%s";\n' "$simd"
         \\            printf '    pub const newton_solver = "%s";\n' "$newton_solver"
         \\            printf '    pub const simd_vector_width: comptime_int = %s;\n' "$simd_vector_width"
+        \\            printf '    pub const speckle_boundary_blur = %s;\n' "$speckle_boundary_blur"
         \\            printf '};\n\n'
         \\            cat "$src_orig"
         \\        } > "$src_file"
@@ -328,6 +338,7 @@ fn addTestRunStep(
         simd,
         newton_solver,
         b.fmt("{d}", .{simd_vector_width}),
+        if (speckle_boundary_blur) "true" else "false",
         b.graph.zig_exe,
         @tagName(optimize),
     });
@@ -397,12 +408,14 @@ fn createBuildOptionsModule(
     simd: []const u8,
     newton_solver: []const u8,
     simd_vector_width: u32,
+    speckle_boundary_blur: bool,
 ) *std.Build.Module {
     const options = b.addOptions();
     options.addOption([]const u8, "precision", precision);
     options.addOption([]const u8, "simd", simd);
     options.addOption([]const u8, "newton_solver", newton_solver);
     options.addOption(u32, "simd_vector_width", simd_vector_width);
+    options.addOption(bool, "speckle_boundary_blur", speckle_boundary_blur);
     return options.createModule();
 }
 
