@@ -297,6 +297,7 @@ pub const Speckle2DParams = struct {
             return error.InvalidSpeckleBackground;
         }
 
+        // Preserve at least eight bits of sub-cell precision in procedural coordinates.
         const cell_coord_lim: F = if (F == f32)
             65_536.0
         else
@@ -587,12 +588,15 @@ pub fn hashSpeckleCell(cell_x: i64, cell_y: i64, seed: u32) u64 {
     return std.hash.Wyhash.hash(seed, &key);
 }
 
+// Split one cell hash into four variates to avoid additional hash evaluations.
 fn randomUnitFromHash(hash: u64, comptime shift: u6) F {
     const bits: u16 = @truncate(hash >> shift);
     return @as(F, @floatFromInt(bits)) / 65_536.0;
 }
 
 fn speckleDiskMask(distance2: F, radius: F, edge_softness: F) F {
+    if (edge_softness == 0.0) return if (distance2 <= radius * radius) 1.0 else 0.0;
+
     const inner_radius = @max(0.0, radius - edge_softness);
     const outer_radius = radius + edge_softness;
     const inner2 = inner_radius * inner_radius;
@@ -606,21 +610,41 @@ fn speckleDiskMask(distance2: F, radius: F, edge_softness: F) F {
 }
 
 pub fn evalSpeckle2D(uv: [2]F, params: Speckle2DParams) F {
+    if (params.occupancy == 0.0 or params.foreground == params.background) {
+        return params.background;
+    }
+
     const proc_x = @max(0.0, @min(1.0, uv[0])) * params.cells_per_uv[0] +
         params.uv_offset[0];
     const proc_y = @max(0.0, @min(1.0, uv[1])) * params.cells_per_uv[1] +
         params.uv_offset[1];
-    const cell_x: i64 = @intFromFloat(@floor(proc_x));
-    const cell_y: i64 = @intFromFloat(@floor(proc_y));
+    const cell_x_f = @floor(proc_x);
+    const cell_y_f = @floor(proc_y);
+    const cell_x: i64 = @intFromFloat(cell_x_f);
+    const cell_y: i64 = @intFromFloat(cell_y_f);
+    const frac_x = proc_x - cell_x_f;
+    const frac_y = proc_y - cell_y_f;
     const neighbor_offsets = [_]i64{ -1, 0, 1 };
+    const min_delta_x = [_]F{ frac_x, 0.0, 1.0 - frac_x };
+    const min_delta_y = [_]F{ frac_y, 0.0, 1.0 - frac_y };
+    const max_outer_radius = params.radius_mean + params.radius_jitter +
+        params.edge_softness;
+    const max_outer_radius2 = max_outer_radius * max_outer_radius;
 
     var coverage: F = 0.0;
-    for (neighbor_offsets) |offset_y| {
-        for (neighbor_offsets) |offset_x| {
+    neighbor_loop: for (neighbor_offsets, min_delta_y) |offset_y, min_dy| {
+        for (neighbor_offsets, min_delta_x) |offset_x, min_dx| {
+            const min_distance2 = min_dx * min_dx + min_dy * min_dy;
+            if (min_distance2 > max_outer_radius2) continue;
+
             const candidate_x = cell_x + offset_x;
             const candidate_y = cell_y + offset_y;
             const hash = hashSpeckleCell(candidate_x, candidate_y, params.seed);
-            if (randomUnitFromHash(hash, 0) >= params.occupancy) continue;
+            if (params.occupancy < 1.0 and
+                randomUnitFromHash(hash, 0) >= params.occupancy)
+            {
+                continue;
+            }
 
             const center_x = @as(F, @floatFromInt(candidate_x)) +
                 randomUnitFromHash(hash, 16);
@@ -635,6 +659,7 @@ pub fn evalSpeckle2D(uv: [2]F, params: Speckle2DParams) F {
                 coverage,
                 speckleDiskMask(distance2, radius, params.edge_softness),
             );
+            if (coverage == 1.0) break :neighbor_loop;
         }
     }
 
@@ -1266,4 +1291,14 @@ test "procedural speckle SIMD fallback matches scalar evaluation" {
         );
         try testing.expectEqual(expected, values_simd[lane]);
     }
+}
+
+test "procedural speckle exact fast paths preserve endpoint behavior" {
+    try testing.expectEqual(@as(F, 1.0), speckleDiskMask(0.25, 0.5, 0.0));
+    try testing.expectEqual(@as(F, 0.0), speckleDiskMask(0.2501, 0.5, 0.0));
+
+    var params = Speckle2DParams{};
+    params.foreground = 0.375;
+    params.background = params.foreground;
+    try testing.expectEqual(params.background, evalSpeckle2D(.{ 0.37, 0.61 }, params));
 }
