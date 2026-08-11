@@ -39,9 +39,15 @@ pub fn build(b: *std.Build) void {
         "speckle-boundary-blur",
         "Enable smooth procedural speckle boundaries",
     ) orelse false;
+    const speckle_neighbor_count = b.option(
+        u8,
+        "speckle-neighbor-count",
+        "Procedural speckle candidate cell count: 9 or 4",
+    ) orelse 9;
     validatePrecision(precision);
     validateSimd(simd);
     validateNewtonSolver(newton_solver);
+    validateSpeckleNeighborCount(speckle_neighbor_count);
 
     const build_options_module = createBuildOptionsModule(
         b,
@@ -50,6 +56,7 @@ pub fn build(b: *std.Build) void {
         newton_solver,
         simd_vector_width,
         speckle_boundary_blur,
+        speckle_neighbor_count,
     );
     const shared_lib = addRileySharedLibrary(
         b,
@@ -92,6 +99,7 @@ pub fn build(b: *std.Build) void {
             newton_solver,
             simd_vector_width,
             speckle_boundary_blur,
+            speckle_neighbor_count,
         );
         test_step.dependOn(&test_run.step);
     }
@@ -278,6 +286,7 @@ fn addTestRunStep(
     newton_solver: []const u8,
     simd_vector_width: u32,
     speckle_boundary_blur: bool,
+    speckle_neighbor_count: u8,
 ) *std.Build.Step.Run {
     const run_step = b.addSystemCommand(&.{
         "sh",
@@ -290,8 +299,9 @@ fn addTestRunStep(
         \\newton_solver="$5"
         \\simd_vector_width="$6"
         \\speckle_boundary_blur="$7"
-        \\zigexe="$8"
-        \\opt="$9"
+        \\speckle_neighbor_count="$8"
+        \\zigexe="$9"
+        \\opt="${10}"
         \\cache_root=".zig-cache/riley-test"
         \\mkdir -p "$cache_root"
         \\src_hash="$(
@@ -301,7 +311,7 @@ fn addTestRunStep(
         \\    sha256sum |
         \\    cut -d' ' -f1
         \\)"
-        \\tree_dir="${cache_root}/${step_name}_${precision}_${simd}_${newton_solver}_${simd_vector_width}_${speckle_boundary_blur}_${opt}_${src_hash}"
+        \\tree_dir="${cache_root}/${step_name}_${precision}_${simd}_${newton_solver}_${simd_vector_width}_${speckle_boundary_blur}_${speckle_neighbor_count}_${opt}_${src_hash}"
         \\if [ ! -d "$tree_dir" ]; then
         \\    lock_dir="${tree_dir}.lock"
         \\    while ! mkdir "$lock_dir" 2>/dev/null; do
@@ -324,6 +334,7 @@ fn addTestRunStep(
         \\            printf '    pub const newton_solver = "%s";\n' "$newton_solver"
         \\            printf '    pub const simd_vector_width: comptime_int = %s;\n' "$simd_vector_width"
         \\            printf '    pub const speckle_boundary_blur = %s;\n' "$speckle_boundary_blur"
+        \\            printf '    pub const speckle_neighbor_count: comptime_int = %s;\n' "$speckle_neighbor_count"
         \\            printf '};\n\n'
         \\            cat "$src_orig"
         \\        } > "$src_file"
@@ -339,6 +350,7 @@ fn addTestRunStep(
         newton_solver,
         b.fmt("{d}", .{simd_vector_width}),
         if (speckle_boundary_blur) "true" else "false",
+        b.fmt("{d}", .{speckle_neighbor_count}),
         b.graph.zig_exe,
         @tagName(optimize),
     });
@@ -409,6 +421,7 @@ fn createBuildOptionsModule(
     newton_solver: []const u8,
     simd_vector_width: u32,
     speckle_boundary_blur: bool,
+    speckle_neighbor_count: u8,
 ) *std.Build.Module {
     const options = b.addOptions();
     options.addOption([]const u8, "precision", precision);
@@ -416,6 +429,7 @@ fn createBuildOptionsModule(
     options.addOption([]const u8, "newton_solver", newton_solver);
     options.addOption(u32, "simd_vector_width", simd_vector_width);
     options.addOption(bool, "speckle_boundary_blur", speckle_boundary_blur);
+    options.addOption(u8, "speckle_neighbor_count", speckle_neighbor_count);
     return options.createModule();
 }
 
@@ -534,6 +548,11 @@ fn buildWrapperImports(
         return imports.items;
     }
     return imports.items;
+}
+
+fn validateSpeckleNeighborCount(count: u8) void {
+    if (count == 9 or count == 4) return;
+    @panic("Supported -Dspeckle-neighbor-count values are 9 and 4.");
 }
 
 fn validatePrecision(precision: []const u8) void {

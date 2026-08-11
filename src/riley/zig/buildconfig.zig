@@ -19,6 +19,7 @@ else
         pub const simd_vec_width: comptime_int = 0;
         pub const simd_vector_width: comptime_int = 0;
         pub const speckle_boundary_blur = false;
+        pub const speckle_neighbor_count: comptime_int = 9;
     };
 
 pub const comptime_eval_branch_quota: comptime_int = 50000;
@@ -50,6 +51,7 @@ pub const default_simd = parseSimd(build_options.simd);
 pub const default_newton_solver_mode =
     parseNewtonSolverMode(build_options.newton_solver);
 pub const speckle_boundary_blur = buildOptionsSpeckleBoundaryBlur();
+pub const speckle_neighbor_count = buildOptionsSpeckleNeighborCount();
 
 pub const config = configForPrecision(F);
 
@@ -137,6 +139,17 @@ fn parsePrecision(comptime precision: []const u8) type {
         return f64;
     }
     @compileError("build_options.precision must be \"f32\" or \"f64\".");
+}
+
+fn buildOptionsSpeckleNeighborCount() comptime_int {
+    const count = if (@hasDecl(build_options, "speckle_neighbor_count"))
+        build_options.speckle_neighbor_count
+    else
+        9;
+    if (count != 9 and count != 4) {
+        @compileError("build_options.speckle_neighbor_count must be 9 or 4.");
+    }
+    return count;
 }
 
 fn buildOptionsSpeckleBoundaryBlur() bool {

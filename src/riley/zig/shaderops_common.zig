@@ -13,6 +13,7 @@ const cfg = @import("buildconfig.zig").config;
 const F = buildconfig.F;
 const S = buildconfig.SimdWidth;
 const speckle_boundary_blur = buildconfig.speckle_boundary_blur;
+const speckle_neighbor_count = buildconfig.speckle_neighbor_count;
 const VecSF = buildconfig.VecSF;
 
 const ndarray = @import("ndarray.zig");
@@ -632,9 +633,18 @@ pub fn evalSpeckle2D(uv: [2]F, params: Speckle2DParams) F {
     const cell_y: i64 = @intFromFloat(cell_y_f);
     const frac_x = proc_x - cell_x_f;
     const frac_y = proc_y - cell_y_f;
-    const neighbor_offsets = [_]i64{ -1, 0, 1 };
-    const min_delta_x = [_]F{ frac_x, 0.0, 1.0 - frac_x };
-    const min_delta_y = [_]F{ frac_y, 0.0, 1.0 - frac_y };
+    const neighbor_offsets = if (comptime speckle_neighbor_count == 4)
+        [_]i64{ 0, 1 }
+    else
+        [_]i64{ -1, 0, 1 };
+    const min_delta_x = if (comptime speckle_neighbor_count == 4)
+        [_]F{ 0.0, 1.0 - frac_x }
+    else
+        [_]F{ frac_x, 0.0, 1.0 - frac_x };
+    const min_delta_y = if (comptime speckle_neighbor_count == 4)
+        [_]F{ 0.0, 1.0 - frac_y }
+    else
+        [_]F{ frac_y, 0.0, 1.0 - frac_y };
     const edge_softness = if (comptime speckle_boundary_blur)
         params.edge_softness
     else
@@ -658,12 +668,16 @@ pub fn evalSpeckle2D(uv: [2]F, params: Speckle2DParams) F {
                 continue;
             }
 
-            const center_x = @as(F, @floatFromInt(candidate_x)) +
-                randomUnitFromHash(hash, 16);
-            const center_y = @as(F, @floatFromInt(candidate_y)) +
-                randomUnitFromHash(hash, 32);
             const radius_variation = 2.0 * randomUnitFromHash(hash, 48) - 1.0;
             const radius = params.radius_mean + params.radius_jitter * radius_variation;
+            const center_extent = if (comptime speckle_neighbor_count == 4)
+                1.0 - radius - edge_softness
+            else
+                1.0;
+            const center_x = @as(F, @floatFromInt(candidate_x)) +
+                randomUnitFromHash(hash, 16) * center_extent;
+            const center_y = @as(F, @floatFromInt(candidate_y)) +
+                randomUnitFromHash(hash, 32) * center_extent;
             const delta_x = proc_x - center_x;
             const delta_y = proc_y - center_y;
             const distance2 = delta_x * delta_x + delta_y * delta_y;
