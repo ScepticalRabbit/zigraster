@@ -377,6 +377,25 @@ pub inline fn evalFuncShaderGreyNormSIMD(
     return comm.applyFuncShaderOutputParamsSIMD(v_value, params);
 }
 
+fn evalFuncShaderGreyPreparedSIMD(
+    shader: *const comm.FuncPrepared,
+    coord: comm.FuncCoordSIMD,
+) VecSF {
+    const speckles = shader.speckle_list orelse
+        return evalFuncShaderGreyNormSIMD(shader.builtin, coord, shader.params);
+    const coord_0: [S]F = coord.coord_0;
+    const coord_1: [S]F = coord.coord_1;
+    var values: [S]F = undefined;
+    for (0..S) |lane| {
+        values[lane] = if (std.math.isFinite(coord_0[lane]) and
+            std.math.isFinite(coord_1[lane]))
+            comm.evalSpeckleList2D(.{ coord_0[lane], coord_1[lane] }, speckles)
+        else
+            speckles.params.background;
+    }
+    return comm.applyFuncShaderOutputParamsSIMD(values, shader.params);
+}
+
 pub inline fn evalFuncShaderRGBNormSIMD(
     builtin: comm.FuncShaderBuiltin,
     coord: comm.FuncCoordSIMD,
@@ -638,7 +657,7 @@ pub inline fn fillFuncClipSIMD(
     const params = shader.params;
 
     if (comptime C == 1) {
-        const v_eval = evalFuncShaderGreyNormSIMD(shader.builtin, coord, params);
+        const v_eval = evalFuncShaderGreyPreparedSIMD(shader, coord);
         const v_mul = @as(VecSF, @splat(shader.scale_mul));
         const v_add = @as(VecSF, @splat(shader.scale_add));
         const v_final = v_eval * v_mul + v_add;
@@ -734,7 +753,7 @@ pub inline fn fillFuncPerspSIMD(
     const params = shader.params;
 
     if (comptime C == 1) {
-        const v_eval = evalFuncShaderGreyNormSIMD(shader.builtin, coord, params);
+        const v_eval = evalFuncShaderGreyPreparedSIMD(shader, coord);
         const v_mul = @as(VecSF, @splat(shader.scale_mul));
         const v_add = @as(VecSF, @splat(shader.scale_add));
         const v_final = v_eval * v_mul + v_add;

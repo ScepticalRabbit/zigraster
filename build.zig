@@ -44,10 +44,16 @@ pub fn build(b: *std.Build) void {
         "speckle-neighbor-count",
         "Procedural speckle candidate cell count: 9 or 4",
     ) orelse 9;
+    const speckle_evaluator = b.option(
+        []const u8,
+        "speckle-evaluator",
+        "Procedural speckle evaluator: cell-hash or list-naive",
+    ) orelse "cell-hash";
     validatePrecision(precision);
     validateSimd(simd);
     validateNewtonSolver(newton_solver);
     validateSpeckleNeighborCount(speckle_neighbor_count);
+    validateSpeckleEvaluator(speckle_evaluator);
 
     const build_options_module = createBuildOptionsModule(
         b,
@@ -57,6 +63,7 @@ pub fn build(b: *std.Build) void {
         simd_vector_width,
         speckle_boundary_blur,
         speckle_neighbor_count,
+        speckle_evaluator,
     );
     const shared_lib = addRileySharedLibrary(
         b,
@@ -100,6 +107,7 @@ pub fn build(b: *std.Build) void {
             simd_vector_width,
             speckle_boundary_blur,
             speckle_neighbor_count,
+            speckle_evaluator,
         );
         test_step.dependOn(&test_run.step);
     }
@@ -287,6 +295,7 @@ fn addTestRunStep(
     simd_vector_width: u32,
     speckle_boundary_blur: bool,
     speckle_neighbor_count: u8,
+    speckle_evaluator: []const u8,
 ) *std.Build.Step.Run {
     const run_step = b.addSystemCommand(&.{
         "sh",
@@ -300,8 +309,9 @@ fn addTestRunStep(
         \\simd_vector_width="$6"
         \\speckle_boundary_blur="$7"
         \\speckle_neighbor_count="$8"
-        \\zigexe="$9"
-        \\opt="${10}"
+        \\speckle_evaluator="$9"
+        \\zigexe="${10}"
+        \\opt="${11}"
         \\cache_root=".zig-cache/riley-test"
         \\mkdir -p "$cache_root"
         \\src_hash="$(
@@ -311,7 +321,7 @@ fn addTestRunStep(
         \\    sha256sum |
         \\    cut -d' ' -f1
         \\)"
-        \\tree_dir="${cache_root}/${step_name}_${precision}_${simd}_${newton_solver}_${simd_vector_width}_${speckle_boundary_blur}_${speckle_neighbor_count}_${opt}_${src_hash}"
+        \\tree_dir="${cache_root}/${step_name}_${precision}_${simd}_${newton_solver}_${simd_vector_width}_${speckle_boundary_blur}_${speckle_neighbor_count}_${speckle_evaluator}_${opt}_${src_hash}"
         \\if [ ! -d "$tree_dir" ]; then
         \\    lock_dir="${tree_dir}.lock"
         \\    while ! mkdir "$lock_dir" 2>/dev/null; do
@@ -335,6 +345,7 @@ fn addTestRunStep(
         \\            printf '    pub const simd_vector_width: comptime_int = %s;\n' "$simd_vector_width"
         \\            printf '    pub const speckle_boundary_blur = %s;\n' "$speckle_boundary_blur"
         \\            printf '    pub const speckle_neighbor_count: comptime_int = %s;\n' "$speckle_neighbor_count"
+        \\            printf '    pub const speckle_evaluator = "%s";\n' "$speckle_evaluator"
         \\            printf '};\n\n'
         \\            cat "$src_orig"
         \\        } > "$src_file"
@@ -351,6 +362,7 @@ fn addTestRunStep(
         b.fmt("{d}", .{simd_vector_width}),
         if (speckle_boundary_blur) "true" else "false",
         b.fmt("{d}", .{speckle_neighbor_count}),
+        speckle_evaluator,
         b.graph.zig_exe,
         @tagName(optimize),
     });
@@ -422,6 +434,7 @@ fn createBuildOptionsModule(
     simd_vector_width: u32,
     speckle_boundary_blur: bool,
     speckle_neighbor_count: u8,
+    speckle_evaluator: []const u8,
 ) *std.Build.Module {
     const options = b.addOptions();
     options.addOption([]const u8, "precision", precision);
@@ -430,6 +443,7 @@ fn createBuildOptionsModule(
     options.addOption(u32, "simd_vector_width", simd_vector_width);
     options.addOption(bool, "speckle_boundary_blur", speckle_boundary_blur);
     options.addOption(u8, "speckle_neighbor_count", speckle_neighbor_count);
+    options.addOption([]const u8, "speckle_evaluator", speckle_evaluator);
     return options.createModule();
 }
 
@@ -548,6 +562,12 @@ fn buildWrapperImports(
         return imports.items;
     }
     return imports.items;
+}
+
+fn validateSpeckleEvaluator(evaluator: []const u8) void {
+    if (std.mem.eql(u8, evaluator, "cell-hash") or
+        std.mem.eql(u8, evaluator, "list-naive")) return;
+    @panic("Supported -Dspeckle-evaluator values are cell-hash and list-naive.");
 }
 
 fn validateSpeckleNeighborCount(count: u8) void {

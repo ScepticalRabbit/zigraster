@@ -20,6 +20,7 @@ else
         pub const simd_vector_width: comptime_int = 0;
         pub const speckle_boundary_blur = false;
         pub const speckle_neighbor_count: comptime_int = 9;
+        pub const speckle_evaluator = "cell-hash";
     };
 
 pub const comptime_eval_branch_quota: comptime_int = 50000;
@@ -52,6 +53,7 @@ pub const default_newton_solver_mode =
     parseNewtonSolverMode(build_options.newton_solver);
 pub const speckle_boundary_blur = buildOptionsSpeckleBoundaryBlur();
 pub const speckle_neighbor_count = buildOptionsSpeckleNeighborCount();
+pub const speckle_evaluator = parseSpeckleEvaluator(buildOptionsSpeckleEvaluator());
 
 pub const config = configForPrecision(F);
 
@@ -71,6 +73,11 @@ pub const SimdMode = enum {
 pub const SimdTexInterpMode = enum {
     inner,
     over_pixels,
+};
+
+pub const SpeckleEvaluator = enum {
+    cell_hash,
+    list_naive,
 };
 
 pub const NewtonSolverMode = enum {
@@ -139,6 +146,19 @@ fn parsePrecision(comptime precision: []const u8) type {
         return f64;
     }
     @compileError("build_options.precision must be \"f32\" or \"f64\".");
+}
+
+fn buildOptionsSpeckleEvaluator() []const u8 {
+    if (@hasDecl(build_options, "speckle_evaluator")) {
+        return build_options.speckle_evaluator;
+    }
+    return "cell-hash";
+}
+
+fn parseSpeckleEvaluator(comptime evaluator: []const u8) SpeckleEvaluator {
+    if (std.mem.eql(u8, evaluator, "cell-hash")) return .cell_hash;
+    if (std.mem.eql(u8, evaluator, "list-naive")) return .list_naive;
+    @compileError("build_options.speckle_evaluator must be cell-hash or list-naive.");
 }
 
 fn buildOptionsSpeckleNeighborCount() comptime_int {

@@ -399,14 +399,21 @@ pub fn initMeshStatic(
                 )
             else
                 null;
+            const params = shaderops.normFuncShaderParams(
+                tex_func_in.builtin,
+                tex_func_in.params,
+            );
+            const speckle_list = if (comptime buildconfig.speckle_evaluator == .list_naive and
+                tex_func_in.builtin == .speckle)
+                try shaderops.generateSpeckleList2D(allocator, params.settings.speckle)
+            else
+                null;
             shader_static = .{ .func = .{
                 .elem_uvs = elem_uvs,
+                .speckle_list = speckle_list,
                 .coord_mode = tex_func_in.coord_mode,
                 .builtin = tex_func_in.builtin,
-                .params = shaderops.normFuncShaderParams(
-                    tex_func_in.builtin,
-                    tex_func_in.params,
-                ),
+                .params = params,
                 .bits = tex_func_in.bits,
                 .scaling = tex_func_in.scaling,
                 .normal_type = tex_func_in.normal_type,
@@ -421,14 +428,15 @@ pub fn initMeshStatic(
                 )
             else
                 null;
+            const params = shaderops.normFuncShaderParams(
+                tex_func_in.builtin,
+                tex_func_in.params,
+            );
             shader_static = .{ .func_rgb = .{
                 .elem_uvs = elem_uvs,
                 .coord_mode = tex_func_in.coord_mode,
                 .builtin = tex_func_in.builtin,
-                .params = shaderops.normFuncShaderParams(
-                    tex_func_in.builtin,
-                    tex_func_in.params,
-                ),
+                .params = params,
                 .bits = tex_func_in.bits,
                 .scaling = tex_func_in.scaling,
                 .normal_type = tex_func_in.normal_type,
@@ -1525,6 +1533,7 @@ fn FrameMeshPipeline(comptime MT: geomkerns.MeshType) type {
             if (comptime C == 1) {
                 return .{ .func = .{
                     .elem_uvs = elem_uvs,
+                    .speckle_list = func_static.speckle_list,
                     .elem_world_ref = elem_world_ref,
                     .elem_world_def = elem_world_def,
                     .coord_mode = func_static.coord_mode,
@@ -1543,6 +1552,7 @@ fn FrameMeshPipeline(comptime MT: geomkerns.MeshType) type {
             } else {
                 return .{ .func_rgb = .{
                     .elem_uvs = elem_uvs,
+                    .speckle_list = func_static.speckle_list,
                     .elem_world_ref = elem_world_ref,
                     .elem_world_def = elem_world_def,
                     .coord_mode = func_static.coord_mode,

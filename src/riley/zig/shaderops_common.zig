@@ -320,6 +320,16 @@ pub const Speckle2DParams = struct {
     }
 };
 
+pub const SpeckleDisk2D = struct {
+    center: [2]F,
+    radius: F,
+};
+
+pub const SpeckleList2D = struct {
+    params: Speckle2DParams,
+    disks: []const SpeckleDisk2D,
+};
+
 pub const FuncShaderParams = struct {
     coord_scale: [2]F = .{ 1.0, 1.0 },
     coord_offset: [2]F = .{ 0.0, 0.0 },
@@ -374,6 +384,7 @@ pub fn TexStatic(comptime T: type, comptime C: usize) type {
 
 pub const FuncStatic = struct {
     elem_uvs: ?ndarray.NDArray(F),
+    speckle_list: ?SpeckleList2D = null,
     coord_mode: FuncCoordMode = .para,
     builtin: FuncShaderBuiltin,
     params: FuncShaderParams = .{},
@@ -428,6 +439,7 @@ pub fn TexPrepared(comptime T: type, comptime C: usize) type {
 
 pub const FuncPrepared = struct {
     elem_uvs: ?ndarray.NDArray(F),
+    speckle_list: ?SpeckleList2D = null,
     elem_world_ref: ?ndarray.NDArray(F) = null,
     elem_world_def: ?ndarray.NDArray(F) = null,
     coord_mode: FuncCoordMode = .para,
@@ -600,6 +612,77 @@ fn randomUnitFromHash(hash: u64, comptime shift: u6) F {
     return @as(F, @floatFromInt(bits)) / 65_536.0;
 }
 
+inline fn effectiveSpeckleSoftness(params: Speckle2DParams) F {
+    return if (comptime speckle_boundary_blur) params.edge_softness else 0.0;
+}
+
+fn speckleDiskForCell(
+    cell_x: i64,
+    cell_y: i64,
+    params: Speckle2DParams,
+) ?SpeckleDisk2D {
+    const hash = hashSpeckleCell(cell_x, cell_y, params.seed);
+    if (randomUnitFromHash(hash, 0) >= params.occupancy) return null;
+
+    const radius_variation = 2.0 * randomUnitFromHash(hash, 48) - 1.0;
+    const radius = params.radius_mean + params.radius_jitter * radius_variation;
+    const center_extent = if (comptime speckle_neighbor_count == 4)
+        1.0 - radius - effectiveSpeckleSoftness(params)
+    else
+        1.0;
+    return .{
+        .center = .{
+            @as(F, @floatFromInt(cell_x)) + randomUnitFromHash(hash, 16) * center_extent,
+            @as(F, @floatFromInt(cell_y)) + randomUnitFromHash(hash, 32) * center_extent,
+        },
+        .radius = radius,
+    };
+}
+
+pub fn generateSpeckleList2D(
+    allocator: std.mem.Allocator,
+    params: Speckle2DParams,
+) !SpeckleList2D {
+    const min_x = @as(i64, @intFromFloat(@floor(params.uv_offset[0]))) - 1;
+    const min_y = @as(i64, @intFromFloat(@floor(params.uv_offset[1]))) - 1;
+    const max_x = @as(i64, @intFromFloat(@floor(
+        params.uv_offset[0] + params.cells_per_uv[0],
+    ))) + 1;
+    const max_y = @as(i64, @intFromFloat(@floor(
+        params.uv_offset[1] + params.cells_per_uv[1],
+    ))) + 1;
+    const width = std.math.cast(usize, max_x - min_x + 1) orelse
+        return error.SpeckleListTooLarge;
+    const height = std.math.cast(usize, max_y - min_y + 1) orelse
+        return error.SpeckleListTooLarge;
+    const cell_count = std.math.mul(usize, width, height) catch
+        return error.SpeckleListTooLarge;
+    if (cell_count > 10_000_000) return error.SpeckleListTooLarge;
+
+    var active_count: usize = 0;
+    var cell_y = min_y;
+    while (cell_y <= max_y) : (cell_y += 1) {
+        var cell_x = min_x;
+        while (cell_x <= max_x) : (cell_x += 1) {
+            if (speckleDiskForCell(cell_x, cell_y, params) != null) active_count += 1;
+        }
+    }
+
+    const disks = try allocator.alloc(SpeckleDisk2D, active_count);
+    var disk_index: usize = 0;
+    cell_y = min_y;
+    while (cell_y <= max_y) : (cell_y += 1) {
+        var cell_x = min_x;
+        while (cell_x <= max_x) : (cell_x += 1) {
+            if (speckleDiskForCell(cell_x, cell_y, params)) |disk| {
+                disks[disk_index] = disk;
+                disk_index += 1;
+            }
+        }
+    }
+    return .{ .params = params, .disks = disks };
+}
+
 fn speckleDiskMask(distance2: F, radius: F, edge_softness: F) F {
     if (comptime !speckle_boundary_blur) {
         return if (distance2 <= radius * radius) 1.0 else 0.0;
@@ -616,6 +699,30 @@ fn speckleDiskMask(distance2: F, radius: F, edge_softness: F) F {
 
     const transition = (distance2 - inner2) / (outer2 - inner2);
     return 1.0 - cubicSmoothStep(transition);
+}
+
+pub fn evalSpeckleList2D(uv: [2]F, speckles: SpeckleList2D) F {
+    const params = speckles.params;
+    if (speckles.disks.len == 0 or params.foreground == params.background) {
+        return params.background;
+    }
+    const proc_x = @max(0.0, @min(1.0, uv[0])) * params.cells_per_uv[0] +
+        params.uv_offset[0];
+    const proc_y = @max(0.0, @min(1.0, uv[1])) * params.cells_per_uv[1] +
+        params.uv_offset[1];
+    const edge_softness = effectiveSpeckleSoftness(params);
+    var coverage: F = 0.0;
+    for (speckles.disks) |disk| {
+        const delta_x = proc_x - disk.center[0];
+        const delta_y = proc_y - disk.center[1];
+        const distance2 = delta_x * delta_x + delta_y * delta_y;
+        coverage = @max(
+            coverage,
+            speckleDiskMask(distance2, disk.radius, edge_softness),
+        );
+        if (coverage == 1.0) break;
+    }
+    return params.background + coverage * (params.foreground - params.background);
 }
 
 pub fn evalSpeckle2D(uv: [2]F, params: Speckle2DParams) F {
@@ -645,10 +752,7 @@ pub fn evalSpeckle2D(uv: [2]F, params: Speckle2DParams) F {
         [_]F{ 0.0, 1.0 - frac_y }
     else
         [_]F{ frac_y, 0.0, 1.0 - frac_y };
-    const edge_softness = if (comptime speckle_boundary_blur)
-        params.edge_softness
-    else
-        0.0;
+    const edge_softness = effectiveSpeckleSoftness(params);
     const max_outer_radius = params.radius_mean + params.radius_jitter +
         edge_softness;
     const max_outer_radius2 = max_outer_radius * max_outer_radius;
@@ -1341,6 +1445,28 @@ test "procedural speckle occupancy endpoints behave exactly" {
         }
     }
     try testing.expect(found_speckle);
+}
+
+test "generated speckle list matches cell hash evaluation" {
+    var params = Speckle2DParams{};
+    params.cells_per_uv = .{ 4.0, 3.0 };
+    params.uv_offset = .{ -0.25, 0.4 };
+    params.occupancy = 0.7;
+    const speckles = try generateSpeckleList2D(testing.allocator, params);
+    defer testing.allocator.free(speckles.disks);
+
+    for (0..9) |yy| {
+        for (0..9) |xx| {
+            const uv = [2]F{
+                @as(F, @floatFromInt(xx)) / 8.0,
+                @as(F, @floatFromInt(yy)) / 8.0,
+            };
+            try testing.expectEqual(
+                evalSpeckle2D(uv, params),
+                evalSpeckleList2D(uv, speckles),
+            );
+        }
+    }
 }
 
 test "procedural speckle exact fast paths preserve endpoint behavior" {
