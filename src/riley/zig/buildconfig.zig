@@ -166,8 +166,8 @@ fn buildOptionsSpeckleNeighborCount() comptime_int {
         build_options.speckle_neighbor_count
     else
         9;
-    if (count != 9 and count != 4) {
-        @compileError("build_options.speckle_neighbor_count must be 9 or 4.");
+    if (count != 9 and count != 4 and count != 1) {
+        @compileError("build_options.speckle_neighbor_count must be 9, 4, or 1.");
     }
     return count;
 }

@@ -616,6 +616,39 @@ inline fn effectiveSpeckleSoftness(params: Speckle2DParams) F {
     return if (comptime speckle_boundary_blur) params.edge_softness else 0.0;
 }
 
+fn speckleDiskFromHash(
+    cell_x: i64,
+    cell_y: i64,
+    hash: u64,
+    params: Speckle2DParams,
+) SpeckleDisk2D {
+    const radius_variation = 2.0 * randomUnitFromHash(hash, 48) - 1.0;
+    const edge_softness = effectiveSpeckleSoftness(params);
+    var radius = params.radius_mean + params.radius_jitter * radius_variation;
+    if (comptime speckle_neighbor_count == 1) {
+        radius = @min(radius, 0.5 - edge_softness);
+    }
+    const center_min = if (comptime speckle_neighbor_count == 1)
+        radius + edge_softness
+    else
+        0.0;
+    const center_extent = switch (comptime speckle_neighbor_count) {
+        1 => 1.0 - 2.0 * center_min,
+        4 => 1.0 - radius - edge_softness,
+        9 => 1.0,
+        else => unreachable,
+    };
+    return .{
+        .center = .{
+            @as(F, @floatFromInt(cell_x)) + center_min +
+                randomUnitFromHash(hash, 16) * center_extent,
+            @as(F, @floatFromInt(cell_y)) + center_min +
+                randomUnitFromHash(hash, 32) * center_extent,
+        },
+        .radius = radius,
+    };
+}
+
 fn speckleDiskForCell(
     cell_x: i64,
     cell_y: i64,
@@ -623,20 +656,7 @@ fn speckleDiskForCell(
 ) ?SpeckleDisk2D {
     const hash = hashSpeckleCell(cell_x, cell_y, params.seed);
     if (randomUnitFromHash(hash, 0) >= params.occupancy) return null;
-
-    const radius_variation = 2.0 * randomUnitFromHash(hash, 48) - 1.0;
-    const radius = params.radius_mean + params.radius_jitter * radius_variation;
-    const center_extent = if (comptime speckle_neighbor_count == 4)
-        1.0 - radius - effectiveSpeckleSoftness(params)
-    else
-        1.0;
-    return .{
-        .center = .{
-            @as(F, @floatFromInt(cell_x)) + randomUnitFromHash(hash, 16) * center_extent,
-            @as(F, @floatFromInt(cell_y)) + randomUnitFromHash(hash, 32) * center_extent,
-        },
-        .radius = radius,
-    };
+    return speckleDiskFromHash(cell_x, cell_y, hash, params);
 }
 
 pub fn generateSpeckleList2D(
@@ -740,15 +760,21 @@ pub fn evalSpeckle2D(uv: [2]F, params: Speckle2DParams) F {
     const cell_y: i64 = @intFromFloat(cell_y_f);
     const frac_x = proc_x - cell_x_f;
     const frac_y = proc_y - cell_y_f;
-    const neighbor_offsets = if (comptime speckle_neighbor_count == 4)
+    const neighbor_offsets = if (comptime speckle_neighbor_count == 1)
+        [_]i64{0}
+    else if (comptime speckle_neighbor_count == 4)
         [_]i64{ 0, 1 }
     else
         [_]i64{ -1, 0, 1 };
-    const min_delta_x = if (comptime speckle_neighbor_count == 4)
+    const min_delta_x = if (comptime speckle_neighbor_count == 1)
+        [_]F{0.0}
+    else if (comptime speckle_neighbor_count == 4)
         [_]F{ 0.0, 1.0 - frac_x }
     else
         [_]F{ frac_x, 0.0, 1.0 - frac_x };
-    const min_delta_y = if (comptime speckle_neighbor_count == 4)
+    const min_delta_y = if (comptime speckle_neighbor_count == 1)
+        [_]F{0.0}
+    else if (comptime speckle_neighbor_count == 4)
         [_]F{ 0.0, 1.0 - frac_y }
     else
         [_]F{ frac_y, 0.0, 1.0 - frac_y };
@@ -772,22 +798,18 @@ pub fn evalSpeckle2D(uv: [2]F, params: Speckle2DParams) F {
                 continue;
             }
 
-            const radius_variation = 2.0 * randomUnitFromHash(hash, 48) - 1.0;
-            const radius = params.radius_mean + params.radius_jitter * radius_variation;
-            const center_extent = if (comptime speckle_neighbor_count == 4)
-                1.0 - radius - edge_softness
-            else
-                1.0;
-            const center_x = @as(F, @floatFromInt(candidate_x)) +
-                randomUnitFromHash(hash, 16) * center_extent;
-            const center_y = @as(F, @floatFromInt(candidate_y)) +
-                randomUnitFromHash(hash, 32) * center_extent;
-            const delta_x = proc_x - center_x;
-            const delta_y = proc_y - center_y;
+            const disk = speckleDiskFromHash(
+                candidate_x,
+                candidate_y,
+                hash,
+                params,
+            );
+            const delta_x = proc_x - disk.center[0];
+            const delta_y = proc_y - disk.center[1];
             const distance2 = delta_x * delta_x + delta_y * delta_y;
             coverage = @max(
                 coverage,
-                speckleDiskMask(distance2, radius, edge_softness),
+                speckleDiskMask(distance2, disk.radius, edge_softness),
             );
             if (coverage == 1.0) break :neighbor_loop;
         }

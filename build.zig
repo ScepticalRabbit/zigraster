@@ -42,7 +42,7 @@ pub fn build(b: *std.Build) void {
     const speckle_neighbor_count = b.option(
         u8,
         "speckle-neighbor-count",
-        "Procedural speckle candidate cell count: 9 or 4",
+        "Procedural speckle candidate cell count: 9, 4, or 1",
     ) orelse 9;
     const speckle_evaluator = b.option(
         []const u8,
@@ -571,8 +571,8 @@ fn validateSpeckleEvaluator(evaluator: []const u8) void {
 }
 
 fn validateSpeckleNeighborCount(count: u8) void {
-    if (count == 9 or count == 4) return;
-    @panic("Supported -Dspeckle-neighbor-count values are 9 and 4.");
+    if (count == 9 or count == 4 or count == 1) return;
+    @panic("Supported -Dspeckle-neighbor-count values are 9, 4, and 1.");
 }
 
 fn validatePrecision(precision: []const u8) void {
