@@ -634,7 +634,7 @@ fn rasterTileComm(
     // Report aggregate worker-time for the overlap loop. Camera fill is timed
     // separately and removed below so all three raster phases share one basis.
     const time_elem_start: ?Timestamp =
-        if (comptime report_mode == .bench)
+        if (comptime report_mode !=  .off)
             Timestamp.now(io, .awake)
         else
             null;
