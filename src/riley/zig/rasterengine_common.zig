@@ -1015,7 +1015,7 @@ fn rasterTileComm(
         }
     }
 
-    const elem_duration_ns: u64 = if (comptime report_mode == .bench) blk: {
+    const elem_duration_ns: u64 = if (comptime report_mode != .off) blk: {
         const overlap_duration_ns: u64 = @intCast(
             time_elem_start.?.durationTo(
                 Timestamp.now(io, .awake),
