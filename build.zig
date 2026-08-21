@@ -49,11 +49,17 @@ pub fn build(b: *std.Build) void {
         "speckle-evaluator",
         "Procedural speckle evaluator: cell-hash, list-naive, or list-indexed",
     ) orelse "cell-hash";
+    const speckle_shape = b.option(
+        []const u8,
+        "speckle-shape",
+        "Procedural speckle shape: disk or gaussian",
+    ) orelse "gaussian";
     validatePrecision(precision);
     validateSimd(simd);
     validateNewtonSolver(newton_solver);
     validateSpeckleNeighborCount(speckle_neighbor_count);
     validateSpeckleEvaluator(speckle_evaluator);
+    validateSpeckleShape(speckle_shape);
 
     const build_options_module = createBuildOptionsModule(
         b,
@@ -64,6 +70,7 @@ pub fn build(b: *std.Build) void {
         speckle_boundary_blur,
         speckle_neighbor_count,
         speckle_evaluator,
+        speckle_shape,
     );
     const shared_lib = addRileySharedLibrary(
         b,
@@ -108,6 +115,7 @@ pub fn build(b: *std.Build) void {
             speckle_boundary_blur,
             speckle_neighbor_count,
             speckle_evaluator,
+            speckle_shape,
         );
         test_step.dependOn(&test_run.step);
     }
@@ -296,6 +304,7 @@ fn addTestRunStep(
     speckle_boundary_blur: bool,
     speckle_neighbor_count: u8,
     speckle_evaluator: []const u8,
+    speckle_shape: []const u8,
 ) *std.Build.Step.Run {
     const run_step = b.addSystemCommand(&.{
         "sh",
@@ -310,8 +319,9 @@ fn addTestRunStep(
         \\speckle_boundary_blur="$7"
         \\speckle_neighbor_count="$8"
         \\speckle_evaluator="$9"
-        \\zigexe="${10}"
-        \\opt="${11}"
+        \\speckle_shape="${10}"
+        \\zigexe="${11}"
+        \\opt="${12}"
         \\cache_root=".zig-cache/riley-test"
         \\mkdir -p "$cache_root"
         \\src_hash="$(
@@ -321,7 +331,7 @@ fn addTestRunStep(
         \\    sha256sum |
         \\    cut -d' ' -f1
         \\)"
-        \\tree_dir="${cache_root}/${step_name}_${precision}_${simd}_${newton_solver}_${simd_vector_width}_${speckle_boundary_blur}_${speckle_neighbor_count}_${speckle_evaluator}_${opt}_${src_hash}"
+        \\tree_dir="${cache_root}/${step_name}_${precision}_${simd}_${newton_solver}_${simd_vector_width}_${speckle_boundary_blur}_${speckle_neighbor_count}_${speckle_evaluator}_${speckle_shape}_${opt}_${src_hash}"
         \\if [ ! -d "$tree_dir" ]; then
         \\    lock_dir="${tree_dir}.lock"
         \\    while ! mkdir "$lock_dir" 2>/dev/null; do
@@ -346,6 +356,7 @@ fn addTestRunStep(
         \\            printf '    pub const speckle_boundary_blur = %s;\n' "$speckle_boundary_blur"
         \\            printf '    pub const speckle_neighbor_count: comptime_int = %s;\n' "$speckle_neighbor_count"
         \\            printf '    pub const speckle_evaluator = "%s";\n' "$speckle_evaluator"
+        \\            printf '    pub const speckle_shape = "%s";\n' "$speckle_shape"
         \\            printf '};\n\n'
         \\            cat "$src_orig"
         \\        } > "$src_file"
@@ -363,6 +374,7 @@ fn addTestRunStep(
         if (speckle_boundary_blur) "true" else "false",
         b.fmt("{d}", .{speckle_neighbor_count}),
         speckle_evaluator,
+        speckle_shape,
         b.graph.zig_exe,
         @tagName(optimize),
     });
@@ -435,6 +447,7 @@ fn createBuildOptionsModule(
     speckle_boundary_blur: bool,
     speckle_neighbor_count: u8,
     speckle_evaluator: []const u8,
+    speckle_shape: []const u8,
 ) *std.Build.Module {
     const options = b.addOptions();
     options.addOption([]const u8, "precision", precision);
@@ -444,6 +457,7 @@ fn createBuildOptionsModule(
     options.addOption(bool, "speckle_boundary_blur", speckle_boundary_blur);
     options.addOption(u8, "speckle_neighbor_count", speckle_neighbor_count);
     options.addOption([]const u8, "speckle_evaluator", speckle_evaluator);
+    options.addOption([]const u8, "speckle_shape", speckle_shape);
     return options.createModule();
 }
 
@@ -562,6 +576,12 @@ fn buildWrapperImports(
         return imports.items;
     }
     return imports.items;
+}
+
+fn validateSpeckleShape(shape: []const u8) void {
+    if (std.mem.eql(u8, shape, "disk") or
+        std.mem.eql(u8, shape, "gaussian")) return;
+    @panic("Supported -Dspeckle-shape values are disk and gaussian.");
 }
 
 fn validateSpeckleEvaluator(evaluator: []const u8) void {

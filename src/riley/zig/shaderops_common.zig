@@ -14,6 +14,7 @@ const F = buildconfig.F;
 const S = buildconfig.SimdWidth;
 const speckle_boundary_blur = buildconfig.speckle_boundary_blur;
 const speckle_neighbor_count = buildconfig.speckle_neighbor_count;
+const speckle_shape = buildconfig.speckle_shape;
 const VecSF = buildconfig.VecSF;
 
 const ndarray = @import("ndarray.zig");
@@ -618,7 +619,10 @@ fn randomUnitFromHash(hash: u64, comptime shift: u6) F {
 }
 
 inline fn effectiveSpeckleSoftness(params: Speckle2DParams) F {
-    return if (comptime speckle_boundary_blur) params.edge_softness else 0.0;
+    return if (comptime speckle_shape == .disk and speckle_boundary_blur)
+        params.edge_softness
+    else
+        0.0;
 }
 
 fn speckleDiskFromHash(
@@ -720,6 +724,12 @@ pub fn generateSpeckleList2D(
 }
 
 fn speckleDiskMask(distance2: F, radius: F, edge_softness: F) F {
+    if (comptime speckle_shape == .gaussian) {
+        const radius2 = radius * radius;
+        if (distance2 >= radius2) return 0.0;
+        const sigma = radius / 3.0;
+        return @exp(-0.5 * distance2 / (sigma * sigma));
+    }
     if (comptime !speckle_boundary_blur) {
         return if (distance2 <= radius * radius) 1.0 else 0.0;
     }
@@ -1455,16 +1465,24 @@ test "procedural speckle parameters validate defaults and radius bounds" {
     );
 }
 
-test "procedural speckle disk supports configured edge mode" {
-    try testing.expectEqual(@as(F, 1.0), speckleDiskMask(0.25, 0.5, 0.0));
-    try testing.expectEqual(@as(F, 0.0), speckleDiskMask(0.251, 0.5, 0.0));
-
-    const transition = speckleDiskMask(0.25, 0.5, 0.1);
-    if (comptime speckle_boundary_blur) {
+test "procedural speckle shape has bounded support" {
+    if (comptime speckle_shape == .gaussian) {
+        try testing.expectEqual(@as(F, 1.0), speckleDiskMask(0.0, 0.5, 0.0));
+        const transition = speckleDiskMask(0.0625, 0.5, 0.0);
         try testing.expect(transition > 0.0);
         try testing.expect(transition < 1.0);
+        try testing.expectEqual(@as(F, 0.0), speckleDiskMask(0.25, 0.5, 0.0));
     } else {
-        try testing.expectEqual(@as(F, 1.0), transition);
+        try testing.expectEqual(@as(F, 1.0), speckleDiskMask(0.25, 0.5, 0.0));
+        try testing.expectEqual(@as(F, 0.0), speckleDiskMask(0.251, 0.5, 0.0));
+
+        const transition = speckleDiskMask(0.25, 0.5, 0.1);
+        if (comptime speckle_boundary_blur) {
+            try testing.expect(transition > 0.0);
+            try testing.expect(transition < 1.0);
+        } else {
+            try testing.expectEqual(@as(F, 1.0), transition);
+        }
     }
 }
 
@@ -1593,8 +1611,10 @@ test "generated speckle list matches cell hash evaluation" {
 }
 
 test "procedural speckle exact fast paths preserve endpoint behavior" {
-    try testing.expectEqual(@as(F, 1.0), speckleDiskMask(0.25, 0.5, 0.0));
-    try testing.expectEqual(@as(F, 0.0), speckleDiskMask(0.2501, 0.5, 0.0));
+    if (comptime speckle_shape == .disk) {
+        try testing.expectEqual(@as(F, 1.0), speckleDiskMask(0.25, 0.5, 0.0));
+        try testing.expectEqual(@as(F, 0.0), speckleDiskMask(0.2501, 0.5, 0.0));
+    }
 
     var params = Speckle2DParams{};
     params.foreground = 0.375;
