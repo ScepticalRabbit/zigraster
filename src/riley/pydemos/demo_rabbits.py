@@ -108,7 +108,8 @@ def main() -> None:
     out_dir = make_demo_out_dir("demo-rabbits")
     default_pixel_size = (5.3e-6, 5.3e-6)
     default_focal_length = 50.0e-3
-    rot_world = (0.0, np.pi, 0.0)
+    # Canonical rabbit winding exposes the opposite side from the legacy data.
+    rot_world = (0.0, 0.0, 0.0)
     texture_path = riley.data.speckle_texture_path()
     rabbit_mesh_types = [
         riley.MeshType.tri3,

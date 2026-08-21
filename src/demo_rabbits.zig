@@ -258,7 +258,8 @@ pub fn main(init: std.process.Init) !void {
     );
 
     const mesh_inputs = try buildRabbitPairScene(aa, io, texture);
-    const rot = Rotation.init(0.0, std.math.pi, 0.0);
+    // Canonical rabbit winding exposes the opposite side from the legacy data.
+    const rot = Rotation.init(0.0, 0.0, 0.0);
     const roi_pos = sceneops.boundsCenterOverMeshes(mesh_inputs);
     const cam_pos = cameraops.posFillFrameFromRotOverMeshes(
         mesh_inputs,

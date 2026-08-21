@@ -190,6 +190,12 @@ pub fn main(init: std.process.Init) !void {
                 .scaling = .none,
                 .channels = render_case.channels,
             },
+            .{
+                .format = .tiff,
+                .bits = 8,
+                .scaling = .auto,
+                .channels = render_case.channels,
+            },
         };
 
         const out_dir_path = try std.fs.path.join(

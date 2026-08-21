@@ -102,14 +102,15 @@ def test_enforce_mesh_convention_fixes_tet_handedness() -> None:
 
 
 @pytest.mark.parametrize("cube_name", SUPPORTED_CUBES)
-def test_cube_mesh_convention_enforcement_is_idempotent(cube_name: str) -> None:
+def test_canonical_cube_meshes_pass_and_enforcement_is_idempotent(
+    cube_name: str,
+) -> None:
     mesh = _load_cube(cube_name)
 
-    raw_report = meshconv.check_mesh_convention(mesh)
+    assert meshconv.check_mesh_convention(mesh).is_valid
     enforced_once = meshconv.enforce_mesh_convention(mesh)
     enforced_twice = meshconv.enforce_mesh_convention(enforced_once)
 
-    assert not raw_report.is_valid
     assert meshconv.check_mesh_convention(enforced_once).is_valid
     assert enforced_once.connect is not None
     assert enforced_twice.connect is not None
@@ -119,7 +120,12 @@ def test_cube_mesh_convention_enforcement_is_idempotent(cube_name: str) -> None:
 
 def test_tet14_cube_is_explicitly_unsupported() -> None:
     with pytest.raises(NotImplementedError, match="supported nodes-per-element"):
-        meshconv.check_mesh_convention(_load_cube("tet14"))
+        meshconv.check_mesh_convention(
+            meshconv.MeshData(
+                coords=np.zeros((14, 3), dtype=np.float64),
+                connect={"connect1": np.arange(14, dtype=np.int64).reshape(1, 14)},
+            )
+        )
 
 
 @pytest.mark.parametrize("cube_name", SUPPORTED_CUBES)
@@ -151,11 +157,88 @@ def test_native_sphere_meshes_normalize_to_an_idempotent_convention(
         assert np.array_equal(connect, mesh_twice.connect[name])
 
 
+def test_plate_with_hole_keeps_inward_bore_normals() -> None:
+    """A closed plate surface must retain its material-facing bore wall."""
+
+    mesh = _load_native_mesh(
+        DATA_DIR / "FE" / "platehole3d_2mr_63f",
+        mesh_type="surface",
+    )
+
+    assert meshconv.check_mesh_convention(mesh).is_valid
+    mesh_out = meshconv.enforce_mesh_convention(mesh)
+    assert mesh_out.connect is not None
+    assert mesh.connect is not None
+    assert np.array_equal(mesh_out.connect["connect1"], mesh.connect["connect1"])
+
+    connect = mesh_out.connect["connect1"]
+    assert mesh_out.coords is not None
+    corners = mesh_out.coords[connect[:, :4]]
+    normals = np.cross(corners[:, 1] - corners[:, 0], corners[:, 3] - corners[:, 0])
+    radial = np.mean(corners, axis=1)[:, :2] - np.array((0.0125, 0.0175))
+    radial_norm = np.linalg.norm(radial, axis=1)
+    wall_rows = np.abs(normals[:, 2]) < 1.0e-12
+    bore_rows = wall_rows & np.isclose(radial_norm, radial_norm[wall_rows].min())
+    outer_rows = wall_rows & ~bore_rows
+
+    assert np.count_nonzero(bore_rows) == 64
+    assert np.all(np.sum(normals[bore_rows, :2] * radial[bore_rows], axis=1) < 0.0)
+    assert np.all(np.sum(normals[outer_rows, :2] * radial[outer_rows], axis=1) > 0.0)
+
+
+def test_nested_closed_surface_orients_cavity_into_the_void() -> None:
+    outer_coords, outer_connect = _cube_surface(2.0, 0)
+    inner_coords, inner_connect = _cube_surface(1.0, 8)
+    mesh = meshconv.MeshData(
+        coords=np.vstack((outer_coords, inner_coords)),
+        connect={"connect1": np.vstack((outer_connect, inner_connect))},
+        mesh_type="surface",
+    )
+
+    mesh_out = meshconv.enforce_mesh_convention(mesh)
+
+    assert mesh_out.connect is not None
+    assert meshconv.check_mesh_convention(mesh_out).is_valid
+    connect = mesh_out.connect["connect1"]
+    assert _surface_volume(mesh_out.coords, connect[:6]) > 0.0
+    assert _surface_volume(mesh_out.coords, connect[6:]) < 0.0
+
+
 def _quad_coords() -> np.ndarray:
     return np.array(
         ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0), (0.0, 1.0, 0.0)),
         dtype=np.float64,
     )
+
+
+def _cube_surface(scale: float, node_offset: int) -> tuple[np.ndarray, np.ndarray]:
+    coords = scale * np.array(
+        (
+            (-1.0, -1.0, -1.0), (1.0, -1.0, -1.0),
+            (1.0, 1.0, -1.0), (-1.0, 1.0, -1.0),
+            (-1.0, -1.0, 1.0), (1.0, -1.0, 1.0),
+            (1.0, 1.0, 1.0), (-1.0, 1.0, 1.0),
+        ),
+        dtype=np.float64,
+    )
+    connect = np.array(
+        ((0, 3, 2, 1), (4, 5, 6, 7), (0, 1, 5, 4),
+         (1, 2, 6, 5), (2, 3, 7, 6), (3, 0, 4, 7)),
+        dtype=np.int64,
+    )
+    return coords, connect + node_offset
+
+
+def _surface_volume(coords: np.ndarray, connect: np.ndarray) -> float:
+    volume = 0.0
+    for row in connect:
+        points = coords[row]
+        for point_ind in range(1, points.shape[0] - 1):
+            volume += np.dot(
+                points[0],
+                np.cross(points[point_ind], points[point_ind + 1]),
+            ) / 6.0
+    return float(volume)
 
 
 def _load_cube(name: str) -> meshconv.MeshData:
@@ -171,7 +254,7 @@ def _load_native_mesh(
     connect_path = mesh_dir / "connectivity.csv"
     if not connect_path.is_file():
         connect_path = mesh_dir / "connect.csv"
-    connect = np.loadtxt(connect_path, delimiter=",", dtype=np.int64)
+    connect = np.loadtxt(connect_path, delimiter=",", dtype=np.float64).astype(np.int64)
     return meshconv.MeshData(
         coords=coords,
         connect={"connect1": connect},

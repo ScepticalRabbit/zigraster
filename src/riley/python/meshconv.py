@@ -114,21 +114,40 @@ def check_mesh_convention(mesh_in: SimData) -> MeshConventionCheck:
                 connect_check, legacy_connect
             )
 
-            if not _check_ccw_winding_table(
+            if _is_surface_connectivity_table(
                 connect_check,
                 mesh_in.coords,
                 surface_only=surface_only,
             ):
-                ccw = False
-                failures.append("ccw_winding")
+                try:
+                    surface_flips = _surface_orientation_flips(
+                        connect_check,
+                        mesh_in.coords,
+                    )
+                except ValueError:
+                    valid_connectivity = False
+                    failures.append("surface_topology")
+                else:
+                    if np.any(surface_flips):
+                        ccw = False
+                        right_handed = False
+                        failures.extend(("ccw_winding", "right_handed_geometry"))
+            else:
+                if not _check_ccw_winding_table(
+                    connect_check,
+                    mesh_in.coords,
+                    surface_only=surface_only,
+                ):
+                    ccw = False
+                    failures.append("ccw_winding")
 
-            if not _check_right_handed_table(
-                connect_check,
-                mesh_in.coords,
-                surface_only=surface_only,
-            ):
-                right_handed = False
-                failures.append("right_handed_geometry")
+                if not _check_right_handed_table(
+                    connect_check,
+                    mesh_in.coords,
+                    surface_only=surface_only,
+                ):
+                    right_handed = False
+                    failures.append("right_handed_geometry")
 
         per_table[name] = tuple(failures)
 
@@ -198,16 +217,23 @@ def enforce_mesh_convention(mesh_in: SimData) -> SimData:
             )
 
         connect = _normalise_legacy_connectivity_order(connect, legacy_connect)
-        connect = _enforce_ccw_winding_table(
+        if _is_surface_connectivity_table(
             connect,
             mesh_in.coords,
             surface_only=surface_only,
-        )
-        connect = _enforce_right_handed_table(
-            connect,
-            mesh_in.coords,
-            surface_only=surface_only,
-        )
+        ):
+            connect = _enforce_surface_orientation_table(connect, mesh_in.coords)
+        else:
+            connect = _enforce_ccw_winding_table(
+                connect,
+                mesh_in.coords,
+                surface_only=surface_only,
+            )
+            connect = _enforce_right_handed_table(
+                connect,
+                mesh_in.coords,
+                surface_only=surface_only,
+            )
 
         if not _check_indices_zero_based(connect, mesh_in.coords.shape[0]):
             raise ValueError(
@@ -487,6 +513,338 @@ def _is_quad8_surface_row(
     on_edges = distances <= _QUAD8_EDGE_TOL * edge_lengths
     between_corners = np.logical_and(edge_params >= 0.0, edge_params <= 1.0)
     return bool(np.all(np.logical_and(on_edges, between_corners)))
+
+
+def _is_surface_connectivity_table(
+    connect: np.ndarray,
+    coords: np.ndarray,
+    *,
+    surface_only: bool = False,
+) -> bool:
+    """Return whether a connectivity table represents surface elements."""
+
+    if surface_only:
+        return True
+    return not _is_volume_connectivity_table(connect, coords)
+
+
+def _surface_orientation_flips(
+    connect: np.ndarray,
+    coords: np.ndarray,
+) -> np.ndarray:
+    """Return the row reversals required by the canonical surface convention.
+
+    Surface winding is a property of the complete surface, rather than of an
+    individual face.  In particular, the boundary of a bore has material
+    normals directed *towards* the bore axis.  A per-face test against the mesh
+    centroid cannot represent that topology.  This routine first makes each
+    connected component edge-consistent, then selects the component orientation
+    from signed enclosed volume.  Nested closed components alternate between
+    material exterior and cavity boundaries.
+    """
+
+    corner_inds = _get_corner_indices(connect.shape[1])
+    representatives: dict[tuple[int, ...], int] = {}
+    duplicate_of = np.arange(connect.shape[0], dtype=np.int64)
+    for row_ind, row in enumerate(connect):
+        key = tuple(sorted(int(node) for node in row[corner_inds]))
+        representative = representatives.setdefault(key, row_ind)
+        duplicate_of[row_ind] = representative
+
+    try:
+        topology = _surface_topology(connect, np.unique(duplicate_of))
+    except ValueError as error:
+        if "Non-manifold surface edge" not in str(error):
+            raise
+        # Surface slices can deliberately contain non-manifold face sets. They
+        # have no single orientable shell, so retain the historical per-face
+        # behaviour rather than applying a false cavity interpretation.
+        return _legacy_surface_orientation_flips(connect, coords)
+    flips = np.zeros(connect.shape[0], dtype=bool)
+    closed_components: list[tuple[np.ndarray, np.ndarray]] = []
+
+    for rows, edge_keys in topology:
+        relative = _component_relative_flips(rows, edge_keys)
+        flips[rows] = relative
+        oriented = _apply_surface_flips(connect[rows], relative)
+
+        is_closed = all(len(edge_keys[key]) == 2 for key in edge_keys)
+        if not is_closed:
+            # An open non-planar sheet has no intrinsic exterior. Preserve a
+            # coherent input orientation; planar sheets retain canonical CCW.
+            component_nodes = np.unique(oriented[:, _get_corner_indices(
+                oriented.shape[1]
+            )])
+            component_coords = coords[component_nodes]
+            if _is_coplanar(component_coords):
+                metric = _first_surface_metric(oriented, component_coords, coords)
+                if metric is not None and metric < 0.0:
+                    flips[rows] = ~flips[rows]
+            continue
+
+        volume = _surface_signed_volume(oriented, coords)
+        if abs(volume) <= _TOL:
+            raise ValueError(
+                "Closed surface component has zero signed volume; cannot "
+                "select a material exterior."
+            )
+        if volume < 0.0:
+            flips[rows] = ~flips[rows]
+            oriented = _apply_surface_flips(oriented, np.ones(rows.shape[0], dtype=bool))
+        closed_components.append((rows, oriented))
+
+    # A disconnected closed shell contained by another shell is a cavity. Its
+    # material-outward normal must point into the void, so its signed volume is
+    # negative after local edge consistency has been established.
+    for component_ind, (rows, oriented) in enumerate(closed_components):
+        point = _component_probe_point(oriented, coords)
+        depth = sum(
+            _point_in_closed_surface(point, other_oriented, coords)
+            for other_ind, (_, other_oriented) in enumerate(closed_components)
+            if other_ind != component_ind
+        )
+        if depth % 2:
+            flips[rows] = ~flips[rows]
+
+    for row_ind, representative in enumerate(duplicate_of):
+        if row_ind == representative:
+            continue
+        same_orientation = _surface_rows_have_same_orientation(
+            connect[row_ind],
+            connect[representative],
+            coords,
+        )
+        flips[row_ind] = flips[representative] ^ (not same_orientation)
+
+    return flips
+
+
+def _legacy_surface_orientation_flips(
+    connect: np.ndarray,
+    coords: np.ndarray,
+) -> np.ndarray:
+    flips = np.zeros(connect.shape[0], dtype=bool)
+    for row_ind, row in enumerate(connect):
+        metric = _winding_metric(row, coords, surface_only=True)
+        flips[row_ind] = metric is not None and metric < 0.0
+    return flips
+
+
+def _surface_topology(
+    connect: np.ndarray,
+    active_rows: np.ndarray,
+) -> list[tuple[np.ndarray, dict]]:
+    """Build connected surface components keyed by their corner-node edges."""
+
+    corner_inds = _get_corner_indices(connect.shape[1])
+    edge_map: dict = {}
+    for row_ind in active_rows:
+        row = connect[row_ind]
+        corners = row[corner_inds]
+        for node_a, node_b in zip(corners, np.roll(corners, -1)):
+            directed = (int(node_a), int(node_b))
+            key = tuple(sorted(directed))
+            edge_map.setdefault(key, []).append((row_ind, directed))
+
+    for key, uses in edge_map.items():
+        if len(uses) > 2:
+            raise ValueError(f"Non-manifold surface edge {key} has {len(uses)} incident faces.")
+
+    neighbours: dict[int, set[int]] = {int(row): set() for row in active_rows}
+    for uses in edge_map.values():
+        if len(uses) == 2:
+            row_a, _ = uses[0]
+            row_b, _ = uses[1]
+            neighbours[row_a].add(row_b)
+            neighbours[row_b].add(row_a)
+
+    components: list[tuple[np.ndarray, dict]] = []
+    unseen = set(int(row) for row in active_rows)
+    while unseen:
+        seed = unseen.pop()
+        rows = {seed}
+        stack = [seed]
+        while stack:
+            row = stack.pop()
+            for neighbour in neighbours[row]:
+                if neighbour in unseen:
+                    unseen.remove(neighbour)
+                    rows.add(neighbour)
+                    stack.append(neighbour)
+        rows_array = np.asarray(sorted(rows), dtype=np.int64)
+        row_set = set(rows_array.tolist())
+        component_edges = {
+            key: uses for key, uses in edge_map.items()
+            if uses[0][0] in row_set
+        }
+        components.append((rows_array, component_edges))
+    return components
+
+
+def _surface_rows_have_same_orientation(
+    row_a: np.ndarray,
+    row_b: np.ndarray,
+    coords: np.ndarray,
+) -> bool:
+    """Return whether duplicate surface rows have the same directed boundary."""
+
+    corner_inds = _get_corner_indices(row_a.shape[0])
+    corners_a = row_a[corner_inds]
+    corners_b = row_b[corner_inds]
+    edges_b = {
+        (int(node_a), int(node_b))
+        for node_a, node_b in zip(corners_b, np.roll(corners_b, -1))
+    }
+    for node_a, node_b in zip(corners_a, np.roll(corners_a, -1)):
+        if (int(node_a), int(node_b)) in edges_b:
+            return True
+        if (int(node_b), int(node_a)) in edges_b:
+            return False
+    raise ValueError("Duplicate surface faces do not share a boundary edge.")
+
+
+def _component_relative_flips(
+    rows: np.ndarray,
+    edge_keys: dict,
+) -> np.ndarray:
+    """Find local reversals making shared edges traverse opposite ways."""
+
+    row_set = set(rows.tolist())
+    constraints: dict[int, list[tuple[int, bool]]] = {row: [] for row in row_set}
+    for uses in edge_keys.values():
+        if len(uses) != 2:
+            continue
+        row_a, direction_a = uses[0]
+        row_b, direction_b = uses[1]
+        same_direction = direction_a == direction_b
+        constraints[row_a].append((row_b, same_direction))
+        constraints[row_b].append((row_a, same_direction))
+
+    assigned: dict[int, bool] = {}
+    for seed in rows:
+        seed_int = int(seed)
+        if seed_int in assigned:
+            continue
+        assigned[seed_int] = False
+        stack = [seed_int]
+        while stack:
+            row = stack.pop()
+            for neighbour, xor_flip in constraints[row]:
+                expected = assigned[row] ^ xor_flip
+                if neighbour in assigned:
+                    if assigned[neighbour] != expected:
+                        raise ValueError("Surface component is not orientable.")
+                else:
+                    assigned[neighbour] = expected
+                    stack.append(neighbour)
+    return np.asarray([assigned[int(row)] for row in rows], dtype=bool)
+
+
+def _apply_surface_flips(connect: np.ndarray, flips: np.ndarray) -> np.ndarray:
+    out = np.array(connect, copy=True)
+    for row_ind in np.flatnonzero(flips):
+        out[row_ind] = _reverse_surface_row(out[row_ind])
+    return out
+
+
+def _first_surface_metric(
+    connect: np.ndarray,
+    component_coords: np.ndarray,
+    coords: np.ndarray,
+) -> float | None:
+    normal = _canonical_plane_normal(component_coords)
+    corner_inds = _get_corner_indices(connect.shape[1])
+    for row in connect:
+        metric = _local_polygon_signed_area(coords[row[corner_inds]], normal)
+        if metric is not None and abs(metric) > _TOL:
+            return metric
+    return None
+
+
+def _surface_signed_volume(connect: np.ndarray, coords: np.ndarray) -> float:
+    corner_inds = _get_corner_indices(connect.shape[1])
+    volume = 0.0
+    for row in connect:
+        points = coords[row[corner_inds]]
+        for point_ind in range(1, points.shape[0] - 1):
+            volume += float(np.dot(
+                points[0],
+                np.cross(points[point_ind], points[point_ind + 1]),
+            )) / 6.0
+    return volume
+
+
+def _component_probe_point(connect: np.ndarray, coords: np.ndarray) -> np.ndarray:
+    corner_inds = _get_corner_indices(connect.shape[1])
+    points = coords[connect[0, corner_inds]]
+    normal = np.cross(points[1] - points[0], points[2] - points[0])
+    normal_norm = np.linalg.norm(normal)
+    if normal_norm <= _TOL:
+        return np.mean(points, axis=0)
+    extent = np.ptp(coords, axis=0)
+    epsilon = max(float(np.linalg.norm(extent)) * 1.0e-9, _TOL * 10.0)
+    return np.mean(points, axis=0) + epsilon * normal / normal_norm
+
+
+def _point_in_closed_surface(
+    point: np.ndarray,
+    connect: np.ndarray,
+    coords: np.ndarray,
+) -> bool:
+    """Classify a point with parity ray casting against a closed surface."""
+
+    corner_inds = _get_corner_indices(connect.shape[1])
+    directions = np.array(((0.745, 0.371, 0.553), (-0.299, 0.877, 0.376), (0.461, -0.314, 0.830)))
+    votes: list[bool] = []
+    for direction in directions:
+        direction = direction / np.linalg.norm(direction)
+        hits = 0
+        for row in connect:
+            corners = coords[row[corner_inds]]
+            for point_ind in range(1, corners.shape[0] - 1):
+                if _ray_intersects_triangle(
+                    point,
+                    direction,
+                    corners[0],
+                    corners[point_ind],
+                    corners[point_ind + 1],
+                ):
+                    hits += 1
+        votes.append(bool(hits % 2))
+    return sum(votes) >= 2
+
+
+def _ray_intersects_triangle(
+    origin: np.ndarray,
+    direction: np.ndarray,
+    point_a: np.ndarray,
+    point_b: np.ndarray,
+    point_c: np.ndarray,
+) -> bool:
+    edge_ab = point_b - point_a
+    edge_ac = point_c - point_a
+    perpendicular = np.cross(direction, edge_ac)
+    determinant = float(np.dot(edge_ab, perpendicular))
+    if abs(determinant) <= _TOL:
+        return False
+    inv_determinant = 1.0 / determinant
+    offset = origin - point_a
+    u = inv_determinant * float(np.dot(offset, perpendicular))
+    if u <= _TOL or u >= 1.0 - _TOL:
+        return False
+    q_vec = np.cross(offset, edge_ab)
+    v = inv_determinant * float(np.dot(direction, q_vec))
+    if v <= _TOL or u + v >= 1.0 - _TOL:
+        return False
+    distance = inv_determinant * float(np.dot(edge_ac, q_vec))
+    return distance > _TOL
+
+
+def _enforce_surface_orientation_table(
+    connect: np.ndarray,
+    coords: np.ndarray,
+) -> np.ndarray:
+    return _apply_surface_flips(connect, _surface_orientation_flips(connect, coords))
 
 
 def extract_surf_mesh(

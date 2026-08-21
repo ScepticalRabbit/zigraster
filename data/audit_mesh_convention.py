@@ -5,14 +5,29 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+import importlib.util
 
 import numpy as np
-
-from riley.python import meshconv
 
 
 DATA_DIR = Path(__file__).resolve().parent
 CONNECT_FILENAMES = ("connect.csv", "connectivity.csv")
+
+
+def _load_meshconv():
+    """Load Riley's dependency-free convention module without its Cython API."""
+
+    module_path = DATA_DIR.parent / "src" / "riley" / "python" / "meshconv.py"
+    spec = importlib.util.spec_from_file_location("riley_meshconv", module_path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Could not load mesh-convention module: {module_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+meshconv = _load_meshconv()
 
 
 def main() -> int:
@@ -67,7 +82,10 @@ def audit_mesh(mesh_dir: Path) -> tuple[str, str, str]:
 
 
 def _mesh_type_hint(mesh_dir: Path) -> str | None:
-    if mesh_dir.parts[-2] == "FE":
+    if (
+        mesh_dir.parent.name in {"FE", "cubes"}
+        or mesh_dir.name.endswith("calplate3d")
+    ):
         return "volume"
     if mesh_dir.name.startswith(("tri", "quad")):
         return "surface"

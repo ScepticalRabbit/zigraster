@@ -210,8 +210,7 @@ def generate_sphere(etype, out_dir, N_target):
                     q.append((r + 1) * cols + (c + 1))
                 conn.append(q)
                 
-    save_csv(f"{out_dir}/coords.csv", coords)
-    save_csv(f"{out_dir}/connect.csv", np.array(conn))
+    save_surface_mesh(out_dir, coords, np.array(conn))
     save_csv(f"{out_dir}/uvs.csv", uvs)
     save_csv(f"{out_dir}/field.csv", fields)
 
