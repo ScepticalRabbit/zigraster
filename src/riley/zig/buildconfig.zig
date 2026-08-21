@@ -78,6 +78,7 @@ pub const SimdTexInterpMode = enum {
 pub const SpeckleEvaluator = enum {
     cell_hash,
     list_naive,
+    list_indexed,
 };
 
 pub const NewtonSolverMode = enum {
@@ -158,7 +159,10 @@ fn buildOptionsSpeckleEvaluator() []const u8 {
 fn parseSpeckleEvaluator(comptime evaluator: []const u8) SpeckleEvaluator {
     if (std.mem.eql(u8, evaluator, "cell-hash")) return .cell_hash;
     if (std.mem.eql(u8, evaluator, "list-naive")) return .list_naive;
-    @compileError("build_options.speckle_evaluator must be cell-hash or list-naive.");
+    if (std.mem.eql(u8, evaluator, "list-indexed")) return .list_indexed;
+    @compileError(
+        "build_options.speckle_evaluator must be cell-hash, list-naive, or list-indexed.",
+    );
 }
 
 fn buildOptionsSpeckleNeighborCount() comptime_int {

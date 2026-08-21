@@ -47,7 +47,7 @@ pub fn build(b: *std.Build) void {
     const speckle_evaluator = b.option(
         []const u8,
         "speckle-evaluator",
-        "Procedural speckle evaluator: cell-hash or list-naive",
+        "Procedural speckle evaluator: cell-hash, list-naive, or list-indexed",
     ) orelse "cell-hash";
     validatePrecision(precision);
     validateSimd(simd);
@@ -566,8 +566,9 @@ fn buildWrapperImports(
 
 fn validateSpeckleEvaluator(evaluator: []const u8) void {
     if (std.mem.eql(u8, evaluator, "cell-hash") or
-        std.mem.eql(u8, evaluator, "list-naive")) return;
-    @panic("Supported -Dspeckle-evaluator values are cell-hash and list-naive.");
+        std.mem.eql(u8, evaluator, "list-naive") or
+        std.mem.eql(u8, evaluator, "list-indexed")) return;
+    @panic("Supported -Dspeckle-evaluator values are cell-hash, list-naive, and list-indexed.");
 }
 
 fn validateSpeckleNeighborCount(count: u8) void {

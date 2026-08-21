@@ -403,7 +403,7 @@ pub fn initMeshStatic(
                 tex_func_in.builtin,
                 tex_func_in.params,
             );
-            const speckle_list = if (comptime buildconfig.speckle_evaluator == .list_naive and
+            const speckle_list = if (comptime buildconfig.speckle_evaluator != .cell_hash and
                 tex_func_in.builtin == .speckle)
                 try shaderops.generateSpeckleList2D(allocator, params.settings.speckle)
             else
