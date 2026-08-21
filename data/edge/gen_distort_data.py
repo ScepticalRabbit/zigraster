@@ -2,6 +2,8 @@ from pathlib import Path
 
 import numpy as np
 
+from riley.python import meshconv
+
 
 EDGE_LENG = 10.0
 ELEM_ROT = 20.0
@@ -37,6 +39,12 @@ def save_case(
         disp_z,
         ELEM_ROT,
     )
+    mesh = meshconv.MeshData(
+        coords=np.ascontiguousarray(coords, dtype=np.float64),
+        connect={"connect1": np.ascontiguousarray(connect, dtype=np.int64)},
+        mesh_type="surface",
+    )
+    connect = meshconv.enforce_mesh_convention(mesh).connect["connect1"]
     np.savetxt(out_dir / "coords.csv", coords, delimiter=",")
     np.savetxt(
         out_dir / "connect.csv",

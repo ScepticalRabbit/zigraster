@@ -1,9 +1,22 @@
 import numpy as np
 import os
 
+from riley.python import meshconv
+
 def save_csv(path, data):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     np.savetxt(path, data, delimiter=',', fmt='%.10f' if data.dtype == np.float64 else '%d')
+
+def save_surface_mesh(out_dir, coords, connect):
+    connect = meshconv.enforce_mesh_convention(
+        meshconv.MeshData(
+            coords=np.ascontiguousarray(coords, dtype=np.float64),
+            connect={"connect1": np.ascontiguousarray(connect, dtype=np.int64)},
+            mesh_type="surface",
+        )
+    ).connect["connect1"]
+    save_csv(f"{out_dir}/coords.csv", coords)
+    save_csv(f"{out_dir}/connect.csv", connect)
 
 def get_nodes_for_elem(etype):
     return {
@@ -68,8 +81,7 @@ def generate_fullscreen(etype, out_dir):
             else: connect = np.array([[0, 1, 2, 3, 4, 5, 6, 7, 8]])
         else:
             connect = np.array([[0, 1, 2, 3]])
-    save_csv(f"{out_dir}/coords.csv", coords)
-    save_csv(f"{out_dir}/connect.csv", connect)
+    save_surface_mesh(out_dir, coords, connect)
     save_csv(f"{out_dir}/field.csv", compute_rgb_fields(coords))
     save_csv(f"{out_dir}/uvs.csv", compute_uvs(coords))
 
@@ -102,8 +114,7 @@ def generate_grid(etype, out_dir, N=320):
                 q8 = [i0, i1, i2, i3, m01, m12, m23, m30]
                 if etype == "quad9": q8.append(i0+(xn+1)+1)
                 conn.append(q8)
-    save_csv(f"{out_dir}/coords.csv", coords)
-    save_csv(f"{out_dir}/connect.csv", np.array(conn))
+    save_surface_mesh(out_dir, coords, np.array(conn))
     save_csv(f"{out_dir}/field.csv", compute_rgb_fields(coords))
     save_csv(f"{out_dir}/uvs.csv", compute_uvs(coords))
 

@@ -2,12 +2,20 @@ import numpy as np
 import os
 from pathlib import Path
 
+from riley.python import meshconv
+
 # Coordinate System: Right-handed Cartesian (X right, Y up, Z towards viewer).
 # Vertex Winding: All elements MUST follow Counter-Clockwise (CCW) winding.
 # This ensures positive signed area calculation in the rasterizer, which is 
 # critical for correct shape function interpolation and weight distribution.
 
 def save_case(base_dir, name, coords, connect, disp_x, disp_y, disp_z):
+    mesh = meshconv.MeshData(
+        coords=np.ascontiguousarray(coords, dtype=np.float64),
+        connect={"connect1": np.ascontiguousarray(connect, dtype=np.int64)},
+        mesh_type="surface",
+    )
+    connect = meshconv.enforce_mesh_convention(mesh).connect["connect1"]
     out_dir = Path(base_dir) / name
     out_dir.mkdir(parents=True, exist_ok=True)
     np.savetxt(out_dir / "coords.csv", coords, delimiter=",")

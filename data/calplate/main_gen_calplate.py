@@ -8,6 +8,8 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 from scipy.stats import qmc
 
+from riley.python import meshconv
+
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -445,11 +447,20 @@ def write_case(
     connect: np.ndarray,
     uvs: np.ndarray,
     states: list[MotionState],
+    enforce_convention: bool = False,
 ) -> None:
     out_dir = BASE_DIR / case_name
     out_dir.mkdir(parents=True, exist_ok=True)
 
     disp_x, disp_y, disp_z = displacement_fields(coords, states)
+    if enforce_convention:
+        connect = meshconv.enforce_mesh_convention(
+            meshconv.MeshData(
+                coords=np.ascontiguousarray(coords, dtype=np.float64),
+                connect={"connect1": np.ascontiguousarray(connect, dtype=np.int64)},
+                mesh_type="surface",
+            )
+        ).connect["connect1"]
 
     save_csv_matrix(out_dir / "coords.csv", coords, "%.10f")
     save_csv_matrix(out_dir / "connect.csv", connect, "%d")
@@ -478,7 +489,7 @@ def main() -> None:
     cases = mesh_cases()
 
     for case_name, (coords, connect, uvs) in cases.items():
-        write_case(case_name, coords, connect, uvs, states)
+        write_case(case_name, coords, connect, uvs, states, enforce_convention=True)
 
     print(f"Generated {len(cases)} calplate mesh cases in {BASE_DIR}")
     print(f"Mode: {CAL_MODE}")

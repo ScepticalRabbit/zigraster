@@ -1,6 +1,8 @@
 import numpy as np
 import os
 
+from riley.python import meshconv
+
 def save_csv(path, data):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     np.savetxt(
@@ -108,6 +110,13 @@ def generate_fullscreen_tilt(etype, out_dir):
             connect = np.array([[0, 1, 2, 3]])
     
     tilted_coords = apply_tilt(coords)
+    connect = meshconv.enforce_mesh_convention(
+        meshconv.MeshData(
+            coords=np.ascontiguousarray(tilted_coords, dtype=np.float64),
+            connect={"connect1": np.ascontiguousarray(connect, dtype=np.int64)},
+            mesh_type="surface",
+        )
+    ).connect["connect1"]
     save_csv(f"{out_dir}/coords.csv", tilted_coords)
     save_csv(f"{out_dir}/connect.csv", connect)
     save_csv(f"{out_dir}/field.csv", compute_rgb_fields(tilted_coords))
