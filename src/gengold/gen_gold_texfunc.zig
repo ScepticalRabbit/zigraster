@@ -149,7 +149,7 @@ pub fn mainWithOutputRoot(
     config.save_strategy = .disk;
     config.image_save_opts = &[_]iio.ImageSaveOpts{
         .{ .format = .fimg, .bits = null, .scaling = .none },
-        .{ .format = .bmp, .bits = 8, .scaling = .auto },
+        .{ .format = .tiff, .bits = 8, .scaling = .auto },
     };
 
     for (mesh_types) |mesh_type| {

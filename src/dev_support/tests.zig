@@ -598,6 +598,10 @@ pub fn saveComparisonArtifactsFromResult(
 
     try saveImageArtifacts(allocator, io, out_dir, base_name, &actual);
 
+    const ref_name = try std.fmt.allocPrint(allocator, "{s}_ref", .{base_name});
+    defer allocator.free(ref_name);
+    try saveImageArtifacts(allocator, io, out_dir, ref_name, &gold);
+
     const diff_name = try std.fmt.allocPrint(allocator, "{s}_diff", .{base_name});
     defer allocator.free(diff_name);
     try saveImageArtifacts(allocator, io, out_dir, diff_name, &diff);
@@ -630,6 +634,7 @@ pub fn saveComparisonArtifactsFromImages(
     }
 
     try saveImageArtifacts(allocator, io, out_dir, "cam0_frame0_field0", actual);
+    try saveImageArtifacts(allocator, io, out_dir, "cam0_frame0_field0_ref", gold);
     try saveImageArtifacts(allocator, io, out_dir, "cam0_frame0_field0_diff", &diff);
 }
 
