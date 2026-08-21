@@ -46,6 +46,8 @@ refs/
 # Keep the min test suite to ship with the repo
 !data/min/
 !data/min/**/*.csv
+!data/cubes/
+!data/cubes/**/*.csv
 !gold/min/
 !gold/min/**/*.fimg
 !gold/min/**/*.bmp

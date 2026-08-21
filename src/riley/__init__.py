@@ -82,9 +82,21 @@ from riley.python.meshio import (
     load_field_csvs,
     load_sim_csvs,
 )
-from riley.python.meshtools import (
+from riley.python.meshconv import (
+    MeshConventionCheck,
+    MeshData,
+    check_ccw_winding,
+    check_cw_winding,
+    check_mesh_convention,
+    enforce_ccw_winding,
+    enforce_cw_winding,
     enforce_mesh_convention,
-    extract_surface_mesh,
+    extract_surf_between,
+    extract_surf_mesh,
+    is_mesh_2d,
+    is_volume_mesh,
+)
+from riley.python.meshtools import (
     project_uvs_planar_bbox,
     project_uvs_planar_centered,
 )
@@ -127,8 +139,18 @@ __all__ = [
     "TextureSampleMode",
     "PsfType",
     "ImageFormat",
+    "MeshConventionCheck",
+    "MeshData",
+    "check_ccw_winding",
+    "check_cw_winding",
+    "check_mesh_convention",
     "enforce_mesh_convention",
-    "extract_surface_mesh",
+    "enforce_ccw_winding",
+    "enforce_cw_winding",
+    "extract_surf_between",
+    "extract_surf_mesh",
+    "is_mesh_2d",
+    "is_volume_mesh",
     "load_connect_csv",
     "load_coord_csv",
     "load_disp_csvs",
