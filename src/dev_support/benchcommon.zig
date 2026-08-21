@@ -1356,7 +1356,7 @@ pub fn calcBenchmarkCSVValuesFromResult(
     const conv_ms = 1.0 / 1e6;
     const cam_inv_ms = result.cam_ms;
     const resolve_ms = result.resolve_ms;
-    const elem_loop_ms = result.raster_ms - cam_inv_ms - resolve_ms;
+    const elem_loop_ms = result.pipeline_times.elem_loop * conv_ms;
     return .{
         .total_elems = @floatFromInt(result.total_elems),
         .vis_elems = @floatFromInt(result.vis_elems),

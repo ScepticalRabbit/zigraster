@@ -36,6 +36,7 @@ pub const FrameTimes = struct {
     tile_overlap: F = 0,
     raster_loop: F = 0,
     cam_invert: F = 0,
+    elem_loop: F = 0,
     scratch_resolve: F = 0,
     save_frame: F = 0,
     active_time: F = 0,
@@ -65,6 +66,7 @@ pub const BenchLog = struct {
     depth_tests_fail: u64 = 0,
     max_tile_elems: usize = 0,
     cam_time_ns: F = 0,
+    elem_time_ns: F = 0,
     resolve_time_ns: F = 0,
 };
 
@@ -121,6 +123,7 @@ pub fn publishFrameResults(
     frame_idx: usize,
     cameras_num: usize,
     out_dir: ?std.Io.Dir,
+    out_dir_path: ?[]const u8,
     bench_capture: ?[]FrameBenchCapture,
     report_storage: *FrameReportStorage,
     frame_times: FrameTimes,
@@ -140,6 +143,7 @@ pub fn publishFrameResults(
         frame_idx,
         cameras_num,
         out_dir,
+        out_dir_path,
         bench_capture,
         report_storage,
         frame_times,
@@ -160,6 +164,7 @@ pub fn publishFrameResultsWithNodesPerElem(
     frame_idx: usize,
     cameras_num: usize,
     out_dir: ?std.Io.Dir,
+    out_dir_path: ?[]const u8,
     bench_capture: ?[]FrameBenchCapture,
     report_storage: *FrameReportStorage,
     frame_times: FrameTimes,
@@ -212,6 +217,8 @@ pub fn publishFrameResultsWithNodesPerElem(
                 frame_idx,
                 camera_idx,
                 frame_times,
+                config.raster_halo_px_override orelse camera.prep_psf.halo_px,
+                out_dir_path,
                 total_elems_num,
                 total_elems_in_image,
                 nodes_per_elem,
@@ -265,6 +272,7 @@ pub fn reduceBenchLog(dst: *BenchLog, src: *const BenchLog) void {
         src.max_tile_elems,
     );
     dst.cam_time_ns += src.cam_time_ns;
+    dst.elem_time_ns += src.elem_time_ns;
     dst.resolve_time_ns += src.resolve_time_ns;
 }
 
@@ -1006,9 +1014,7 @@ pub const FullStatsLog = struct {
             self.bench.frame_times.cam_invert * conv;
         const resolve_ms =
             self.bench.frame_times.scratch_resolve * conv;
-        const elem_loop_ms =
-            self.bench.frame_times.raster_loop * conv -
-            cam_inv_ms - resolve_ms;
+        const elem_loop_ms = self.bench.frame_times.elem_loop * conv;
         try writer.print("Cam Invert Time         = {d:.6} ms\n", .{
             cam_inv_ms,
         });
@@ -1675,6 +1681,16 @@ pub fn ReportContext(comptime mode: ReportMode) type {
             }
         }
 
+        pub inline fn recordElemTime(
+            self: @This(),
+            elem_duration_ns: u64,
+        ) void {
+            if (self.bench()) |bench_log| {
+                bench_log.elem_time_ns +=
+                    @floatFromInt(elem_duration_ns);
+            }
+        }
+
         pub inline fn recordResolveTime(
             self: @This(),
             resolve_duration_ns: u64,
@@ -1727,6 +1743,8 @@ pub fn standardReport(
     frame_idx: usize,
     camera_idx: usize,
     frame_times: FrameTimes,
+    tile_halo_px: u16,
+    out_dir_path: ?[]const u8,
     total_elems: usize,
     vis_elems: usize,
     nodes_per_elem: F,
@@ -1784,80 +1802,103 @@ pub fn standardReport(
     const total_elems_f = @as(F, @floatFromInt(total_elems));
     const vis_pct = if (total_elems > 0) (vis_elems_f * 100.0 / total_elems_f) else 0;
 
-    try writer.print("Vis Elems = {d}\n", .{vis_elems});
-    try writer.print("Total Elems   = {d}\n", .{total_elems});
-    try writer.print("Vis %         = {d:.2}%\n", .{vis_pct});
-    try writer.print("Total SubPx   = {d:.0}\n", .{total_subpx});
-    try writer.print("Shaded SubPx  = {d:.0}\n", .{shaded_subpx});
-    try writer.print("Shaded %      = {d:.2}%\n", .{shaded_pct});
+    const tile_subpx = @as(usize, actual_tile_size) * camera.sub_sample;
+
+    try writer.print("Camera Pixels              = {d}x{d}\n", .{
+        camera.pixels_num[0],
+        camera.pixels_num[1],
+    });
+    try writer.print("Camera Distortion          = {s}\n", .{
+        @tagName(camera.distortion),
+    });
+    try writer.print("Camera PSF                 = {s}\n", .{@tagName(camera.psf)});
+    try writer.print("Camera Subsamples          = {d}x{d}\n", .{
+        camera.sub_sample,
+        camera.sub_sample,
+    });
+    try writer.print("Tile Size Pixels           = {d}x{d}\n", .{
+        actual_tile_size,
+        actual_tile_size,
+    });
+    try writer.print("Tile Size Subpixels        = {d}x{d}\n", .{ tile_subpx, tile_subpx });
+    try writer.print("Tile Halo Pixels           = {d}\n", .{tile_halo_px});
     try writer.print("{s}\n", .{print_break_inner});
 
-    try writer.print("Actual Tile Size        = {d}x{d}\n", .{
-        actual_tile_size,
-        actual_tile_size,
-    });
-    try writer.print("Setup Frame Buff      = {d:.6} ms\n", .{
+    try writer.print("Vis Elems                  = {d}\n", .{vis_elems});
+    try writer.print("Total Elems                = {d}\n", .{total_elems});
+    try writer.print("Vis %                      = {d:.2}%\n", .{vis_pct});
+    try writer.print("Total SubPx                = {d:.0}\n", .{total_subpx});
+    try writer.print("Shaded SubPx               = {d:.0}\n", .{shaded_subpx});
+    try writer.print("Shaded %                   = {d:.2}%\n", .{shaded_pct});
+    try writer.print("{s}\n", .{print_break_inner});
+
+    try writer.print("Setup Frame Buff           = {d:.6} ms\n", .{
         frame_times.setup_frame_buff * conv_units,
     });
-    try writer.print("Prep Frame              = {d:.6} ms\n", .{
+    try writer.print("Prep Frame                 = {d:.6} ms\n", .{
         frame_times.prepare_frame_context * conv_units,
     });
-    try writer.print("Geometry Preparation    = {d:.6} ms\n", .{
+    try writer.print("Geometry Preparation       = {d:.6} ms\n", .{
         frame_times.geometry_prep * conv_units,
     });
-    try writer.print("  Coord Ops             = {d:.6} ms\n", .{
+    try writer.print("  Coord Ops                = {d:.6} ms\n", .{
         frame_times.geom_coord_ops * conv_units,
     });
-    try writer.print("  Cull Ops              = {d:.6} ms\n", .{
+    try writer.print("  Cull Ops                 = {d:.6} ms\n", .{
         frame_times.geom_cull_ops * conv_units,
     });
-    try writer.print("  Prep Hulls Shaders    = {d:.6} ms\n", .{
+    try writer.print("  Prep Hulls Shaders       = {d:.6} ms\n", .{
         frame_times.geom_prep_hulls_shaders * conv_units,
     });
-    try writer.print("  Remap Inds            = {d:.6} ms\n", .{
+    try writer.print("  Remap Inds               = {d:.6} ms\n", .{
         frame_times.geom_remap_inds * conv_units,
     });
-    try writer.print("Elem/Tile Overlap       = {d:.6} ms\n", .{
+    try writer.print("Elem/Tile Overlap          = {d:.6} ms\n", .{
         frame_times.tile_overlap * conv_units,
     });
     const cam_inv_print_ms =
         frame_times.cam_invert * conv_units;
     const resolve_print_ms =
         frame_times.scratch_resolve * conv_units;
-    const elem_loop_print_ms =
-        frame_times.raster_loop * conv_units -
-        cam_inv_print_ms - resolve_print_ms;
-    try writer.print("Cam Invert Time         = {d:.6} ms\n", .{
+    const elem_loop_print_ms = frame_times.elem_loop * conv_units;
+    try writer.print("Cam Invert Time            = {d:.6} ms\n", .{
         cam_inv_print_ms,
     });
-    try writer.print("Elem Loop Time          = {d:.6} ms\n", .{
+    try writer.print("Elem Loop Time             = {d:.6} ms\n", .{
         elem_loop_print_ms,
     });
-    try writer.print("Scratch Resolve Time    = {d:.6} ms\n", .{
+    try writer.print("Scratch Resolve Time       = {d:.6} ms\n", .{
         resolve_print_ms,
     });
-    try writer.print("Raster loop time        = {d:.6} ms\n", .{
+    try writer.print("Raster Loop                = {d:.6} ms\n", .{
         frame_times.raster_loop * conv_units,
     });
-    try writer.print("Save Time               = {d:.6} ms\n", .{
+    try writer.print("Save Frame                 = {d:.6} ms\n", .{
         frame_times.save_frame * conv_units,
     });
 
     try writer.print("{s}\n", .{print_break_inner});
-    try writer.print("ACTIVE FRAME TIME  = {d:.3} ms\n", .{
+    try writer.print("ACTIVE FRAME TIME          = {d:.3} ms\n", .{
         frame_times.active_time * conv_units,
     });
-    try writer.print("FRAME LATENCY      = {d:.3} ms\n", .{
+    try writer.print("FRAME LATENCY              = {d:.3} ms\n", .{
         frame_times.latency_time * conv_units,
     });
     try writer.print("{s}\n", .{print_break_inner});
 
-    try writer.print("Geom. Node Throughput  = {d:.2} MNodes/s\n", .{mnodes_sec});
-    try writer.print("Geom. Elem. Throughput = {d:.2} MElem/s\n", .{melems_sec});
-    try writer.print("Subpx Raster Throughput  = {d:.2} MSubPx/s\n", .{msubpx_sec});
-    try writer.print("Raster Throughput        = {d:.2} MPx/s\n", .{mpx_sec});
-    try writer.print("Active Frame Throughput  = {d:.2} MPx/s\n", .{frame_mpx_sec});
+    try writer.print("Geom. Node Throughput      = {d:.2} MNodes/s\n", .{mnodes_sec});
+    try writer.print("Geom. Elem. Throughput     = {d:.2} MElem/s\n", .{melems_sec});
+    try writer.print("Subpx Raster Throughput    = {d:.2} MSubPx/s\n", .{msubpx_sec});
+    try writer.print("Raster Throughput          = {d:.2} MPx/s\n", .{mpx_sec});
+    try writer.print("Active Frame Throughput    = {d:.2} MPx/s\n", .{frame_mpx_sec});
 
+    try writer.print("{s}\n", .{print_break});
+    try writer.print("Frame Output Path =\n", .{});
+    if (out_dir_path) |path| {
+        try writer.print("    {s}\n", .{path});
+    } else {
+        try writer.print("    not written (memory output)\n", .{});
+    }
     try writer.print("{s}\n", .{print_break});
     try writer.flush();
 }
@@ -1889,6 +1930,7 @@ pub fn printRenderSummary(
         cameras[0].sub_sample,
         cameras[0].prep_psf.halo_px,
     );
+    _ = actual_tile_size;
 
     const total_frames = cameras.len * num_time;
     const total_render_ms = end_to_end_times.total_time / 1e6;
@@ -1927,10 +1969,10 @@ pub fn printRenderSummary(
         print_break,
         print_break,
     });
-    try writer.print("Actual Tile Size        = {d}x{d}\n", .{
-        actual_tile_size,
-        actual_tile_size,
-    });
+    // try writer.print("Actual Tile Size        = {d}x{d}\n", .{
+    //     actual_tile_size,
+    //     actual_tile_size,
+    // });
     try writer.print("Setup Time              = {d:.3} ms\n", .{setup_ms});
     // try writer.print("Setup other             = {d:.3} ms\n", .{
     //     setup_other_ms,

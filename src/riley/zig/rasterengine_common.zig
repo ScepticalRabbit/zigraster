@@ -631,8 +631,10 @@ fn rasterTileComm(
         ctx_rast.config.background_value,
     );
 
-    const time_cam_start: ?Timestamp =
-        if (comptime report_mode != .off)
+    // Report aggregate worker-time for the overlap loop. Camera fill is timed
+    // separately and removed below so all three raster phases share one basis.
+    const time_elem_start: ?Timestamp =
+        if (comptime report_mode !=  .off)
             Timestamp.now(io, .awake)
         else
             null;
@@ -653,6 +655,11 @@ fn rasterTileComm(
         switch (mesh_ptr.mesh_type) {
             inline else => |geom_tag| {
                 if (!camera_fill_ready and comptime geom_tag != .tri3opt) {
+                    const time_cam_start: ?Timestamp =
+                        if (comptime report_mode != .off)
+                            Timestamp.now(io, .awake)
+                        else
+                            null;
                     try fillTileIdealCent(
                         ctx_rast,
                         tile,
@@ -1008,6 +1015,16 @@ fn rasterTileComm(
         }
     }
 
+    const elem_duration_ns: u64 = if (comptime report_mode != .off) blk: {
+        const overlap_duration_ns: u64 = @intCast(
+            time_elem_start.?.durationTo(
+                Timestamp.now(io, .awake),
+            ).raw.nanoseconds,
+        );
+        std.debug.assert(overlap_duration_ns >= cam_duration_ns);
+        break :blk overlap_duration_ns - cam_duration_ns;
+    } else 0;
+
     const time_resolve_start: ?Timestamp =
         if (comptime report_mode != .off)
             Timestamp.now(io, .awake)
@@ -1082,6 +1099,7 @@ fn rasterTileComm(
         shaded_px,
         overlaps.len,
         cam_duration_ns,
+        elem_duration_ns,
         resolve_duration_ns,
     );
 }

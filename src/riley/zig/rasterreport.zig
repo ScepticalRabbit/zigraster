@@ -43,6 +43,7 @@ pub inline fn finishTile(
     shaded_px: u64,
     elem_count: usize,
     cam_duration_ns: u64,
+    elem_duration_ns: u64,
     resolve_duration_ns: u64,
 ) void {
     const screen_px_x = @as(
@@ -66,6 +67,7 @@ pub inline fn finishTile(
     );
 
     ctx_report.recordCamTime(cam_duration_ns);
+    ctx_report.recordElemTime(elem_duration_ns);
     ctx_report.recordResolveTime(resolve_duration_ns);
 }
 

@@ -22,6 +22,7 @@ pub const CaseSamples = struct {
     geom_times: []F,
     raster_times: []F,
     cam_times: []F,
+    elem_loop_times: []F,
     resolve_times: []F,
     save_frame_times: []F,
     frame_times: []F,
@@ -49,6 +50,7 @@ pub const CaseSamples = struct {
             .geom_times = try allocator.alloc(F, runs),
             .raster_times = try allocator.alloc(F, runs),
             .cam_times = try allocator.alloc(F, runs),
+            .elem_loop_times = try allocator.alloc(F, runs),
             .resolve_times = try allocator.alloc(F, runs),
             .save_frame_times = try allocator.alloc(F, runs),
             .frame_times = try allocator.alloc(F, runs),
@@ -77,6 +79,7 @@ pub const CaseSamples = struct {
         allocator.free(self.geom_times);
         allocator.free(self.raster_times);
         allocator.free(self.cam_times);
+        allocator.free(self.elem_loop_times);
         allocator.free(self.resolve_times);
         allocator.free(self.save_frame_times);
         allocator.free(self.frame_times);
@@ -105,6 +108,7 @@ pub const CaseSamples = struct {
         self.geom_times[rr] = result.geom_ms;
         self.raster_times[rr] = result.raster_ms;
         self.cam_times[rr] = result.cam_ms;
+        self.elem_loop_times[rr] = result.pipeline_times.elem_loop / 1e6;
         self.resolve_times[rr] = result.resolve_ms;
         self.save_frame_times[rr] =
             result.pipeline_times.save_frame / 1e6;
@@ -140,26 +144,6 @@ pub const CaseSamples = struct {
         samp_cfg: ?texops.TextureSampleConfig,
         tex_func_case: ?common.TexFuncCase,
     ) !common.BenchStats {
-        const cam_median = (try common.calcMedianMAD(
-            allocator,
-            self.cam_times,
-        )).median;
-        const resolve_median = (try common.calcMedianMAD(
-            allocator,
-            self.resolve_times,
-        )).median;
-        const raster_median = (try common.calcMedianMAD(
-            allocator,
-            self.raster_times,
-        )).median;
-        const elem_loop_median =
-            raster_median - cam_median - resolve_median;
-        const elem_loop_zero: common.MedianMAD = .{
-            .median = elem_loop_median,
-            .mad = 0,
-            .min = elem_loop_median,
-            .max = elem_loop_median,
-        };
         return .{
             .name = try allocator.dupe(u8, case_name),
             .mesh_type = mesh_type,
@@ -198,7 +182,10 @@ pub const CaseSamples = struct {
                 allocator,
                 self.cam_times,
             ),
-            .elem_loop = elem_loop_zero,
+            .elem_loop = try common.calcMedianMAD(
+                allocator,
+                self.elem_loop_times,
+            ),
             .scratch_resolve = try common.calcMedianMAD(
                 allocator,
                 self.resolve_times,
