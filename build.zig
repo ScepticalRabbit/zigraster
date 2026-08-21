@@ -400,7 +400,9 @@ fn addRunStep(
             .executable,
         ),
     });
-    return b.addRunArtifact(executable);
+    const run_artifact = b.addRunArtifact(executable);
+    if (b.args) |args| run_artifact.addArgs(args);
+    return run_artifact;
 }
 
 fn addBenchInstallStep(
