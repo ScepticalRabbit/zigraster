@@ -67,7 +67,7 @@ def audit_mesh(mesh_dir: Path) -> tuple[str, str, str]:
         if len(connect_tables) == 2 and not np.array_equal(*connect_tables):
             raise ValueError("connect.csv and connectivity.csv differ")
 
-        mesh = meshconv.MeshData(
+        mesh = meshconv.SimData(
             coords=np.atleast_2d(coords),
             connect={"connect1": np.atleast_2d(connect_tables[0])},
             mesh_type=_mesh_type_hint(mesh_dir),
@@ -81,14 +81,14 @@ def audit_mesh(mesh_dir: Path) -> tuple[str, str, str]:
     return "DOES NOT", mesh_name, ", ".join(report.failed_checks)
 
 
-def _mesh_type_hint(mesh_dir: Path) -> str | None:
+def _mesh_type_hint(mesh_dir: Path) -> meshconv.EMeshType | None:
     if (
         mesh_dir.parent.name in {"FE", "cubes"}
         or mesh_dir.name.endswith("calplate3d")
     ):
-        return "volume"
+        return meshconv.EMeshType.VOL
     if mesh_dir.name.startswith(("tri", "quad")):
-        return "surface"
+        return meshconv.EMeshType.SURF
     return None
 
 

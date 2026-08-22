@@ -27,24 +27,38 @@ SPHERE_MESHES = (
 )
 
 
+def test_element_specs_are_complete_and_mapping_is_read_only() -> None:
+    assert {
+        spec.nodes_per_element for spec in meshconv.ELEMENT_SPECS.values()
+    } == {3, 4, 6, 7, 8, 9, 10, 20, 27}
+    assert (
+        meshconv.ELEMENT_SPECS[meshconv.EElementType.HEX27].centre_index
+        is None
+    )
+
+    with pytest.raises(TypeError):
+        meshconv.ELEMENT_SPECS[meshconv.EElementType.TRI3] = (
+            meshconv.ELEMENT_SPECS[meshconv.EElementType.TRI3]
+        )
+
+
 def test_check_mesh_convention_passes_for_canonical_quad() -> None:
-    mesh = meshconv.MeshData(
+    mesh = meshconv.SimData(
         coords=_quad_coords(),
         connect={"connect1": np.array(((0, 1, 2, 3),), dtype=np.int64)},
-        num_spat_dims=2,
     )
+    mesh.refresh_mesh_type()
 
     report = meshconv.check_mesh_convention(mesh)
 
-    assert report.is_valid
-    assert report.connectivity_failures["connect1"] == tuple()
+    assert mesh.mesh_type is meshconv.EMeshType.SURF
+    assert report == {}
 
 
 def test_enforce_mesh_convention_corrects_legacy_connectivity() -> None:
-    mesh = meshconv.MeshData(
+    mesh = meshconv.SimData(
         coords=_quad_coords(),
         connect={"connect1": np.array(((1,), (2,), (3,), (4,)))},
-        num_spat_dims=2,
     )
 
     mesh_out = meshconv.enforce_mesh_convention(mesh)
@@ -54,29 +68,29 @@ def test_enforce_mesh_convention_corrects_legacy_connectivity() -> None:
         mesh_out.connect["connect1"],
         np.array(((0, 1, 2, 3),), dtype=np.int64),
     )
-    assert meshconv.check_mesh_convention(mesh_out).is_valid
+    assert not meshconv.check_mesh_convention(mesh_out)
 
 
 def test_check_mesh_convention_reports_failed_checks() -> None:
-    mesh = meshconv.MeshData(
+    mesh = meshconv.SimData(
         coords=_quad_coords(),
         connect={"connect1": np.array(((1,), (4,), (3,), (2,)))},
-        num_spat_dims=2,
     )
 
     report = meshconv.check_mesh_convention(mesh)
 
-    assert not report.is_valid
-    assert "zero_based_indexing" in report.failed_checks
-    assert "row_major_connectivity" in report.failed_checks
-    assert "ccw_winding" in report.failed_checks
+    assert report["connect1"] == [
+        meshconv.CheckCode.ROW_MAJOR_CONNECTIVITY,
+        meshconv.CheckCode.ZERO_BASED_INDEXING,
+        meshconv.CheckCode.CCW_WINDING,
+        meshconv.CheckCode.RIGHT_HANDED_GEOMETRY,
+    ]
 
 
 def test_enforce_mesh_convention_raises_for_invalid_indices() -> None:
-    mesh = meshconv.MeshData(
+    mesh = meshconv.SimData(
         coords=_quad_coords(),
         connect={"connect1": np.array(((0, 1, 2, 10),), dtype=np.int64)},
-        num_spat_dims=2,
     )
 
     with pytest.raises(ValueError, match="invalid|outside"):
@@ -84,7 +98,7 @@ def test_enforce_mesh_convention_raises_for_invalid_indices() -> None:
 
 
 def test_enforce_mesh_convention_fixes_tet_handedness() -> None:
-    mesh = meshconv.MeshData(
+    mesh = meshconv.SimData(
         coords=np.array(
             ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
             dtype=np.float64,
@@ -94,11 +108,35 @@ def test_enforce_mesh_convention_fixes_tet_handedness() -> None:
 
     mesh_out = meshconv.enforce_mesh_convention(mesh)
 
-    assert meshconv.check_mesh_convention(mesh_out).is_valid
+    assert not meshconv.check_mesh_convention(mesh_out)
     assert np.array_equal(
         mesh_out.connect["connect1"],
         np.array(((0, 1, 2, 3),), dtype=np.int64),
     )
+
+
+def test_explicit_mesh_convention_reorders_source_slots() -> None:
+    mesh = _load_cube("hex20")
+    assert mesh.connect is not None
+    canonical = mesh.connect["connect1"]
+    source_to_riley = (
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+        16, 17, 18, 19, 12, 13, 14, 15,
+    )
+    mesh.connect["connect1"] = canonical[:, np.argsort(source_to_riley)]
+    convention = meshconv.MeshConvention({
+        meshconv.EElementType.HEX20: source_to_riley,
+    })
+
+    assert meshconv.CheckCode.NODE_ORDER in meshconv.check_mesh_convention(
+        mesh,
+        convention,
+    )["connect1"]
+    mesh_out = meshconv.enforce_mesh_convention(mesh, convention)
+
+    assert mesh_out.connect is not None
+    assert np.array_equal(mesh_out.connect["connect1"], canonical)
+    assert not meshconv.check_mesh_convention(mesh_out)
 
 
 @pytest.mark.parametrize("cube_name", SUPPORTED_CUBES)
@@ -107,11 +145,11 @@ def test_canonical_cube_meshes_pass_and_enforcement_is_idempotent(
 ) -> None:
     mesh = _load_cube(cube_name)
 
-    assert meshconv.check_mesh_convention(mesh).is_valid
+    assert not meshconv.check_mesh_convention(mesh)
     enforced_once = meshconv.enforce_mesh_convention(mesh)
     enforced_twice = meshconv.enforce_mesh_convention(enforced_once)
 
-    assert meshconv.check_mesh_convention(enforced_once).is_valid
+    assert not meshconv.check_mesh_convention(enforced_once)
     assert enforced_once.connect is not None
     assert enforced_twice.connect is not None
     for name, connect in enforced_once.connect.items():
@@ -121,7 +159,7 @@ def test_canonical_cube_meshes_pass_and_enforcement_is_idempotent(
 def test_tet14_cube_is_explicitly_unsupported() -> None:
     with pytest.raises(NotImplementedError, match="supported nodes-per-element"):
         meshconv.check_mesh_convention(
-            meshconv.MeshData(
+            meshconv.SimData(
                 coords=np.zeros((14, 3), dtype=np.float64),
                 connect={"connect1": np.arange(14, dtype=np.int64).reshape(1, 14)},
             )
@@ -134,7 +172,7 @@ def test_extracted_cube_surface_passes_convention_check(cube_name: str) -> None:
         meshconv.enforce_mesh_convention(_load_cube(cube_name)),
     )
 
-    assert meshconv.check_mesh_convention(surface).is_valid
+    assert not meshconv.check_mesh_convention(surface)
 
 
 @pytest.mark.parametrize("mesh_name", SPHERE_MESHES)
@@ -143,13 +181,13 @@ def test_native_sphere_meshes_normalize_to_an_idempotent_convention(
 ) -> None:
     mesh = _load_native_mesh(
         DATA_DIR / "min" / mesh_name,
-        mesh_type="surface",
+        mesh_type=meshconv.EMeshType.SURF,
     )
 
     mesh_out = meshconv.enforce_mesh_convention(mesh)
     mesh_twice = meshconv.enforce_mesh_convention(mesh_out)
 
-    assert meshconv.check_mesh_convention(mesh_out).is_valid
+    assert not meshconv.check_mesh_convention(mesh_out)
     assert np.array_equal(mesh.coords, mesh_out.coords)
     assert mesh_out.connect is not None
     assert mesh_twice.connect is not None
@@ -162,10 +200,10 @@ def test_plate_with_hole_keeps_inward_bore_normals() -> None:
 
     mesh = _load_native_mesh(
         DATA_DIR / "FE" / "platehole3d_2mr_63f",
-        mesh_type="surface",
+        mesh_type=meshconv.EMeshType.SURF,
     )
 
-    assert meshconv.check_mesh_convention(mesh).is_valid
+    assert not meshconv.check_mesh_convention(mesh)
     mesh_out = meshconv.enforce_mesh_convention(mesh)
     assert mesh_out.connect is not None
     assert mesh.connect is not None
@@ -189,16 +227,16 @@ def test_plate_with_hole_keeps_inward_bore_normals() -> None:
 def test_nested_closed_surface_orients_cavity_into_the_void() -> None:
     outer_coords, outer_connect = _cube_surface(2.0, 0)
     inner_coords, inner_connect = _cube_surface(1.0, 8)
-    mesh = meshconv.MeshData(
+    mesh = meshconv.SimData(
         coords=np.vstack((outer_coords, inner_coords)),
         connect={"connect1": np.vstack((outer_connect, inner_connect))},
-        mesh_type="surface",
+        mesh_type=meshconv.EMeshType.SURF,
     )
 
     mesh_out = meshconv.enforce_mesh_convention(mesh)
 
     assert mesh_out.connect is not None
-    assert meshconv.check_mesh_convention(mesh_out).is_valid
+    assert not meshconv.check_mesh_convention(mesh_out)
     connect = mesh_out.connect["connect1"]
     assert _surface_volume(mesh_out.coords, connect[:6]) > 0.0
     assert _surface_volume(mesh_out.coords, connect[6:]) < 0.0
@@ -241,21 +279,21 @@ def _surface_volume(coords: np.ndarray, connect: np.ndarray) -> float:
     return float(volume)
 
 
-def _load_cube(name: str) -> meshconv.MeshData:
+def _load_cube(name: str) -> meshconv.SimData:
     return _load_native_mesh(DATA_DIR / "cubes" / name)
 
 
 def _load_native_mesh(
     mesh_dir: Path,
     *,
-    mesh_type: str | None = None,
-) -> meshconv.MeshData:
+    mesh_type: meshconv.EMeshType | None = None,
+) -> meshconv.SimData:
     coords = np.loadtxt(mesh_dir / "coords.csv", delimiter=",", dtype=np.float64)
     connect_path = mesh_dir / "connectivity.csv"
     if not connect_path.is_file():
         connect_path = mesh_dir / "connect.csv"
     connect = np.loadtxt(connect_path, delimiter=",", dtype=np.float64).astype(np.int64)
-    return meshconv.MeshData(
+    return meshconv.SimData(
         coords=coords,
         connect={"connect1": connect},
         mesh_type=mesh_type,
