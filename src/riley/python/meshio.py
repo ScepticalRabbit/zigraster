@@ -8,17 +8,32 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
+from enum import Enum
 from pathlib import Path
 from typing import Mapping
 
 import numpy as np
 
-from riley.python.enums import (
-    ConnectCsvOrientation,
-    ConnectIndexing,
-    CoordCsvOrientation,
-    FieldCsvOrientation,
-)
+
+class ECoordCsvOrientation(Enum):
+    NODE_MAJOR = "node_major"
+    COORD_MAJOR = "coord_major"
+
+
+class EConnectCsvOrientation(Enum):
+    ELEM_MAJOR = "elem_major"
+    NODE_MAJOR = "node_major"
+
+
+class EFieldCsvOrientation(Enum):
+    FRAME_MAJOR = "frame_major"
+    NODE_MAJOR = "node_major"
+
+
+class EConnectIndexing(Enum):
+    AUTO = "auto"
+    ZERO_BASED = "zero_based"
+    ONE_BASED = "one_based"
 
 
 def _load_csv_matrix(path: str | Path, skip_rows: int) -> np.ndarray:
@@ -46,11 +61,11 @@ def _infer_one_based(connect: np.ndarray) -> bool:
 
 def _normalise_point_table(
     matrix: np.ndarray,
-    orientation: CoordCsvOrientation,
+    orientation: ECoordCsvOrientation,
     output_dims: int,
 ) -> np.ndarray:
     points = matrix
-    if orientation == CoordCsvOrientation.coord_major:
+    if orientation == ECoordCsvOrientation.COORD_MAJOR:
         points = points.T
     if points.ndim != 2:
         raise ValueError(f"Expected a 2D point table, got shape {points.shape}.")
@@ -69,7 +84,7 @@ def load_coord_csv(
     path: str | Path,
     *,
     skip_rows: int = 0,
-    orientation: CoordCsvOrientation = CoordCsvOrientation.node_major,
+    orientation: ECoordCsvOrientation = ECoordCsvOrientation.NODE_MAJOR,
 ) -> np.ndarray:
     coords_raw = _load_csv_matrix(path, skip_rows)
     return _normalise_point_table(coords_raw, orientation, 3)
@@ -79,17 +94,17 @@ def load_connect_csv(
     path: str | Path,
     *,
     skip_rows: int = 0,
-    orientation: ConnectCsvOrientation = ConnectCsvOrientation.elem_major,
-    indexing: ConnectIndexing = ConnectIndexing.auto,
+    orientation: EConnectCsvOrientation = EConnectCsvOrientation.ELEM_MAJOR,
+    indexing: EConnectIndexing = EConnectIndexing.AUTO,
 ) -> np.ndarray:
     connect_raw = _load_csv_matrix(path, skip_rows)
-    if orientation == ConnectCsvOrientation.node_major:
+    if orientation == EConnectCsvOrientation.NODE_MAJOR:
         connect_raw = connect_raw.T
 
     connect = np.rint(connect_raw).astype(np.int64, copy=False)
-    if indexing == ConnectIndexing.one_based:
+    if indexing == EConnectIndexing.ONE_BASED:
         connect = connect - 1
-    elif indexing == ConnectIndexing.auto and _infer_one_based(connect):
+    elif indexing == EConnectIndexing.AUTO and _infer_one_based(connect):
         connect = connect - 1
 
     if np.any(connect < 0):
@@ -102,10 +117,10 @@ def load_field_csv(
     path: str | Path,
     *,
     skip_rows: int = 0,
-    orientation: FieldCsvOrientation = FieldCsvOrientation.node_major,
+    orientation: EFieldCsvOrientation = EFieldCsvOrientation.NODE_MAJOR,
 ) -> np.ndarray:
     field_raw = _load_csv_matrix(path, skip_rows)
-    if orientation == FieldCsvOrientation.node_major:
+    if orientation == EFieldCsvOrientation.NODE_MAJOR:
         field_raw = field_raw.T
     return _ensure_contiguous_f64(field_raw)
 
@@ -114,7 +129,7 @@ def load_field_csvs(
     field_paths: Mapping[str, str | Path],
     *,
     skip_rows: int = 0,
-    orientation: FieldCsvOrientation = FieldCsvOrientation.node_major,
+    orientation: EFieldCsvOrientation = EFieldCsvOrientation.NODE_MAJOR,
 ) -> dict[str, np.ndarray]:
     fields_out: dict[str, np.ndarray] = {}
     for field_name, field_path in field_paths.items():
@@ -132,7 +147,7 @@ def load_disp_csvs(
     path_z: str | Path | None,
     *,
     skip_rows: int = 0,
-    orientation: FieldCsvOrientation = FieldCsvOrientation.node_major,
+    orientation: EFieldCsvOrientation = EFieldCsvOrientation.NODE_MAJOR,
 ) -> np.ndarray | None:
     disp_paths = {
         axis_name: axis_path
@@ -173,11 +188,11 @@ def load_sim_csvs(
     disp_y_name: str = "field_disp_y.csv",
     disp_z_name: str = "field_disp_z.csv",
     skip_rows: int = 0,
-    coord_orientation: CoordCsvOrientation = CoordCsvOrientation.node_major,
-    connect_orientation: ConnectCsvOrientation = ConnectCsvOrientation.elem_major,
-    connect_indexing: ConnectIndexing = ConnectIndexing.auto,
-    uv_orientation: CoordCsvOrientation = CoordCsvOrientation.node_major,
-    field_orientation: FieldCsvOrientation = FieldCsvOrientation.node_major,
+    coord_orientation: ECoordCsvOrientation = ECoordCsvOrientation.NODE_MAJOR,
+    connect_orientation: EConnectCsvOrientation = EConnectCsvOrientation.ELEM_MAJOR,
+    connect_indexing: EConnectIndexing = EConnectIndexing.AUTO,
+    uv_orientation: ECoordCsvOrientation = ECoordCsvOrientation.NODE_MAJOR,
+    field_orientation: EFieldCsvOrientation = EFieldCsvOrientation.NODE_MAJOR,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
     data_path = Path(data_dir)
 
@@ -211,6 +226,10 @@ def load_sim_csvs(
 
 
 __all__ = [
+    "ECoordCsvOrientation",
+    "EConnectCsvOrientation",
+    "EFieldCsvOrientation",
+    "EConnectIndexing",
     "load_connect_csv",
     "load_coord_csv",
     "load_disp_csvs",

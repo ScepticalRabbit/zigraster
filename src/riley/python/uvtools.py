@@ -10,18 +10,30 @@
 
 from __future__ import annotations
 
+from enum import Enum
+
 import numpy as np
 
-from riley.python.enums import PlanarProjectionMode, ProjectionPlane
+
+class EProjectionPlane(Enum):
+    XY = "xy"
+    YZ = "yz"
+    XZ = "xz"
+
+
+class EPlanarProjectionMode(Enum):
+    BEST = "best"
+    FIT_X = "fit_x"
+    FIT_Y = "fit_y"
 
 
 def project_uvs_planar_bbox(
     coords: np.ndarray,
     texture_size: tuple[int, int] | tuple[float, float],
     px_bbox: tuple[float, float, float, float],
-    projection_plane: ProjectionPlane | tuple[np.ndarray, np.ndarray],
+    projection_plane: EProjectionPlane | tuple[np.ndarray, np.ndarray],
     *,
-    mode: PlanarProjectionMode = PlanarProjectionMode.best,
+    mode: EPlanarProjectionMode = EPlanarProjectionMode.BEST,
 ) -> np.ndarray:
     coords_in = np.ascontiguousarray(coords, dtype=np.float64)
     origin, u_axis, v_axis = _resolve_projection_axes(projection_plane)
@@ -45,11 +57,11 @@ def project_uvs_planar_bbox(
     scale_x = px_w / mesh_w if mesh_w > 0.0 else 1.0
     scale_y = px_h / mesh_h if mesh_h > 0.0 else 1.0
 
-    if mode == PlanarProjectionMode.fit_x:
+    if mode == EPlanarProjectionMode.FIT_X:
         scale = scale_x
-    elif mode == PlanarProjectionMode.fit_y:
+    elif mode == EPlanarProjectionMode.FIT_Y:
         scale = scale_y
-    elif mode == PlanarProjectionMode.best:
+    elif mode == EPlanarProjectionMode.BEST:
         scale = 0.5 * (scale_x + scale_y)
     else:
         raise ValueError(f"Unsupported planar projection mode: {mode}.")
@@ -74,20 +86,20 @@ def project_uvs_planar_centered(
     texture_size: tuple[int, int] | tuple[float, float],
     *,
     uv_span_max: float = 1.0,
-    projection_plane: ProjectionPlane | tuple[np.ndarray, np.ndarray] = (
-        ProjectionPlane.xy
+    projection_plane: EProjectionPlane | tuple[np.ndarray, np.ndarray] = (
+        EProjectionPlane.XY
     ),
 ) -> np.ndarray:
     coords_in = np.ascontiguousarray(coords, dtype=np.float64)
     tex_w = float(texture_size[0])
     tex_h = float(texture_size[1])
 
-    if isinstance(projection_plane, ProjectionPlane):
-        if projection_plane == ProjectionPlane.xy:
+    if isinstance(projection_plane, EProjectionPlane):
+        if projection_plane == EProjectionPlane.XY:
             proj_coords = coords_in[:, :2]
-        elif projection_plane == ProjectionPlane.yz:
+        elif projection_plane == EProjectionPlane.YZ:
             proj_coords = coords_in[:, 1:3]
-        elif projection_plane == ProjectionPlane.xz:
+        elif projection_plane == EProjectionPlane.XZ:
             proj_coords = coords_in[:, (0, 2)]
         else:
             raise ValueError(f"Unsupported projection plane: {projection_plane}.")
@@ -113,11 +125,11 @@ def project_uvs_planar_centered(
     if aspect_ratio_ratio > 1.0:
         d_u = uv_span_max
         d_v = d_u / aspect_ratio_ratio
-        mode = PlanarProjectionMode.fit_x
+        mode = EPlanarProjectionMode.FIT_X
     else:
         d_v = uv_span_max
         d_u = d_v * aspect_ratio_ratio
-        mode = PlanarProjectionMode.fit_y
+        mode = EPlanarProjectionMode.FIT_Y
 
     u_min = 0.5 * (1.0 - d_u)
     u_max = 1.0 - u_min
@@ -140,18 +152,18 @@ def project_uvs_planar_centered(
 
 
 def _resolve_projection_axes(
-    projection_plane: ProjectionPlane | tuple[np.ndarray, np.ndarray],
+    projection_plane: EProjectionPlane | tuple[np.ndarray, np.ndarray],
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    if isinstance(projection_plane, ProjectionPlane):
-        if projection_plane == ProjectionPlane.xy:
+    if isinstance(projection_plane, EProjectionPlane):
+        if projection_plane == EProjectionPlane.XY:
             origin = np.array((0.0, 0.0, 0.0), dtype=np.float64)
             u_axis = np.array((1.0, 0.0, 0.0), dtype=np.float64)
             v_axis = np.array((0.0, 1.0, 0.0), dtype=np.float64)
-        elif projection_plane == ProjectionPlane.yz:
+        elif projection_plane == EProjectionPlane.YZ:
             origin = np.array((0.0, 0.0, 0.0), dtype=np.float64)
             u_axis = np.array((0.0, 1.0, 0.0), dtype=np.float64)
             v_axis = np.array((0.0, 0.0, 1.0), dtype=np.float64)
-        elif projection_plane == ProjectionPlane.xz:
+        elif projection_plane == EProjectionPlane.XZ:
             origin = np.array((0.0, 0.0, 0.0), dtype=np.float64)
             u_axis = np.array((1.0, 0.0, 0.0), dtype=np.float64)
             v_axis = np.array((0.0, 0.0, 1.0), dtype=np.float64)
@@ -181,6 +193,8 @@ def _resolve_projection_axes(
 
 
 __all__ = [
+    "EProjectionPlane",
+    "EPlanarProjectionMode",
     "project_uvs_planar_bbox",
     "project_uvs_planar_centered",
 ]

@@ -28,7 +28,7 @@ def test_project_uvs_planar_centered_xy() -> None:
         coords,
         (200, 100),
         uv_span_max=0.8,
-        projection_plane=riley.ProjectionPlane.xy,
+        projection_plane=riley.EProjectionPlane.XY,
     )
 
     assert uvs.shape == (4, 2)
