@@ -53,7 +53,7 @@ pub fn build(b: *std.Build) void {
     );
     b.installArtifact(shared_lib);
     _ = b.addInstallHeaderFile(
-        b.path("src/riley/cyth/riley.h"),
+        b.path("src/riley/cython/riley.h"),
         "riley.h",
     );
 

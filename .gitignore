@@ -98,8 +98,8 @@ uv.lock
 
 # Cython
 *.html
-src/riley/cyth/riley.c
-src/riley/cyth/riley.html
+src/riley/cython/riley.c
+src/riley/cython/riley.html
 
 # Windows :(
 *.dll

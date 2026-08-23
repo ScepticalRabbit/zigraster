@@ -24,7 +24,7 @@ def create_raster_config(
     total_threads: int = 1,
     save_strategy: int = 2,  # both
 ) -> "RasterConfig":
-    from riley.cyth.riley import RasterConfig
+    from riley.cython.riley import RasterConfig
 
     total_threads = max(1, int(total_threads))
     frames_available = max(1, int(num_frames))

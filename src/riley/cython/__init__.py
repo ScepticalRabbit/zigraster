@@ -6,4 +6,4 @@
 #
 # Authors: scepticalrabbit (Lloyd Fletcher)
 # --------------------------------------------------------------------------
-from riley.cyth.riley import *
+from riley.cython.riley import *

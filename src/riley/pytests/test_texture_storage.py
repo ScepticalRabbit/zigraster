@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from riley.cyth import riley as bindings
+from riley.cython import riley as bindings
 
 
 def test_texture_storage_accepts_explicit_u8_u16_and_float() -> None:

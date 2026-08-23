@@ -14,7 +14,7 @@ from typing import Any
 
 import numpy as np
 from cython.cimports.libc.stdlib import free, malloc
-from cython.cimports.riley.cyth import riley as cr
+from cython.cimports.riley.cython import riley as cr
 
 
 @dataclass(slots=True)

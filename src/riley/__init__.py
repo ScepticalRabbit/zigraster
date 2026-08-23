@@ -15,8 +15,8 @@ from riley import data
 # Add DLL directory to the search path on Windows to avoid "DLL load failed"
 if platform.system().lower() == "windows":
     _current_dir = Path(__file__).resolve().parent
-    # Search zig/ and cyth/ subdirectories where DLLs are located
-    for _sub_dir in ("zig", "cyth"):
+    # Search zig/ and cython/ subdirectories where DLLs are located
+    for _sub_dir in ("zig", "cython"):
         _dll_dir = _current_dir / _sub_dir
         if _dll_dir.is_dir():
             try:
@@ -25,7 +25,7 @@ if platform.system().lower() == "windows":
                 # Fallback for older Python versions
                 pass
 
-from riley.cyth.riley import (
+from riley.cython.riley import (
     Camera,
     CameraInput,
     CameraCoordSys,

@@ -386,7 +386,7 @@ class MultiBuildExt(build_ext):
 H_DIRS = [
     numpy.get_include(),
     str(PROJECT_ROOT / "src"),
-    str(PROJECT_ROOT / "src" / "riley" / "cyth"),
+    str(PROJECT_ROOT / "src" / "riley" / "cython"),
     str(PROJECT_ROOT / "src" / "riley" / "zig"),
 ]
 
@@ -414,8 +414,8 @@ ext_zig = Extension(
 
 # cython extension linking zig
 ext_cython = Extension(
-        name="riley.cyth.riley",
-        sources=["src/riley/cyth/riley.py",],
+        name="riley.cython.riley",
+        sources=["src/riley/cython/riley.py",],
         include_dirs=H_DIRS,
         libraries=["c_riley"],
         library_dirs=[],            # populated by run() above
@@ -441,7 +441,7 @@ setup(
     zip_safe=False,
     package_data={
         "riley": [f"*{PLATFORM_INFO['lib_ext']}"],
-        "riley.cyth": [f"*{PLATFORM_INFO['lib_ext']}"],
+        "riley.cython": [f"*{PLATFORM_INFO['lib_ext']}"],
         "riley.zig": [f"*{PLATFORM_INFO['lib_ext']}"],
         "": [f"*{PLATFORM_INFO['lib_ext']}"],
     },
