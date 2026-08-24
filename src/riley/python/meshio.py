@@ -82,7 +82,6 @@ def _normalise_point_table(
 
 def load_coord_csv(
     path: str | Path,
-    *,
     skip_rows: int = 0,
     orientation: ECoordCsvOrientation = ECoordCsvOrientation.NODE_MAJOR,
 ) -> np.ndarray:
@@ -92,7 +91,6 @@ def load_coord_csv(
 
 def load_connect_csv(
     path: str | Path,
-    *,
     skip_rows: int = 0,
     orientation: EConnectCsvOrientation = EConnectCsvOrientation.ELEM_MAJOR,
     indexing: EConnectIndexing = EConnectIndexing.AUTO,
@@ -115,7 +113,6 @@ def load_connect_csv(
 
 def load_field_csv(
     path: str | Path,
-    *,
     skip_rows: int = 0,
     orientation: EFieldCsvOrientation = EFieldCsvOrientation.NODE_MAJOR,
 ) -> np.ndarray:
@@ -127,7 +124,6 @@ def load_field_csv(
 
 def load_field_csvs(
     field_paths: Mapping[str, str | Path],
-    *,
     skip_rows: int = 0,
     orientation: EFieldCsvOrientation = EFieldCsvOrientation.NODE_MAJOR,
 ) -> dict[str, np.ndarray]:
@@ -145,7 +141,6 @@ def load_disp_csvs(
     path_x: str | Path | None,
     path_y: str | Path | None,
     path_z: str | Path | None,
-    *,
     skip_rows: int = 0,
     orientation: EFieldCsvOrientation = EFieldCsvOrientation.NODE_MAJOR,
 ) -> np.ndarray | None:
@@ -180,7 +175,6 @@ def load_disp_csvs(
 
 def load_sim_csvs(
     data_dir: str | Path,
-    *,
     coords_name: str = "coords.csv",
     connect_name: str = "connect.csv",
     uvs_name: str = "uvs.csv",

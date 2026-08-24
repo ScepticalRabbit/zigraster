@@ -111,15 +111,25 @@ def test_infer_mesh_convention_recovers_a_single_affine_source_layout() -> None:
         mesh_type=meshconv.EMeshType.SURF,
     )
 
-    inferred = _meshconv._infer_mesh_convention(mesh)
+    inferred = meshconv.infer_mesh_convention(mesh)
 
     assert inferred.permutation_for(element_type) is not None
+
+
+def test_public_inference_reports_incomplete_mesh() -> None:
+    with pytest.raises(
+        meshconv.MeshConventionInferenceError,
+        match="requires coordinates and connectivity",
+    ):
+        meshconv.infer_mesh_convention(meshconv.SimData())
 
 
 def test_inference_accepts_rows_that_differ_only_by_a_valid_rotation() -> None:
     coords = np.vstack((_tri_coords()[:6], _tri_coords()[:6] + (3., 0., 0.)))
     first = np.arange(6, dtype=np.int64)
-    rotation = _meshconv.ELEMENT_SYMMETRIES[meshconv.EElementType.TRI6][1]
+    rotation = _meshconv._get_element_symmetries(
+        meshconv.EElementType.TRI6
+    )[1]
     second = np.arange(6, 12, dtype=np.int64)[np.argsort(rotation)]
     mesh = meshconv.SimData(
         coords=coords,
@@ -127,7 +137,7 @@ def test_inference_accepts_rows_that_differ_only_by_a_valid_rotation() -> None:
         mesh_type=meshconv.EMeshType.SURF,
     )
 
-    inferred = _meshconv._infer_mesh_convention(mesh)
+    inferred = meshconv.infer_mesh_convention(mesh)
 
     assert inferred.canonicalise_equivalent_orientations
     assert inferred.permutation_for(meshconv.EElementType.TRI6) is not None
@@ -160,7 +170,7 @@ def test_element_symmetry_registry_has_every_proper_orientation(
     element_type: meshconv.EElementType,
     expected_count: int,
 ) -> None:
-    permutations = _meshconv.ELEMENT_SYMMETRIES[element_type]
+    permutations = _meshconv._get_element_symmetries(element_type)
 
     assert len(permutations) == expected_count
     assert all(
@@ -191,7 +201,7 @@ def test_every_proper_source_orientation_converts_to_riley_slots(
     mesh_type: meshconv.EMeshType,
 ) -> None:
     canonical = np.arange(coords.shape[0], dtype=np.int64)[None, :]
-    for permutation in _meshconv.ELEMENT_SYMMETRIES[element_type]:
+    for permutation in _meshconv._get_element_symmetries(element_type):
         source = canonical[:, np.argsort(permutation)]
         mesh = meshconv.SimData(
             coords=coords,

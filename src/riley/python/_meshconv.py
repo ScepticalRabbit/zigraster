@@ -16,7 +16,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import Enum, StrEnum
+from functools import cache
 from itertools import permutations, product
+from numbers import Integral
 from types import MappingProxyType
 import numpy as np
 
@@ -45,160 +47,20 @@ def _reference_node_permutation(
             np.all(np.isclose(reference, point, atol=_TOL.reference), axis=1)
         )
         if matches.shape[0] != 1:
-            raise ValueError("Reference transformation does not preserve element roles.")
+            raise ValueError(
+                "Reference transformation does not preserve element roles."
+            )
         slots.append(int(matches[0]))
     if len(set(slots)) != reference.shape[0]:
         raise ValueError("Reference transformation is not a node permutation.")
     return tuple(slots)
 
 
-def _check_cw_winding(mesh_in: SimData) -> bool:
-    """Return whether all surface elements are wound clockwise."""
-
-    if mesh_in.connect is None:
-        return True
-    if mesh_in.coords is None:
-        raise ValueError("Clockwise winding checks require 'coords' to be set.")
-
-    shift_all = _check_mesh_needs_zero_based_shift(mesh_in, mesh_in.coords.shape[0])
-    for connect in mesh_in.connect.values():
-        connect_row_major = _enforce_row_major_zero_based_table(
-            connect,
-            mesh_in.coords.shape[0],
-            shift_all=shift_all,
-        )
-        if not _check_cw_winding_table(connect_row_major, mesh_in.coords):
-            return False
-    return True
-
-
-def _check_ccw_winding(mesh_in: SimData) -> bool:
-    """Return whether all surface elements are wound counter-clockwise."""
-
-    if mesh_in.connect is None:
-        return True
-    if mesh_in.coords is None:
-        raise ValueError("CCW winding checks require 'coords' to be set.")
-
-    shift_all = _check_mesh_needs_zero_based_shift(mesh_in, mesh_in.coords.shape[0])
-    for connect in mesh_in.connect.values():
-        connect_row_major = _enforce_row_major_zero_based_table(
-            connect,
-            mesh_in.coords.shape[0],
-            shift_all=shift_all,
-        )
-        if not _check_ccw_winding_table(connect_row_major, mesh_in.coords):
-            return False
-    return True
-
-
-def _enforce_cw_winding(mesh_in: SimData) -> SimData:
-    """Return a mesh with surface elements wound clockwise."""
-
-    if mesh_in.connect is None:
-        return mesh_in
-    if mesh_in.coords is None:
-        raise ValueError("Clockwise winding enforcement requires 'coords' to be set.")
-
-    connect_out: dict[str, np.ndarray] = {}
-    changed = False
-    shift_all = _check_mesh_needs_zero_based_shift(mesh_in, mesh_in.coords.shape[0])
-
-    for name, connect in mesh_in.connect.items():
-        connect_row_major = _enforce_row_major_zero_based_table(
-            connect,
-            mesh_in.coords.shape[0],
-            shift_all=shift_all,
-        )
-        connect_out[name] = _enforce_cw_winding_table(connect_row_major, mesh_in.coords)
-        changed = changed or not np.array_equal(connect_out[name], connect_row_major)
-
-    if not changed:
-        return mesh_in
-
-    return _copy_sim_data(mesh_in, connect=connect_out)
-
-
-def _enforce_ccw_winding(mesh_in: SimData) -> SimData:
-    """Return a mesh with surface elements wound counter-clockwise."""
-
-    if mesh_in.connect is None:
-        return mesh_in
-    if mesh_in.coords is None:
-        raise ValueError("CCW winding enforcement requires 'coords' to be set.")
-
-    connect_out: dict[str, np.ndarray] = {}
-    changed = False
-    shift_all = _check_mesh_needs_zero_based_shift(mesh_in, mesh_in.coords.shape[0])
-
-    for name, connect in mesh_in.connect.items():
-        connect_row_major = _enforce_row_major_zero_based_table(
-            connect,
-            mesh_in.coords.shape[0],
-            shift_all=shift_all,
-        )
-        connect_out[name] = _enforce_ccw_winding_table(connect_row_major, mesh_in.coords)
-        changed = changed or not np.array_equal(connect_out[name], connect_row_major)
-
-    if not changed:
-        return mesh_in
-
-    return _copy_sim_data(mesh_in, connect=connect_out)
-
-
 def _check_mesh_2d(mesh_in: SimData) -> bool:
     """Return whether a mesh represents a two-dimensional topology."""
     if mesh_in.coords is None or mesh_in.connect is None:
         return False
-
-    if _check_volume_mesh(mesh_in):
-        return False
-
-    # 1. Check coordinate flatness
-    coord_ranges = np.ptp(mesh_in.coords, axis=0)
-    if np.any(coord_ranges < 1e-12):
-        return True
-
-    # 2. Check elements in connectivity tables
-    for name, connect_raw in mesh_in.connect.items():
-        connect = np.asarray(connect_raw, dtype=np.int64)
-        if _check_transpose_needed(connect, name, mesh_in):
-            connect = connect.T
-
-        # Normalize 1-based indexing if present to avoid out-of-bounds errors
-        shift_all = _check_mesh_needs_zero_based_shift(
-            mesh_in, mesh_in.coords.shape[0]
-        )
-        legacy_connect = _check_table_needs_zero_based_shift(
-            connect,
-            mesh_in.coords.shape[0],
-            shift_all,
-        )
-        if legacy_connect:
-            connect = connect - 1
-
-        nodes_per_elem = connect.shape[1]
-        if nodes_per_elem in _SURFACE_ONLY_NODE_COUNTS:
-            return True
-        if nodes_per_elem in _VOLUME_ONLY_NODE_COUNTS:
-            return False
-
-        try:
-            volume_spec = _get_volume_spec(nodes_per_elem)
-            for elem in connect[:10]:
-                corner_indices = np.asarray(
-                    volume_spec.corner_indices,
-                    dtype=np.int64,
-                )
-                cell_coords = mesh_in.coords[elem[corner_indices]]
-                if abs(_calc_volume_signed_metric(cell_coords)) > _TOL.geometry:
-                    break
-            else:
-                return True
-        except IndexError:
-            pass
-
-    return False
+    return not _check_volume_mesh(mesh_in)
 
 
 def _check_volume_mesh(mesh_in: SimData) -> bool:
@@ -223,7 +85,9 @@ def _check_volume_mesh(mesh_in: SimData) -> bool:
                 f"Connectivity table '{name}' has invalid indices."
             )
 
-        table_types.add(_check_volume_connectivity_table(connect, mesh_in.coords))
+        table_types.add(
+            _check_volume_connectivity_table(connect, mesh_in.coords)
+        )
 
     if len(table_types) > 1:
         raise ValueError(
@@ -322,7 +186,9 @@ def _surface_orientation_flips(
         # behaviour rather than applying a false cavity interpretation.
         return _legacy_surface_orientation_flips(connect, coords)
     flips = np.zeros(connect.shape[0], dtype=bool)
-    closed_components: list[tuple[np.ndarray, np.ndarray]] = []
+    closed_components: list[
+        tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+    ] = []
 
     for rows, edge_keys in topology:
         relative = _component_relative_flips(rows, edge_keys)
@@ -338,7 +204,11 @@ def _surface_orientation_flips(
             )])
             component_coords = coords[component_nodes]
             if _check_coplanar(component_coords):
-                metric = _calc_first_surface_metric(oriented, component_coords, coords)
+                metric = _calc_first_surface_metric(
+                    oriented,
+                    component_coords,
+                    coords,
+                )
                 if metric is not None and metric < 0.0:
                     flips[rows] = ~flips[rows]
             continue
@@ -351,18 +221,32 @@ def _surface_orientation_flips(
             )
         if volume < 0.0:
             flips[rows] = ~flips[rows]
-            oriented = _apply_surface_flips(oriented, np.ones(rows.shape[0], dtype=bool))
-        closed_components.append((rows, oriented))
+            oriented = _apply_surface_flips(
+                oriented,
+                np.ones(rows.shape[0], dtype=bool),
+            )
+        component_points = coords[np.unique(oriented[:, corner_inds])]
+        closed_components.append((
+            rows,
+            oriented,
+            np.min(component_points, axis=0),
+            np.max(component_points, axis=0),
+        ))
 
     # A disconnected closed shell contained by another shell is a cavity. Its
     # material-outward normal must point into the void, so its signed volume is
     # negative after local edge consistency has been established.
-    for component_ind, (rows, oriented) in enumerate(closed_components):
+    for component_ind, component in enumerate(closed_components):
+        rows, oriented, _, _ = component
         point = _calc_component_probe_point(oriented, coords)
         depth = sum(
             _check_point_in_closed_surface(point, other_oriented, coords)
-            for other_ind, (_, other_oriented) in enumerate(closed_components)
+            for other_ind, (
+                _, other_oriented, bounds_min, bounds_max
+            ) in enumerate(closed_components)
             if other_ind != component_ind
+            and np.all(point >= bounds_min - _TOL.geometry)
+            and np.all(point <= bounds_max + _TOL.geometry)
         )
         if depth % 2:
             flips[rows] = ~flips[rows]
@@ -411,7 +295,8 @@ def _surface_topology(
     for key, uses in edge_map.items():
         if len(uses) > 2:
             raise ValueError(
-                f"Non-manifold surface edge {key} has {len(uses)} incident faces."
+                f"Non-manifold surface edge {key} has {len(uses)} "
+                "incident faces."
             )
 
     neighbours: dict[int, set[int]] = {int(row): set() for row in active_rows}
@@ -474,7 +359,9 @@ def _component_relative_flips(
     """Find local reversals making shared edges traverse opposite ways."""
 
     row_set = set(rows.tolist())
-    constraints: dict[int, list[tuple[int, bool]]] = {row: [] for row in row_set}
+    constraints: dict[int, list[tuple[int, bool]]] = {
+        row: [] for row in row_set
+    }
     for uses in edge_keys.values():
         if len(uses) != 2:
             continue
@@ -521,13 +408,19 @@ def _calc_first_surface_metric(
     normal = _calc_canonical_plane_normal(component_coords)
     corner_inds = _get_corner_indices(connect.shape[1])
     for row in connect:
-        metric = _calc_local_polygon_signed_area(coords[row[corner_inds]], normal)
+        metric = _calc_local_polygon_signed_area(
+            coords[row[corner_inds]],
+            normal,
+        )
         if metric is not None and abs(metric) > _TOL.geometry:
             return metric
     return None
 
 
-def _calc_surface_signed_volume(connect: np.ndarray, coords: np.ndarray) -> float:
+def _calc_surface_signed_volume(
+    connect: np.ndarray,
+    coords: np.ndarray,
+) -> float:
     """Calculate the signed volume enclosed by a triangulated surface."""
     corner_inds = _get_corner_indices(connect.shape[1])
     volume = 0.0
@@ -541,7 +434,10 @@ def _calc_surface_signed_volume(connect: np.ndarray, coords: np.ndarray) -> floa
     return volume
 
 
-def _calc_component_probe_point(connect: np.ndarray, coords: np.ndarray) -> np.ndarray:
+def _calc_component_probe_point(
+    connect: np.ndarray,
+    coords: np.ndarray,
+) -> np.ndarray:
     """Calculate an interior probe point near a surface component."""
     corner_inds = _get_corner_indices(connect.shape[1])
     points = coords[connect[0, corner_inds]]
@@ -602,14 +498,21 @@ def _check_ray_intersects_triangle(
         return False
     inv_determinant = 1.0 / determinant
     offset = origin - point_a
-    u = inv_determinant * float(np.dot(offset, perpendicular))
-    if u <= _TOL.geometry or u >= 1.0 - _TOL.geometry:
+    barycentric_u = inv_determinant * float(np.dot(offset, perpendicular))
+    if barycentric_u <= _TOL.geometry or barycentric_u >= 1.0 - _TOL.geometry:
         return False
-    q_vec = np.cross(offset, edge_ab)
-    v = inv_determinant * float(np.dot(direction, q_vec))
-    if v <= _TOL.geometry or u + v >= 1.0 - _TOL.geometry:
+    cross_offset_edge = np.cross(offset, edge_ab)
+    barycentric_v = inv_determinant * float(
+        np.dot(direction, cross_offset_edge)
+    )
+    if (
+        barycentric_v <= _TOL.geometry
+        or barycentric_u + barycentric_v >= 1.0 - _TOL.geometry
+    ):
         return False
-    distance = inv_determinant * float(np.dot(edge_ac, q_vec))
+    distance = inv_determinant * float(
+        np.dot(edge_ac, cross_offset_edge)
+    )
     return distance > _TOL.geometry
 
 
@@ -641,10 +544,10 @@ def _copy_sim_data(
     return mesh_out
 
 
-def _infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
+def infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
     """Infer one source-to-Riley ordering for each element family."""
     if mesh_in.coords is None or mesh_in.connect is None:
-        raise MeshConvError(
+        raise MeshConventionInferenceError(
             "Mesh convention inference requires coordinates and connectivity."
         )
 
@@ -656,7 +559,7 @@ def _infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
         if _check_zero_based_shift_needed(connect, mesh_in.coords.shape[0]):
             connect = connect - 1
         if not _check_indices_zero_based(connect, mesh_in.coords.shape[0]):
-            raise MeshConvError(
+            raise MeshConventionInferenceError(
                 f"Connectivity table '{name}' has invalid indices."
             )
         nodes_per_element = connect.shape[1]
@@ -676,7 +579,7 @@ def _infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
                 connect, mesh_in.coords, spec,
             )
         except ValueError as error:
-            raise MeshConvError(
+            raise MeshConventionInferenceError(
                 f"Could not infer '{name}' ({element_type.value}); supply "
                 "MeshConvention explicitly."
             ) from error
@@ -685,7 +588,7 @@ def _infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
             for row, target in zip(connect, normalised, strict=True)
         }
         representative = min(permutations)
-        symmetries = ELEMENT_SYMMETRIES[element_type]
+        symmetries = _get_element_symmetries(element_type)
         if any(
             not any(
                 permutation == tuple(
@@ -695,7 +598,7 @@ def _infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
             )
             for permutation in permutations
         ):
-            raise MeshConvError(
+            raise MeshConventionInferenceError(
                 f"Connectivity table '{name}' contains multiple source "
                 f"layouts for {element_type.value}; supply MeshConvention."
             )
@@ -707,10 +610,11 @@ def _infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
             )
             for symmetry in symmetries
         ):
-            raise MeshConvError(
+            raise MeshConventionInferenceError(
                 (
                     f"Multiple connectivity tables disagree on the "
-                    f"{element_type.value} source layout; supply MeshConvention."
+                    f"{element_type.value} source layout; supply "
+                    "MeshConvention."
                 )
             )
         inferred[element_type] = permutation
@@ -744,6 +648,7 @@ def _supported_nodes_per_elem(nodes_per_elem: int) -> None:
         )
 
 
+@cache
 def _get_surface_spec(nodes_per_elem: int) -> ElementSpec:
     """Return surface-element metadata for a node count."""
     for spec in _ELEMENT_SPECS_BY_NODE_COUNT.get(nodes_per_elem, ()):
@@ -757,6 +662,7 @@ def _get_surface_spec(nodes_per_elem: int) -> ElementSpec:
     )
 
 
+@cache
 def _get_volume_spec(nodes_per_elem: int) -> ElementSpec:
     """Return volume-element metadata for a node count."""
     for spec in _ELEMENT_SPECS_BY_NODE_COUNT.get(nodes_per_elem, ()):
@@ -804,7 +710,10 @@ def _check_transpose_needed(
     )
 
 
-def _check_zero_based_shift_needed(connect: np.ndarray, num_coords: int) -> bool:
+def _check_zero_based_shift_needed(
+    connect: np.ndarray,
+    num_coords: int,
+) -> bool:
     """Return whether connectivity is unambiguously one-based."""
     if connect.size == 0:
         return False
@@ -826,7 +735,10 @@ def _check_ambiguously_positive(connect: np.ndarray, num_coords: int) -> bool:
     )
 
 
-def _check_mesh_needs_zero_based_shift(mesh_in: SimData, num_coords: int) -> bool:
+def _check_mesh_needs_zero_based_shift(
+    mesh_in: SimData,
+    num_coords: int,
+) -> bool:
     """Return whether all connectivity tables require a one-based shift."""
     any_zero_based = False
     any_definitely_one_based = False
@@ -891,33 +803,18 @@ def _check_indices_zero_based(connect: np.ndarray, num_coords: int) -> bool:
     return bool(np.all(valid_mask))
 
 
-def _enforce_row_major_zero_based_table(
-    connect: np.ndarray,
-    num_coords: int,
-    shift_all: bool = False,
-) -> np.ndarray:
-    """Return row-major, zero-based connectivity."""
-    connect_out = np.asarray(connect, dtype=np.int64)
-    if connect_out.ndim != 2:
-        raise ValueError(
-        f"Connectivity table must be 2D, got shape {connect_out.shape}."
-    )
-    if _check_transpose_needed(connect_out):
-        connect_out = connect_out.T
-    legacy_connect = _check_table_needs_zero_based_shift(
-        connect_out, num_coords, shift_all
-    )
-    if legacy_connect:
-        connect_out = connect_out - 1
-    return np.ascontiguousarray(connect_out, dtype=np.int64)
-
-
-def _calc_orientation_score(connect_row_major: np.ndarray, coords: np.ndarray) -> int:
+def _calc_orientation_score(
+    connect_row_major: np.ndarray,
+    coords: np.ndarray,
+) -> int:
     """Score a candidate row-major interpretation by valid element rows."""
     num_coords = coords.shape[0]
     connect_eval = np.asarray(connect_row_major, dtype=np.int64)
 
-    if connect_eval.ndim != 2 or connect_eval.shape[1] not in _SUPPORTED_NODE_COUNTS:
+    if (
+        connect_eval.ndim != 2
+        or connect_eval.shape[1] not in _SUPPORTED_NODE_COUNTS
+    ):
         return -1
 
     if _check_zero_based_shift_needed(connect_eval, num_coords):
@@ -960,7 +857,10 @@ def _calc_row_orientation_metric(
             connect_row[np.asarray(volume_spec.corner_indices, dtype=np.int64)]
         ]
         metric = _calc_volume_signed_metric(volume_coords)
-        if nodes_per_elem in _VOLUME_ONLY_NODE_COUNTS or abs(metric) > _TOL.geometry:
+        if (
+            nodes_per_elem in _VOLUME_ONLY_NODE_COUNTS
+            or abs(metric) > _TOL.geometry
+        ):
             return metric
 
     return None
@@ -1005,6 +905,7 @@ def _enforce_node_order_table(
     return connect
 
 
+@cache
 def _get_element_type_from_spec(spec: ElementSpec) -> EElementType:
     """Return the registered element type for metadata."""
     for element_type, registered_spec in ELEMENT_SPECS.items():
@@ -1022,7 +923,11 @@ def _enforce_node_order_high_order(
 
     connect_out = np.empty_like(connect)
     for row_index, row in enumerate(connect):
-        connect_out[row_index] = _enforce_node_order_high_order_row(row, coords, spec)
+        connect_out[row_index] = _enforce_node_order_high_order_row(
+            row,
+            coords,
+            spec,
+        )
     return np.ascontiguousarray(connect_out, dtype=np.int64)
 
 
@@ -1053,10 +958,8 @@ def _enforce_canonical_orientations(
     spec: ElementSpec,
 ) -> np.ndarray:
     """Anchor each role-correct row at the lowest valid global-node sequence."""
-    symmetries = ELEMENT_SYMMETRIES[_get_element_type_from_spec(spec)]
-    permutations_array = tuple(
-        np.asarray(permutation, dtype=np.int64) for permutation in symmetries
-    )
+    element_type = _get_element_type_from_spec(spec)
+    permutations_array = _get_element_symmetry_arrays(element_type)
     out = np.empty_like(connect)
     for row_index, row in enumerate(connect):
         out[row_index] = min(
@@ -1075,11 +978,8 @@ def _enforce_node_order_high_order_row(
     elem_coords = coords[connect_row]
     if _check_canonical_node_roles(elem_coords, spec):
         return connect_row
-    if _check_coincident_nodes(elem_coords):
-        return connect_row
 
     corner_count = len(spec.corner_indices)
-    centre = np.mean(elem_coords, axis=0)
     corner_local = _infer_corner_nodes(elem_coords, corner_count)
 
     if spec.is_surface:
@@ -1090,7 +990,6 @@ def _enforce_node_order_high_order_row(
         corner_local = _order_hex_corners(elem_coords, corner_local)
 
     corner_coords = elem_coords[corner_local]
-    role_locals = list(corner_local)
     remaining = [
         index for index in range(connect_row.shape[0])
         if index not in corner_local
@@ -1113,7 +1012,6 @@ def _enforce_node_order_high_order_row(
         edge_targets,
         "edge",
     )
-    role_locals.extend(edge_local)
     remaining = [index for index in remaining if index not in edge_local]
 
     if spec.face_centre_indices:
@@ -1130,7 +1028,6 @@ def _enforce_node_order_high_order_row(
             face_targets,
             "face centre",
         )
-        role_locals.extend(face_local)
         remaining = [index for index in remaining if index not in face_local]
 
     if spec.centre_index is not None or spec.cell_centre_index is not None:
@@ -1140,7 +1037,6 @@ def _enforce_node_order_high_order_row(
             np.mean(corner_coords, axis=0, keepdims=True),
             "centre",
         )
-        role_locals.extend(centre_local)
         remaining = [index for index in remaining if index not in centre_local]
 
     if remaining:
@@ -1174,8 +1070,6 @@ def _check_canonical_node_roles(
     """Accept an already coherent row, including curved and seam elements."""
     corner_indices = np.asarray(spec.corner_indices, dtype=np.int64)
     corner_coords = elem_coords[corner_indices]
-    if _check_coincident_nodes(elem_coords):
-        return True
 
     rank_required = 2 if spec.is_surface else 3
     if np.linalg.matrix_rank(
@@ -1195,18 +1089,17 @@ def _check_canonical_node_roles(
         (index, (index + 1) % len(corner_indices))
         for index in range(len(corner_indices))
     )
-    edge_nodes = elem_coords[len(corner_indices):len(corner_indices) + len(edge_pairs)]
-    edge_distances = np.array(
-        [
-            [
-                _calc_point_segment_distance(
-                    node, corner_coords[start], corner_coords[end]
-                )
-                for start, end in edge_pairs
-            ]
-            for node in edge_nodes
-        ]
-    )
+    edge_start = len(corner_indices)
+    edge_stop = edge_start + len(edge_pairs)
+    edge_nodes = elem_coords[edge_start:edge_stop]
+    edge_distances = np.array([
+        _calc_point_segment_distance(
+            node,
+            corner_coords[start],
+            corner_coords[end],
+        )
+        for node, (start, end) in zip(edge_nodes, edge_pairs, strict=True)
+    ])
     if np.any(edge_distances > _TOL.role_match * scale):
         return False
 
@@ -1223,16 +1116,10 @@ def _check_canonical_node_roles(
     return True
 
 
-def _check_coincident_nodes(elem_coords: np.ndarray) -> bool:
-    """Return whether an element contains geometrically coincident nodes."""
-    scale = max(float(np.ptp(elem_coords, axis=0).max()), 1.0)
-    differences = elem_coords[:, None, :] - elem_coords[None, :, :]
-    distances = np.linalg.norm(differences, axis=2)
-    upper_triangle = distances[np.triu_indices(elem_coords.shape[0], k=1)]
-    return bool(np.any(upper_triangle <= _TOL.geometry * scale))
-
-
-def _infer_corner_nodes(elem_coords: np.ndarray, corner_count: int) -> np.ndarray:
+def _infer_corner_nodes(
+    elem_coords: np.ndarray,
+    corner_count: int,
+) -> np.ndarray:
     """Find affine-element vertices without depending on their source slots."""
     scale = max(float(np.ptp(elem_coords, axis=0).max()), _TOL.geometry)
     midpoint_tol = _TOL.geometry * scale * 100.0
@@ -1257,7 +1144,10 @@ def _infer_corner_nodes(elem_coords: np.ndarray, corner_count: int) -> np.ndarra
     )
     if candidates.shape[0] == corner_count:
         return candidates
-    distances = np.linalg.norm(elem_coords - np.mean(elem_coords, axis=0), axis=1)
+    distances = np.linalg.norm(
+        elem_coords - np.mean(elem_coords, axis=0),
+        axis=1,
+    )
     return np.sort(np.argsort(distances)[-corner_count:])
 
 
@@ -1285,7 +1175,9 @@ def _order_surface_corners(
     corner_coords = elem_coords[corner_local]
     centred = corner_coords - np.mean(corner_coords, axis=0)
     if np.linalg.matrix_rank(centred, tol=_TOL.geometry) < 2:
-        raise ValueError("Degenerate surface element has collinear corner nodes.")
+        raise ValueError(
+            "Degenerate surface element has collinear corner nodes."
+        )
     _, _, vectors = np.linalg.svd(centred, full_matrices=False)
     normal = vectors[-1]
     axis_u = vectors[0]
@@ -1293,22 +1185,13 @@ def _order_surface_corners(
     angles = np.arctan2(centred @ axis_v, centred @ axis_u)
     ordered = corner_local[np.argsort(angles)]
     ordered_coords = elem_coords[ordered]
-    if len(ordered) == 3:
-        signed = np.dot(
-            np.cross(
-                ordered_coords[1] - ordered_coords[0],
-                ordered_coords[2] - ordered_coords[0]
-            ),
-            normal,
-        )
-    else:
-        signed = np.dot(
-            np.cross(
-                ordered_coords[1] - ordered_coords[0],
-                ordered_coords[2] - ordered_coords[0]
-            ),
-            normal,
-        )
+    signed = np.dot(
+        np.cross(
+            ordered_coords[1] - ordered_coords[0],
+            ordered_coords[2] - ordered_coords[0],
+        ),
+        normal,
+    )
     if signed < 0.0:
         ordered = ordered[[0, *range(len(ordered) - 1, 0, -1)]]
     return ordered
@@ -1365,7 +1248,10 @@ def _order_hex_corners(
                     origin_coord + directions[1],
                     origin_coord + directions[2],
                     origin_coord + directions[0] + directions[2],
-                    origin_coord + directions[0] + directions[1] + directions[2],
+                    origin_coord
+                    + directions[0]
+                    + directions[1]
+                    + directions[2],
                     origin_coord + directions[1] + directions[2],
                 ))
                 assigned = _match_role_nodes(
@@ -1383,7 +1269,9 @@ def _order_hex_corners(
                     best_order = np.asarray(assigned, dtype=np.int64)
 
     if best_order is None:
-        raise ValueError("Could not determine a right-handed hexahedron corner order.")
+        raise ValueError(
+            "Could not determine a right-handed hexahedron corner order."
+        )
     scale = float(np.max(
         np.linalg.norm(corner_coords - origin_coord, axis=1)
     ))
@@ -1401,7 +1289,9 @@ def _match_role_nodes(
 ) -> list[int]:
     """Match unused local nodes to target geometric roles."""
     if len(candidate_local) < targets.shape[0]:
-        raise ValueError(f"Not enough nodes available to assign {role_name} roles.")
+        raise ValueError(
+            f"Not enough nodes available to assign {role_name} roles."
+        )
     candidates = np.asarray(candidate_local, dtype=np.int64)
     distances = np.linalg.norm(
         elem_coords[candidates, None, :] - targets[None, :, :],
@@ -1411,7 +1301,10 @@ def _match_role_nodes(
     used: set[int] = set()
     for target_index in range(targets.shape[0]):
         ranked = np.argsort(distances[:, target_index])
-        match = next((index for index in ranked if int(index) not in used), None)
+        match = next(
+            (index for index in ranked if int(index) not in used),
+            None,
+        )
         if match is None:
             raise ValueError(f"Could not assign a unique {role_name} node.")
         used.add(int(match))
@@ -1427,6 +1320,7 @@ def _match_role_nodes(
     return assigned
 
 
+@cache
 def _get_corner_indices(nodes_per_elem: int) -> np.ndarray:
     """Return corner slots for a supported element node count."""
     _supported_nodes_per_elem(nodes_per_elem)
@@ -1439,6 +1333,7 @@ def _get_corner_indices(nodes_per_elem: int) -> np.ndarray:
     )
 
 
+@cache
 def _get_volume_corner_indices(nodes_per_elem: int) -> np.ndarray:
     """Return corner slots for a supported volume element."""
     return np.asarray(
@@ -1625,19 +1520,6 @@ def _check_ccw_winding_table(
     return True
 
 
-def _check_cw_winding_table(connect: np.ndarray, coords: np.ndarray) -> bool:
-    """Return whether all applicable rows have clockwise winding."""
-    for row in connect:
-        metric = _calc_winding_metric(row, coords)
-        if metric is None:
-            continue
-        if abs(metric) <= _TOL.geometry:
-            continue
-        if metric >= 0.0:
-            return False
-    return True
-
-
 def _check_right_handed_table(
     connect: np.ndarray,
     coords: np.ndarray,
@@ -1665,7 +1547,11 @@ def _reverse_surface_row(connect_row: np.ndarray) -> np.ndarray:
                 f"{spec.nodes_per_element}-node elements."
             )
         )
-    return connect_row[np.asarray(spec.surface_reverse_permutation, dtype=np.int64)]
+    permutation = np.asarray(
+        spec.surface_reverse_permutation,
+        dtype=np.int64,
+    )
+    return connect_row[permutation]
 
 
 def _reverse_handedness_row(connect_row: np.ndarray) -> np.ndarray:
@@ -1678,7 +1564,11 @@ def _reverse_handedness_row(connect_row: np.ndarray) -> np.ndarray:
             f"{spec.nodes_per_element}-node elements."
         )
     )
-    return connect_row[np.asarray(spec.handedness_reverse_permutation, dtype=np.int64)]
+    permutation = np.asarray(
+        spec.handedness_reverse_permutation,
+        dtype=np.int64,
+    )
+    return connect_row[permutation]
 
 
 def _get_face_corner_coords(face_coords: np.ndarray) -> np.ndarray:
@@ -1708,7 +1598,9 @@ def _calc_face_normal(face_coords: np.ndarray) -> np.ndarray:
         normal_mag = np.linalg.norm(face_normal)
 
     if normal_mag <= _TOL.geometry:
-        raise ValueError("Degenerate face detected while extracting the surface mesh.")
+        raise ValueError(
+            "Degenerate face detected while extracting the surface mesh."
+        )
 
     return face_normal / normal_mag
 
@@ -1810,16 +1702,6 @@ def _enforce_ccw_winding_table(
     return np.ascontiguousarray(connect_out, dtype=np.int64)
 
 
-def _enforce_cw_winding_table(connect: np.ndarray, coords: np.ndarray) -> np.ndarray:
-    """Return connectivity with applicable rows wound clockwise."""
-    connect_out = np.copy(connect)
-    for idx, row in enumerate(connect_out):
-        metric = _calc_winding_metric(row, coords)
-        if metric is not None and metric > 0.0:
-            connect_out[idx, :] = _reverse_surface_row(row)
-    return np.ascontiguousarray(connect_out, dtype=np.int64)
-
-
 def _enforce_right_handed_table(
     connect: np.ndarray,
     coords: np.ndarray,
@@ -1842,6 +1724,7 @@ def _enforce_right_handed_table(
     return np.ascontiguousarray(connect_out, dtype=np.int64)
 
 
+@cache
 def _get_surface_map(nodes_per_elem: int) -> np.ndarray:
     """Return the local face-slot map for a volume element."""
     spec = _get_volume_spec(nodes_per_elem)
@@ -1913,6 +1796,20 @@ def _enforce_source_connectivity_style(
         connect_out[name] = np.ascontiguousarray(connect_fmt, dtype=np.int64)
 
     return _copy_sim_data(mesh_in, connect=connect_out)
+
+
+def _enforce_vector3(
+    values: np.ndarray | list[float] | tuple[float, ...],
+    name: str,
+) -> np.ndarray:
+    """Return the first three finite components of an array-like value."""
+    values_array = np.asarray(values, dtype=np.float64).reshape(-1)
+    if values_array.size < 3:
+        raise ValueError(f"'{name}' must contain at least three components.")
+    vector = np.ascontiguousarray(values_array[:3])
+    if not np.all(np.isfinite(vector)):
+        raise ValueError(f"'{name}' must contain only finite values.")
+    return vector
 
 
 class MeshCheckCode(StrEnum):
@@ -2042,7 +1939,10 @@ class EElementType(Enum):
                 for signs in product((-1., 1.), repeat=3):
                     if parity * int(np.prod(signs)) < 0:
                         continue
-                    transformed = (2.0 * reference - 1.0)[:, axes] * np.asarray(signs)
+                    transformed = (
+                        (2.0 * reference - 1.0)[:, axes]
+                        * np.asarray(signs)
+                    )
                     transformed = 0.5 * (transformed + 1.0)
                     candidate_rows.append(
                         _reference_node_permutation(reference, transformed)
@@ -2057,8 +1957,11 @@ class EElementType(Enum):
 
             for corner_permutation in permutations(range(len(corners))):
                 target_corners = source_corners[np.asarray(corner_permutation)]
-                transform, _, _, _ = np.linalg.lstsq(homogeneous, target_corners,
-                                                     rcond=None)
+                transform, _, _, _ = np.linalg.lstsq(
+                    homogeneous,
+                    target_corners,
+                    rcond=None,
+                )
 
                 if np.linalg.det(transform[:dimensions]) <= 0.0:
                     continue
@@ -2082,20 +1985,52 @@ class MeshConvention:
     """Caller-declared source ordering for otherwise ambiguous elements.
 
     Each permutation maps a Riley canonical slot to the corresponding slot in
-    the source connectivity row.  Omitted element types are inferred from the
-    mesh-wide topology and coordinates.
+    the source connectivity row. Omitted element types are assumed to already
+    use Riley ordering.
     """
 
     source_to_riley_permutations: Mapping[EElementType, tuple[int, ...]]
     canonicalise_equivalent_orientations: bool = False
 
-    def permutation_for(self, element_type: EElementType) -> tuple[int, ...] | None:
+    def __post_init__(self) -> None:
+        """Validate permutations and retain an immutable defensive copy."""
+        permutations_out: dict[EElementType, tuple[int, ...]] = {}
+        for element_type, permutation_raw in (
+            self.source_to_riley_permutations.items()
+        ):
+            if not isinstance(element_type, EElementType):
+                raise TypeError(
+                    "MeshConvention keys must be EElementType members."
+                )
+            permutation = tuple(permutation_raw)
+            node_count = element_type.reference_coordinates().shape[0]
+            if len(permutation) != node_count:
+                raise ValueError(
+                    f"{element_type.value} requires a {node_count}-slot "
+                    "permutation."
+                )
+            if any(not isinstance(slot, Integral) for slot in permutation):
+                raise TypeError("MeshConvention slots must be integers.")
+            permutation = tuple(int(slot) for slot in permutation)
+            if set(permutation) != set(range(node_count)):
+                raise ValueError(
+                    f"{element_type.value} permutation must contain every "
+                    f"slot from 0 to {node_count - 1} exactly once."
+                )
+            permutations_out[element_type] = permutation
+
+        object.__setattr__(
+            self,
+            "source_to_riley_permutations",
+            MappingProxyType(permutations_out),
+        )
+
+    def permutation_for(
+        self,
+        element_type: EElementType,
+    ) -> tuple[int, ...] | None:
         """Return the declared source permutation for an element type."""
         return self.source_to_riley_permutations.get(element_type)
-
-
-class MeshConvError(ValueError):
-    """Raised when source node roles cannot be inferred unambiguously."""
 
 
 class MeshConventionInferenceError(ValueError):
@@ -2143,7 +2078,10 @@ class SimData:
         if self.coords is None or self.connect is None:
             self.mesh_type = None
             return
-        self.mesh_type = EMeshType.VOL if _check_volume_mesh(self) else EMeshType.SURF
+        if _check_volume_mesh(self):
+            self.mesh_type = EMeshType.VOL
+        else:
+            self.mesh_type = EMeshType.SURF
 
 
 ELEMENT_SPECS = MappingProxyType({
@@ -2153,7 +2091,12 @@ ELEMENT_SPECS = MappingProxyType({
         7, True, (0, 1, 2), (0, 2, 1, 5, 4, 3, 6), centre_index=6,
     ),
     EElementType.QUAD4: ElementSpec(4, True, (0, 1, 2, 3), (0, 3, 2, 1)),
-    EElementType.QUAD8: ElementSpec(8, True, (0, 1, 2, 3), (0, 3, 2, 1, 7, 6, 5, 4)),
+    EElementType.QUAD8: ElementSpec(
+        8,
+        True,
+        (0, 1, 2, 3),
+        (0, 3, 2, 1, 7, 6, 5, 4),
+    ),
     EElementType.QUAD9: ElementSpec(
         9, True, (0, 1, 2, 3), (0, 3, 2, 1, 7, 6, 5, 4, 8), centre_index=8,
     ),
@@ -2201,10 +2144,23 @@ ELEMENT_SPECS = MappingProxyType({
 })
 
 
-ELEMENT_SYMMETRIES = MappingProxyType({
-    element_type: element_type.orientation_preserving_permutations()
-    for element_type in EElementType
-})
+@cache
+def _get_element_symmetries(
+    element_type: EElementType,
+) -> tuple[tuple[int, ...], ...]:
+    """Return lazily calculated proper symmetries for an element type."""
+    return element_type.orientation_preserving_permutations()
+
+
+@cache
+def _get_element_symmetry_arrays(
+    element_type: EElementType,
+) -> tuple[np.ndarray, ...]:
+    """Return cached array forms of an element's proper symmetries."""
+    return tuple(
+        np.asarray(permutation, dtype=np.int64)
+        for permutation in _get_element_symmetries(element_type)
+    )
 
 
 _ELEMENT_SPECS_BY_NODE_COUNT = MappingProxyType({
@@ -2224,7 +2180,9 @@ _SURFACE_NODE_COUNTS = frozenset(
 
 
 _VOLUME_NODE_COUNTS = frozenset(
-    spec.nodes_per_element for spec in ELEMENT_SPECS.values() if not spec.is_surface
+    spec.nodes_per_element
+    for spec in ELEMENT_SPECS.values()
+    if not spec.is_surface
 )
 
 
@@ -2245,6 +2203,99 @@ _VOLUME_ONLY_NODE_COUNTS = frozenset(
 )
 
 
+def _process_connectivity_table(
+    connect_raw: np.ndarray,
+    name: str,
+    mesh_in: SimData,
+    shift_all: bool,
+    source_convention: MeshConvention | None,
+    enforce: bool,
+) -> tuple[np.ndarray, list[MeshCheckCode]]:
+    """Check one table and optionally return its canonical representation."""
+    if mesh_in.coords is None:
+        raise ValueError("Mesh convention processing requires coords.")
+
+    connect = _enforce_connect_array_format(connect_raw, name)
+    failures: list[MeshCheckCode] = []
+    surface_only = _check_surface_mesh_type(mesh_in.mesh_type)
+
+    if _check_transpose_needed(connect, name, mesh_in):
+        failures.append(MeshCheckCode.ROW_MAJOR_CONNECTIVITY)
+        connect = connect.T
+
+    if _check_table_needs_zero_based_shift(
+        connect,
+        mesh_in.coords.shape[0],
+        shift_all,
+    ):
+        failures.append(MeshCheckCode.ZERO_BASED_INDEXING)
+        connect = connect - 1
+
+    if not _check_indices_zero_based(connect, mesh_in.coords.shape[0]):
+        failures.append(MeshCheckCode.CONNECTIVITY_INDICES)
+        return connect, failures
+
+    ordered = _enforce_node_order_table(
+        connect,
+        mesh_in.coords,
+        surface_only=surface_only,
+        source_convention=source_convention,
+    )
+    if not np.array_equal(ordered, connect):
+        failures.append(MeshCheckCode.NODE_ORDER)
+    connect = ordered
+
+    if _check_surface_connectivity_table(
+        connect,
+        mesh_in.coords,
+        surface_only=surface_only,
+    ):
+        try:
+            flips = _surface_orientation_flips(connect, mesh_in.coords)
+        except ValueError:
+            failures.append(MeshCheckCode.SURFACE_TOPOLOGY)
+            if enforce:
+                connect = _enforce_surface_orientation_table(
+                    connect,
+                    mesh_in.coords,
+                )
+        else:
+            if np.any(flips):
+                failures.extend((
+                    MeshCheckCode.CCW_WINDING,
+                    MeshCheckCode.RIGHT_HANDED_GEOMETRY,
+                ))
+                if enforce:
+                    connect = _apply_surface_flips(connect, flips)
+    else:
+        if not _check_ccw_winding_table(
+            connect,
+            mesh_in.coords,
+            surface_only=surface_only,
+        ):
+            failures.append(MeshCheckCode.CCW_WINDING)
+            if enforce:
+                connect = _enforce_ccw_winding_table(
+                    connect,
+                    mesh_in.coords,
+                    surface_only=surface_only,
+                )
+        if not _check_right_handed_table(
+            connect,
+            mesh_in.coords,
+            surface_only=surface_only,
+        ):
+            failures.append(MeshCheckCode.RIGHT_HANDED_GEOMETRY)
+            if enforce:
+                connect = _enforce_right_handed_table(
+                    connect,
+                    mesh_in.coords,
+                    surface_only=surface_only,
+                )
+
+    return np.ascontiguousarray(connect, dtype=np.int64), failures
+
+
 def check_mesh_convention(
     mesh_in: SimData,
     source_convention: MeshConvention | None = None,
@@ -2257,76 +2308,19 @@ def check_mesh_convention(
         raise ValueError("Mesh convention checks require 'coords' to be set.")
 
     per_table: MeshConvCheck = {}
-    shift_all = _check_mesh_needs_zero_based_shift(mesh_in, mesh_in.coords.shape[0])
-    surface_only = _check_surface_mesh_type(mesh_in.mesh_type)
-
+    shift_all = _check_mesh_needs_zero_based_shift(
+        mesh_in,
+        mesh_in.coords.shape[0],
+    )
     for name, connect_raw in mesh_in.connect.items():
-        connect = _enforce_connect_array_format(connect_raw, name)
-        failures: list[MeshCheckCode] = []
-
-        if _check_transpose_needed(connect, name, mesh_in):
-            failures.append(MeshCheckCode.ROW_MAJOR_CONNECTIVITY)
-            connect = connect.T
-
-        legacy_connect = _check_table_needs_zero_based_shift(
-            connect,
-            mesh_in.coords.shape[0],
+        _, failures = _process_connectivity_table(
+            connect_raw,
+            name,
+            mesh_in,
             shift_all,
+            source_convention,
+            enforce=False,
         )
-
-        if legacy_connect:
-            failures.append(MeshCheckCode.ZERO_BASED_INDEXING)
-
-        connect_check = connect
-        if legacy_connect:
-            connect_check = connect - 1
-
-        if not _check_indices_zero_based(connect_check, mesh_in.coords.shape[0]):
-            failures.append(MeshCheckCode.CONNECTIVITY_INDICES)
-        else:
-            normalised_connect = _enforce_node_order_table(
-                connect_check,
-                mesh_in.coords,
-                surface_only=surface_only,
-                source_convention=source_convention,
-            )
-            if not np.array_equal(normalised_connect, connect_check):
-                failures.append(MeshCheckCode.NODE_ORDER)
-            connect_check = normalised_connect
-
-            if _check_surface_connectivity_table(
-                connect_check,
-                mesh_in.coords,
-                surface_only=surface_only,
-            ):
-                try:
-                    surface_flips = _surface_orientation_flips(
-                        connect_check,
-                        mesh_in.coords,
-                    )
-                except ValueError:
-                    failures.append(MeshCheckCode.SURFACE_TOPOLOGY)
-                else:
-                    if np.any(surface_flips):
-                        failures.extend((
-                            MeshCheckCode.CCW_WINDING,
-                            MeshCheckCode.RIGHT_HANDED_GEOMETRY,
-                        ))
-            else:
-                if not _check_ccw_winding_table(
-                    connect_check,
-                    mesh_in.coords,
-                    surface_only=surface_only,
-                ):
-                    failures.append(MeshCheckCode.CCW_WINDING)
-
-                if not _check_right_handed_table(
-                    connect_check,
-                    mesh_in.coords,
-                    surface_only=surface_only,
-                ):
-                    failures.append(MeshCheckCode.RIGHT_HANDED_GEOMETRY)
-
         if failures:
             per_table[name] = failures
 
@@ -2338,29 +2332,27 @@ def enforce_mesh_convention(
     source_convention: MeshConvention | None = None,
 ) -> SimData:
     """Return a mesh normalized to Riley's convention."""
-
-    report = check_mesh_convention(mesh_in, source_convention)
-    if not report:
-        return mesh_in
-
     if mesh_in.connect is None:
         return mesh_in
     if mesh_in.coords is None:
         raise ValueError("Mesh convention enforcement requires coords.")
 
-    num_coords = mesh_in.coords.shape[0]
-    surface_only = _check_surface_mesh_type(mesh_in.mesh_type)
-    orientation_codes = frozenset((
-        MeshCheckCode.CCW_WINDING,
-        MeshCheckCode.RIGHT_HANDED_GEOMETRY,
-        MeshCheckCode.SURFACE_TOPOLOGY,
-    ))
-
+    shift_all = _check_mesh_needs_zero_based_shift(
+        mesh_in,
+        mesh_in.coords.shape[0],
+    )
     connect_out: dict[str, np.ndarray] = {}
+    changed = False
     for name, connect_raw in mesh_in.connect.items():
-        failures = frozenset(report.get(name, ()))
-        connect = _enforce_connect_array_format(connect_raw, name)
-
+        connect, failure_list = _process_connectivity_table(
+            connect_raw,
+            name,
+            mesh_in,
+            shift_all,
+            source_convention,
+            enforce=True,
+        )
+        failures = frozenset(failure_list)
         if MeshCheckCode.CONNECTIVITY_INDICES in failures:
             raise ValueError(
                 "Connectivity table "
@@ -2368,53 +2360,51 @@ def enforce_mesh_convention(
                 "0-based normalization."
             )
 
-        if MeshCheckCode.ROW_MAJOR_CONNECTIVITY in failures:
-            connect = connect.T
+        changed = changed or bool(failures)
+        connect_out[name] = connect
 
-        if MeshCheckCode.ZERO_BASED_INDEXING in failures:
-            connect = connect - 1
-
-        if MeshCheckCode.NODE_ORDER in failures:
-            connect = _enforce_node_order_table(
-                connect,
-                mesh_in.coords,
-                surface_only=surface_only,
-                source_convention=source_convention,
-            )
-
-        if failures & orientation_codes:
-            if _check_surface_connectivity_table(
-                connect,
-                mesh_in.coords,
-                surface_only=surface_only,
-            ):
-                connect = _enforce_surface_orientation_table(
-                    connect,
-                    mesh_in.coords,
-                )
-            else:
-                if MeshCheckCode.CCW_WINDING in failures:
-                    connect = _enforce_ccw_winding_table(
-                        connect,
-                        mesh_in.coords,
-                        surface_only=surface_only,
-                    )
-                if MeshCheckCode.RIGHT_HANDED_GEOMETRY in failures:
-                    connect = _enforce_right_handed_table(
-                        connect,
-                        mesh_in.coords,
-                        surface_only=surface_only,
-                    )
-
-        if not _check_indices_zero_based(connect, num_coords):
-            raise ValueError(
-                "Connectivity table "
-                f"'{name}' became invalid during mesh convention enforcement."
-            )
-
-        connect_out[name] = np.ascontiguousarray(connect, dtype=np.int64)
-
+    if not changed:
+        return mesh_in
     return _copy_sim_data(mesh_in, connect=connect_out)
+
+
+def _prepare_extraction_connectivity(
+    mesh_in: SimData,
+) -> tuple[dict[str, np.ndarray], bool, bool]:
+    """Normalize connectivity and report the source table style."""
+    if mesh_in.connect is None or mesh_in.coords is None:
+        raise ValueError("Surface extraction requires a complete mesh.")
+
+    shift_all = _check_mesh_needs_zero_based_shift(
+        mesh_in,
+        mesh_in.coords.shape[0],
+    )
+    connect_out: dict[str, np.ndarray] = {}
+    source_zero_based = True
+    source_row_major = True
+    for name, connect_raw in mesh_in.connect.items():
+        connect, failures = _process_connectivity_table(
+            connect_raw,
+            name,
+            mesh_in,
+            shift_all,
+            source_convention=None,
+            enforce=True,
+        )
+        if MeshCheckCode.CONNECTIVITY_INDICES in failures:
+            raise ValueError(
+                f"Connectivity table '{name}' contains invalid indices "
+                "for surface extraction."
+            )
+        source_zero_based = source_zero_based and (
+            MeshCheckCode.ZERO_BASED_INDEXING not in failures
+        )
+        source_row_major = source_row_major and (
+            MeshCheckCode.ROW_MAJOR_CONNECTIVITY not in failures
+        )
+        connect_out[name] = connect
+
+    return connect_out, source_zero_based, source_row_major
 
 
 def extract_surf_mesh(
@@ -2434,40 +2424,13 @@ def extract_surf_mesh(
     if mesh_in.coords is None:
         raise ValueError("Surface extraction requires coords.")
 
-    connect_norm: dict[str, np.ndarray] = {}
-    source_zero_based = True
-    source_row_major = True
-    shift_all = _check_mesh_needs_zero_based_shift(mesh_in, mesh_in.coords.shape[0])
-
-    for name, connect_raw in mesh_in.connect.items():
-        connect = _enforce_connect_array_format(connect_raw, name)
-        if _check_transpose_needed(connect, name, mesh_in):
-            source_row_major = False
-            connect = connect.T
-        legacy_connect = _check_table_needs_zero_based_shift(
-            connect,
-            mesh_in.coords.shape[0],
-            shift_all,
-        )
-        if legacy_connect:
-            source_zero_based = False
-            connect = connect - 1
-        if not _check_indices_zero_based(connect, mesh_in.coords.shape[0]):
-            raise ValueError(
-                (
-                    f"Connectivity table '{name}' contains invalid indices "
-                    f"for surface extraction."
-                )
-            )
-        connect = _enforce_node_order_table(connect, mesh_in.coords)
-        connect_norm[name] = _enforce_right_handed_table(
-            _enforce_ccw_winding_table(connect, mesh_in.coords),
-            mesh_in.coords,
-        )
+    connect_norm, source_zero_based, source_row_major = (
+        _prepare_extraction_connectivity(mesh_in)
+    )
 
     surf_connect_global: dict[str, np.ndarray] = {}
     surf_elem_sources: dict[str, np.ndarray] = {}
-    surf_node_inds = np.array([], dtype=np.int64)
+    surf_node_blocks: list[np.ndarray] = []
 
     for name, connect in connect_norm.items():
         (surf_faces, surf_parent_elem_inds) = _extract_surface_faces_from_table(
@@ -2477,12 +2440,20 @@ def extract_surf_mesh(
         surf_connect_global[name] = surf_faces
         surf_elem_sources[name] = surf_parent_elem_inds
         if surf_faces.size:
-            surf_node_inds = np.union1d(surf_node_inds, np.unique(surf_faces))
+            surf_node_blocks.append(surf_faces.reshape(-1))
+
+    if surf_node_blocks:
+        surf_node_inds = np.unique(np.concatenate(surf_node_blocks))
+    else:
+        surf_node_inds = np.array([], dtype=np.int64)
 
     surf_coords = np.ascontiguousarray(mesh_in.coords[surf_node_inds], 
                                        dtype=mesh_in.coords.dtype)
     coord_remap = np.full(mesh_in.coords.shape[0], -1, dtype=np.int64)
-    coord_remap[surf_node_inds] = np.arange(surf_node_inds.shape[0], dtype=np.int64)
+    coord_remap[surf_node_inds] = np.arange(
+        surf_node_inds.shape[0],
+        dtype=np.int64,
+    )
 
     surf_connect_local: dict[str, np.ndarray] = {}
     for name, surf_faces in surf_connect_global.items():
@@ -2491,6 +2462,7 @@ def extract_surf_mesh(
     surf_mesh = _copy_sim_data(mesh_in)
     surf_mesh.coords = surf_coords
     surf_mesh.connect = surf_connect_local
+    surf_mesh.side_sets = None
     surf_mesh.refresh_mesh_type()
 
     if mesh_in.node_vars is not None:
@@ -2533,64 +2505,37 @@ def extract_surf_between(
     if mesh_in.coords is None:
         raise ValueError("Surface extraction requires coords.")
 
-    # Format point and normal to 3D arrays
-    point_arr = np.zeros(3, dtype=np.float64)
-    point_arr[:len(point)] = point
-
-    normal_arr = np.zeros(3, dtype=np.float64)
-    normal_arr[:len(normal)] = normal
-    norm_val = np.linalg.norm(normal_arr)
-    if norm_val < _TOL.geometry:
+    point_array = _enforce_vector3(point, "point")
+    normal_array = _enforce_vector3(normal, "normal")
+    normal_magnitude = np.linalg.norm(normal_array)
+    if normal_magnitude < _TOL.geometry:
         raise ValueError("Normal vector cannot be zero.")
-    normal_arr = normal_arr / norm_val
+    normal_array = normal_array / normal_magnitude
 
-    # Project coordinates along normal relative to point
-    diff = mesh_in.coords - point_arr
-    proj = diff @ normal_arr
+    if not np.isfinite(tolerance) or tolerance < 0.0:
+        raise ValueError("'tolerance' must be a finite non-negative value.")
+    if distance is not None and not np.isfinite(distance):
+        raise ValueError("'distance' must be finite when provided.")
+
+    coordinate_offsets = mesh_in.coords - point_array
+    projections = coordinate_offsets @ normal_array
 
     # Determine bounds
     if distance is not None:
-        d = float(distance)
-        min_bound = min(0.0, d) - tolerance
-        max_bound = max(0.0, d) + tolerance
+        plane_distance = float(distance)
+        min_bound = min(0.0, plane_distance) - tolerance
+        max_bound = max(0.0, plane_distance) + tolerance
     else:
         min_bound = -tolerance
         max_bound = tolerance
 
-    connect_norm: dict[str, np.ndarray] = {}
-    source_zero_based = True
-    source_row_major = True
-    shift_all = _check_mesh_needs_zero_based_shift(
-        mesh_in, mesh_in.coords.shape[0]
+    connect_norm, source_zero_based, source_row_major = (
+        _prepare_extraction_connectivity(mesh_in)
     )
-
-    for name, connect_raw in mesh_in.connect.items():
-        connect = _enforce_connect_array_format(connect_raw, name)
-        if _check_transpose_needed(connect, name, mesh_in):
-            source_row_major = False
-            connect = connect.T
-        legacy_connect = _check_table_needs_zero_based_shift(
-            connect,
-            mesh_in.coords.shape[0],
-            shift_all,
-        )
-        if legacy_connect:
-            source_zero_based = False
-            connect = connect - 1
-        if not _check_indices_zero_based(connect, mesh_in.coords.shape[0]):
-            raise ValueError(
-                f"Connectivity table '{name}' contains invalid indices "
-                "for surface extraction."
-            )
-        connect = _enforce_node_order_table(connect, mesh_in.coords)
-        connect_norm[name] = _enforce_right_handed_table(
-            _enforce_ccw_winding_table(connect, mesh_in.coords),
-            mesh_in.coords,
-        )
 
     surf_connect_global: dict[str, np.ndarray] = {}
     surf_elem_sources: dict[str, np.ndarray] = {}
-    surf_node_inds = np.array([], dtype=np.int64)
+    surf_node_blocks: list[np.ndarray] = []
 
     for name, connect in connect_norm.items():
         nodes_per_elem = connect.shape[1]
@@ -2616,9 +2561,10 @@ def extract_surf_between(
         if candidate_faces.size == 0:
             continue
 
-        face_projs = proj[candidate_faces]
+        face_projections = projections[candidate_faces]
         in_bounds = np.all(
-            (face_projs >= min_bound) & (face_projs <= max_bound),
+            (face_projections >= min_bound)
+            & (face_projections <= max_bound),
             axis=1
         )
 
@@ -2628,9 +2574,12 @@ def extract_surf_between(
         if filtered_faces.size > 0:
             surf_connect_global[name] = filtered_faces
             surf_elem_sources[name] = filtered_parents
-            surf_node_inds = np.union1d(
-                surf_node_inds, np.unique(filtered_faces)
-            )
+            surf_node_blocks.append(filtered_faces.reshape(-1))
+
+    if surf_node_blocks:
+        surf_node_inds = np.unique(np.concatenate(surf_node_blocks))
+    else:
+        surf_node_inds = np.array([], dtype=np.int64)
 
     if len(surf_connect_global) == 0 or surf_node_inds.size == 0:
         raise ValueError(
@@ -2654,6 +2603,7 @@ def extract_surf_between(
     surf_mesh.coords = surf_coords
     surf_mesh.connect = surf_connect_local
     surf_mesh.side_sets = None
+    surf_mesh.refresh_mesh_type()
 
     if mesh_in.node_vars is not None:
         surf_mesh.node_vars = {

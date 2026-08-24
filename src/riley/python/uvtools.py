@@ -32,9 +32,9 @@ def project_uvs_planar_bbox(
     texture_size: tuple[int, int] | tuple[float, float],
     px_bbox: tuple[float, float, float, float],
     projection_plane: EProjectionPlane | tuple[np.ndarray, np.ndarray],
-    *,
     mode: EPlanarProjectionMode = EPlanarProjectionMode.BEST,
 ) -> np.ndarray:
+
     coords_in = np.ascontiguousarray(coords, dtype=np.float64)
     origin, u_axis, v_axis = _resolve_projection_axes(projection_plane)
 
@@ -84,12 +84,12 @@ def project_uvs_planar_bbox(
 def project_uvs_planar_centered(
     coords: np.ndarray,
     texture_size: tuple[int, int] | tuple[float, float],
-    *,
     uv_span_max: float = 1.0,
     projection_plane: EProjectionPlane | tuple[np.ndarray, np.ndarray] = (
         EProjectionPlane.XY
     ),
 ) -> np.ndarray:
+
     coords_in = np.ascontiguousarray(coords, dtype=np.float64)
     tex_w = float(texture_size[0])
     tex_h = float(texture_size[1])
@@ -154,6 +154,7 @@ def project_uvs_planar_centered(
 def _resolve_projection_axes(
     projection_plane: EProjectionPlane | tuple[np.ndarray, np.ndarray],
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+
     if isinstance(projection_plane, EProjectionPlane):
         if projection_plane == EProjectionPlane.XY:
             origin = np.array((0.0, 0.0, 0.0), dtype=np.float64)

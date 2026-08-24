@@ -258,6 +258,62 @@ def test_explicit_mesh_convention_reorders_source_slots() -> None:
     assert not meshconv.check_mesh_convention(mesh_out)
 
 
+@pytest.mark.parametrize(
+    ("permutation", "error", "message"),
+    (
+        ((0, 1, 2), ValueError, "requires a 4-slot"),
+        ((0, 1, 1, 3), ValueError, "exactly once"),
+        ((0, 1, 2, 3.0), TypeError, "integers"),
+    ),
+)
+def test_mesh_convention_rejects_invalid_permutations(
+    permutation: tuple[object, ...],
+    error: type[Exception],
+    message: str,
+) -> None:
+    with pytest.raises(error, match=message):
+        meshconv.MeshConvention({
+            meshconv.EElementType.QUAD4: permutation,
+        })
+
+
+def test_mesh_convention_defensively_copies_its_mapping() -> None:
+    permutations = {
+        meshconv.EElementType.QUAD4: (0, 1, 2, 3),
+    }
+    convention = meshconv.MeshConvention(permutations)
+
+    permutations[meshconv.EElementType.QUAD4] = (0, 3, 2, 1)
+
+    assert convention.permutation_for(meshconv.EElementType.QUAD4) == (
+        0,
+        1,
+        2,
+        3,
+    )
+    with pytest.raises(TypeError):
+        convention.source_to_riley_permutations[
+            meshconv.EElementType.QUAD4
+        ] = (0, 3, 2, 1)
+
+
+def test_coincident_nodes_do_not_bypass_node_role_validation() -> None:
+    coords = np.array(
+        (
+            (0.0, 0.0, 0.0),
+            (1.0, 0.0, 0.0),
+            (0.0, 1.0, 0.0),
+            (0.5, 0.5, 0.0),
+            (0.5, 0.0, 0.0),
+            (0.5, 0.0, 0.0),
+        ),
+        dtype=np.float64,
+    )
+    spec = _meshconv.ELEMENT_SPECS[meshconv.EElementType.TRI6]
+
+    assert not _meshconv._check_canonical_node_roles(coords, spec)
+
+
 @pytest.mark.parametrize("cube_name", SUPPORTED_CUBES)
 def test_canonical_cube_meshes_pass_and_enforcement_is_idempotent(
     cube_name: str,
@@ -292,6 +348,65 @@ def test_extracted_cube_surface_passes_convention_check(cube_name: str) -> None:
     )
 
     assert not meshconv.check_mesh_convention(surface)
+
+
+def test_surface_extraction_clears_volume_side_sets() -> None:
+    mesh = _load_cube("hex8")
+    mesh.side_sets = {("surface", "connect1"): np.array((0,), dtype=np.int64)}
+
+    surface = meshconv.extract_surf_mesh(mesh)
+
+    assert surface.side_sets is None
+
+
+def test_surface_slice_sets_surface_mesh_type() -> None:
+    mesh = _load_cube("hex8")
+    mesh.mesh_type = meshconv.EMeshType.VOL
+
+    surface = meshconv.extract_surf_between(
+        mesh,
+        point=(0.0, 0.0, 0.0),
+        normal=(0.0, 0.0, 1.0),
+    )
+
+    assert surface.mesh_type is meshconv.EMeshType.SURF
+
+
+def test_surface_slice_uses_first_three_vector_components() -> None:
+    mesh = _load_cube("hex8")
+
+    surface = meshconv.extract_surf_between(
+        mesh,
+        point=(0.0, 0.0, 0.0, 10.0),
+        normal=(0.0, 0.0, 1.0, 10.0),
+    )
+
+    assert surface.connect is not None
+
+
+@pytest.mark.parametrize(
+    ("argument", "value", "message"),
+    (
+        ("point", (0.0, 0.0), "at least three"),
+        ("normal", (0.0, np.inf, 1.0), "finite"),
+        ("tolerance", -1.0, "non-negative"),
+        ("distance", np.nan, "finite"),
+    ),
+)
+def test_surface_slice_rejects_invalid_arguments(
+    argument: str,
+    value: object,
+    message: str,
+) -> None:
+    mesh = _load_cube("hex8")
+    arguments: dict[str, object] = {
+        "point": (0.0, 0.0, 0.0),
+        "normal": (0.0, 0.0, 1.0),
+    }
+    arguments[argument] = value
+
+    with pytest.raises(ValueError, match=message):
+        meshconv.extract_surf_between(mesh, **arguments)
 
 
 @pytest.mark.parametrize("mesh_name", SPHERE_MESHES)

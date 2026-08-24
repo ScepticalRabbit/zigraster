@@ -10,8 +10,9 @@
 
 :func:`check_mesh_convention` reports the failed convention checks for a
 mesh, :func:`enforce_mesh_convention` normalises a mesh to Riley's
-convention, and :func:`extract_surf_mesh`/:func:`extract_surf_between`
-extract surface meshes. All implementation details live in the private
+convention, :func:`infer_mesh_convention` diagnoses source ordering, and
+:func:`extract_surf_mesh`/:func:`extract_surf_between` extract surface
+meshes. All implementation details live in the private
 :mod:`riley.python._meshconv` module.
 """
 
@@ -25,6 +26,7 @@ from riley.python._meshconv import (
     EElementType,
     EMeshType,
     MeshConvention,
+    MeshConventionInferenceError,
     MeshConvCheck,
     SimData,
 )
@@ -47,10 +49,10 @@ def check_mesh_convention(
         (dict of connectivity tables). Each connectivity table must be
         2D with one element per row and one local node per column.
     source_convention : MeshConvention | None, optional
-        A declared mapping from source connectivity slot order to Riley's
-        canonical slot order for specific element types. If provided, node
-        order checks use this mapping instead of inferring from geometry.
-        If None (default), node roles are inferred from element geometry.
+        Source ordering for specific element types. Each permutation satisfies
+        ``riley_row[target_slot] = source_row[permutation[target_slot]]``.
+        Omitted element types are assumed to use Riley ordering. If None, all
+        connectivity is assumed to use Riley ordering.
 
     Returns
     -------
@@ -100,10 +102,10 @@ def enforce_mesh_convention(
     mesh_in : SimData
         The mesh to normalize. Must have ``coords`` and ``connect`` set.
     source_convention : MeshConvention | None, optional
-        A declared mapping from source connectivity slot order to Riley's
-        canonical slot order for specific element types. If provided, node
-        order corrections use this mapping instead of inferring from geometry.
-        If None (default), node roles are inferred from element geometry.
+        Source ordering for specific element types. Each permutation satisfies
+        ``riley_row[target_slot] = source_row[permutation[target_slot]]``.
+        Omitted element types are assumed to use Riley ordering. If None, all
+        connectivity is assumed to use Riley ordering.
 
     Returns
     -------
@@ -147,6 +149,31 @@ def enforce_mesh_convention(
     True
     """
     return _meshconv.enforce_mesh_convention(mesh_in, source_convention)
+
+
+def infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
+    """Infer a source convention from affine element geometry.
+
+    Inference is intentionally conservative and rejects ambiguous or mixed
+    source layouts. Prefer an explicitly declared :class:`MeshConvention`
+    whenever the source format is known.
+
+    Parameters
+    ----------
+    mesh_in : SimData
+        Mesh whose source connectivity order should be inferred.
+
+    Returns
+    -------
+    MeshConvention
+        Inferred source-slot mapping for each element family in the mesh.
+
+    Raises
+    ------
+    MeshConventionInferenceError
+        If the source node roles cannot be inferred unambiguously.
+    """
+    return _meshconv.infer_mesh_convention(mesh_in)
 
 
 def extract_surf_mesh(
@@ -291,9 +318,11 @@ __all__ = [
     "EMeshType",
     "EElementType",
     "MeshConvention",
+    "MeshConventionInferenceError",
     "SimData",
     "check_mesh_convention",
     "enforce_mesh_convention",
     "extract_surf_mesh",
+    "infer_mesh_convention",
     "extract_surf_between",
 ]
