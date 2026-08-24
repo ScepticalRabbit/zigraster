@@ -15,7 +15,14 @@ from time import perf_counter
 import numpy as np
 import riley
 
-from riley.pydemos.common import make_demo_out_dir
+from riley.pydemos.common import (
+    evenly_spaced_frame_indices,
+    make_demo_out_dir,
+    select_frames,
+)
+
+
+FRAMES_MAX = 8
 
 
 def main() -> None:
@@ -26,6 +33,8 @@ def main() -> None:
     total_threads = 8
 
     coords, connect, uvs, disp = riley.load_sim_csvs(data_dir)
+    frame_indices = evenly_spaced_frame_indices(disp.shape[0], FRAMES_MAX)
+    disp = select_frames(disp, frame_indices)
     texture = riley.load_texture(texture_path)
 
     camera_0, camera_1 = riley.load_stereo_pair(
@@ -56,7 +65,7 @@ def main() -> None:
     )
 
     config = riley.create_raster_config(
-        num_frames=2,
+        num_frames=disp.shape[0],
         total_threads=total_threads,
         save_strategy=riley.SaveStrategy.disk,
     )

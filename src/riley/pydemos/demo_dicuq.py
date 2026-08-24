@@ -14,7 +14,11 @@ from time import perf_counter
 import numpy as np
 import riley
 
-from riley.pydemos.common import make_demo_out_dir
+from riley.pydemos.common import (
+    first_last_frame_indices,
+    make_demo_out_dir,
+    select_frames,
+)
 
 
 def main() -> None:
@@ -38,6 +42,8 @@ def main() -> None:
     }
 
     coords, connect, uvs, disp = riley.load_sim_csvs(data_dir)
+    frame_indices = first_last_frame_indices(disp.shape[0])
+    disp = select_frames(disp, frame_indices)
     texture = riley.load_texture(texture_path)
 
     mesh = riley.Mesh(
@@ -94,7 +100,7 @@ def main() -> None:
     )
 
     config = riley.create_raster_config(
-        num_frames=2,
+        num_frames=disp.shape[0],
         total_threads=total_threads,
         save_strategy=riley.SaveStrategy.disk,
     )
@@ -107,7 +113,12 @@ def main() -> None:
     elapsed_time = perf_counter() - start_time
     print(f"render time: {elapsed_time:.6f} s")
 
-    riley.save_stereo_pair(str(out_dir), "stereo_data_opengl.csv", camera_0, camera_1)
+    riley.save_stereo_pair(
+        str(out_dir),
+        "stereo_data_opengl.csv",
+        camera_0,
+        camera_1,
+    )
     riley.save_stereo_pair(
         str(out_dir),
         "stereo_data_opencv.csv",

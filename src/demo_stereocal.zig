@@ -8,6 +8,7 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 
+const demoframes = @import("dev_support/demoframes.zig");
 const buildconfig = @import("riley/zig/buildconfig.zig");
 const riley = @import("riley/zig/riley.zig");
 const RasterConfig = riley.RasterConfig;
@@ -40,6 +41,7 @@ const FOV_SCALE_FACTOR: F = 1.0;
 const STEREO_ANGLE_DEG: F = 20.0;
 const SUB_SAMPLE: u32 = 2;
 const DICUQ_CAMERA_DIR = "./out/demo-dicuq";
+const FRAMES_MAX: usize = 8;
 
 const TOTAL_THREADS: u16 = 8;
 const RENDER_GROUP_COUNT: u16 = 8;
@@ -105,8 +107,8 @@ pub fn main(init: std.process.Init) !void {
     const config = RasterConfig{
         .render_mode = .offline,
         .total_threads = TOTAL_THREADS,
-        .frame_batch_size_per_group = 8,
-        .max_geom_jobs_in_flight_per_group = 8,
+        .frame_batch_size_per_group = FRAMES_MAX,
+        .max_geom_jobs_in_flight_per_group = FRAMES_MAX,
         .max_geom_workers_per_job = 1,
         .geom_scheduling_mode = .spread,
         .max_raster_workers_per_job = 1,
@@ -160,6 +162,9 @@ pub fn main(init: std.process.Init) !void {
     cwd.createDir(io, "out", .default_dir) catch |err| {
         if (err != error.PathAlreadyExists) return err;
     };
+    cwd.deleteTree(io, OUT_DIR_ROOT) catch |err| {
+        if (err != error.FileNotFound) return err;
+    };
     cwd.createDir(io, OUT_DIR_ROOT, .default_dir) catch |err| {
         if (err != error.PathAlreadyExists) return err;
     };
@@ -178,6 +183,18 @@ pub fn main(init: std.process.Init) !void {
         disp_paths,
     );
     defer sim_data.deinit(aa);
+    const disp_source = sim_data.disp orelse return error.MissingDisplacement;
+    const frame_indices = try demoframes.evenlySpacedIndices(
+        aa,
+        disp_source.getTimeN(),
+        FRAMES_MAX,
+    );
+    var selected_disp = try demoframes.selectFieldFrames(
+        aa,
+        &disp_source,
+        frame_indices,
+    );
+    defer selected_disp.deinit(aa);
 
     var uvs = try uvio.loadUVMap(aa, io, uv_path);
     defer uvs.deinit(aa);
@@ -293,7 +310,7 @@ pub fn main(init: std.process.Init) !void {
         .mesh_type = .tri3,
         .coords = sim_data.coords,
         .connect = sim_data.connect,
-        .disp = sim_data.disp,
+        .disp = selected_disp,
         .shader = .{ .tex_u8 = .{
             .uvs = uvs.array,
             .tex = texture,

@@ -9,6 +9,7 @@
 const std = @import("std");
 const print = std.debug.print;
 
+const demoframes = @import("dev_support/demoframes.zig");
 const buildconfig = @import("riley/zig/buildconfig.zig");
 const riley = @import("riley/zig/riley.zig");
 const RasterConfig = riley.RasterConfig;
@@ -152,6 +153,16 @@ pub fn main(init: std.process.Init) !void {
         null,
         field_files,
     );
+    const disp_source = sim_data.disp orelse return error.MissingDisplacement;
+    const frame_indices = try demoframes.firstLastIndices(
+        aa,
+        disp_source.getTimeN(),
+    );
+    const selected_disp = try demoframes.selectFieldFrames(
+        aa,
+        &disp_source,
+        frame_indices,
+    );
 
     // 3. Load UV map for the texture
     std.debug.print("Loading UV map...\n", .{});
@@ -175,7 +186,7 @@ pub fn main(init: std.process.Init) !void {
         .mesh_type = .quad8,
         .coords = sim_data.coords,
         .connect = sim_data.connect,
-        .disp = sim_data.disp,
+        .disp = selected_disp,
         .shader = .{ .tex_u8 = .{
             .uvs = uvs.array,
             .tex = texture,
@@ -252,6 +263,10 @@ pub fn main(init: std.process.Init) !void {
     std.debug.print("Rendering simulation to {s}/...\n", .{OUT_DIR_ROOT});
     const meshes = [_]MeshInput{mesh_input};
     const cams_in = [_]CameraInput{ cam0_in, cam1_in };
+
+    std.Io.Dir.cwd().deleteTree(io, OUT_DIR_ROOT) catch |err| {
+        if (err != error.FileNotFound) return err;
+    };
 
     const images = try riley.raster(
         aa,

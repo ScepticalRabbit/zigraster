@@ -40,36 +40,42 @@ DEMO_CASES = (
         [str(PYTHON_EXE), "-m", "riley", "demo_sphere200"],
         "out/demo-sphere200",
         "out-riley-py/demo-sphere200",
+        None,
     ),
     (
         "psf",
         [str(PYTHON_EXE), "-m", "riley", "demo_psf"],
         "out/demo-psf",
         "out-riley-py/demo-psf",
+        None,
     ),
     (
         "rabbits",
         [str(PYTHON_EXE), "-m", "riley", "demo_rabbits"],
         "out/demo-rabbits",
         "out-riley-py/demo-rabbits",
+        None,
     ),
     (
         "dicuq",
         [str(PYTHON_EXE), "-m", "riley", "demo_dicuq"],
         "out/demo-dicuq",
         "out-riley-py/demo-dicuq",
+        2,
     ),
     (
         "dic_from_exodus",
         [str(PYTHON_EXE), "-m", "riley", "demo_dic_from_exodus"],
         "out/demo-dicuq",
         "out-riley-py/demo-dicuq-from-exodus",
+        2,
     ),
     (
         "stereocal",
         [str(PYTHON_EXE), "-m", "riley", "demo_stereocal"],
         "out/demo-stereocal",
         "out-riley-py/demo-stereocal",
+        8,
     ),
 )
 
@@ -105,6 +111,24 @@ def _has_bmp_renders(dir_path: Path) -> bool:
     return dir_path.is_dir() and any(dir_path.rglob("*.bmp"))
 
 
+def _has_expected_demo_renders(
+    dir_path: Path,
+    frames_num: int | None,
+) -> bool:
+    if frames_num is None:
+        return _has_bmp_renders(dir_path)
+    expected = {
+        Path(f"cam{camera}_frame{frame}_field0.bmp")
+        for camera in range(2)
+        for frame in range(frames_num)
+    }
+    actual = {
+        path.relative_to(dir_path)
+        for path in dir_path.rglob("*.bmp")
+    } if dir_path.is_dir() else set()
+    return actual == expected
+
+
 def _run_command(label: str, cmd: list[str], env: dict[str, str]) -> float:
     print(f"Running {label}: {' '.join(cmd)}")
     start_time = perf_counter()
@@ -130,9 +154,15 @@ def _compare_renders(path_a: Path, path_b: Path) -> None:
             f"zig={arr_a_raw.shape} python={arr_b_raw.shape}",
         )
 
-    if EXACT_8BIT_COMPARE and arr_a_raw.dtype == np.uint8 and arr_b_raw.dtype == np.uint8:
+    if (
+        EXACT_8BIT_COMPARE
+        and arr_a_raw.dtype == np.uint8
+        and arr_b_raw.dtype == np.uint8
+    ):
         if not np.array_equal(arr_a_raw, arr_b_raw):
-            diff = np.abs(arr_a_raw.astype(np.int16) - arr_b_raw.astype(np.int16))
+            diff = np.abs(
+                arr_a_raw.astype(np.int16) - arr_b_raw.astype(np.int16)
+            )
             raise AssertionError(
                 f"render mismatch for {path_a.name}: "
                 f"max_abs_diff={int(np.max(diff))}, "
@@ -151,10 +181,16 @@ def _compare_renders(path_a: Path, path_b: Path) -> None:
 
 
 def _compare_render_dirs(dir_a: Path, dir_b: Path) -> None:
-    files_a = sorted(path_a.relative_to(dir_a) for path_a in dir_a.rglob("*.bmp"))
-    files_b = sorted(path_b.relative_to(dir_b) for path_b in dir_b.rglob("*.bmp"))
+    files_a = sorted(
+        path_a.relative_to(dir_a) for path_a in dir_a.rglob("*.bmp")
+    )
+    files_b = sorted(
+        path_b.relative_to(dir_b) for path_b in dir_b.rglob("*.bmp")
+    )
     if files_a != files_b:
-        raise AssertionError(f"output file mismatch: zig={files_a}, python={files_b}")
+        raise AssertionError(
+            f"output file mismatch: zig={files_a}, python={files_b}"
+        )
 
     print(f"Comparing renders in {dir_a} against {dir_b}...")
     start_time = perf_counter()
@@ -181,12 +217,12 @@ def ensure_zig_demo_renders() -> None:
 
     force_zig_render = os.environ.get("RILEY_FORCE_ZIG_RENDER", "0") == "1"
     if force_zig_render:
-        for _, _, zig_dir, _ in DEMO_CASES:
+        for _, _, zig_dir, _, _ in DEMO_CASES:
             shutil.rmtree(PROJECT_ROOT / zig_dir, ignore_errors=True)
 
     needs_zig_render = force_zig_render or any(
-        not _has_bmp_renders(PROJECT_ROOT / zig_dir)
-        for _, _, zig_dir, _ in DEMO_CASES
+        not _has_expected_demo_renders(PROJECT_ROOT / zig_dir, frames_num)
+        for _, _, zig_dir, _, frames_num in DEMO_CASES
     )
 
     if needs_zig_render:
@@ -196,7 +232,7 @@ def ensure_zig_demo_renders() -> None:
 
 
 @pytest.mark.parametrize(
-    ("case_name", "python_cmd", "zig_dir", "py_dir"),
+    ("case_name", "python_cmd", "zig_dir", "py_dir", "frames_num"),
     DEMO_CASES,
     ids=[case[0] for case in DEMO_CASES],
 )
@@ -205,9 +241,13 @@ def test_demo_parity(
     python_cmd: list[str],
     zig_dir: str,
     py_dir: str,
+    frames_num: int | None,
 ) -> None:
+    del frames_num
     if case_name == "dic_from_exodus" and find_spec("pyvale") is None:
-        pytest.skip("pyvale is required for the exodus Python demo parity test.")
+        pytest.skip(
+            "pyvale is required for the exodus Python demo parity test."
+        )
 
     silent_env = dict(os.environ)
     silent_env["RILEY_DEMO_SILENT"] = "1"

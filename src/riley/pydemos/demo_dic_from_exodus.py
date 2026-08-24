@@ -17,13 +17,18 @@ from pyvale.mooseherder import ExodusLoader
 from pyvale.sensorsim import extract_surf_mesh
 import riley
 
-from riley.pydemos.common import make_demo_out_dir
+from riley.pydemos.common import (
+    first_last_frame_indices,
+    make_demo_out_dir,
+    select_frames,
+)
 
 
 def load_surface_sim(
     exodus_path: Path,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    sim_data = ExodusLoader(exodus_path, enforce_convention=True).load_all_sim_data()
+    loader = ExodusLoader(exodus_path, enforce_convention=True)
+    sim_data = loader.load_all_sim_data()
     surface_data = extract_surf_mesh(sim_data, enforce_convention=True)
 
     connect_keys = sorted(surface_data.connect.keys())
@@ -69,6 +74,8 @@ def main() -> None:
     }
 
     coords, connect, disp = load_surface_sim(exodus_path)
+    frame_indices = first_last_frame_indices(disp.shape[0])
+    disp = select_frames(disp, frame_indices)
     uvs = riley.project_uvs_planar_centered(
         coords,
         pixels_num,
@@ -134,7 +141,7 @@ def main() -> None:
     )
 
     config = riley.create_raster_config(
-        num_frames=2,
+        num_frames=disp.shape[0],
         total_threads=total_threads,
         save_strategy=riley.SaveStrategy.disk,
     )
@@ -147,7 +154,12 @@ def main() -> None:
     elapsed_time = perf_counter() - start_time
     print(f"render time: {elapsed_time:.6f} s")
 
-    riley.save_stereo_pair(str(out_dir), "stereo_data_opengl.csv", camera_0, camera_1)
+    riley.save_stereo_pair(
+        str(out_dir),
+        "stereo_data_opengl.csv",
+        camera_0,
+        camera_1,
+    )
     riley.save_stereo_pair(
         str(out_dir),
         "stereo_data_opencv.csv",
