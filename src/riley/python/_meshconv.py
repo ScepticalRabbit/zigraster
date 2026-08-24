@@ -2221,6 +2221,10 @@ def enforce_mesh_convention(
     - CCW node ordering when viewed from the outward/visible side
     - Right-handed geometry conventions
     - Check that all indices in the connectivity table map to a row in coords
+
+    Only the conditions flagged by :func:`check_mesh_convention` are fixed,
+    and they are fixed in canonical condition order so the result never
+    depends on the report ordering.
     """
 
     report = check_mesh_convention(mesh_in, source_convention)
@@ -2232,56 +2236,65 @@ def enforce_mesh_convention(
     if mesh_in.coords is None:
         raise ValueError("Mesh convention enforcement requires coords.")
 
-    connect_out: dict[str, np.ndarray] = {}
-    shift_all = _check_mesh_needs_zero_based_shift(mesh_in, mesh_in.coords.shape[0])
+    num_coords = mesh_in.coords.shape[0]
     surface_only = _check_surface_mesh_type(mesh_in.mesh_type)
+    orientation_codes = frozenset((
+        MeshCheckCode.CCW_WINDING,
+        MeshCheckCode.RIGHT_HANDED_GEOMETRY,
+        MeshCheckCode.SURFACE_TOPOLOGY,
+    ))
 
+    connect_out: dict[str, np.ndarray] = {}
     for name, connect_raw in mesh_in.connect.items():
+        failures = frozenset(report.get(name, ()))
         connect = _enforce_connect_array_format(connect_raw, name)
 
-        if _check_transpose_needed(connect, name, mesh_in):
-            connect = connect.T
-
-        legacy_connect = _check_table_needs_zero_based_shift(
-            connect,
-            mesh_in.coords.shape[0],
-            shift_all,
-        )
-        if legacy_connect:
-            connect = connect - 1
-
-        if not _check_indices_zero_based(connect, mesh_in.coords.shape[0]):
+        if MeshCheckCode.CONNECTIVITY_INDICES in failures:
             raise ValueError(
                 "Connectivity table "
                 f"'{name}' contains indices outside the coordinate array after "
                 "0-based normalization."
             )
 
-        connect = _enforce_node_order_table(
-            connect,
-            mesh_in.coords,
-            surface_only=surface_only,
-            source_convention=source_convention,
-        )
-        if _check_surface_connectivity_table(
-            connect,
-            mesh_in.coords,
-            surface_only=surface_only,
-        ):
-            connect = _enforce_surface_orientation_table(connect, mesh_in.coords)
-        else:
-            connect = _enforce_ccw_winding_table(
+        if MeshCheckCode.ROW_MAJOR_CONNECTIVITY in failures:
+            connect = connect.T
+
+        if MeshCheckCode.ZERO_BASED_INDEXING in failures:
+            connect = connect - 1
+
+        if MeshCheckCode.NODE_ORDER in failures:
+            connect = _enforce_node_order_table(
                 connect,
                 mesh_in.coords,
                 surface_only=surface_only,
-            )
-            connect = _enforce_right_handed_table(
-                connect,
-                mesh_in.coords,
-                surface_only=surface_only,
+                source_convention=source_convention,
             )
 
-        if not _check_indices_zero_based(connect, mesh_in.coords.shape[0]):
+        if failures & orientation_codes:
+            if _check_surface_connectivity_table(
+                connect,
+                mesh_in.coords,
+                surface_only=surface_only,
+            ):
+                connect = _enforce_surface_orientation_table(
+                    connect,
+                    mesh_in.coords,
+                )
+            else:
+                if MeshCheckCode.CCW_WINDING in failures:
+                    connect = _enforce_ccw_winding_table(
+                        connect,
+                        mesh_in.coords,
+                        surface_only=surface_only,
+                    )
+                if MeshCheckCode.RIGHT_HANDED_GEOMETRY in failures:
+                    connect = _enforce_right_handed_table(
+                        connect,
+                        mesh_in.coords,
+                        surface_only=surface_only,
+                    )
+
+        if not _check_indices_zero_based(connect, num_coords):
             raise ValueError(
                 "Connectivity table "
                 f"'{name}' became invalid during mesh convention enforcement."

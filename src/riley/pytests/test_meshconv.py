@@ -115,6 +115,125 @@ def test_enforce_mesh_convention_fixes_tet_handedness() -> None:
     )
 
 
+def test_enforce_returns_same_object_when_mesh_conforms() -> None:
+    mesh = meshconv.SimData(
+        coords=_quad_coords(),
+        connect={"connect1": np.array(((0, 1, 2, 3),), dtype=np.int64)},
+    )
+    mesh.refresh_mesh_type()
+
+    assert meshconv.enforce_mesh_convention(mesh) is mesh
+
+
+def test_enforce_emits_conforming_sibling_tables_untouched() -> None:
+    coords = np.array(
+        ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0), (0.0, 1.0, 0.0),
+         (2.0, 0.0, 0.0), (3.0, 0.0, 0.0), (3.0, 1.0, 0.0), (2.0, 1.0, 0.0)),
+        dtype=np.float64,
+    )
+    good_connect = np.array(((0, 1, 2, 3),), dtype=np.int64)
+    bad_connect = np.array(((4, 7, 6, 5),), dtype=np.int64)
+    fixed_connect = np.array(((4, 5, 6, 7),), dtype=np.int64)
+    mesh = meshconv.SimData(
+        coords=coords,
+        connect={"connect_good": good_connect, "connect_bad": bad_connect},
+    )
+
+    mesh_out = meshconv.enforce_mesh_convention(mesh)
+
+    assert mesh_out is not mesh
+    assert mesh_out.connect is not None
+    assert np.array_equal(mesh_out.connect["connect_good"], good_connect)
+    assert np.array_equal(mesh_out.connect["connect_bad"], fixed_connect)
+    assert mesh.connect is not None
+    assert np.array_equal(mesh.connect["connect_bad"], bad_connect)
+
+
+def test_enforce_reports_indices_outside_coordinate_array() -> None:
+    mesh = meshconv.SimData(
+        coords=_quad_coords(),
+        connect={"connect1": np.array(((0, 1, 2, 10),), dtype=np.int64)},
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="contains indices outside the coordinate array",
+    ):
+        meshconv.enforce_mesh_convention(mesh)
+
+
+def test_enforce_propagates_zero_volume_topology_errors() -> None:
+    coords = np.array(
+        ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (2.0, 0.5, 0.0)),
+        dtype=np.float64,
+    )
+    mesh = meshconv.SimData(
+        coords=coords,
+        connect={
+            "connect1": np.array(
+                ((0, 1, 2), (0, 3, 1), (0, 2, 3), (1, 3, 2)), dtype=np.int64,
+            ),
+        },
+        mesh_type=meshconv.EMeshType.SURF,
+    )
+
+    with pytest.raises(ValueError, match="zero signed volume"):
+        meshconv.enforce_mesh_convention(mesh)
+
+
+def test_enforce_tolerates_nonmanifold_surface_slices() -> None:
+    """Non-manifold slices have no orientable shell; consistently wound input
+    falls back to the per-face behaviour and passes untouched."""
+
+    coords = np.array(
+        ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0),
+         (0.0, -1.0, 0.5), (0.0, 0.0, -1.0)),
+        dtype=np.float64,
+    )
+    mesh = meshconv.SimData(
+        coords=coords,
+        connect={
+            "connect1": np.array(((0, 1, 2), (0, 3, 1), (0, 1, 4)), dtype=np.int64),
+        },
+        mesh_type=meshconv.EMeshType.SURF,
+    )
+
+    assert not meshconv.check_mesh_convention(mesh)
+    assert meshconv.enforce_mesh_convention(mesh) is mesh
+
+
+def test_enforce_fixes_mirrored_hex_handedness_and_is_idempotent() -> None:
+    coords = np.array(
+        ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (1.0, 1.0, 0.0), (0.0, 1.0, 0.0),
+         (0.0, 0.0, 1.0), (1.0, 0.0, 1.0), (1.0, 1.0, 1.0), (0.0, 1.0, 1.0)),
+        dtype=np.float64,
+    )
+    mirrored_row = np.array((0, 3, 2, 1, 4, 7, 6, 5), dtype=np.int64)[None, :]
+    report = meshconv.check_mesh_convention(
+        meshconv.SimData(coords=coords, connect={"connect1": mirrored_row}),
+    )
+    assert set(report["connect1"]) == {meshconv.MeshCheckCode.RIGHT_HANDED_GEOMETRY}
+
+    def hex_volume(row: np.ndarray) -> float:
+        points = coords[row[0, :]]
+        return float(np.linalg.det(np.column_stack((
+            points[1] - points[0], points[3] - points[0], points[4] - points[0],
+        ))))
+
+    assert hex_volume(mirrored_row) < 0.0
+
+    mesh = meshconv.SimData(coords=coords, connect={"connect1": mirrored_row})
+    mesh_out = meshconv.enforce_mesh_convention(mesh)
+
+    assert mesh_out.connect is not None
+    assert not meshconv.check_mesh_convention(mesh_out)
+    assert hex_volume(mesh_out.connect["connect1"]) > 0.0
+    assert np.array_equal(
+        meshconv.enforce_mesh_convention(mesh_out).connect["connect1"],
+        mesh_out.connect["connect1"],
+    )
+
+
 def test_explicit_mesh_convention_reorders_source_slots() -> None:
     mesh = _load_cube("hex20")
     assert mesh.connect is not None
