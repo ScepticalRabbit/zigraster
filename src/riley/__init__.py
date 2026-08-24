@@ -70,6 +70,7 @@ from riley.python.meshio import (
     EConnectIndexing,
     ECoordCsvOrientation,
     EFieldCsvOrientation,
+    SimCsvData,
 )
 from riley.python.helpers import create_raster_config, load_texture
 from riley.python.meshio import (
@@ -85,16 +86,19 @@ from riley.python.meshconv import (
     EElementType,
     EMeshType,
     MeshConvention,
+    MeshConventionInferenceError,
     MeshConvCheck,
     SimData,
     check_mesh_convention,
     enforce_mesh_convention,
     extract_surf_between,
     extract_surf_mesh,
+    infer_mesh_convention,
 )
 from riley.python.uvtools import (
     EPlanarProjectionMode,
     EProjectionPlane,
+    ProjectionPlane,
     project_uvs_planar_bbox,
     project_uvs_planar_centered,
 )
@@ -111,6 +115,7 @@ __all__ = [
     "EFieldCsvOrientation",
     "EPlanarProjectionMode",
     "EProjectionPlane",
+    "ProjectionPlane",
     "HullMode",
     "Mesh",
     "MeshInput",
@@ -141,12 +146,15 @@ __all__ = [
     "EElementType",
     "EMeshType",
     "MeshConvention",
+    "MeshConventionInferenceError",
     "MeshConvCheck",
     "SimData",
+    "SimCsvData",
     "check_mesh_convention",
     "enforce_mesh_convention",
     "extract_surf_between",
     "extract_surf_mesh",
+    "infer_mesh_convention",
     "load_connect_csv",
     "load_coord_csv",
     "load_disp_csvs",

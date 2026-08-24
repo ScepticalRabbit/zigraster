@@ -11,6 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 import riley
 
@@ -98,12 +99,74 @@ def test_load_sim_csvs_round_trip(tmp_path: Path) -> None:
     _save_csv(tmp_path / "field_disp_y.csv", disp_y)
     _save_csv(tmp_path / "field_disp_z.csv", disp_z)
 
-    coords_loaded, connect_loaded, uvs_loaded, disp_loaded = riley.load_sim_csvs(
-        tmp_path,
-    )
+    sim_data = riley.load_sim_csvs(tmp_path)
+    coords_loaded, connect_loaded, uvs_loaded, disp_loaded = sim_data
+
+    assert sim_data.coords is coords_loaded
 
     np.testing.assert_allclose(coords_loaded, coords)
     np.testing.assert_array_equal(connect_loaded, connect.astype(np.uintp))
     np.testing.assert_allclose(uvs_loaded, uvs)
     assert disp_loaded is not None
     assert disp_loaded.shape == (1, 3, 3)
+
+
+def test_load_connect_csv_rejects_fractional_indices(tmp_path: Path) -> None:
+    _save_csv(tmp_path / "connect.csv", np.array(((0.0, 1.5, 2.0),)))
+
+    with pytest.raises(ValueError, match="integer"):
+        riley.load_connect_csv(tmp_path / "connect.csv")
+
+
+def test_load_connect_csv_auto_rejects_ambiguous_table(tmp_path: Path) -> None:
+    _save_csv(tmp_path / "connect.csv", np.array(((1.0, 2.0, 3.0),)))
+
+    with pytest.raises(ValueError, match="ambiguous"):
+        riley.load_connect_csv(tmp_path / "connect.csv")
+
+
+@pytest.mark.parametrize("indices", [((-1.0, 0.0, 1.0),), ((0.0, 1.0, 3.0),)])
+def test_load_connect_csv_rejects_invalid_range(
+    tmp_path: Path,
+    indices: tuple[tuple[float, ...], ...],
+) -> None:
+    _save_csv(tmp_path / "connect.csv", np.asarray(indices))
+
+    with pytest.raises(ValueError, match="negative|out-of-range"):
+        riley.load_connect_csv(
+            tmp_path / "connect.csv",
+            indexing=riley.EConnectIndexing.ZERO_BASED,
+            node_count=3,
+        )
+
+
+def test_load_disp_csvs_rejects_supplied_missing_path(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="x-component"):
+        riley.load_disp_csvs(tmp_path / "missing.csv", None, None)
+
+
+def test_load_coord_csv_rejects_non_finite_values(tmp_path: Path) -> None:
+    _save_csv(tmp_path / "coords.csv", np.array(((0.0, np.nan, 1.0),)))
+
+    with pytest.raises(ValueError, match="non-finite"):
+        riley.load_coord_csv(tmp_path / "coords.csv")
+
+
+def test_load_sim_csvs_rejects_mismatched_uv_nodes(tmp_path: Path) -> None:
+    _save_csv(tmp_path / "coords.csv", np.zeros((3, 3)))
+    _save_csv(tmp_path / "connect.csv", np.array(((0.0, 1.0, 2.0),)))
+    _save_csv(tmp_path / "uvs.csv", np.zeros((2, 2)))
+
+    with pytest.raises(ValueError, match="UV and coordinate"):
+        riley.load_sim_csvs(tmp_path)
+
+
+def test_load_sim_csvs_rejects_mismatched_displacement_nodes(
+    tmp_path: Path,
+) -> None:
+    _save_csv(tmp_path / "coords.csv", np.zeros((3, 3)))
+    _save_csv(tmp_path / "connect.csv", np.array(((0.0, 1.0, 2.0),)))
+    _save_csv(tmp_path / "field_disp_x.csv", np.zeros((2, 1)))
+
+    with pytest.raises(ValueError, match="Displacement and coordinate"):
+        riley.load_sim_csvs(tmp_path)

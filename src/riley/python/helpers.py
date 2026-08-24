@@ -6,13 +6,22 @@
 #
 # Authors: scepticalrabbit (Lloyd Fletcher)
 # --------------------------------------------------------------------------
-import numpy as np
+from __future__ import annotations
+
+from numbers import Integral
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+import numpy as np
 
 from PIL import Image
 
+if TYPE_CHECKING:
+    from riley.cython.riley import RasterConfig, SaveStrategy
+
 
 def load_texture(texture_path: str | Path) -> np.ndarray:
+    """Load an image as a contiguous eight-bit greyscale texture."""
     with Image.open(Path(texture_path)) as image_in:
         image_grey = image_in.convert("L")
         image_u8 = np.asarray(image_grey, dtype=np.uint8)
@@ -22,12 +31,39 @@ def load_texture(texture_path: str | Path) -> np.ndarray:
 def create_raster_config(
     num_frames: int,
     total_threads: int = 1,
-    save_strategy: int = 2,  # both
-) -> "RasterConfig":
-    from riley.cython.riley import RasterConfig
+    save_strategy: SaveStrategy | int = 2,
+) -> RasterConfig:
+    """Create an offline raster configuration balanced over frames."""
+    from riley.cython.riley import (
+        GeometrySchedulingMode,
+        HullMode,
+        ImageFormat,
+        ImageSaveMode,
+        NewtonSeedMode,
+        NewtonSeedReuse,
+        RasterConfig,
+        RenderMode,
+        ReportMode,
+        SaveStrategy,
+        ScaleStrategy,
+    )
 
-    total_threads = max(1, int(total_threads))
-    frames_available = max(1, int(num_frames))
+    if not isinstance(num_frames, Integral) or isinstance(num_frames, bool):
+        raise TypeError("num_frames must be an integer.")
+    if (
+        not isinstance(total_threads, Integral)
+        or isinstance(total_threads, bool)
+    ):
+        raise TypeError("total_threads must be an integer.")
+    if num_frames <= 0:
+        raise ValueError("num_frames must be positive.")
+    if total_threads <= 0:
+        raise ValueError("total_threads must be positive.")
+    if not isinstance(save_strategy, (int, SaveStrategy)):
+        raise TypeError("save_strategy must be a SaveStrategy value.")
+
+    frames_available = int(num_frames)
+    total_threads = int(total_threads)
     if total_threads < frames_available:
         render_group_count = total_threads
     else:
@@ -38,17 +74,17 @@ def create_raster_config(
     workers_per_group = total_threads // render_group_count
 
     return RasterConfig(
-        render_mode=1,  # offline
+        render_mode=RenderMode.offline,
         total_threads=total_threads,
-        geom_scheduling_mode=0,  # spread
+        geom_scheduling_mode=GeometrySchedulingMode.spread,
         max_raster_workers_per_job=workers_per_group,
-        save_strategy=save_strategy,
-        image_save_mode=0,  # grey
-        hull_mode=1,  # on_no_fallback
-        newton_seed_mode=0,  # centroid
-        newton_seed_reuse=0,  # off
-        report=1,  # bench
-        save_format=3,  # bmp
+        save_strategy=SaveStrategy(save_strategy),
+        image_save_mode=ImageSaveMode.grey,
+        hull_mode=HullMode.on_no_fallback,
+        newton_seed_mode=NewtonSeedMode.centroid,
+        newton_seed_reuse=NewtonSeedReuse.off,
+        report=ReportMode.bench,
+        save_format=ImageFormat.bmp,
         save_bits=8,
-        save_scaling=1,  # auto
+        save_scaling=ScaleStrategy.auto,
     )
