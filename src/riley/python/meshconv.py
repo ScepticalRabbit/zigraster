@@ -191,13 +191,19 @@ def extract_surf_mesh(
     --------
     >>> from riley.python import meshconv
     >>> import numpy as np
-    >>> # Load a hex8 cube and extract its surface
-    >>> mesh = _load_cube("hex8")  # 8-node hex volume
+    >>> coords = np.array((
+    ...     (0.0, 0.0, 0.0), (1.0, 0.0, 0.0),
+    ...     (1.0, 1.0, 0.0), (0.0, 1.0, 0.0),
+    ...     (0.0, 0.0, 1.0), (1.0, 0.0, 1.0),
+    ...     (1.0, 1.0, 1.0), (0.0, 1.0, 1.0),
+    ... ))
+    >>> connect = np.arange(8, dtype=np.int64).reshape(1, 8)
+    >>> mesh = meshconv.SimData(coords=coords, connect={"connect1": connect})
     >>> surf = meshconv.extract_surf_mesh(mesh)
-    >>> surf.mesh_type
-    <EMeshType.SURF: 'surface'>
-    >>> list(surf.connect.values())[0].shape[1]  # nodes per face
-    4
+    >>> surf.mesh_type is meshconv.EMeshType.SURF
+    True
+    >>> list(surf.connect.values())[0].shape  # (faces, nodes per face)
+    (6, 4)
     """
     return _meshconv.extract_surf_mesh(mesh_in, enforce_convention)
 
@@ -255,13 +261,19 @@ def extract_surf_between(
     --------
     >>> from riley.python import meshconv
     >>> import numpy as np
-    >>> # Extract a cross-section through a sphere at z=0
-    >>> mesh = _load_native_mesh("tri3_sphere200")  # surface mesh
-    >>> slice_mesh = meshconv.extract_surf_between(
-    ...     mesh, point=(0,0,0), normal=(0,0,1), distance=None, tolerance=0.01
+    >>> coords = np.array((
+    ...     (0.0, 0.0, 0.0), (1.0, 0.0, 0.0),
+    ...     (1.0, 1.0, 0.0), (0.0, 1.0, 0.0),
+    ...     (0.0, 0.0, 1.0), (1.0, 0.0, 1.0),
+    ...     (1.0, 1.0, 1.0), (0.0, 1.0, 1.0),
+    ... ))
+    >>> connect = np.arange(8, dtype=np.int64).reshape(1, 8)
+    >>> mesh = meshconv.SimData(coords=coords, connect={"connect1": connect})
+    >>> slab = meshconv.extract_surf_between(
+    ...     mesh, point=(0.0, 0.0, 0.0), normal=(0.0, 0.0, 1.0)
     ... )
-    >>> slice_mesh.coords.shape[0] > 0
-    True
+    >>> slab.connect["connect1"].shape
+    (1, 4)
     """
     return _meshconv.extract_surf_between(
         mesh_in,
