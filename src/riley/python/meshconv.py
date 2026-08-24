@@ -1,10 +1,12 @@
-# ==============================================================================
-# pyvale: the python validation engine
-# License: MIT
-# Copyright (C) 2025 The Computer Aided Validation Team
-# ==============================================================================
-
-"""Riley's dependency-free mesh convention and surface-extraction tools."""
+# --------------------------------------------------------------------------
+# Riley: A High Performance Rasteriser for DIC UQ
+#
+# Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
+# Licensed under the MIT License (see LICENSE file for details)
+#
+# Authors: scepticalrabbit (Lloyd Fletcher)
+# --------------------------------------------------------------------------
+"""Riley's mesh convention and surface-extraction tools."""
 
 from __future__ import annotations
 
@@ -73,7 +75,7 @@ class MeshConvention:
         return self.source_to_riley_permutations.get(element_type)
 
 
-class MeshConventionInferenceError(ValueError):
+class MeshConvError(ValueError):
     """Raised when source node roles cannot be inferred unambiguously."""
 
 
@@ -159,30 +161,41 @@ def _reference_element_coordinates(
     element once, instead of maintaining hand-written permutations in several
     places.
     """
-    if element_type in (EElementType.TRI3, EElementType.TRI6, EElementType.TRI7):
+    if (element_type in (EElementType.TRI3, EElementType.TRI6, 
+        EElementType.TRI7)):
+
         points = ((0., 0.), (1., 0.), (0., 1.), (.5, 0.), (.5, .5), (0., .5))
         if element_type is EElementType.TRI3:
             points = points[:3]
         elif element_type is EElementType.TRI7:
             points += ((1. / 3., 1. / 3.),)
+
         return np.asarray(points, dtype=np.float64)
-    if element_type in (EElementType.QUAD4, EElementType.QUAD8, EElementType.QUAD9):
+
+    if (element_type in (EElementType.QUAD4, EElementType.QUAD8, 
+        EElementType.QUAD9)):
+
         points = ((0., 0.), (1., 0.), (1., 1.), (0., 1.),
                   (.5, 0.), (1., .5), (.5, 1.), (0., .5))
         if element_type is EElementType.QUAD4:
             points = points[:4]
         elif element_type is EElementType.QUAD9:
             points += ((.5, .5),)
+
         return np.asarray(points, dtype=np.float64)
+
     if element_type in (EElementType.TET4, EElementType.TET10):
         points = ((0., 0., 0.), (1., 0., 0.), (0., 1., 0.), (0., 0., 1.),
                   (.5, 0., 0.), (.5, .5, 0.), (0., .5, 0.),
                   (0., 0., .5), (.5, 0., .5), (0., .5, .5))
+
         return np.asarray(
             points[:4] if element_type is EElementType.TET4 else points,
             dtype=np.float64,
         )
-    if element_type in (EElementType.HEX8, EElementType.HEX20, EElementType.HEX27):
+
+    if (element_type in (EElementType.HEX8, EElementType.HEX20, 
+        EElementType.HEX27)):
         points = ((0., 0., 0.), (1., 0., 0.), (1., 1., 0.), (0., 1., 0.),
                   (0., 0., 1.), (1., 0., 1.), (1., 1., 1.), (0., 1., 1.),
                   (.5, 0., 0.), (1., .5, 0.), (.5, 1., 0.), (0., .5, 0.),
@@ -190,10 +203,13 @@ def _reference_element_coordinates(
                   (0., 0., .5), (1., 0., .5), (1., 1., .5), (0., 1., .5),
                   (.5, 0., .5), (1., .5, .5), (.5, 1., .5), (0., .5, .5),
                   (.5, .5, 0.), (.5, .5, 1.), (.5, .5, .5))
+
         count = ELEMENT_SPECS[element_type].nodes_per_element
+
         if element_type is EElementType.HEX20:
             return np.asarray(points[:20], dtype=np.float64)
         return np.asarray(points[:count], dtype=np.float64)
+
     raise ValueError(f"No reference coordinates for {element_type.value}.")
 
 
@@ -211,6 +227,7 @@ def _orientation_preserving_permutations(
     dimensions = 2 if spec.is_surface else 3
     corners = np.asarray(spec.corner_indices, dtype=np.int64)
     candidates: tuple[tuple[int, ...], ...]
+
     if len(corners) == 8:
         # The proper rotational group of a cube: 3! axis orderings and sign
         # changes with positive determinant, for 24 transformations.
@@ -219,20 +236,24 @@ def _orientation_preserving_permutations(
             parity = 1 if (sum(axes[index] > axes[next_index]
                                for index in range(3)
                                for next_index in range(index + 1, 3)) % 2 == 0) else -1
+
             for signs in product((-1., 1.), repeat=3):
                 if parity * int(np.prod(signs)) < 0:
                     continue
                 transformed = (2.0 * reference - 1.0)[:, axes] * np.asarray(signs)
                 transformed = 0.5 * (transformed + 1.0)
                 candidate_rows.append(_reference_node_permutation(reference, transformed))
+
         candidates = tuple(candidate_rows)
     else:
         rows: list[tuple[int, ...]] = []
         source_corners = reference[corners, :dimensions]
         homogeneous = np.column_stack((source_corners, np.ones(len(corners))))
+
         for corner_permutation in permutations(range(len(corners))):
             target_corners = source_corners[np.asarray(corner_permutation)]
             transform, _, _, _ = np.linalg.lstsq(homogeneous, target_corners, rcond=None)
+
             if np.linalg.det(transform[:dimensions]) <= 0.0:
                 continue
             transformed = np.column_stack((reference[:, :dimensions], np.ones(reference.shape[0]))) @ transform
@@ -241,6 +262,7 @@ def _orientation_preserving_permutations(
             except ValueError:
                 continue
         candidates = tuple(rows)
+
     return tuple(sorted(set(candidates)))
 
 
@@ -1225,7 +1247,7 @@ def infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
     callers must declare those explicitly rather than receive a guessed mesh.
     """
     if mesh_in.coords is None or mesh_in.connect is None:
-        raise MeshConventionInferenceError(
+        raise MeshConvError(
             "Mesh convention inference requires coordinates and connectivity."
         )
 
@@ -1237,7 +1259,7 @@ def infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
         if _needs_zero_based_shift(connect, mesh_in.coords.shape[0]):
             connect = connect - 1
         if not _check_indices_zero_based(connect, mesh_in.coords.shape[0]):
-            raise MeshConventionInferenceError(
+            raise MeshConvError(
                 f"Connectivity table '{name}' has invalid indices."
             )
         nodes_per_element = connect.shape[1]
@@ -1257,7 +1279,7 @@ def infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
                 connect, mesh_in.coords, spec,
             )
         except ValueError as error:
-            raise MeshConventionInferenceError(
+            raise MeshConvError(
                 f"Could not infer '{name}' ({element_type.value}); supply "
                 "MeshConvention explicitly."
             ) from error
@@ -1274,7 +1296,7 @@ def infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
             )
             for permutation in permutations
         ):
-            raise MeshConventionInferenceError(
+            raise MeshConvError(
                 f"Connectivity table '{name}' contains multiple source "
                 f"layouts for {element_type.value}; supply MeshConvention."
             )
@@ -1284,7 +1306,7 @@ def infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
             permutation == tuple(previous[index] for index in symmetry)
             for symmetry in symmetries
         ):
-            raise MeshConventionInferenceError(
+            raise MeshConvError(
                 f"Multiple connectivity tables disagree on the {element_type.value} "
                 "source layout; supply MeshConvention."
             )
@@ -2578,7 +2600,7 @@ __all__ = [
     "EMeshType",
     "EElementType",
     "MeshConvention",
-    "MeshConventionInferenceError",
+    "MeshConvError",
     "ElementSpec",
     "ELEMENT_SPECS",
     "ELEMENT_SYMMETRIES",
