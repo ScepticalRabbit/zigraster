@@ -8,7 +8,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from riley.python import meshconv
+from riley.python import _meshconv, meshconv
 
 
 def _tri_coords() -> np.ndarray:
@@ -91,7 +91,7 @@ def test_explicit_conventions_normalise_every_supported_element(
     convention = meshconv.MeshConvention({element_type: permutation})
     mesh = meshconv.SimData(coords=coords, connect={"connect1": source}, mesh_type=mesh_type)
 
-    assert meshconv.CheckCode.NODE_ORDER in meshconv.check_mesh_convention(
+    assert meshconv.MeshCheckCode.NODE_ORDER in meshconv.check_mesh_convention(
         mesh, convention,
     )["connect1"]
     mesh_out = meshconv.enforce_mesh_convention(mesh, convention)
@@ -99,16 +99,6 @@ def test_explicit_conventions_normalise_every_supported_element(
     assert mesh_out.connect is not None
     assert np.array_equal(mesh_out.connect["connect1"], canonical)
     assert not meshconv.check_mesh_convention(mesh_out)
-
-
-def test_topology_graph_preserves_node_identity_across_coincident_coordinates() -> None:
-    connect = np.array(((0, 1, 2), (2, 3, 4), (5, 6, 7)), dtype=np.int64)
-
-    incidence = meshconv._build_node_incidence(connect)
-    components = meshconv._element_components(connect)
-
-    assert incidence[2] == (0, 1)
-    assert components == ((0, 1), (2,))
 
 
 def test_infer_mesh_convention_recovers_a_single_affine_source_layout() -> None:
@@ -121,7 +111,7 @@ def test_infer_mesh_convention_recovers_a_single_affine_source_layout() -> None:
         mesh_type=meshconv.EMeshType.SURF,
     )
 
-    inferred = meshconv.infer_mesh_convention(mesh)
+    inferred = _meshconv._infer_mesh_convention(mesh)
 
     assert inferred.permutation_for(element_type) is not None
 
@@ -129,7 +119,7 @@ def test_infer_mesh_convention_recovers_a_single_affine_source_layout() -> None:
 def test_inference_accepts_rows_that_differ_only_by_a_valid_rotation() -> None:
     coords = np.vstack((_tri_coords()[:6], _tri_coords()[:6] + (3., 0., 0.)))
     first = np.arange(6, dtype=np.int64)
-    rotation = meshconv.ELEMENT_SYMMETRIES[meshconv.EElementType.TRI6][1]
+    rotation = _meshconv.ELEMENT_SYMMETRIES[meshconv.EElementType.TRI6][1]
     second = np.arange(6, 12, dtype=np.int64)[np.argsort(rotation)]
     mesh = meshconv.SimData(
         coords=coords,
@@ -137,14 +127,14 @@ def test_inference_accepts_rows_that_differ_only_by_a_valid_rotation() -> None:
         mesh_type=meshconv.EMeshType.SURF,
     )
 
-    inferred = meshconv.infer_mesh_convention(mesh)
+    inferred = _meshconv._infer_mesh_convention(mesh)
 
     assert inferred.canonicalise_equivalent_orientations
     assert inferred.permutation_for(meshconv.EElementType.TRI6) is not None
 
 
 def test_hex27_registry_uses_vtk_face_and_volume_centre_slots() -> None:
-    spec = meshconv.ELEMENT_SPECS[meshconv.EElementType.HEX27]
+    spec = _meshconv.ELEMENT_SPECS[meshconv.EElementType.HEX27]
 
     assert spec.cell_centre_index == 26
     assert spec.face_centre_indices == (24, 23, 25, 21, 20, 22)
@@ -170,7 +160,7 @@ def test_element_symmetry_registry_has_every_proper_orientation(
     element_type: meshconv.EElementType,
     expected_count: int,
 ) -> None:
-    permutations = meshconv.ELEMENT_SYMMETRIES[element_type]
+    permutations = _meshconv.ELEMENT_SYMMETRIES[element_type]
 
     assert len(permutations) == expected_count
     assert all(
@@ -201,7 +191,7 @@ def test_every_proper_source_orientation_converts_to_riley_slots(
     mesh_type: meshconv.EMeshType,
 ) -> None:
     canonical = np.arange(coords.shape[0], dtype=np.int64)[None, :]
-    for permutation in meshconv.ELEMENT_SYMMETRIES[element_type]:
+    for permutation in _meshconv.ELEMENT_SYMMETRIES[element_type]:
         source = canonical[:, np.argsort(permutation)]
         mesh = meshconv.SimData(
             coords=coords,

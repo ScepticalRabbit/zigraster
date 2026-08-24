@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from riley.python import meshconv
+from riley.python import _meshconv, meshconv
 
 
 DATA_DIR = Path(__file__).resolve().parents[3] / "data"
@@ -29,16 +29,16 @@ SPHERE_MESHES = (
 
 def test_element_specs_are_complete_and_mapping_is_read_only() -> None:
     assert {
-        spec.nodes_per_element for spec in meshconv.ELEMENT_SPECS.values()
+        spec.nodes_per_element for spec in _meshconv.ELEMENT_SPECS.values()
     } == {3, 4, 6, 7, 8, 9, 10, 20, 27}
     assert (
-        meshconv.ELEMENT_SPECS[meshconv.EElementType.HEX27].centre_index
+        _meshconv.ELEMENT_SPECS[meshconv.EElementType.HEX27].centre_index
         is None
     )
 
     with pytest.raises(TypeError):
-        meshconv.ELEMENT_SPECS[meshconv.EElementType.TRI3] = (
-            meshconv.ELEMENT_SPECS[meshconv.EElementType.TRI3]
+        _meshconv.ELEMENT_SPECS[meshconv.EElementType.TRI3] = (
+            _meshconv.ELEMENT_SPECS[meshconv.EElementType.TRI3]
         )
 
 
@@ -80,10 +80,10 @@ def test_check_mesh_convention_reports_failed_checks() -> None:
     report = meshconv.check_mesh_convention(mesh)
 
     assert report["connect1"] == [
-        meshconv.CheckCode.ROW_MAJOR_CONNECTIVITY,
-        meshconv.CheckCode.ZERO_BASED_INDEXING,
-        meshconv.CheckCode.CCW_WINDING,
-        meshconv.CheckCode.RIGHT_HANDED_GEOMETRY,
+        meshconv.MeshCheckCode.ROW_MAJOR_CONNECTIVITY,
+        meshconv.MeshCheckCode.ZERO_BASED_INDEXING,
+        meshconv.MeshCheckCode.CCW_WINDING,
+        meshconv.MeshCheckCode.RIGHT_HANDED_GEOMETRY,
     ]
 
 
@@ -128,7 +128,7 @@ def test_explicit_mesh_convention_reorders_source_slots() -> None:
         meshconv.EElementType.HEX20: source_to_riley,
     })
 
-    assert meshconv.CheckCode.NODE_ORDER in meshconv.check_mesh_convention(
+    assert meshconv.MeshCheckCode.NODE_ORDER in meshconv.check_mesh_convention(
         mesh,
         convention,
     )["connect1"]
