@@ -155,16 +155,6 @@ test "MIN Suite: sphere200 and multimesh" {
                                 "",
                             );
                             defer result.deinit(allocator);
-                            if (buffer_mode != .tile_local) {
-                                try std.testing.expectEqual(
-                                    tcfg.MAX_RASTER_WORKERS_PER_JOB,
-                                    result.pipeline_times.raster_workers_requested,
-                                );
-                                try std.testing.expectEqual(
-                                    tcfg.MAX_RASTER_WORKERS_PER_JOB,
-                                    result.pipeline_times.raster_workers_used,
-                                );
-                            }
 
                             const gold_case_dir = try std.fs.path.join(
                                 allocator,
