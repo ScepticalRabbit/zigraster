@@ -36,7 +36,7 @@ def test_load_coord_csv_coord_major(tmp_path: Path) -> None:
 
     coords_loaded = riley.load_coord_csv(
         tmp_path / "coords.csv",
-        orientation=riley.ECoordCsvOrientation.COORD_MAJOR,
+        orient=riley.ECsvOrient.COORD_MAJOR,
     )
 
     assert coords_loaded.flags.c_contiguous
@@ -49,7 +49,7 @@ def test_load_connect_csv_one_based_node_major(tmp_path: Path) -> None:
 
     connect_loaded = riley.load_connect_csv(
         tmp_path / "connect.csv",
-        orientation=riley.EConnectCsvOrientation.NODE_MAJOR,
+        orient=riley.ECsvOrient.NODE_MAJOR,
         indexing=riley.EConnectIndexing.ONE_BASED,
     )
 

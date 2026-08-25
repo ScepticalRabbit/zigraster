@@ -29,7 +29,7 @@ def test_project_uvs_planar_centered_xy() -> None:
         coords,
         (200, 100),
         uv_span_max=0.8,
-        projection_plane=riley.EProjectionPlane.XY,
+        proj_plane=riley.EProjPlane.XY,
     )
 
     assert uvs.shape == (4, 2)
@@ -40,13 +40,13 @@ def test_project_uvs_planar_centered_xy() -> None:
 @pytest.mark.parametrize(
     "plane",
     [
-        riley.EProjectionPlane.XY,
-        riley.EProjectionPlane.YZ,
-        riley.EProjectionPlane.XZ,
+        riley.EProjPlane.XY,
+        riley.EProjPlane.YZ,
+        riley.EProjPlane.XZ,
     ],
 )
 def test_project_uvs_planar_centered_axis_planes(
-    plane: riley.EProjectionPlane,
+    plane: riley.EProjPlane,
 ) -> None:
     coords = np.array(
         ((0.0, 0.0, 0.0), (2.0, 3.0, 4.0), (1.0, 1.0, 1.0)),
@@ -67,7 +67,7 @@ def test_project_uvs_planar_bbox_best_fits_inside_bbox() -> None:
         coords,
         (101, 101),
         (20.0, 20.0, 80.0, 80.0),
-        riley.EProjectionPlane.XY,
+        riley.EProjPlane.XY,
     )
 
     pixels_x = uvs[:, 0] * 100.0
@@ -80,7 +80,7 @@ def test_project_uvs_planar_custom_plane() -> None:
     coords = np.array(
         ((0.0, 0.0, 1.0), (1.0, 0.0, 1.0), (0.0, 1.0, 1.0)),
     )
-    plane = riley.ProjectionPlane(
+    plane = riley.ProjPlane(
         normal=np.array((0.0, 0.0, 1.0)),
         origin=np.array((0.0, 0.0, 1.0)),
     )
@@ -111,11 +111,11 @@ def test_project_uvs_rejects_zero_normal() -> None:
         riley.project_uvs_planar_centered(
             coords,
             (100, 100),
-            projection_plane=(np.zeros(3), np.zeros(3)),
+            proj_plane=(np.zeros(3), np.zeros(3)),
         )
 
 
-def test_project_uvs_rejects_degenerate_projection() -> None:
+def test_project_uvs_rejects_degenerate_proj() -> None:
     coords = np.array(
         ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (2.0, 0.0, 0.0)),
     )
@@ -125,5 +125,5 @@ def test_project_uvs_rejects_degenerate_projection() -> None:
             coords,
             (100, 100),
             (0.0, 0.0, 99.0, 99.0),
-            riley.EProjectionPlane.XY,
+            riley.EProjPlane.XY,
         )

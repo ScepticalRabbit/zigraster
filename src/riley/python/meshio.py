@@ -18,22 +18,12 @@ from typing import Iterator, Mapping
 import numpy as np
 
 
-class ECoordCsvOrientation(Enum):
-    """Coordinate table orientation."""
+class ECsvOrient(Enum):
+    """Supported row semantics for simulation CSV tables."""
     NODE_MAJOR = "node_major"
     COORD_MAJOR = "coord_major"
-
-
-class EConnectCsvOrientation(Enum):
-    """Connectivity table orientation."""
     ELEM_MAJOR = "elem_major"
-    NODE_MAJOR = "node_major"
-
-
-class EFieldCsvOrientation(Enum):
-    """Nodal field table orientation."""
     FRAME_MAJOR = "frame_major"
-    NODE_MAJOR = "node_major"
 
 
 class EConnectIndexing(Enum):
@@ -95,15 +85,16 @@ def _infer_one_based(connect: np.ndarray, node_count: int | None) -> bool:
 
 def _normalise_point_table(
     matrix: np.ndarray,
-    orientation: ECoordCsvOrientation,
+    orient: ECsvOrient,
     output_dims: int,
 ) -> np.ndarray:
     """Orient and zero-pad a point table to the requested dimensions."""
-    points = (
-        matrix.T
-        if orientation is ECoordCsvOrientation.COORD_MAJOR
-        else matrix
-    )
+    if orient is ECsvOrient.COORD_MAJOR:
+        points = matrix.T
+    elif orient is ECsvOrient.NODE_MAJOR:
+        points = matrix
+    else:
+        raise ValueError(f"Unsupported point CSV orientation: {orient}.")
     if points.shape[0] == 0 or points.shape[1] == 0:
         raise ValueError("Point table must not be empty.")
     if points.shape[1] > output_dims:
@@ -119,18 +110,18 @@ def _normalise_point_table(
 def load_coord_csv(
     path: str | Path,
     skip_rows: int = 0,
-    orientation: ECoordCsvOrientation = ECoordCsvOrientation.NODE_MAJOR,
+    orient: ECsvOrient = ECsvOrient.NODE_MAJOR,
 ) -> np.ndarray:
     """Load coordinates as a contiguous ``(nodes, 3)`` array."""
     return _normalise_point_table(
-        _load_csv_matrix(path, skip_rows), orientation, 3,
+        _load_csv_matrix(path, skip_rows), orient, 3,
     )
 
 
 def load_connect_csv(
     path: str | Path,
     skip_rows: int = 0,
-    orientation: EConnectCsvOrientation = EConnectCsvOrientation.ELEM_MAJOR,
+    orient: ECsvOrient = ECsvOrient.ELEM_MAJOR,
     indexing: EConnectIndexing = EConnectIndexing.AUTO,
     *,
     node_count: int | None = None,
@@ -141,8 +132,10 @@ def load_connect_csv(
     positive-only table is otherwise ambiguous.
     """
     connect_raw = _load_csv_matrix(path, skip_rows)
-    if orientation is EConnectCsvOrientation.NODE_MAJOR:
+    if orient is ECsvOrient.NODE_MAJOR:
         connect_raw = connect_raw.T
+    elif orient is not ECsvOrient.ELEM_MAJOR:
+        raise ValueError(f"Unsupported connectivity CSV orientation: {orient}.")
     rounded = np.rint(connect_raw)
     if not np.all(connect_raw == rounded):
         raise ValueError("Connectivity must contain integer node indices.")
@@ -167,24 +160,26 @@ def load_connect_csv(
 def load_field_csv(
     path: str | Path,
     skip_rows: int = 0,
-    orientation: EFieldCsvOrientation = EFieldCsvOrientation.NODE_MAJOR,
+    orient: ECsvOrient = ECsvOrient.NODE_MAJOR,
 ) -> np.ndarray:
     """Load a scalar field as a ``(frames, nodes)`` array."""
     field_raw = _load_csv_matrix(path, skip_rows)
-    if orientation is EFieldCsvOrientation.NODE_MAJOR:
+    if orient is ECsvOrient.NODE_MAJOR:
         field_raw = field_raw.T
+    elif orient is not ECsvOrient.FRAME_MAJOR:
+        raise ValueError(f"Unsupported field CSV orientation: {orient}.")
     return _ensure_contiguous_f64(field_raw)
 
 
 def load_field_csvs(
     field_paths: Mapping[str, str | Path],
     skip_rows: int = 0,
-    orientation: EFieldCsvOrientation = EFieldCsvOrientation.NODE_MAJOR,
+    orient: ECsvOrient = ECsvOrient.NODE_MAJOR,
 ) -> dict[str, np.ndarray]:
     """Load several named scalar fields."""
     fields_out: dict[str, np.ndarray] = {}
     for name, path in field_paths.items():
-        fields_out[name] = load_field_csv(path, skip_rows, orientation)
+        fields_out[name] = load_field_csv(path, skip_rows, orient)
     return fields_out
 
 
@@ -193,7 +188,7 @@ def load_disp_csvs(
     path_y: str | Path | None,
     path_z: str | Path | None,
     skip_rows: int = 0,
-    orientation: EFieldCsvOrientation = EFieldCsvOrientation.NODE_MAJOR,
+    orient: ECsvOrient = ECsvOrient.NODE_MAJOR,
 ) -> np.ndarray | None:
     """Load displacement components as ``(frames, nodes, 3)``."""
     paths_in = {"x": path_x, "y": path_y, "z": path_z}
@@ -211,7 +206,7 @@ def load_disp_csvs(
             disp_paths[name] = path
     if not disp_paths:
         return None
-    fields = load_field_csvs(disp_paths, skip_rows, orientation)
+    fields = load_field_csvs(disp_paths, skip_rows, orient)
     shape = next(iter(fields.values())).shape
     disp = np.zeros((*shape, 3), dtype=np.float64)
     axis_indices = {"x": 0, "y": 1, "z": 2}
@@ -231,28 +226,28 @@ def load_sim_csvs(
     disp_y_name: str = "field_disp_y.csv",
     disp_z_name: str = "field_disp_z.csv",
     skip_rows: int = 0,
-    coord_orientation: ECoordCsvOrientation = ECoordCsvOrientation.NODE_MAJOR,
-    connect_orientation: EConnectCsvOrientation = (
-        EConnectCsvOrientation.ELEM_MAJOR
+    coord_orient: ECsvOrient = ECsvOrient.NODE_MAJOR,
+    connect_orient: ECsvOrient = (
+        ECsvOrient.ELEM_MAJOR
     ),
     connect_indexing: EConnectIndexing = EConnectIndexing.AUTO,
-    uv_orientation: ECoordCsvOrientation = ECoordCsvOrientation.NODE_MAJOR,
-    field_orientation: EFieldCsvOrientation = EFieldCsvOrientation.NODE_MAJOR,
+    uv_orient: ECsvOrient = ECsvOrient.NODE_MAJOR,
+    field_orient: ECsvOrient = ECsvOrient.NODE_MAJOR,
 ) -> SimCsvData:
     """Load and cross-validate a simulation CSV directory."""
     data_path = Path(data_dir)
     coords = load_coord_csv(
-        data_path / coords_name, skip_rows, coord_orientation,
+        data_path / coords_name, skip_rows, coord_orient,
     )
     connect = load_connect_csv(
-        data_path / connect_name, skip_rows, connect_orientation,
+        data_path / connect_name, skip_rows, connect_orient,
         connect_indexing, node_count=coords.shape[0],
     )
     uvs = None
     uvs_path = data_path / uvs_name
     if uvs_path.is_file():
         uvs = _normalise_point_table(
-            _load_csv_matrix(uvs_path, skip_rows), uv_orientation, 2,
+            _load_csv_matrix(uvs_path, skip_rows), uv_orient, 2,
         )
         if uvs.shape[0] != coords.shape[0]:
             raise ValueError("UV and coordinate node counts must match.")
@@ -265,7 +260,7 @@ def load_sim_csvs(
         disp_paths_optional.append(path if path.is_file() else None)
     disp = load_disp_csvs(
         *disp_paths_optional,
-        skip_rows=skip_rows, orientation=field_orientation,
+        skip_rows=skip_rows, orient=field_orient,
     )
     if disp is not None and disp.shape[1] != coords.shape[0]:
         raise ValueError("Displacement and coordinate node counts must match.")
@@ -273,8 +268,7 @@ def load_sim_csvs(
 
 
 __all__ = [
-    "EConnectCsvOrientation", "EConnectIndexing", "ECoordCsvOrientation",
-    "EFieldCsvOrientation", "SimCsvData", "load_connect_csv",
+    "EConnectIndexing", "ECsvOrient", "SimCsvData", "load_connect_csv",
     "load_coord_csv", "load_disp_csvs", "load_field_csv",
     "load_field_csvs", "load_sim_csvs",
 ]

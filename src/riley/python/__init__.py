@@ -13,10 +13,8 @@ from riley.python.helpers import (
     load_texture,
 )
 from riley.python.meshio import (
-    EConnectCsvOrientation,
     EConnectIndexing,
-    ECoordCsvOrientation,
-    EFieldCsvOrientation,
+    ECsvOrient,
     SimCsvData,
     load_connect_csv,
     load_coord_csv,
@@ -40,21 +38,19 @@ from riley.python.meshconv import (
     infer_mesh_convention,
 )
 from riley.python.uvtools import (
-    EPlanarProjectionMode,
-    EProjectionPlane,
-    ProjectionPlane,
+    EPlanarProjMode,
+    EProjPlane,
+    ProjPlane,
     project_uvs_planar_bbox,
     project_uvs_planar_centered,
 )
 
 __all__ = [
-    "EConnectCsvOrientation",
     "EConnectIndexing",
-    "ECoordCsvOrientation",
-    "EFieldCsvOrientation",
-    "EPlanarProjectionMode",
-    "EProjectionPlane",
-    "ProjectionPlane",
+    "ECsvOrient",
+    "EPlanarProjMode",
+    "EProjPlane",
+    "ProjPlane",
     "create_raster_config",
     "MeshCheckCode",
     "EElementType",

@@ -67,16 +67,36 @@ _PERMUTATIONS = {
 @pytest.mark.parametrize(
     ("element_type", "coords", "mesh_type"),
     (
-        (meshconv.EElementType.TRI3, _tri_coords()[:3], meshconv.EMeshType.SURF),
-        (meshconv.EElementType.TRI6, _tri_coords()[:6], meshconv.EMeshType.SURF),
+        (
+            meshconv.EElementType.TRI3,
+            _tri_coords()[:3],
+            meshconv.EMeshType.SURF,
+        ),
+        (
+            meshconv.EElementType.TRI6,
+            _tri_coords()[:6],
+            meshconv.EMeshType.SURF,
+        ),
         (meshconv.EElementType.TRI7, _tri_coords(), meshconv.EMeshType.SURF),
-        (meshconv.EElementType.QUAD4, _quad_coords()[:4], meshconv.EMeshType.SURF),
-        (meshconv.EElementType.QUAD8, _quad_coords()[:8], meshconv.EMeshType.SURF),
+        (
+            meshconv.EElementType.QUAD4,
+            _quad_coords()[:4],
+            meshconv.EMeshType.SURF,
+        ),
+        (
+            meshconv.EElementType.QUAD8,
+            _quad_coords()[:8],
+            meshconv.EMeshType.SURF,
+        ),
         (meshconv.EElementType.QUAD9, _quad_coords(), meshconv.EMeshType.SURF),
         (meshconv.EElementType.TET4, _tet_coords()[:4], meshconv.EMeshType.VOL),
         (meshconv.EElementType.TET10, _tet_coords(), meshconv.EMeshType.VOL),
         (meshconv.EElementType.HEX8, _hex_coords()[:8], meshconv.EMeshType.VOL),
-        (meshconv.EElementType.HEX20, _hex_coords()[:20], meshconv.EMeshType.VOL),
+        (
+            meshconv.EElementType.HEX20,
+            _hex_coords()[:20],
+            meshconv.EMeshType.VOL,
+        ),
         (meshconv.EElementType.HEX27, _hex_coords(), meshconv.EMeshType.VOL),
     ),
 )
@@ -89,7 +109,11 @@ def test_explicit_conventions_normalise_every_supported_element(
     permutation = _PERMUTATIONS[element_type]
     source = std[:, np.argsort(permutation)]
     convention = meshconv.MeshConvention({element_type: permutation})
-    mesh = meshconv.SimData(coords=coords, connect={"connect1": source}, mesh_type=mesh_type)
+    mesh = meshconv.SimData(
+        coords=coords,
+        connect={"connect1": source},
+        mesh_type=mesh_type,
+    )
 
     assert meshconv.MeshCheckCode.NODE_ORDER in meshconv.check_mesh_convention(
         mesh, convention,
@@ -99,6 +123,66 @@ def test_explicit_conventions_normalise_every_supported_element(
     assert mesh_out.connect is not None
     assert np.array_equal(mesh_out.connect["connect1"], std)
     assert not meshconv.check_mesh_convention(mesh_out)
+
+
+@pytest.mark.parametrize(
+    ("elem_type", "coords", "mesh_type"),
+    (
+        (
+            meshconv.EElementType.TRI6,
+            _tri_coords()[:6],
+            meshconv.EMeshType.SURF,
+        ),
+        (
+            meshconv.EElementType.QUAD8,
+            _quad_coords()[:8],
+            meshconv.EMeshType.SURF,
+        ),
+        (meshconv.EElementType.TET10, _tet_coords(), meshconv.EMeshType.VOL),
+        (
+            meshconv.EElementType.HEX20,
+            _hex_coords()[:20],
+            meshconv.EMeshType.VOL,
+        ),
+    ),
+)
+def test_enforce_repairs_combined_convention_changes(
+    elem_type: meshconv.EElementType,
+    coords: np.ndarray,
+    mesh_type: meshconv.EMeshType,
+) -> None:
+    std = np.arange(coords.shape[0], dtype=np.int64)
+    spec = _meshconv.ELEMENT_SPECS[elem_type]
+    if spec.is_surf:
+        changed_std = _meshconv._reverse_surf_row(std)
+    else:
+        changed_std = _meshconv._reverse_handedness_row(std)
+    src_perm = _PERMUTATIONS[elem_type]
+    src_slots = np.argsort(src_perm)
+    connect = (changed_std[src_slots] + 1)[:, None]
+    src_convention = meshconv.MeshConvention({elem_type: src_perm})
+    mesh = meshconv.SimData(
+        coords=coords,
+        connect={"connect1": connect},
+        mesh_type=mesh_type,
+    )
+
+    report = meshconv.check_mesh_convention(mesh, src_convention)
+    mesh_out = meshconv.enforce_mesh_convention(mesh, src_convention)
+
+    expected_failures = {
+        meshconv.MeshCheckCode.ROW_MAJOR_CONNECTIVITY,
+        meshconv.MeshCheckCode.ZERO_BASED_INDEXING,
+        meshconv.MeshCheckCode.NODE_ORDER,
+        meshconv.MeshCheckCode.RIGHT_HANDED_GEOMETRY,
+    }
+    if spec.is_surf:
+        expected_failures.add(meshconv.MeshCheckCode.CCW_WINDING)
+    assert set(report["connect1"]) == expected_failures
+    assert mesh_out.connect is not None
+    expected = std[None, :]
+    assert np.array_equal(mesh_out.connect["connect1"], expected)
+    assert meshconv.enforce_mesh_convention(mesh_out) is mesh_out
 
 
 def test_infer_mesh_convention_recovers_a_single_affine_source_layout() -> None:
@@ -139,8 +223,37 @@ def test_inference_accepts_rows_that_differ_only_by_a_valid_rotation() -> None:
 
     inferred = meshconv.infer_mesh_convention(mesh)
 
-    assert inferred.standardise_equivalent_orientations
+    assert inferred.standardise_equiv_orients
     assert inferred.get_src_perm(meshconv.EElementType.TRI6) is not None
+
+
+@pytest.mark.parametrize("split_tables", (False, True))
+def test_inference_rejects_conflicting_src_layouts(
+    split_tables: bool,
+) -> None:
+    coords = np.vstack((
+        _tri_coords()[:6],
+        _tri_coords()[:6] + (3., 0., 0.),
+    ))
+    first = np.arange(6, dtype=np.int64)
+    second = np.arange(6, 12, dtype=np.int64)
+    second[[4, 5]] = second[[5, 4]]
+    if split_tables:
+        connect = {
+            "connect1": first[None, :],
+            "connect2": second[None, :],
+        }
+    else:
+        connect = {"connect1": np.vstack((first, second))}
+    mesh = meshconv.SimData(
+        coords=coords,
+        connect=connect,
+        mesh_type=meshconv.EMeshType.SURF,
+    )
+
+    expected = "disagree|multiple source layouts"
+    with pytest.raises(meshconv.MeshConventionInferenceError, match=expected):
+        meshconv.infer_mesh_convention(mesh)
 
 
 def test_hex27_registry_uses_vtk_face_and_volume_centre_slots() -> None:
@@ -148,6 +261,23 @@ def test_hex27_registry_uses_vtk_face_and_volume_centre_slots() -> None:
 
     assert spec.cell_centre_idx == 26
     assert spec.face_centre_idxs == (24, 23, 25, 21, 20, 22)
+
+
+def test_hex27_inference_recovers_swapped_face_centre_slots() -> None:
+    std = np.arange(27, dtype=np.int64)[None, :]
+    source = std.copy()
+    source[:, [20, 21]] = source[:, [21, 20]]
+    mesh = meshconv.SimData(
+        coords=meshconv.EElementType.HEX27.calc_ref_coords(),
+        connect={"connect1": source},
+        mesh_type=meshconv.EMeshType.VOL,
+    )
+
+    inferred = meshconv.infer_mesh_convention(mesh)
+    mesh_out = meshconv.enforce_mesh_convention(mesh, inferred)
+
+    assert mesh_out.connect is not None
+    assert np.array_equal(mesh_out.connect["connect1"], std)
 
 
 @pytest.mark.parametrize(
@@ -166,36 +296,56 @@ def test_hex27_registry_uses_vtk_face_and_volume_centre_slots() -> None:
         (meshconv.EElementType.HEX27, 24),
     ),
 )
-def test_element_symmetry_registry_has_every_proper_orientation(
+def test_element_symmetry_registry_has_every_proper_orient(
     element_type: meshconv.EElementType,
     expected_count: int,
 ) -> None:
     permutations = _meshconv._get_elem_symmetries(element_type)
 
     assert len(permutations) == expected_count
-    assert all(
-        set(permutation) == set(range(len(permutation)))
-        for permutation in permutations
-    )
+    for permutation in permutations:
+        perm_slots = set(permutation)
+        expected_slots = set(range(len(permutation)))
+        assert perm_slots == expected_slots
 
 
 @pytest.mark.parametrize(
     ("element_type", "coords", "mesh_type"),
     (
-        (meshconv.EElementType.TRI3, _tri_coords()[:3], meshconv.EMeshType.SURF),
-        (meshconv.EElementType.TRI6, _tri_coords()[:6], meshconv.EMeshType.SURF),
+        (
+            meshconv.EElementType.TRI3,
+            _tri_coords()[:3],
+            meshconv.EMeshType.SURF,
+        ),
+        (
+            meshconv.EElementType.TRI6,
+            _tri_coords()[:6],
+            meshconv.EMeshType.SURF,
+        ),
         (meshconv.EElementType.TRI7, _tri_coords(), meshconv.EMeshType.SURF),
-        (meshconv.EElementType.QUAD4, _quad_coords()[:4], meshconv.EMeshType.SURF),
-        (meshconv.EElementType.QUAD8, _quad_coords()[:8], meshconv.EMeshType.SURF),
+        (
+            meshconv.EElementType.QUAD4,
+            _quad_coords()[:4],
+            meshconv.EMeshType.SURF,
+        ),
+        (
+            meshconv.EElementType.QUAD8,
+            _quad_coords()[:8],
+            meshconv.EMeshType.SURF,
+        ),
         (meshconv.EElementType.QUAD9, _quad_coords(), meshconv.EMeshType.SURF),
         (meshconv.EElementType.TET4, _tet_coords()[:4], meshconv.EMeshType.VOL),
         (meshconv.EElementType.TET10, _tet_coords(), meshconv.EMeshType.VOL),
         (meshconv.EElementType.HEX8, _hex_coords()[:8], meshconv.EMeshType.VOL),
-        (meshconv.EElementType.HEX20, _hex_coords()[:20], meshconv.EMeshType.VOL),
+        (
+            meshconv.EElementType.HEX20,
+            _hex_coords()[:20],
+            meshconv.EMeshType.VOL,
+        ),
         (meshconv.EElementType.HEX27, _hex_coords(), meshconv.EMeshType.VOL),
     ),
 )
-def test_every_proper_source_orientation_converts_to_riley_slots(
+def test_every_proper_src_orient_converts_to_riley_slots(
     element_type: meshconv.EElementType,
     coords: np.ndarray,
     mesh_type: meshconv.EMeshType,

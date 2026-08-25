@@ -16,14 +16,14 @@ from enum import Enum
 import numpy as np
 
 
-class EProjectionPlane(Enum):
+class EProjPlane(Enum):
     """Axis-aligned projection plane."""
     XY = "xy"
     YZ = "yz"
     XZ = "xz"
 
 
-class EPlanarProjectionMode(Enum):
+class EPlanarProjMode(Enum):
     """Rule used to scale a projection into a pixel bounding box."""
     BEST = "best"
     FIT_X = "fit_x"
@@ -31,13 +31,13 @@ class EPlanarProjectionMode(Enum):
 
 
 @dataclass(frozen=True, slots=True)
-class ProjectionPlane:
+class ProjPlane:
     """Arbitrary plane described by its normal and origin."""
     normal: np.ndarray
     origin: np.ndarray
 
 
-ProjectionPlaneLike = EProjectionPlane | ProjectionPlane | tuple[
+ProjPlaneLike = EProjPlane | ProjPlane | tuple[
     np.ndarray, np.ndarray
 ]
 
@@ -66,26 +66,26 @@ def _validate_texture_size(
     return float(texture[0]), float(texture[1])
 
 
-def _resolve_projection_axes(
-    projection_plane: ProjectionPlaneLike,
+def _resolve_proj_axes(
+    proj_plane: ProjPlaneLike,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Resolve a projection plane to an origin and orthonormal basis."""
     zero = np.zeros(3, dtype=np.float64)
-    if projection_plane is EProjectionPlane.XY:
+    if proj_plane is EProjPlane.XY:
         return zero, np.array((1.0, 0.0, 0.0)), np.array((0.0, 1.0, 0.0))
-    if projection_plane is EProjectionPlane.YZ:
+    if proj_plane is EProjPlane.YZ:
         return zero, np.array((0.0, 1.0, 0.0)), np.array((0.0, 0.0, 1.0))
-    if projection_plane is EProjectionPlane.XZ:
+    if proj_plane is EProjPlane.XZ:
         return zero, np.array((1.0, 0.0, 0.0)), np.array((0.0, 0.0, 1.0))
-    if isinstance(projection_plane, EProjectionPlane):
-        raise ValueError(f"Unsupported projection plane: {projection_plane}.")
+    if isinstance(proj_plane, EProjPlane):
+        raise ValueError(f"Unsupported projection plane: {proj_plane}.")
 
-    if isinstance(projection_plane, ProjectionPlane):
-        normal_in = projection_plane.normal
-        origin_in = projection_plane.origin
+    if isinstance(proj_plane, ProjPlane):
+        normal_in = proj_plane.normal
+        origin_in = proj_plane.origin
     else:
         try:
-            normal_in, origin_in = projection_plane
+            normal_in, origin_in = proj_plane
         except (TypeError, ValueError) as error:
             raise ValueError(
                 "A custom projection plane must be (normal, origin).",
@@ -115,21 +115,21 @@ def _resolve_projection_axes(
 
 def _project_coords(
     coords: np.ndarray,
-    projection_plane: ProjectionPlaneLike,
+    proj_plane: ProjPlaneLike,
 ) -> np.ndarray:
     """Project coordinates onto a two-dimensional plane."""
-    if projection_plane is EProjectionPlane.XY:
+    if proj_plane is EProjPlane.XY:
         return coords[:, :2]
-    if projection_plane is EProjectionPlane.YZ:
+    if proj_plane is EProjPlane.YZ:
         return coords[:, 1:3]
-    if projection_plane is EProjectionPlane.XZ:
+    if proj_plane is EProjPlane.XZ:
         return coords[:, (0, 2)]
-    origin, u_axis, v_axis = _resolve_projection_axes(projection_plane)
+    origin, u_axis, v_axis = _resolve_proj_axes(proj_plane)
     difference = coords - origin
     return np.column_stack((difference @ u_axis, difference @ v_axis))
 
 
-def _projection_bounds(
+def _proj_bounds(
     projected: np.ndarray,
 ) -> tuple[float, float, float, float]:
     """Return finite projection bounds, rejecting zero-area projections."""
@@ -144,14 +144,14 @@ def _projection_bounds(
     )
 
 
-def _uvs_from_projection(
+def _uvs_from_proj(
     projected: np.ndarray,
     texture_size: tuple[float, float],
     px_bbox: tuple[float, float, float, float],
-    mode: EPlanarProjectionMode,
+    mode: EPlanarProjMode,
 ) -> np.ndarray:
     """Map projected coordinates into a pixel bounding box."""
-    x_min, x_max, y_min, y_max = _projection_bounds(projected)
+    x_min, x_max, y_min, y_max = _proj_bounds(projected)
     px_bounds = np.asarray(px_bbox, dtype=np.float64)
     finite = np.isfinite(px_bounds)
     if px_bounds.shape != (4,) or not np.all(finite):
@@ -161,11 +161,11 @@ def _uvs_from_projection(
         raise ValueError("px_bbox upper bounds must exceed lower bounds.")
     scale_x = (px_x_upper - px_x_lower) / (x_max - x_min)
     scale_y = (px_y_upper - px_y_lower) / (y_max - y_min)
-    if mode is EPlanarProjectionMode.FIT_X:
+    if mode is EPlanarProjMode.FIT_X:
         scale = scale_x
-    elif mode is EPlanarProjectionMode.FIT_Y:
+    elif mode is EPlanarProjMode.FIT_Y:
         scale = scale_y
-    elif mode is EPlanarProjectionMode.BEST:
+    elif mode is EPlanarProjMode.BEST:
         scale = min(scale_x, scale_y)
     else:
         raise ValueError(f"Unsupported planar projection mode: {mode}.")
@@ -185,21 +185,21 @@ def project_uvs_planar_bbox(
     coords: np.ndarray,
     texture_size: tuple[int, int] | tuple[float, float],
     px_bbox: tuple[float, float, float, float],
-    projection_plane: ProjectionPlaneLike,
-    mode: EPlanarProjectionMode = EPlanarProjectionMode.BEST,
+    proj_plane: ProjPlaneLike,
+    mode: EPlanarProjMode = EPlanarProjMode.BEST,
 ) -> np.ndarray:
     """Project coordinates into a texture-space pixel bounding box."""
     coords_in = _validate_coords(coords)
     texture_size_in = _validate_texture_size(texture_size)
-    projected = _project_coords(coords_in, projection_plane)
-    return _uvs_from_projection(projected, texture_size_in, px_bbox, mode)
+    projected = _project_coords(coords_in, proj_plane)
+    return _uvs_from_proj(projected, texture_size_in, px_bbox, mode)
 
 
 def project_uvs_planar_centered(
     coords: np.ndarray,
     texture_size: tuple[int, int] | tuple[float, float],
     uv_span_max: float = 1.0,
-    projection_plane: ProjectionPlaneLike = EProjectionPlane.XY,
+    proj_plane: ProjPlaneLike = EProjPlane.XY,
 ) -> np.ndarray:
     """Project coordinates into a centered, aspect-preserving UV region."""
     coords_in = _validate_coords(coords)
@@ -208,8 +208,8 @@ def project_uvs_planar_centered(
         raise ValueError(
             "uv_span_max must be finite and in the interval (0, 1].",
         )
-    projected = _project_coords(coords_in, projection_plane)
-    x_min, x_max, y_min, y_max = _projection_bounds(projected)
+    projected = _project_coords(coords_in, proj_plane)
+    x_min, x_max, y_min, y_max = _proj_bounds(projected)
     aspect_ratio_ratio = (
         (x_max - x_min) / (y_max - y_min)
         / (texture_width / texture_height)
@@ -217,11 +217,11 @@ def project_uvs_planar_centered(
     if aspect_ratio_ratio > 1.0:
         u_span = uv_span_max
         v_span = u_span / aspect_ratio_ratio
-        mode = EPlanarProjectionMode.FIT_X
+        mode = EPlanarProjMode.FIT_X
     else:
         v_span = uv_span_max
         u_span = v_span * aspect_ratio_ratio
-        mode = EPlanarProjectionMode.FIT_Y
+        mode = EPlanarProjMode.FIT_Y
     u_min = 0.5 * (1.0 - u_span)
     v_min = 0.5 * (1.0 - v_span)
     px_bbox = (
@@ -230,12 +230,12 @@ def project_uvs_planar_centered(
         (1.0 - u_min) * (texture_width - 1.0),
         (1.0 - v_min) * (texture_height - 1.0),
     )
-    return _uvs_from_projection(
+    return _uvs_from_proj(
         projected, (texture_width, texture_height), px_bbox, mode,
     )
 
 
 __all__ = [
-    "EPlanarProjectionMode", "EProjectionPlane", "ProjectionPlane",
+    "EPlanarProjMode", "EProjPlane", "ProjPlane",
     "project_uvs_planar_bbox", "project_uvs_planar_centered",
 ]

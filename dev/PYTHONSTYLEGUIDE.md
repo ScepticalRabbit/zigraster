@@ -7,6 +7,9 @@
 - Use descriptive variable names, no single letter variables (double letters for iterators in numpy style are ok) single letter variables for indices / iterators are ok.
 - Abbreviations are ok in variable names as long as they are not ambiguous for examples `calc` for `calculate`.
 - Functions should have a verb as the first word in the function name that indicates what the function actually does.
+- Avoid using magic numbers in code. If you need to use magic numbers, make
+  them a named module constant with a descriptive name and add a comment when
+  the name is not self-explanatory.
 - Keep comprehensions to one line with one `for` loop and at most one function
   call. Split comprehensions containing filters, nested loops, nested
   comprehensions or multiple function calls into explicit statements and
@@ -86,19 +89,23 @@
 - dimension, Dimension -> dim, Dim
 - displacement, Displacement -> disp, Disp
 - element, Element -> elem, Elem
+- equivalent, Equivalent -> equiv, Equiv
 - geometry, Geometry -> geom, Geom
 - global, Global -> glob, Glob
 - identifier, Identifier -> id, Id
 - image, Image -> img, Img
+- independent, Independent -> indep, Indep
 - index, Index -> idx, Idx
 - indices, Indices -> idxs, Idxs
 - local, Local -> loc, Loc
 - maximum, Maximum -> max, Max
 - minimum, Minimum -> min, Min
 - number, Number -> num, Num
+- orientation, Orientation -> orient, Orient
 - parameter, Parameter -> param, Param
 - permutation, Permutation -> perm, Perm
 - pixel, Pixel -> px, Px
+- projection, Projection -> proj, Proj
 - reference, Reference -> ref, Ref
 - relative, Relative -> rel, Rel
 - simulation, Simulation -> sim, Sim

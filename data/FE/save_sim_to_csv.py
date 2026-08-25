@@ -37,7 +37,7 @@ def main() -> None:
                 mesh_world.coords,
                 (2464, 2056),
                 uv_span_max=0.8,
-                projection_plane=(
+                proj_plane=(
                     np.array((0.0, 0.0, -1.0), dtype=np.float64),
                     np.array((0.0, 0.0, 0.0), dtype=np.float64),
                 ),

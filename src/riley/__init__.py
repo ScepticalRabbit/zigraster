@@ -66,10 +66,8 @@ from riley.cython.riley import (
     save_stereo_pair,
 )
 from riley.python.meshio import (
-    EConnectCsvOrientation,
     EConnectIndexing,
-    ECoordCsvOrientation,
-    EFieldCsvOrientation,
+    ECsvOrient,
     SimCsvData,
 )
 from riley.python.helpers import create_raster_config, load_texture
@@ -96,9 +94,9 @@ from riley.python.meshconv import (
     infer_mesh_convention,
 )
 from riley.python.uvtools import (
-    EPlanarProjectionMode,
-    EProjectionPlane,
-    ProjectionPlane,
+    EPlanarProjMode,
+    EProjPlane,
+    ProjPlane,
     project_uvs_planar_bbox,
     project_uvs_planar_centered,
 )
@@ -108,14 +106,12 @@ __all__ = [
     "CameraInput",
     "CameraCoordSys",
     "BufferMode",
-    "EConnectCsvOrientation",
     "EConnectIndexing",
-    "ECoordCsvOrientation",
+    "ECsvOrient",
     "data",
-    "EFieldCsvOrientation",
-    "EPlanarProjectionMode",
-    "EProjectionPlane",
-    "ProjectionPlane",
+    "EPlanarProjMode",
+    "EProjPlane",
+    "ProjPlane",
     "HullMode",
     "Mesh",
     "MeshInput",
