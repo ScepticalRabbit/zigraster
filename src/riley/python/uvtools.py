@@ -47,7 +47,8 @@ def _validate_coords(coords: np.ndarray) -> np.ndarray:
     coords_in = np.ascontiguousarray(coords, dtype=np.float64)
     if coords_in.ndim != 2 or coords_in.shape[1] != 3 or not coords_in.shape[0]:
         raise ValueError("coords must have shape (nodes, 3) and not be empty.")
-    if not np.all(np.isfinite(coords_in)):
+    finite = np.isfinite(coords_in)
+    if not np.all(finite):
         raise ValueError("coords must contain only finite values.")
     return coords_in
 
@@ -57,7 +58,8 @@ def _validate_texture_size(
 ) -> tuple[float, float]:
     """Return a validated texture width and height."""
     texture = np.asarray(texture_size, dtype=np.float64)
-    if texture.shape != (2,) or not np.all(np.isfinite(texture)):
+    finite = np.isfinite(texture)
+    if texture.shape != (2,) or not np.all(finite):
         raise ValueError("texture_size must contain two finite values.")
     if np.any(texture < 2.0):
         raise ValueError("Texture width and height must both be at least 2.")
@@ -92,7 +94,9 @@ def _resolve_projection_axes(
     origin = np.asarray(origin_in, dtype=np.float64)
     if normal.shape != (3,) or origin.shape != (3,):
         raise ValueError("Projection normal and origin must have shape (3,).")
-    if not np.all(np.isfinite(normal)) or not np.all(np.isfinite(origin)):
+    normal_finite = np.all(np.isfinite(normal))
+    origin_finite = np.all(np.isfinite(origin))
+    if not normal_finite or not origin_finite:
         raise ValueError("Projection normal and origin must be finite.")
     normal_norm = np.linalg.norm(normal)
     if normal_norm == 0.0:
@@ -149,7 +153,8 @@ def _uvs_from_projection(
     """Map projected coordinates into a pixel bounding box."""
     x_min, x_max, y_min, y_max = _projection_bounds(projected)
     px_bounds = np.asarray(px_bbox, dtype=np.float64)
-    if px_bounds.shape != (4,) or not np.all(np.isfinite(px_bounds)):
+    finite = np.isfinite(px_bounds)
+    if px_bounds.shape != (4,) or not np.all(finite):
         raise ValueError("px_bbox must contain four finite values.")
     px_x_lower, px_y_lower, px_x_upper, px_y_upper = px_bounds
     if px_x_upper <= px_x_lower or px_y_upper <= px_y_lower:

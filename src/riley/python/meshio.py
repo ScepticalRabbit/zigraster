@@ -70,7 +70,8 @@ def _load_csv_matrix(path: str | Path, skip_rows: int) -> np.ndarray:
         Path(path), delimiter=",", dtype=np.float64, ndmin=2,
         skiprows=skip_rows,
     )
-    if not np.all(np.isfinite(matrix)):
+    finite = np.isfinite(matrix)
+    if not np.all(finite):
         raise ValueError(f"CSV table contains non-finite values: {path}.")
     return np.asarray(matrix, dtype=np.float64)
 
@@ -142,7 +143,8 @@ def load_connect_csv(
     connect_raw = _load_csv_matrix(path, skip_rows)
     if orientation is EConnectCsvOrientation.NODE_MAJOR:
         connect_raw = connect_raw.T
-    if not np.all(connect_raw == np.rint(connect_raw)):
+    rounded = np.rint(connect_raw)
+    if not np.all(connect_raw == rounded):
         raise ValueError("Connectivity must contain integer node indices.")
     connect = connect_raw.astype(np.int64, copy=False)
     if indexing is EConnectIndexing.ONE_BASED:
@@ -154,9 +156,10 @@ def load_connect_csv(
         raise ValueError(f"Unsupported connectivity indexing: {indexing}.")
     if np.any(connect < 0):
         raise ValueError("Connectivity contains negative node indices.")
-    if node_count is not None and (
-        node_count <= 0 or np.any(connect >= node_count)
-    ):
+    node_count_invalid = node_count is not None and node_count <= 0
+    if node_count is not None:
+        node_count_invalid |= np.any(connect >= node_count)
+    if node_count_invalid:
         raise ValueError("Connectivity contains an out-of-range node index.")
     return np.ascontiguousarray(connect, dtype=np.uintp)
 
@@ -195,7 +198,10 @@ def load_disp_csvs(
     """Load displacement components as ``(frames, nodes, 3)``."""
     paths_in = {"x": path_x, "y": path_y, "z": path_z}
     for axis_name, path in paths_in.items():
-        if path is not None and not Path(path).is_file():
+        path_exists = True
+        if path is not None:
+            path_exists = Path(path).is_file()
+        if not path_exists:
             raise FileNotFoundError(
                 f"Displacement {axis_name}-component CSV not found: {path}",
             )

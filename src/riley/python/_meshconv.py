@@ -51,7 +51,8 @@ def _calc_ref_node_perm(
                 "Reference transformation does not preserve element roles."
             )
         slots.append(int(matches[0]))
-    if len(set(slots)) != ref.shape[0]:
+    unique_slots = set(slots)
+    if len(unique_slots) != ref.shape[0]:
         raise ValueError("Reference transformation is not a node permutation.")
     return tuple(slots)
 
@@ -111,7 +112,12 @@ def _check_vol_connect_table(
         return False
 
     if _get_surf_spec(nodes_per_elem) is ELEMENT_SPECS[EElementType.QUAD8]:
-        if all(_check_quad8_surf_row(row, coords) for row in connect):
+        all_rows_are_quad8 = True
+        for row in connect:
+            if not _check_quad8_surf_row(row, coords):
+                all_rows_are_quad8 = False
+                break
+        if all_rows_are_quad8:
             return False
 
     vol_spec = _get_vol_spec(nodes_per_elem)
@@ -480,13 +486,14 @@ def _check_point_in_closed_surf(
             corners = coords[row[corner_idxs]]
 
             for point_idx in range(1, corners.shape[0] - 1):
-                if _check_ray_intersects_triangle(
+                intersects = _check_ray_intersects_triangle(
                     point,
                     direction,
                     corners[0],
                     corners[point_idx],
                     corners[point_idx + 1],
-                ):
+                )
+                if intersects:
                     hits += 1
 
         votes.append(bool(hits % 2))
@@ -620,11 +627,12 @@ def infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
         symmetries = _get_elem_symmetries(elem_type)
         layouts_equivalent = True
         for candidate_perm in perms:
-            if not _check_perms_equivalent(
+            perms_equivalent = _check_perms_equivalent(
                 candidate_perm,
                 representative,
                 symmetries,
-            ):
+            )
+            if not perms_equivalent:
                 layouts_equivalent = False
                 break
         if not layouts_equivalent:
@@ -914,9 +922,10 @@ def _enforce_node_order_table(
             _get_elem_type_from_spec(spec)
         )
         if perm is not None:
-            if len(perm) != connect.shape[1] or set(perm) != set(
-                range(connect.shape[1])
-            ):
+            perm_size_valid = len(perm) == connect.shape[1]
+            expected_slots = set(range(connect.shape[1]))
+            perm_slots_valid = set(perm) == expected_slots
+            if not perm_size_valid or not perm_slots_valid:
                 raise ValueError(
                     "MeshConvention permutation does not match the element "
                     f"topology {_get_elem_type_from_spec(spec).value}."
@@ -1112,9 +1121,10 @@ def _check_std_node_roles(
     corner_coords = elem_coords[corner_idxs]
 
     rank_required = 2 if spec.is_surf else 3
-    if np.linalg.matrix_rank(
-        corner_coords - np.mean(corner_coords, axis=0), tol=_TOL.geom
-    ) < rank_required:
+    corner_center = np.mean(corner_coords, axis=0)
+    centered_corners = corner_coords - corner_center
+    corner_rank = np.linalg.matrix_rank(centered_corners, tol=_TOL.geom)
+    if corner_rank < rank_required:
         return False
 
     inferred_corners = _infer_corner_nodes(elem_coords, len(corner_idxs))
@@ -1146,14 +1156,16 @@ def _check_std_node_roles(
         return False
 
     if spec.centre_idx is not None:
-        if np.linalg.norm(
-            elem_coords[spec.centre_idx] - np.mean(corner_coords, axis=0)
-        ) > _TOL.role_match * scale:
+        centre_error = np.linalg.norm(
+            elem_coords[spec.centre_idx] - corner_center,
+        )
+        if centre_error > _TOL.role_match * scale:
             return False
     if spec.cell_centre_idx is not None:
-        if np.linalg.norm(
-            elem_coords[spec.cell_centre_idx] - np.mean(corner_coords, axis=0)
-        ) > _TOL.role_match * scale:
+        cell_centre_error = np.linalg.norm(
+            elem_coords[spec.cell_centre_idx] - corner_center,
+        )
+        if cell_centre_error > _TOL.role_match * scale:
             return False
     return True
 
@@ -1258,9 +1270,10 @@ def _order_hex_corners(
 ) -> np.ndarray:
     """Return hexahedron-corner slots in right-handed Riley order."""
     corner_coords = elem_coords[corner_loc]
-    if np.linalg.matrix_rank(
-        corner_coords - np.mean(corner_coords, axis=0), tol=_TOL.geom
-    ) < 3:
+    corner_center = np.mean(corner_coords, axis=0)
+    centered_corners = corner_coords - corner_center
+    corner_rank = np.linalg.matrix_rank(centered_corners, tol=_TOL.geom)
+    if corner_rank < 3:
         raise ValueError("Degenerate hexahedron has coplanar corner nodes.")
 
     origin = corner_loc[np.lexsort(corner_coords.T[::-1])[0]]
@@ -1456,7 +1469,8 @@ def _calc_winding_metric(
         cell_coords = coords[
             connect_row[np.asarray(vol_spec.corner_idxs, dtype=np.int64)]
         ]
-        if abs(_calc_vol_signed_metric(cell_coords)) > _TOL.geom:
+        signed_metric = _calc_vol_signed_metric(cell_coords)
+        if abs(signed_metric) > _TOL.geom:
             return None
 
     corner_idxs = _get_corner_idxs(nodes_per_elem)
@@ -1757,12 +1771,14 @@ def _enforce_right_handed_table(
     for idx, row in enumerate(connect_out):
         metric = _calc_handedness_metric(row, coords, surf_only=surf_only)
         if metric is not None and metric < 0.0:
-            if surf_only or (
-                row.shape[0] in _SURF_NODE_COUNTS
-                and _check_coplanar(
-                coords[row[_get_corner_idxs(row.shape[0])]]
-            )
-            ):
+            row_is_surf = row.shape[0] in _SURF_NODE_COUNTS
+            row_is_coplanar = False
+            if row_is_surf:
+                corner_idxs = _get_corner_idxs(row.shape[0])
+                corner_coords = coords[row[corner_idxs]]
+                row_is_coplanar = _check_coplanar(corner_coords)
+            reverse_surf = surf_only or (row_is_surf and row_is_coplanar)
+            if reverse_surf:
                 connect_out[idx, :] = _reverse_surf_row(row)
             else:
                 connect_out[idx, :] = _reverse_handedness_row(row)
@@ -1852,7 +1868,8 @@ def _conv_to_vec3(
     if values_arr.size < 3:
         raise ValueError(f"'{name}' must contain at least three components.")
     vec = np.ascontiguousarray(values_arr[:3])
-    if not np.all(np.isfinite(vec)):
+    finite = np.isfinite(vec)
+    if not np.all(finite):
         raise ValueError(f"'{name}' must contain only finite values.")
     return vec
 
@@ -1982,7 +1999,8 @@ class EElementType(Enum):
                 parity = 1 if inversion_count % 2 == 0 else -1
 
                 for signs in product((-1., 1.), repeat=3):
-                    if parity * int(np.prod(signs)) < 0:
+                    sign_product = int(np.prod(signs))
+                    if parity * sign_product < 0:
                         continue
                     transformed = (
                         (2.0 * ref - 1.0)[:, axes]
@@ -2054,10 +2072,17 @@ class MeshConvention:
                     f"{elem_type.value} requires a {node_count}-slot "
                     "permutation."
                 )
-            if any(not isinstance(slot, Integral) for slot in perm):
+            slots_are_ints = True
+            for slot in perm:
+                if not isinstance(slot, Integral):
+                    slots_are_ints = False
+                    break
+            if not slots_are_ints:
                 raise TypeError("MeshConvention slots must be integers.")
             perm = tuple(int(slot) for slot in perm)
-            if set(perm) != set(range(node_count)):
+            perm_slots = set(perm)
+            expected_slots = set(range(node_count))
+            if perm_slots != expected_slots:
                 raise ValueError(
                     f"{elem_type.value} perm must contain every "
                     f"slot from 0 to {node_count - 1} exactly once."
@@ -2282,11 +2307,12 @@ def _check_or_enforce_connect_table(
         failures.append(MeshCheckCode.ROW_MAJOR_CONNECTIVITY)
         connect = connect.T
 
-    if _check_table_needs_zero_based_shift(
+    shift_needed = _check_table_needs_zero_based_shift(
         connect,
         mesh_in.coords.shape[0],
         shift_all,
-    ):
+    )
+    if shift_needed:
         failures.append(MeshCheckCode.ZERO_BASED_INDEXING)
         connect = connect - 1
 
@@ -2304,11 +2330,12 @@ def _check_or_enforce_connect_table(
         failures.append(MeshCheckCode.NODE_ORDER)
     connect = ordered
 
-    if _check_surf_connect_table(
+    table_is_surf = _check_surf_connect_table(
         connect,
         mesh_in.coords,
         surf_only=surf_only,
-    ):
+    )
+    if table_is_surf:
         try:
             flips = _calc_surf_orientation_flips(connect, mesh_in.coords)
         except ValueError:
@@ -2327,11 +2354,12 @@ def _check_or_enforce_connect_table(
                 if enforce:
                     connect = _apply_surf_flips(connect, flips)
     else:
-        if not _check_ccw_winding_table(
+        ccw_winding = _check_ccw_winding_table(
             connect,
             mesh_in.coords,
             surf_only=surf_only,
-        ):
+        )
+        if not ccw_winding:
             failures.append(MeshCheckCode.CCW_WINDING)
             if enforce:
                 connect = _enforce_ccw_winding_table(
@@ -2339,11 +2367,12 @@ def _check_or_enforce_connect_table(
                     mesh_in.coords,
                     surf_only=surf_only,
                 )
-        if not _check_right_handed_table(
+        right_handed = _check_right_handed_table(
             connect,
             mesh_in.coords,
             surf_only=surf_only,
-        ):
+        )
+        if not right_handed:
             failures.append(MeshCheckCode.RIGHT_HANDED_GEOMETRY)
             if enforce:
                 connect = _enforce_right_handed_table(

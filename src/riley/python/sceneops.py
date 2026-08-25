@@ -104,7 +104,8 @@ def _validated_coords(coords: np.ndarray) -> np.ndarray:
         raise ValueError(
             "Mesh coordinates must have shape (nodes, 3) and not be empty.",
         )
-    if not np.all(np.isfinite(coords_in)):
+    finite = np.isfinite(coords_in)
+    if not np.all(finite):
         raise ValueError("Mesh coordinates must contain only finite values.")
     return coords_in
 
@@ -159,7 +160,8 @@ def _vector3(
 ) -> np.ndarray:
     """Validate and convert a finite three-component vector."""
     vector = np.asarray(values, dtype=np.float64)
-    if vector.shape != (3,) or not np.all(np.isfinite(vector)):
+    finite = np.isfinite(vector)
+    if vector.shape != (3,) or not np.all(finite):
         raise ValueError(f"{name} must contain three finite values.")
     return vector
 
@@ -257,7 +259,8 @@ def arrange_mesh_groups_grid(
         raise ValueError("max_divs must contain three integers.")
     if np.any(divisions <= 0):
         raise ValueError("max_divs values must be positive.")
-    if len(groups) > int(np.prod(divisions)):
+    grid_capacity = int(np.prod(divisions))
+    if len(groups) > grid_capacity:
         raise ValueError("Mesh groups exceed the grid capacity.")
     group_bounds = [bounds_for_mesh_group(meshes, group) for group in groups]
     max_extent = np.max([bounds.extent for bounds in group_bounds], axis=0)
