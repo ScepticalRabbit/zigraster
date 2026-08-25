@@ -11,6 +11,7 @@ out/
 bin/
 .*
 !.gitignore
+!.github/
 
 # Do not keep any large output directories with images or other output in them
 out/
