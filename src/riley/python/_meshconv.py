@@ -571,8 +571,11 @@ def _check_perms_equivalent(
 ) -> bool:
     """Return whether permutations differ only by a proper symmetry."""
     for symmetry in symmetries:
-        transformed = tuple(ref_perm[idx] for idx in symmetry)
-        if perm == transformed:
+        transformed_slots: list[int] = []
+        for slot in symmetry:
+            transformed_slots.append(ref_perm[slot])
+        transformed_perm = tuple(transformed_slots)
+        if perm == transformed_perm:
             return True
     return False
 
@@ -642,10 +645,15 @@ def infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
             )
         perm = representative
         previous = inferred.get(elem_type)
-        if (
-            previous is not None
-            and not _check_perms_equivalent(perm, previous, symmetries)
-        ):
+        layouts_disagree = False
+        if previous is not None:
+            layouts_equivalent = _check_perms_equivalent(
+                perm,
+                previous,
+                symmetries,
+            )
+            layouts_disagree = not layouts_equivalent
+        if layouts_disagree:
             raise MeshConventionInferenceError(
                 (
                     f"Multiple connectivity tables disagree on the "
