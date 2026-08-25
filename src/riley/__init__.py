@@ -70,7 +70,11 @@ from riley.python.meshio import (
     ECsvOrient,
     SimCsvData,
 )
-from riley.python.helpers import create_raster_config, load_texture
+from riley.python.helpers import (
+    create_raster_config,
+    load_texture_u16,
+    load_texture_u8,
+)
 from riley.python.meshio import (
     load_connect_csv,
     load_coord_csv,
@@ -84,7 +88,7 @@ from riley.python.meshconv import (
     EElementType,
     EMeshType,
     MeshConvention,
-    MeshConventionInferenceError,
+    MeshConvErr,
     MeshConvCheck,
     SimData,
     check_mesh_convention,
@@ -142,7 +146,7 @@ __all__ = [
     "EElementType",
     "EMeshType",
     "MeshConvention",
-    "MeshConventionInferenceError",
+    "MeshConvErr",
     "MeshConvCheck",
     "SimData",
     "SimCsvData",
@@ -157,7 +161,8 @@ __all__ = [
     "load_field_csv",
     "load_field_csvs",
     "load_sim_csvs",
-    "load_texture",
+    "load_texture_u16",
+    "load_texture_u8",
     "load_camera",
     "load_stereo_pair",
     "project_uvs_planar_bbox",

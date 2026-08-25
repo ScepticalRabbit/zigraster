@@ -14,7 +14,7 @@ Zig rendering path.
 - Connectivity is zero-based. Every index must satisfy `0 <= index < N`.
 - A mesh must use either surface or volume connectivity, not both. Mixed
   element meshes are not supported by the convention converter.
-- Local-node reordering does not renumber global nodes. Nodal UVs,
+- Local node reordering does not renumber global nodes. Nodal UVs,
   displacements, and other node fields remain indexed by global node ID.
 
 ## Element types
@@ -37,15 +37,15 @@ errors and must not be repaired by reordering.
 
 Surface connectivity must be consistently material-facing:
 
-- A closed exterior shell has outward-pointing normals.
+- A closed exterior shell has outward pointing normals.
 - A cavity boundary has normals pointing into the void. This is correct for a
   plate-with-hole bore wall and must not be reversed merely because it points
   towards the model centre.
 - Adjacent faces must traverse a shared edge in opposite directions.
 - Open planar surfaces use counter-clockwise winding when viewed from their
-  visible/material-facing side.
+  visible/material facing side.
 - An open non-planar surface has no intrinsic exterior. The source must define
-  its material-facing side.
+  its material facing side.
 
 Riley tracks topology by global node identity, not coordinate equality.
 Coincident-coordinate nodes at UV seams and poles are valid if they are
@@ -66,8 +66,8 @@ different edge slot changes interpolation even though the element contains the
 same global node IDs.
 
 For a supplied known source convention, use `MeshConvention` to map each Riley
-target slot to the source-row slot. Do not create one-off exporter shortcuts in
-Riley; keep exporter-specific mappings at the import boundary (for example,
+target slot to the source row slot. Do not create one-off exporter shortcuts in
+Riley; keep exporter specific mappings at the import boundary (for example,
 the PyVale Exodus adapter).
 
 ## HEX27 and VTK
@@ -86,7 +86,7 @@ Riley adopts VTK HEX27 local roles:
 | `25` | top face centre, corners `(4, 5, 6, 7)` |
 | `26` | cell centre |
 
-This is not compatible with every Exodus-style HEX27 ordering. Such data needs
+This is not compatible with every Exodus style HEX27 ordering. Such data needs
 an explicit source-to-Riley permutation before use.
 
 ## Validation and enforcement
@@ -115,9 +115,9 @@ source = meshconv.MeshConvention({
 mesh = meshconv.enforce_mesh_convention(mesh, source)
 ```
 
-`infer_mesh_convention(mesh)` is an opt-in diagnostic. It can infer some
+`infer_mesh_convention(mesh)` is an opt in diagnostic. It can infer some
 simple affine layouts and rejects ambiguous layouts. It is not yet the default
-source-order conversion path for `check_mesh_convention` or
+source order conversion path for `check_mesh_convention` or
 `enforce_mesh_convention`; callers with a known source convention should pass
 it explicitly.
 
@@ -129,7 +129,7 @@ Prefer this order of work:
 2. Generate UVs, displacement fields, and other nodal data against that mesh.
 3. Render and compare against the relevant regression baseline.
 
-If existing connectivity is locally reordered, global-node fields do not need
+If existing connectivity is locally reordered, global node fields do not need
 to be reordered. They do need to be regenerated or visually checked when their
 meaning depends on the element's local reference coordinates. Regenerate gold
 only after render parity has been reviewed; save scaled TIFF alongside FIMG for

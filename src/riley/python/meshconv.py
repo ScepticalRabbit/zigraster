@@ -26,7 +26,7 @@ from riley.python._meshconv import (
     EElementType,
     EMeshType,
     MeshConvention,
-    MeshConventionInferenceError,
+    MeshConvErr,
     MeshConvCheck,
     SimData,
 )
@@ -170,7 +170,7 @@ def infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
 
     Raises
     ------
-    MeshConventionInferenceError
+    MeshConvErr
         If the source node roles cannot be inferred unambiguously.
     """
     return _meshconv.infer_mesh_convention(mesh_in)
@@ -318,7 +318,7 @@ __all__ = [
     "EMeshType",
     "EElementType",
     "MeshConvention",
-    "MeshConventionInferenceError",
+    "MeshConvErr",
     "SimData",
     "check_mesh_convention",
     "enforce_mesh_convention",

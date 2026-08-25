@@ -38,7 +38,11 @@ def build_rabbit_dir(rabbit_name: str, mesh_type: riley.MeshType) -> Path:
 
 
 def load_static_mesh(data_dir: Path) -> tuple[np.ndarray, np.ndarray]:
-    coords = np.loadtxt(data_dir / "coords.csv", delimiter=",", dtype=np.float64)
+    coords = np.loadtxt(
+        data_dir / "coords.csv",
+        delimiter=",",
+        dtype=np.float64,
+    )
     connect_float = np.loadtxt(
         data_dir / "connectivity.csv",
         delimiter=",",
@@ -63,7 +67,10 @@ def make_grey_mesh_input(
     shader_idx = mesh_idx % 3
     mesh_kwargs = {
         "mesh_type": mesh_type,
-        "coords": np.ascontiguousarray(np.array(coords, copy=True), dtype=np.float64),
+        "coords": np.ascontiguousarray(
+            np.array(coords, copy=True),
+            dtype=np.float64,
+        ),
         "connect": connect,
         "bits": 8,
         "normal_type": riley.NormalType.none,
@@ -119,7 +126,7 @@ def main() -> None:
         riley.MeshType.quad9,
     ]
 
-    texture = riley.load_texture(texture_path)
+    texture = riley.load_texture_u8(texture_path)
     mesh_inputs: list[riley.Mesh] = []
     group_list: list[sceneops.MeshGroup] = []
 
@@ -161,10 +168,10 @@ def main() -> None:
             sceneops.BoundsOverlapSpec(
                 overlap_frac=(0.85, 0.8, 0.0),
                 enabled_axes=(True, True, False),
-                direction=(
-                    sceneops.OverlapDirection.POSITIVE,
-                    sceneops.OverlapDirection.NEGATIVE,
-                    sceneops.OverlapDirection.CURRENT,
+                direct=(
+                    sceneops.EOverlapDirect.POSITIVE,
+                    sceneops.EOverlapDirect.NEGATIVE,
+                    sceneops.EOverlapDirect.CURRENT,
                 ),
             ),
         )

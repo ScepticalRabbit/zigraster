@@ -88,7 +88,9 @@
 - destination, Destination -> dest, Dest
 - dimension, Dimension -> dim, Dim
 - displacement, Displacement -> disp, Disp
+- direction, Direction -> direct, Direct
 - element, Element -> elem, Elem
+- error, Error -> err, Err
 - equivalent, Equivalent -> equiv, Equiv
 - geometry, Geometry -> geom, Geom
 - global, Global -> glob, Glob

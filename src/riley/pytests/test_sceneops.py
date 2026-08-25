@@ -60,15 +60,15 @@ def test_center_mesh_group_at_translates_in_place() -> None:
     )
 
 
-def test_overlap_mesh_group_bounds_respects_direction_and_offset() -> None:
+def test_overlap_mesh_group_bounds_respects_direct_and_offset() -> None:
     meshes = [_mesh((0.0, 0.0, 0.0)), _mesh((10.0, 0.0, 0.0))]
     spec = sceneops.BoundsOverlapSpec(
         overlap_frac=(0.5, 0.0, 0.0),
         enabled_axes=(True, False, False),
-        direction=(
-            sceneops.EOverlapDirection.NEGATIVE,
-            sceneops.EOverlapDirection.CURRENT,
-            sceneops.EOverlapDirection.CURRENT,
+        direct=(
+            sceneops.EOverlapDirect.NEGATIVE,
+            sceneops.EOverlapDirect.CURRENT,
+            sceneops.EOverlapDirect.CURRENT,
         ),
         extra_offset=(0.25, 1.0, 0.0),
     )

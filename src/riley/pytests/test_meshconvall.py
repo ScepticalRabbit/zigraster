@@ -202,7 +202,7 @@ def test_infer_mesh_convention_recovers_a_single_affine_source_layout() -> None:
 
 def test_public_inference_reports_incomplete_mesh() -> None:
     with pytest.raises(
-        meshconv.MeshConventionInferenceError,
+        meshconv.MeshConvErr,
         match="requires coordinates and connectivity",
     ):
         meshconv.infer_mesh_convention(meshconv.SimData())
@@ -252,7 +252,7 @@ def test_inference_rejects_conflicting_src_layouts(
     )
 
     expected = "disagree|multiple source layouts"
-    with pytest.raises(meshconv.MeshConventionInferenceError, match=expected):
+    with pytest.raises(meshconv.MeshConvErr, match=expected):
         meshconv.infer_mesh_convention(mesh)
 
 

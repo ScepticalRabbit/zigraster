@@ -35,7 +35,7 @@ def main() -> None:
     coords, connect, uvs, disp = riley.load_sim_csvs(data_dir)
     frame_indices = evenly_spaced_frame_indices(disp.shape[0], FRAMES_MAX)
     disp = select_frames(disp, frame_indices)
-    texture = riley.load_texture(texture_path)
+    texture = riley.load_texture_u8(texture_path)
 
     camera_0, camera_1 = riley.load_stereo_pair(
         str(dicuq_camera_dir),

@@ -85,7 +85,7 @@ def main() -> None:
             np.array((0.0, 0.0, 0.0), dtype=np.float64),
         ),
     )
-    texture = riley.load_texture(texture_path)
+    texture = riley.load_texture_u8(texture_path)
 
     mesh = riley.Mesh(
         mesh_type=riley.MeshType.quad8,

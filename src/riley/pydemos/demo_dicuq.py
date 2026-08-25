@@ -44,7 +44,7 @@ def main() -> None:
     coords, connect, uvs, disp = riley.load_sim_csvs(data_dir)
     frame_indices = first_last_frame_indices(disp.shape[0])
     disp = select_frames(disp, frame_indices)
-    texture = riley.load_texture(texture_path)
+    texture = riley.load_texture_u8(texture_path)
 
     mesh = riley.Mesh(
         mesh_type=riley.MeshType.quad8,

@@ -28,7 +28,7 @@ def main() -> None:
     rot_world = (0.0, 0.0, 0.0)
 
     coords, connect, uvs, _ = riley.load_sim_csvs(data_dir)
-    texture = riley.load_texture(texture_path)
+    texture = riley.load_texture_u8(texture_path)
     roi_cent_world = riley.roi_cent_from_coords(coords)
     pos_world = riley.pos_fill_frame_from_rot(
         coords,
@@ -83,7 +83,10 @@ def main() -> None:
         elapsed_time = perf_counter() - start_time
         print(f"{mode.name}: {elapsed_time:.6f} s")
         if image_array is not None:
-            print(f"rendered image array with shape {image_array.shape} to {out_dir}")
+            print(
+                f"rendered image array with shape {image_array.shape} "
+                f"to {out_dir}"
+            )
 
 
 if __name__ == "__main__":

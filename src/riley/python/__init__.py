@@ -10,7 +10,8 @@
 from riley.python import sceneops
 from riley.python.helpers import (
     create_raster_config,
-    load_texture,
+    load_texture_u16,
+    load_texture_u8,
 )
 from riley.python.meshio import (
     EConnectIndexing,
@@ -28,7 +29,7 @@ from riley.python.meshconv import (
     EElementType,
     EMeshType,
     MeshConvention,
-    MeshConventionInferenceError,
+    MeshConvErr,
     MeshConvCheck,
     SimData,
     check_mesh_convention,
@@ -56,7 +57,7 @@ __all__ = [
     "EElementType",
     "EMeshType",
     "MeshConvention",
-    "MeshConventionInferenceError",
+    "MeshConvErr",
     "MeshConvCheck",
     "SimData",
     "SimCsvData",
@@ -71,7 +72,8 @@ __all__ = [
     "load_field_csv",
     "load_field_csvs",
     "load_sim_csvs",
-    "load_texture",
+    "load_texture_u16",
+    "load_texture_u8",
     "project_uvs_planar_bbox",
     "project_uvs_planar_centered",
     "sceneops",
