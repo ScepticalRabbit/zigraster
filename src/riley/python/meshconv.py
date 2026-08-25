@@ -34,7 +34,7 @@ from riley.python._meshconv import (
 
 def check_mesh_convention(
     mesh_in: SimData,
-    source_convention: MeshConvention | None = None,
+    src_convention: MeshConvention | None = None,
 ) -> MeshConvCheck:
     """Check a mesh for conformance to Riley's mesh convention.
 
@@ -48,7 +48,7 @@ def check_mesh_convention(
         The mesh to check. Must have ``coords`` (N x 3 array) and ``connect``
         (dict of connectivity tables). Each connectivity table must be
         2D with one element per row and one local node per column.
-    source_convention : MeshConvention | None, optional
+    src_convention : MeshConvention | None, optional
         Source ordering for specific element types. Each permutation satisfies
         ``riley_row[target_slot] = source_row[permutation[target_slot]]``.
         Omitted element types are assumed to use Riley ordering. If None, all
@@ -83,25 +83,25 @@ def check_mesh_convention(
     >>> report == {}
     True
     """
-    return _meshconv.check_mesh_convention(mesh_in, source_convention)
+    return _meshconv.check_mesh_convention(mesh_in, src_convention)
 
 
 def enforce_mesh_convention(
     mesh_in: SimData,
-    source_convention: MeshConvention | None = None,
+    src_convention: MeshConvention | None = None,
 ) -> SimData:
-    """Normalize a mesh to Riley's canonical mesh convention.
+    """Normalise a mesh to Riley's mesh convention.
 
     Applies all necessary corrections to bring a mesh into conformance with
     Riley's convention. Only fixes the conditions reported by
-    :func:`check_mesh_convention`, and applies them in a fixed canonical order
+    :func:`check_mesh_convention`, and applies them in a fixed order
     so the result is deterministic.
 
     Parameters
     ----------
     mesh_in : SimData
-        The mesh to normalize. Must have ``coords`` and ``connect`` set.
-    source_convention : MeshConvention | None, optional
+        The mesh to normalise. Must have ``coords`` and ``connect`` set.
+    src_convention : MeshConvention | None, optional
         Source ordering for specific element types. Each permutation satisfies
         ``riley_row[target_slot] = source_row[permutation[target_slot]]``.
         Omitted element types are assumed to use Riley ordering. If None, all
@@ -110,18 +110,18 @@ def enforce_mesh_convention(
     Returns
     -------
     SimData
-        A new ``SimData`` instance with normalized connectivity tables, or the
+        A new ``SimData`` instance with normalised connectivity tables, or the
         original mesh instance if it already conformed (idempotent).
 
     Notes
     -----
-    The normalization enforces:
+    The normalisation enforces:
 
     - **Row-major connectivity**: each element is one row,
       local nodes are columns
     - **Zero-based indexing**: all indices in range [0, N-1] where N = num nodes
     - **Node order**: higher-order nodes (mid-edge, mid-face, centre) placed in
-      Riley's canonical slots per element type
+      Riley's standard slots per element type
     - **Surface winding**: CCW when viewed from material-facing side (outward
       for closed shells, inward for cavity boundaries)
     - **Volume handedness**: right-handed coordinate system for TET/HEX elements
@@ -148,7 +148,7 @@ def enforce_mesh_convention(
     >>> meshconv.check_mesh_convention(mesh_out) == {}
     True
     """
-    return _meshconv.enforce_mesh_convention(mesh_in, source_convention)
+    return _meshconv.enforce_mesh_convention(mesh_in, src_convention)
 
 
 def infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
@@ -192,7 +192,7 @@ def extract_surf_mesh(
         The input 3D volume mesh. Must have ``coords`` and ``connect`` with
         volume element types.
     enforce_convention : bool, optional
-        If True (default), the output surface mesh is normalized to Riley's
+        If True (default), the output surface mesh is normalised to Riley's
         convention (0-based, CCW winding, proper node order). If False, the
         output retains the input mesh's indexing style (1-based vs 0-based,
         row-major vs column-major).
@@ -268,7 +268,7 @@ def extract_surf_between(
         Defaults to 1.0e-6. Nodes with projected distance in
         ``[min_bound - tol, max_bound + tol]`` are included.
     enforce_convention : bool, optional
-        If True (default), normalizes the output mesh to Riley's convention.
+        If True (default), normalises the output mesh to Riley's convention.
         If False, retains the input mesh's indexing style.
 
     Returns

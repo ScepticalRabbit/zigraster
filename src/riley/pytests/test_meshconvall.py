@@ -85,9 +85,9 @@ def test_explicit_conventions_normalise_every_supported_element(
     coords: np.ndarray,
     mesh_type: meshconv.EMeshType,
 ) -> None:
-    canonical = np.arange(coords.shape[0], dtype=np.int64)[None, :]
+    std = np.arange(coords.shape[0], dtype=np.int64)[None, :]
     permutation = _PERMUTATIONS[element_type]
-    source = canonical[:, np.argsort(permutation)]
+    source = std[:, np.argsort(permutation)]
     convention = meshconv.MeshConvention({element_type: permutation})
     mesh = meshconv.SimData(coords=coords, connect={"connect1": source}, mesh_type=mesh_type)
 
@@ -97,23 +97,23 @@ def test_explicit_conventions_normalise_every_supported_element(
     mesh_out = meshconv.enforce_mesh_convention(mesh, convention)
 
     assert mesh_out.connect is not None
-    assert np.array_equal(mesh_out.connect["connect1"], canonical)
+    assert np.array_equal(mesh_out.connect["connect1"], std)
     assert not meshconv.check_mesh_convention(mesh_out)
 
 
 def test_infer_mesh_convention_recovers_a_single_affine_source_layout() -> None:
     element_type = meshconv.EElementType.TRI6
     permutation = _PERMUTATIONS[element_type]
-    canonical = np.arange(6, dtype=np.int64)[None, :]
+    std = np.arange(6, dtype=np.int64)[None, :]
     mesh = meshconv.SimData(
         coords=_tri_coords()[:6],
-        connect={"connect1": canonical[:, np.argsort(permutation)]},
+        connect={"connect1": std[:, np.argsort(permutation)]},
         mesh_type=meshconv.EMeshType.SURF,
     )
 
     inferred = meshconv.infer_mesh_convention(mesh)
 
-    assert inferred.permutation_for(element_type) is not None
+    assert inferred.get_src_perm(element_type) is not None
 
 
 def test_public_inference_reports_incomplete_mesh() -> None:
@@ -127,7 +127,7 @@ def test_public_inference_reports_incomplete_mesh() -> None:
 def test_inference_accepts_rows_that_differ_only_by_a_valid_rotation() -> None:
     coords = np.vstack((_tri_coords()[:6], _tri_coords()[:6] + (3., 0., 0.)))
     first = np.arange(6, dtype=np.int64)
-    rotation = _meshconv._get_element_symmetries(
+    rotation = _meshconv._get_elem_symmetries(
         meshconv.EElementType.TRI6
     )[1]
     second = np.arange(6, 12, dtype=np.int64)[np.argsort(rotation)]
@@ -139,15 +139,15 @@ def test_inference_accepts_rows_that_differ_only_by_a_valid_rotation() -> None:
 
     inferred = meshconv.infer_mesh_convention(mesh)
 
-    assert inferred.canonicalise_equivalent_orientations
-    assert inferred.permutation_for(meshconv.EElementType.TRI6) is not None
+    assert inferred.standardise_equivalent_orientations
+    assert inferred.get_src_perm(meshconv.EElementType.TRI6) is not None
 
 
 def test_hex27_registry_uses_vtk_face_and_volume_centre_slots() -> None:
     spec = _meshconv.ELEMENT_SPECS[meshconv.EElementType.HEX27]
 
-    assert spec.cell_centre_index == 26
-    assert spec.face_centre_indices == (24, 23, 25, 21, 20, 22)
+    assert spec.cell_centre_idx == 26
+    assert spec.face_centre_idxs == (24, 23, 25, 21, 20, 22)
 
 
 @pytest.mark.parametrize(
@@ -170,7 +170,7 @@ def test_element_symmetry_registry_has_every_proper_orientation(
     element_type: meshconv.EElementType,
     expected_count: int,
 ) -> None:
-    permutations = _meshconv._get_element_symmetries(element_type)
+    permutations = _meshconv._get_elem_symmetries(element_type)
 
     assert len(permutations) == expected_count
     assert all(
@@ -200,17 +200,17 @@ def test_every_proper_source_orientation_converts_to_riley_slots(
     coords: np.ndarray,
     mesh_type: meshconv.EMeshType,
 ) -> None:
-    canonical = np.arange(coords.shape[0], dtype=np.int64)[None, :]
-    for permutation in _meshconv._get_element_symmetries(element_type):
-        source = canonical[:, np.argsort(permutation)]
+    std = np.arange(coords.shape[0], dtype=np.int64)[None, :]
+    for permutation in _meshconv._get_elem_symmetries(element_type):
+        source = std[:, np.argsort(permutation)]
         mesh = meshconv.SimData(
             coords=coords,
             connect={"connect1": source},
             mesh_type=mesh_type,
         )
-        source_convention = meshconv.MeshConvention({element_type: permutation})
+        src_convention = meshconv.MeshConvention({element_type: permutation})
 
-        mesh_out = meshconv.enforce_mesh_convention(mesh, source_convention)
+        mesh_out = meshconv.enforce_mesh_convention(mesh, src_convention)
 
         assert mesh_out.connect is not None
-        assert np.array_equal(mesh_out.connect["connect1"], canonical)
+        assert np.array_equal(mesh_out.connect["connect1"], std)

@@ -29,10 +29,10 @@ SPHERE_MESHES = (
 
 def test_element_specs_are_complete_and_mapping_is_read_only() -> None:
     assert {
-        spec.nodes_per_element for spec in _meshconv.ELEMENT_SPECS.values()
+        spec.nodes_per_elem for spec in _meshconv.ELEMENT_SPECS.values()
     } == {3, 4, 6, 7, 8, 9, 10, 20, 27}
     assert (
-        _meshconv.ELEMENT_SPECS[meshconv.EElementType.HEX27].centre_index
+        _meshconv.ELEMENT_SPECS[meshconv.EElementType.HEX27].centre_idx
         is None
     )
 
@@ -42,12 +42,12 @@ def test_element_specs_are_complete_and_mapping_is_read_only() -> None:
         )
 
 
-def test_check_mesh_convention_passes_for_canonical_quad() -> None:
+def test_check_mesh_convention_passes_for_std_quad() -> None:
     mesh = meshconv.SimData(
         coords=_quad_coords(),
         connect={"connect1": np.array(((0, 1, 2, 3),), dtype=np.int64)},
     )
-    mesh.refresh_mesh_type()
+    mesh.update_mesh_type()
 
     report = meshconv.check_mesh_convention(mesh)
 
@@ -120,7 +120,7 @@ def test_enforce_returns_same_object_when_mesh_conforms() -> None:
         coords=_quad_coords(),
         connect={"connect1": np.array(((0, 1, 2, 3),), dtype=np.int64)},
     )
-    mesh.refresh_mesh_type()
+    mesh.update_mesh_type()
 
     assert meshconv.enforce_mesh_convention(mesh) is mesh
 
@@ -237,12 +237,12 @@ def test_enforce_fixes_mirrored_hex_handedness_and_is_idempotent() -> None:
 def test_explicit_mesh_convention_reorders_source_slots() -> None:
     mesh = _load_cube("hex20")
     assert mesh.connect is not None
-    canonical = mesh.connect["connect1"]
+    std = mesh.connect["connect1"]
     source_to_riley = (
         0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
         16, 17, 18, 19, 12, 13, 14, 15,
     )
-    mesh.connect["connect1"] = canonical[:, np.argsort(source_to_riley)]
+    mesh.connect["connect1"] = std[:, np.argsort(source_to_riley)]
     convention = meshconv.MeshConvention({
         meshconv.EElementType.HEX20: source_to_riley,
     })
@@ -254,7 +254,7 @@ def test_explicit_mesh_convention_reorders_source_slots() -> None:
     mesh_out = meshconv.enforce_mesh_convention(mesh, convention)
 
     assert mesh_out.connect is not None
-    assert np.array_equal(mesh_out.connect["connect1"], canonical)
+    assert np.array_equal(mesh_out.connect["connect1"], std)
     assert not meshconv.check_mesh_convention(mesh_out)
 
 
@@ -285,14 +285,14 @@ def test_mesh_convention_defensively_copies_its_mapping() -> None:
 
     permutations[meshconv.EElementType.QUAD4] = (0, 3, 2, 1)
 
-    assert convention.permutation_for(meshconv.EElementType.QUAD4) == (
+    assert convention.get_src_perm(meshconv.EElementType.QUAD4) == (
         0,
         1,
         2,
         3,
     )
     with pytest.raises(TypeError):
-        convention.source_to_riley_permutations[
+        convention.src_to_riley_perms[
             meshconv.EElementType.QUAD4
         ] = (0, 3, 2, 1)
 
@@ -311,11 +311,11 @@ def test_coincident_nodes_do_not_bypass_node_role_validation() -> None:
     )
     spec = _meshconv.ELEMENT_SPECS[meshconv.EElementType.TRI6]
 
-    assert not _meshconv._check_canonical_node_roles(coords, spec)
+    assert not _meshconv._check_std_node_roles(coords, spec)
 
 
 @pytest.mark.parametrize("cube_name", SUPPORTED_CUBES)
-def test_canonical_cube_meshes_pass_and_enforcement_is_idempotent(
+def test_std_cube_meshes_pass_and_enforcement_is_idempotent(
     cube_name: str,
 ) -> None:
     mesh = _load_cube(cube_name)
