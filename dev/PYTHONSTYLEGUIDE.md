@@ -7,6 +7,13 @@
 - Use descriptive variable names, no single letter variables (double letters for iterators in numpy style are ok) single letter variables for indices / iterators are ok.
 - Abbreviations are ok in variable names as long as they are not ambiguous for examples `calc` for `calculate`.
 - Functions should have a verb as the first word in the function name that indicates what the function actually does.
+- Keep comprehensions to one line with one `for` loop and at most one function
+  call. Split comprehensions containing filters, nested loops, nested
+  comprehensions or multiple function calls into explicit statements and
+  loops.
+- Keep `if` conditions to at most two lines and avoid nested function calls in
+  conditions. Calculate complex predicates in clearly named intermediate
+  statements before the `if`.
 - Use major function first variable names: e.g. `FieldScalar`, `FieldVector` and `FieldTensor` instead of `ScalarField`, `VectorField` and `TensorField`.
 - Type hint everything: e.g. `def add_ints(a: int, b: int) -> int:`. This makes your code easier to understand and you have the possibility of compiling things if you need.
 - `pylint` is a slow linter but will help you if you have type hinted everything. `Ruff` is another good option, it is faster but doesn't pick up type hints as well.

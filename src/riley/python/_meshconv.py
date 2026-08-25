@@ -240,15 +240,20 @@ def _calc_surf_orientation_flips(
     for comp_idx, comp in enumerate(closed_comps):
         rows, oriented, _, _ = comp
         point = _calc_comp_probe_point(oriented, coords)
-        depth = sum(
-            _check_point_in_closed_surf(point, other_oriented, coords)
-            for other_idx, (
-                _, other_oriented, bounds_min, bounds_max
-            ) in enumerate(closed_comps)
-            if other_idx != comp_idx
-            and np.all(point >= bounds_min - _TOL.geom)
-            and np.all(point <= bounds_max + _TOL.geom)
-        )
+        depth = 0
+        for other_idx, other_comp in enumerate(closed_comps):
+            _, other_oriented, bounds_min, bounds_max = other_comp
+            if other_idx == comp_idx:
+                continue
+            if not np.all(point >= bounds_min - _TOL.geom):
+                continue
+            if not np.all(point <= bounds_max + _TOL.geom):
+                continue
+            depth += _check_point_in_closed_surf(
+                point,
+                other_oriented,
+                coords,
+            )
         if depth % 2:
             flips[rows] = ~flips[rows]
 
@@ -300,7 +305,9 @@ def _build_surf_topology(
                 "incident faces."
             )
 
-    neighbours: dict[int, set[int]] = {int(row): set() for row in active_rows}
+    neighbours: dict[int, set[int]] = {}
+    for row in active_rows:
+        neighbours[int(row)] = set()
     for uses in edge_map.values():
         if len(uses) == 2:
             row_a, _ = uses[0]
@@ -323,10 +330,10 @@ def _build_surf_topology(
                     stack.append(neighbour)
         rows_arr = np.asarray(sorted(rows), dtype=np.int64)
         row_set = set(rows_arr.tolist())
-        comp_edges = {
-            key: uses for key, uses in edge_map.items()
-            if uses[0][0] in row_set
-        }
+        comp_edges = {}
+        for key, uses in edge_map.items():
+            if uses[0][0] in row_set:
+                comp_edges[key] = uses
         comps.append((rows_arr, comp_edges))
     return comps
 
@@ -341,10 +348,10 @@ def _check_surf_rows_same_orientation(
     corner_idxs = _get_corner_idxs(row_a.shape[0])
     corners_a = row_a[corner_idxs]
     corners_b = row_b[corner_idxs]
-    edges_b = {
-        (int(node_a), int(node_b))
-        for node_a, node_b in zip(corners_b, np.roll(corners_b, -1))
-    }
+    edges_b = set()
+    corners_b_next = np.roll(corners_b, -1)
+    for node_a, node_b in zip(corners_b, corners_b_next):
+        edges_b.add((int(node_a), int(node_b)))
     for node_a, node_b in zip(corners_a, np.roll(corners_a, -1)):
         if (int(node_a), int(node_b)) in edges_b:
             return True
@@ -360,9 +367,9 @@ def _calc_comp_rel_flips(
     """Find local reversals making shared edges traverse opposite ways."""
 
     row_set = set(rows.tolist())
-    constraints: dict[int, list[tuple[int, bool]]] = {
-        row: [] for row in row_set
-    }
+    constraints: dict[int, list[tuple[int, bool]]] = {}
+    for row in row_set:
+        constraints[row] = []
     for uses in edge_keys.values():
         if len(uses) != 2:
             continue
@@ -550,6 +557,19 @@ def _copy_sim_data(
     return mesh_out
 
 
+def _check_perms_equivalent(
+    perm: tuple[int, ...],
+    ref_perm: tuple[int, ...],
+    symmetries: tuple[tuple[int, ...], ...],
+) -> bool:
+    """Return whether permutations differ only by a proper symmetry."""
+    for symmetry in symmetries:
+        transformed = tuple(ref_perm[idx] for idx in symmetry)
+        if perm == transformed:
+            return True
+    return False
+
+
 def infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
     """Infer one source-to-Riley ordering for each element family."""
     if mesh_in.coords is None or mesh_in.connect is None:
@@ -589,32 +609,34 @@ def infer_mesh_convention(mesh_in: SimData) -> MeshConvention:
                 f"Could not infer '{name}' ({elem_type.value}); supply "
                 "MeshConvention explicitly."
             ) from error
-        perms = {
-            tuple(int(np.flatnonzero(row == node_id)[0]) for node_id in target)
-            for row, target in zip(connect, normalised, strict=True)
-        }
+        perms: set[tuple[int, ...]] = set()
+        for row, target in zip(connect, normalised, strict=True):
+            perm_slots: list[int] = []
+            for node_id in target:
+                matching_slots = np.flatnonzero(row == node_id)
+                perm_slots.append(int(matching_slots[0]))
+            perms.add(tuple(perm_slots))
         representative = min(perms)
         symmetries = _get_elem_symmetries(elem_type)
-        if any(
-            not any(
-                perm == tuple(
-                    representative[idx] for idx in symmetry
-                )
-                for symmetry in symmetries
-            )
-            for perm in perms
-        ):
+        layouts_equivalent = True
+        for candidate_perm in perms:
+            if not _check_perms_equivalent(
+                candidate_perm,
+                representative,
+                symmetries,
+            ):
+                layouts_equivalent = False
+                break
+        if not layouts_equivalent:
             raise MeshConventionInferenceError(
                 f"Connectivity table '{name}' contains multiple source "
                 f"layouts for {elem_type.value}; supply MeshConvention."
             )
         perm = representative
         previous = inferred.get(elem_type)
-        if previous is not None and not any(
-            perm == tuple(
-                previous[idx] for idx in symmetry
-            )
-            for symmetry in symmetries
+        if (
+            previous is not None
+            and not _check_perms_equivalent(perm, previous, symmetries)
         ):
             raise MeshConventionInferenceError(
                 (
@@ -793,11 +815,10 @@ def _get_elem_var_row_counts(
     except ValueError:
         return None
 
-    row_counts = {
-        values.shape[0]
-        for (_field_name, field_block), values in mesh_in.elem_vars.items()
-        if field_block == block_id
-    }
+    row_counts: set[int] = set()
+    for (_field_name, field_block), values in mesh_in.elem_vars.items():
+        if field_block == block_id:
+            row_counts.add(values.shape[0])
     return row_counts or None
 
 
@@ -996,45 +1017,54 @@ def _enforce_node_order_high_order_row(
         corner_loc = _order_hex_corners(elem_coords, corner_loc)
 
     corner_coords = elem_coords[corner_loc]
-    remaining = [
-        idx for idx in range(connect_row.shape[0])
-        if idx not in corner_loc
-    ]
+    remaining: list[int] = []
+    for idx in range(connect_row.shape[0]):
+        if idx not in corner_loc:
+            remaining.append(idx)
 
-    edge_pairs = spec.edge_pairs or tuple(
-        (idx, (idx + 1) % corner_count)
-        for idx in range(corner_count)
-    )
-    edge_targets = np.array(
-        [
-            0.5 * (corner_coords[start] + corner_coords[end])
-            for start, end in edge_pairs
-        ],
-        dtype=np.float64,
-    )
+    edge_pairs = spec.edge_pairs
+    if not edge_pairs:
+        edge_pairs_out: list[tuple[int, int]] = []
+        for idx in range(corner_count):
+            edge_pairs_out.append((idx, (idx + 1) % corner_count))
+        edge_pairs = tuple(edge_pairs_out)
+    edge_targets_out: list[np.ndarray] = []
+    for start, end in edge_pairs:
+        edge_targets_out.append(
+            0.5 * (corner_coords[start] + corner_coords[end]),
+        )
+    edge_targets = np.asarray(edge_targets_out, dtype=np.float64)
     edge_loc = _match_role_nodes(
         elem_coords,
         remaining,
         edge_targets,
         "edge",
     )
-    remaining = [idx for idx in remaining if idx not in edge_loc]
+    remaining_out = []
+    for idx in remaining:
+        if idx not in edge_loc:
+            remaining_out.append(idx)
+    remaining = remaining_out
 
     if spec.face_centre_idxs:
-        face_targets = np.array(
-            [
-                np.mean(corner_coords[list(face)], axis=0)
-                for face in spec.face_corner_idxs
-            ],
-            dtype=np.float64,
-        )
+        face_targets_out: list[np.ndarray] = []
+        for face in spec.face_corner_idxs:
+            face_idxs = list(face)
+            face_targets_out.append(
+                np.mean(corner_coords[face_idxs], axis=0),
+            )
+        face_targets = np.asarray(face_targets_out, dtype=np.float64)
         face_loc = _match_role_nodes(
             elem_coords,
             remaining,
             face_targets,
             "face centre",
         )
-        remaining = [idx for idx in remaining if idx not in face_loc]
+        remaining_out = []
+        for idx in remaining:
+            if idx not in face_loc:
+                remaining_out.append(idx)
+        remaining = remaining_out
 
     if spec.centre_idx is not None or spec.cell_centre_idx is not None:
         centre_loc = _match_role_nodes(
@@ -1043,7 +1073,11 @@ def _enforce_node_order_high_order_row(
             np.mean(corner_coords, axis=0, keepdims=True),
             "centre",
         )
-        remaining = [idx for idx in remaining if idx not in centre_loc]
+        remaining_out = []
+        for idx in remaining:
+            if idx not in centre_loc:
+                remaining_out.append(idx)
+        remaining = remaining_out
 
     if remaining:
         raise ValueError(
@@ -1091,21 +1125,23 @@ def _check_std_node_roles(
         return False
 
     scale = max(float(np.ptp(elem_coords, axis=0).max()), _TOL.geom)
-    edge_pairs = spec.edge_pairs or tuple(
-        (idx, (idx + 1) % len(corner_idxs))
-        for idx in range(len(corner_idxs))
-    )
+    edge_pairs = spec.edge_pairs
+    if not edge_pairs:
+        edge_pairs_out = []
+        for idx in range(len(corner_idxs)):
+            edge_pairs_out.append((idx, (idx + 1) % len(corner_idxs)))
+        edge_pairs = tuple(edge_pairs_out)
     edge_start = len(corner_idxs)
     edge_stop = edge_start + len(edge_pairs)
     edge_nodes = elem_coords[edge_start:edge_stop]
-    edge_distances = np.array([
-        _calc_point_segment_distance(
+    edge_distances_out: list[float] = []
+    for node, (start, end) in zip(edge_nodes, edge_pairs, strict=True):
+        edge_distances_out.append(_calc_point_segment_distance(
             node,
             corner_coords[start],
             corner_coords[end],
-        )
-        for node, (start, end) in zip(edge_nodes, edge_pairs, strict=True)
-    ])
+        ))
+    edge_distances = np.asarray(edge_distances_out)
     if np.any(edge_distances > _TOL.role_match * scale):
         return False
 
@@ -1141,13 +1177,11 @@ def _infer_corner_nodes(
                     break
             if node_idx in midpoint_nodes:
                 break
-    candidates = np.array(
-        [
-            idx for idx in range(elem_coords.shape[0])
-            if idx not in midpoint_nodes
-        ],
-        dtype=np.int64,
-    )
+    candidates_out: list[int] = []
+    for idx in range(elem_coords.shape[0]):
+        if idx not in midpoint_nodes:
+            candidates_out.append(idx)
+    candidates = np.asarray(candidates_out, dtype=np.int64)
     if candidates.shape[0] == corner_count:
         return candidates
     distances = np.linalg.norm(
@@ -1230,7 +1264,10 @@ def _order_hex_corners(
         raise ValueError("Degenerate hexahedron has coplanar corner nodes.")
 
     origin = corner_loc[np.lexsort(corner_coords.T[::-1])[0]]
-    candidates = [idx for idx in corner_loc if idx != origin]
+    candidates = []
+    for idx in corner_loc:
+        if idx != origin:
+            candidates.append(idx)
     best_order: np.ndarray | None = None
     best_error = np.inf
     origin_coord = elem_coords[origin]
@@ -1307,10 +1344,11 @@ def _match_role_nodes(
     used: set[int] = set()
     for target_idx in range(targets.shape[0]):
         ranked = np.argsort(distances[:, target_idx])
-        match = next(
-            (idx for idx in ranked if int(idx) not in used),
-            None,
-        )
+        match = None
+        for idx in ranked:
+            if int(idx) not in used:
+                match = idx
+                break
         if match is None:
             raise ValueError(f"Could not assign a unique {role_name} node.")
         used.add(int(match))
@@ -1647,10 +1685,12 @@ def _enforce_surf_face_node_order(
         return face_out
 
     midside_pool = np.arange(num_corners, nodes_per_face, dtype=np.int64)
-    edge_corner_pairs = tuple(
-        (corner_idx, (corner_idx + 1) % num_corners)
-        for corner_idx in range(num_corners)
-    )
+    edge_corner_pairs_out: list[tuple[int, int]] = []
+    for corner_idx in range(num_corners):
+        edge_corner_pairs_out.append(
+            (corner_idx, (corner_idx + 1) % num_corners),
+        )
+    edge_corner_pairs = tuple(edge_corner_pairs_out)
 
     face_centroid = np.mean(face_coords[corner_idxs, :], axis=0)
     mid_pool_coords = face_coords[midside_pool, :]
@@ -1668,16 +1708,15 @@ def _enforce_surf_face_node_order(
         edge_pool_loc_idxs = midside_pool
         edge_pool_coords = mid_pool_coords
 
-    edge_midpoints = np.array(
-        [
+    edge_midpoints_out: list[np.ndarray] = []
+    for start_idx, end_idx in edge_corner_pairs:
+        edge_midpoints_out.append(
             0.5 * (
-                face_coords[start_idx, :] +
-                face_coords[end_idx, :]
-            )
-            for (start_idx, end_idx) in edge_corner_pairs
-        ],
-        dtype=np.float64,
-    )
+                face_coords[start_idx, :]
+                + face_coords[end_idx, :]
+            ),
+        )
+    edge_midpoints = np.asarray(edge_midpoints_out, dtype=np.float64)
     edge_dists = np.linalg.norm(
         edge_pool_coords[:, None, :] - edge_midpoints[None, :, :],
         axis=2,
@@ -1936,11 +1975,11 @@ class EElementType(Enum):
             # changes with positive determinant, for 24 transformations.
             candidate_rows: list[tuple[int, ...]] = []
             for axes in perms(range(3)):
-                parity = 1 if (
-                    sum(axes[idx] > axes[next_idx]
-                        for idx in range(3)
-                        for next_idx in range(idx + 1, 3)) % 2 == 0
-                ) else -1
+                inversion_count = 0
+                for idx in range(3):
+                    for next_idx in range(idx + 1, 3):
+                        inversion_count += axes[idx] > axes[next_idx]
+                parity = 1 if inversion_count % 2 == 0 else -1
 
                 for signs in product((-1., 1.), repeat=3):
                     if parity * int(np.prod(signs)) < 0:
@@ -2163,50 +2202,64 @@ def _get_elem_symmetry_arrs(
     elem_type: EElementType,
 ) -> tuple[np.ndarray, ...]:
     """Return cached array forms of an element's proper symmetries."""
-    return tuple(
-        np.asarray(perm, dtype=np.int64)
-        for perm in _get_elem_symmetries(elem_type)
-    )
+    symmetry_arrs: list[np.ndarray] = []
+    for perm in _get_elem_symmetries(elem_type):
+        symmetry_arrs.append(np.asarray(perm, dtype=np.int64))
+    return tuple(symmetry_arrs)
 
 
-_ELEM_SPECS_BY_NODE_COUNT = MappingProxyType({
-    nodes_per_elem: tuple(
-        spec for spec in ELEMENT_SPECS.values()
-        if spec.nodes_per_elem == nodes_per_elem
-    )
-    for nodes_per_elem in {
-        spec.nodes_per_elem for spec in ELEMENT_SPECS.values()
-    }
-})
+_elem_specs_by_node_count_out: dict[int, tuple[ElementSpec, ...]] = {}
+_supported_node_counts_out: set[int] = set()
+for _spec in ELEMENT_SPECS.values():
+    _supported_node_counts_out.add(_spec.nodes_per_elem)
+for _nodes_per_elem in _supported_node_counts_out:
+    _matching_specs: list[ElementSpec] = []
+    for _spec in ELEMENT_SPECS.values():
+        if _spec.nodes_per_elem == _nodes_per_elem:
+            _matching_specs.append(_spec)
+    _elem_specs_by_node_count_out[_nodes_per_elem] = tuple(_matching_specs)
+_ELEM_SPECS_BY_NODE_COUNT = MappingProxyType(_elem_specs_by_node_count_out)
 
 
-_SURF_NODE_COUNTS = frozenset(
-    spec.nodes_per_elem for spec in ELEMENT_SPECS.values() if spec.is_surf
-)
+_surf_node_counts_out: set[int] = set()
+for _spec in ELEMENT_SPECS.values():
+    if _spec.is_surf:
+        _surf_node_counts_out.add(_spec.nodes_per_elem)
+_SURF_NODE_COUNTS = frozenset(_surf_node_counts_out)
 
 
-_VOL_NODE_COUNTS = frozenset(
-    spec.nodes_per_elem
-    for spec in ELEMENT_SPECS.values()
-    if not spec.is_surf
-)
+_vol_node_counts_out: set[int] = set()
+for _spec in ELEMENT_SPECS.values():
+    if not _spec.is_surf:
+        _vol_node_counts_out.add(_spec.nodes_per_elem)
+_VOL_NODE_COUNTS = frozenset(_vol_node_counts_out)
 
 
 _SUPPORTED_NODE_COUNTS = _SURF_NODE_COUNTS | _VOL_NODE_COUNTS
 
 
-_SURF_ONLY_NODE_COUNTS = frozenset(
-    nodes_per_elem
-    for nodes_per_elem, specs in _ELEM_SPECS_BY_NODE_COUNT.items()
-    if all(spec.is_surf for spec in specs)
-)
+_surf_only_node_counts_out: set[int] = set()
+for _nodes_per_elem, _specs in _ELEM_SPECS_BY_NODE_COUNT.items():
+    _all_surf = True
+    for _spec in _specs:
+        if not _spec.is_surf:
+            _all_surf = False
+            break
+    if _all_surf:
+        _surf_only_node_counts_out.add(_nodes_per_elem)
+_SURF_ONLY_NODE_COUNTS = frozenset(_surf_only_node_counts_out)
 
 
-_VOL_ONLY_NODE_COUNTS = frozenset(
-    nodes_per_elem
-    for nodes_per_elem, specs in _ELEM_SPECS_BY_NODE_COUNT.items()
-    if all(not spec.is_surf for spec in specs)
-)
+_vol_only_node_counts_out: set[int] = set()
+for _nodes_per_elem, _specs in _ELEM_SPECS_BY_NODE_COUNT.items():
+    _all_vol = True
+    for _spec in _specs:
+        if _spec.is_surf:
+            _all_vol = False
+            break
+    if _all_vol:
+        _vol_only_node_counts_out.add(_nodes_per_elem)
+_VOL_ONLY_NODE_COUNTS = frozenset(_vol_only_node_counts_out)
 
 
 def _check_or_enforce_connect_table(
@@ -2476,10 +2529,9 @@ def extract_surf_mesh(
     surf_mesh.update_mesh_type()
 
     if mesh_in.node_vars is not None:
-        surf_mesh.node_vars = {
-            name: values[surf_node_idxs, :]
-            for name, values in mesh_in.node_vars.items()
-        }
+        surf_mesh.node_vars = {}
+        for name, values in mesh_in.node_vars.items():
+            surf_mesh.node_vars[name] = values[surf_node_idxs, :]
 
     if mesh_in.elem_vars is not None:
         surf_mesh.elem_vars = {}
@@ -2616,10 +2668,9 @@ def extract_surf_between(
     surf_mesh.update_mesh_type()
 
     if mesh_in.node_vars is not None:
-        surf_mesh.node_vars = {
-            name: values[surf_node_idxs, :]
-            for name, values in mesh_in.node_vars.items()
-        }
+        surf_mesh.node_vars = {}
+        for name, values in mesh_in.node_vars.items():
+            surf_mesh.node_vars[name] = values[surf_node_idxs, :]
 
     if mesh_in.elem_vars is not None:
         surf_mesh.elem_vars = {}

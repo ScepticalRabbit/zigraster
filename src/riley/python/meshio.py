@@ -179,10 +179,10 @@ def load_field_csvs(
     orientation: EFieldCsvOrientation = EFieldCsvOrientation.NODE_MAJOR,
 ) -> dict[str, np.ndarray]:
     """Load several named scalar fields."""
-    return {
-        name: load_field_csv(path, skip_rows, orientation)
-        for name, path in field_paths.items()
-    }
+    fields_out: dict[str, np.ndarray] = {}
+    for name, path in field_paths.items():
+        fields_out[name] = load_field_csv(path, skip_rows, orientation)
+    return fields_out
 
 
 def load_disp_csvs(
@@ -199,9 +199,10 @@ def load_disp_csvs(
             raise FileNotFoundError(
                 f"Displacement {axis_name}-component CSV not found: {path}",
             )
-    disp_paths = {
-        name: path for name, path in paths_in.items() if path is not None
-    }
+    disp_paths: dict[str, str | Path] = {}
+    for name, path in paths_in.items():
+        if path is not None:
+            disp_paths[name] = path
     if not disp_paths:
         return None
     fields = load_field_csvs(disp_paths, skip_rows, orientation)
@@ -249,12 +250,15 @@ def load_sim_csvs(
         )
         if uvs.shape[0] != coords.shape[0]:
             raise ValueError("UV and coordinate node counts must match.")
-    disp_paths = tuple(
-        data_path / name
-        for name in (disp_x_name, disp_y_name, disp_z_name)
-    )
+    disp_paths_out: list[Path] = []
+    for name in (disp_x_name, disp_y_name, disp_z_name):
+        disp_paths_out.append(data_path / name)
+    disp_paths = tuple(disp_paths_out)
+    disp_paths_optional: list[Path | None] = []
+    for path in disp_paths:
+        disp_paths_optional.append(path if path.is_file() else None)
     disp = load_disp_csvs(
-        *(path if path.is_file() else None for path in disp_paths),
+        *disp_paths_optional,
         skip_rows=skip_rows, orientation=field_orientation,
     )
     if disp is not None and disp.shape[1] != coords.shape[0]:
