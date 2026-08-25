@@ -16,10 +16,42 @@ import pytest
 import riley
 
 
-def test_packaged_data_paths_exist() -> None:
+@pytest.mark.parametrize(
+    "case_name",
+    ("tet4", "tet10", "hex8", "hex20", "hex27"),
+)
+def test_packaged_cube_data_paths_exist(case_name: str) -> None:
+    case_path = riley.data.cube_case_path(case_name)
+    assert (case_path / "coords.csv").is_file()
+    assert (case_path / "connectivity.csv").is_file()
+
+
+@pytest.mark.parametrize(
+    "case_name",
+    (
+        "tri3_sphere200",
+        "tri6_sphere200",
+        "quad4newton_sphere200",
+        "quad8_sphere200",
+        "quad9_sphere200",
+    ),
+)
+def test_packaged_sphere_data_paths_exist(case_name: str) -> None:
+    case_path = riley.data.sphere200_case_path(case_name)
+    for file_name in ("coords.csv", "connect.csv", "field.csv", "uvs.csv"):
+        assert (case_path / file_name).is_file()
+
+
+def test_packaged_data_paths_reject_unknown_cases() -> None:
+    with pytest.raises(ValueError, match="Unsupported cube data case"):
+        riley.data.cube_case_path("tet14")
+    with pytest.raises(ValueError, match="Unsupported sphere200 data case"):
+        riley.data.sphere200_case_path("unknown")
+
+
+def test_other_packaged_data_paths_exist() -> None:
     assert riley.data.speckle_texture_path().is_file()
     assert riley.data.cal_target_texture_path().is_file()
-    assert riley.data.sphere200_case_path().is_dir()
     assert riley.data.platehole_csv_case_path().is_dir()
     assert riley.data.platehole_exodus_path().is_file()
     assert riley.data.stereocal_case_path().is_dir()

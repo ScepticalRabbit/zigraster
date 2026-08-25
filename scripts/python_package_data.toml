@@ -27,6 +27,110 @@ source = "data/min/tri6_sphere200/uvs.csv"
 dest = "min/tri6_sphere200/uvs.csv"
 
 [[copy]]
+source = "data/min/tri3_sphere200/connect.csv"
+dest = "min/tri3_sphere200/connect.csv"
+
+[[copy]]
+source = "data/min/tri3_sphere200/coords.csv"
+dest = "min/tri3_sphere200/coords.csv"
+
+[[copy]]
+source = "data/min/tri3_sphere200/field.csv"
+dest = "min/tri3_sphere200/field.csv"
+
+[[copy]]
+source = "data/min/tri3_sphere200/uvs.csv"
+dest = "min/tri3_sphere200/uvs.csv"
+
+[[copy]]
+source = "data/min/quad4newton_sphere200/connect.csv"
+dest = "min/quad4newton_sphere200/connect.csv"
+
+[[copy]]
+source = "data/min/quad4newton_sphere200/coords.csv"
+dest = "min/quad4newton_sphere200/coords.csv"
+
+[[copy]]
+source = "data/min/quad4newton_sphere200/field.csv"
+dest = "min/quad4newton_sphere200/field.csv"
+
+[[copy]]
+source = "data/min/quad4newton_sphere200/uvs.csv"
+dest = "min/quad4newton_sphere200/uvs.csv"
+
+[[copy]]
+source = "data/min/quad8_sphere200/connect.csv"
+dest = "min/quad8_sphere200/connect.csv"
+
+[[copy]]
+source = "data/min/quad8_sphere200/coords.csv"
+dest = "min/quad8_sphere200/coords.csv"
+
+[[copy]]
+source = "data/min/quad8_sphere200/field.csv"
+dest = "min/quad8_sphere200/field.csv"
+
+[[copy]]
+source = "data/min/quad8_sphere200/uvs.csv"
+dest = "min/quad8_sphere200/uvs.csv"
+
+[[copy]]
+source = "data/min/quad9_sphere200/connect.csv"
+dest = "min/quad9_sphere200/connect.csv"
+
+[[copy]]
+source = "data/min/quad9_sphere200/coords.csv"
+dest = "min/quad9_sphere200/coords.csv"
+
+[[copy]]
+source = "data/min/quad9_sphere200/field.csv"
+dest = "min/quad9_sphere200/field.csv"
+
+[[copy]]
+source = "data/min/quad9_sphere200/uvs.csv"
+dest = "min/quad9_sphere200/uvs.csv"
+
+[[copy]]
+source = "data/cubes/tet4/coords.csv"
+dest = "cubes/tet4/coords.csv"
+
+[[copy]]
+source = "data/cubes/tet4/connectivity.csv"
+dest = "cubes/tet4/connectivity.csv"
+
+[[copy]]
+source = "data/cubes/tet10/coords.csv"
+dest = "cubes/tet10/coords.csv"
+
+[[copy]]
+source = "data/cubes/tet10/connectivity.csv"
+dest = "cubes/tet10/connectivity.csv"
+
+[[copy]]
+source = "data/cubes/hex8/coords.csv"
+dest = "cubes/hex8/coords.csv"
+
+[[copy]]
+source = "data/cubes/hex8/connectivity.csv"
+dest = "cubes/hex8/connectivity.csv"
+
+[[copy]]
+source = "data/cubes/hex20/coords.csv"
+dest = "cubes/hex20/coords.csv"
+
+[[copy]]
+source = "data/cubes/hex20/connectivity.csv"
+dest = "cubes/hex20/connectivity.csv"
+
+[[copy]]
+source = "data/cubes/hex27/coords.csv"
+dest = "cubes/hex27/coords.csv"
+
+[[copy]]
+source = "data/cubes/hex27/connectivity.csv"
+dest = "cubes/hex27/connectivity.csv"
+
+[[copy]]
 source = "data/FE/platehole3d_2mr_63f/connect.csv"
 dest = "fe/platehole3d_2mr_63f/connect.csv"
 

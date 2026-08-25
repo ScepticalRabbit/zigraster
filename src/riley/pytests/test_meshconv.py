@@ -14,10 +14,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from riley import data
 from riley.python import _meshconv, meshconv
 
 
-DATA_DIR = Path(__file__).resolve().parents[3] / "data"
 SUPPORTED_CUBES = ("tet4", "tet10", "hex8", "hex20", "hex27")
 SPHERE_MESHES = (
     "tri3_sphere200",
@@ -507,7 +507,7 @@ def test_native_sphere_meshes_normalize_to_an_idempotent_convention(
     mesh_name: str,
 ) -> None:
     mesh = _load_native_mesh(
-        DATA_DIR / "min" / mesh_name,
+        data.sphere200_case_path(mesh_name),
         mesh_type=meshconv.EMeshType.SURF,
     )
 
@@ -526,7 +526,7 @@ def test_plate_with_hole_keeps_inward_bore_normals() -> None:
     """A closed plate surface must retain its material-facing bore wall."""
 
     mesh = _load_native_mesh(
-        DATA_DIR / "FE" / "platehole3d_2mr_63f",
+        data.platehole_csv_case_path(),
         mesh_type=meshconv.EMeshType.SURF,
     )
 
@@ -1055,7 +1055,7 @@ def _surface_volume(coords: np.ndarray, connect: np.ndarray) -> float:
 
 
 def _load_cube(name: str) -> meshconv.SimData:
-    return _load_native_mesh(DATA_DIR / "cubes" / name)
+    return _load_native_mesh(data.cube_case_path(name))
 
 
 def _load_native_mesh(

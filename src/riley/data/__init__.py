@@ -12,6 +12,16 @@ from importlib.resources import files
 from pathlib import Path
 
 
+_CUBE_CASE_NAMES = ("tet4", "tet10", "hex8", "hex20", "hex27")
+_SPHERE200_CASE_NAMES = (
+    "tri3_sphere200",
+    "tri6_sphere200",
+    "quad4newton_sphere200",
+    "quad8_sphere200",
+    "quad9_sphere200",
+)
+
+
 def _package_data_root_path() -> Path:
     return Path(str(files("riley.data")))
 
@@ -55,10 +65,27 @@ def cal_target_texture_path() -> Path:
     )
 
 
-def sphere200_case_path() -> Path:
+def cube_case_path(case_name: str) -> Path:
+    if case_name not in _CUBE_CASE_NAMES:
+        raise ValueError(
+            f"Unsupported cube data case: {case_name!r}. "
+            f"Expected one of {_CUBE_CASE_NAMES}.",
+        )
     return _resolve_data_path(
-        "min/tri6_sphere200",
-        "data/min/tri6_sphere200",
+        f"cubes/{case_name}",
+        f"data/cubes/{case_name}",
+    )
+
+
+def sphere200_case_path(case_name: str = "tri6_sphere200") -> Path:
+    if case_name not in _SPHERE200_CASE_NAMES:
+        raise ValueError(
+            f"Unsupported sphere200 data case: {case_name!r}. "
+            f"Expected one of {_SPHERE200_CASE_NAMES}.",
+        )
+    return _resolve_data_path(
+        f"min/{case_name}",
+        f"data/min/{case_name}",
     )
 
 
@@ -101,6 +128,7 @@ def rabbit_case_path(
 
 __all__ = [
     "cal_target_texture_path",
+    "cube_case_path",
     "platehole_csv_case_path",
     "platehole_exodus_path",
     "rabbit_case_path",
