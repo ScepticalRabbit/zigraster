@@ -121,7 +121,7 @@ def main() -> None:
     rabbit_mesh_types = [
         riley.MeshType.tri3,
         riley.MeshType.tri6,
-        riley.MeshType.quad4ibi,
+        riley.MeshType.quad4newton,
         riley.MeshType.quad8,
         riley.MeshType.quad9,
     ]

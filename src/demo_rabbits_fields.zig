@@ -34,7 +34,7 @@ const F = buildconfig.F;
 const rabbit_mesh_types = [_]gk.MeshType{
     .tri3,
     .tri6,
-    .quad4ibi,
+    .quad4newton,
     .quad8,
     .quad9,
 };
