@@ -822,6 +822,19 @@ fn transformWorldNodeToRaster(
     return coord_raster;
 }
 
+pub fn calcProjectedNodeUV(
+    camera: *const cam.CameraPrepared,
+    coord_world: vecstack.Vec3T(F),
+) [2]F {
+    const coord_raster = transformWorldNodeToRaster(camera, coord_world);
+    const px_width = @as(F, @floatFromInt(camera.pixels_num[0]));
+    const px_height = @as(F, @floatFromInt(camera.pixels_num[1]));
+    return .{
+        coord_raster.slice[0] / px_width,
+        coord_raster.slice[1] / px_height,
+    };
+}
+
 fn transformWorldNodeToClipPx(
     camera: *const cam.CameraPrepared,
     coord_world: vecstack.Vec3T(F),

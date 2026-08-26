@@ -333,10 +333,12 @@ class MultiBuildExt(build_ext):
             print(f"Zig build command:\nzig {zig_build_str}\n")
 
 
+            zig_cmd = [sys.executable, "-m", "ziglang"]
+            if shutil.which("zig") and importlib.util.find_spec("ziglang") is None:
+                zig_cmd = ["zig"]
+
             try:
-                # Calls the ziglang pypi package:
-                # https://pypi.org/project/ziglang/
-                subprocess.check_call([sys.executable, "-m", "ziglang"] + zig_build)
+                subprocess.check_call(zig_cmd + zig_build)
                 print("Zig build successful\n")
 
                 # Copy python extension name to linkable library name

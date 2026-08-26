@@ -19,6 +19,7 @@ _DEMO_FUNCS = {
     "demo_rabbits": "riley.pydemos.demo_rabbits",
     "demo_dicuq": "riley.pydemos.demo_dicuq",
     "demo_dic_from_exodus": "riley.pydemos.demo_dic_from_exodus",
+    "demo_imagewarp2d": "riley.pydemos.demo_imagewarp2d",
     "demo_stereocal": "riley.pydemos.demo_stereocal",
 }
 

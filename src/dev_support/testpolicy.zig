@@ -30,6 +30,7 @@ pub const GoldSuite = enum {
     texfunc,
     ssaa,
     psf,
+    projected_tex,
     sphere2000,
     sphere2000_ssaa1,
     sphere2000zoom,
@@ -67,6 +68,7 @@ pub fn suiteDirName(comptime suite: GoldSuite) []const u8 {
         .texfunc => "texfunc",
         .ssaa => "ssaa",
         .psf => "psf",
+        .projected_tex => "projected_tex",
         .sphere2000 => "sphere2000",
         .sphere2000_ssaa1 => "sphere2000_ssaa1",
         .sphere2000zoom => "sphere2000zoom",
@@ -90,6 +92,7 @@ pub fn goldRoot(comptime suite: GoldSuite) []const u8 {
         .texfunc => if (F == f64) "gold/texfunc" else "gold/texfunc_f32",
         .ssaa => if (F == f64) "gold/ssaa" else "gold/ssaa_f32",
         .psf => if (F == f64) "gold/psf" else "gold/psf_f32",
+        .projected_tex => if (F == f64) "gold/projected_tex" else "gold/projected_tex_f32",
         .sphere2000 => if (F == f64)
             (if (cfg.simd == .on) "gold/sphere2000-simd" else "gold/sphere2000")
         else

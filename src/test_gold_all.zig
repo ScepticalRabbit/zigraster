@@ -21,6 +21,7 @@ pub const texfloat = @import("tests/test_texfloat.zig");
 pub const ssaa = @import("tests/test_gold_ssaa.zig");
 pub const psf = @import("tests/test_gold_psf.zig");
 pub const visibility = @import("tests/test_visibility.zig");
+pub const projected_tex = @import("tests/test_gold_projected_tex.zig");
 
 pub fn main(init: std.process.Init) !void {
     _ = init;

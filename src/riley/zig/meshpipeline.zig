@@ -133,6 +133,8 @@ pub fn countOutputFields(meshes: []const MeshInput) u8 {
             .nodal => |shader| shader.field.getFieldsN(),
             .tex_u8, .tex_u16, .tex_f => 1,
             .tex_rgb_u8, .tex_rgb_u16, .tex_rgb_f => 3,
+            .projected_tex_u8, .projected_tex_u16, .projected_tex_f => 1,
+            .projected_tex_rgb_u8, .projected_tex_rgb_u16, .projected_tex_rgb_f => 3,
             .func => 1,
             .func_rgb => 3,
         };
@@ -376,6 +378,108 @@ pub fn initMeshStatic(
                 .normal_type = tex_in.normal_type,
             } };
         },
+        .projected_tex_u8 => |proj_in| {
+            const elem_uvs = try prepProjectedUVs(
+                allocator,
+                proj_in.ref_camera,
+                proj_in.ref_coords,
+                &mesh_input.coords,
+                &mesh_input.connect,
+            );
+            shader_static = .{ .tex_u8 = .{
+                .elem_uvs = elem_uvs,
+                .tex = proj_in.tex,
+                .samp_cfg = proj_in.samp_cfg,
+                .bits = proj_in.bits,
+                .scaling = proj_in.scaling,
+                .normal_type = proj_in.normal_type,
+            } };
+        },
+        .projected_tex_u16 => |proj_in| {
+            const elem_uvs = try prepProjectedUVs(
+                allocator,
+                proj_in.ref_camera,
+                proj_in.ref_coords,
+                &mesh_input.coords,
+                &mesh_input.connect,
+            );
+            shader_static = .{ .tex_u16 = .{
+                .elem_uvs = elem_uvs,
+                .tex = proj_in.tex,
+                .samp_cfg = proj_in.samp_cfg,
+                .bits = proj_in.bits,
+                .scaling = proj_in.scaling,
+                .normal_type = proj_in.normal_type,
+            } };
+        },
+        .projected_tex_f => |proj_in| {
+            const elem_uvs = try prepProjectedUVs(
+                allocator,
+                proj_in.ref_camera,
+                proj_in.ref_coords,
+                &mesh_input.coords,
+                &mesh_input.connect,
+            );
+            shader_static = .{ .tex_f = .{
+                .elem_uvs = elem_uvs,
+                .tex = proj_in.tex,
+                .samp_cfg = proj_in.samp_cfg,
+                .bits = proj_in.bits,
+                .scaling = proj_in.scaling,
+                .normal_type = proj_in.normal_type,
+            } };
+        },
+        .projected_tex_rgb_u8 => |proj_in| {
+            const elem_uvs = try prepProjectedUVs(
+                allocator,
+                proj_in.ref_camera,
+                proj_in.ref_coords,
+                &mesh_input.coords,
+                &mesh_input.connect,
+            );
+            shader_static = .{ .tex_rgb_u8 = .{
+                .elem_uvs = elem_uvs,
+                .tex = proj_in.tex,
+                .samp_cfg = proj_in.samp_cfg,
+                .bits = proj_in.bits,
+                .scaling = proj_in.scaling,
+                .normal_type = proj_in.normal_type,
+            } };
+        },
+        .projected_tex_rgb_u16 => |proj_in| {
+            const elem_uvs = try prepProjectedUVs(
+                allocator,
+                proj_in.ref_camera,
+                proj_in.ref_coords,
+                &mesh_input.coords,
+                &mesh_input.connect,
+            );
+            shader_static = .{ .tex_rgb_u16 = .{
+                .elem_uvs = elem_uvs,
+                .tex = proj_in.tex,
+                .samp_cfg = proj_in.samp_cfg,
+                .bits = proj_in.bits,
+                .scaling = proj_in.scaling,
+                .normal_type = proj_in.normal_type,
+            } };
+        },
+        .projected_tex_rgb_f => |proj_in| {
+            const elem_uvs = try prepProjectedUVs(
+                allocator,
+                proj_in.ref_camera,
+                proj_in.ref_coords,
+                &mesh_input.coords,
+                &mesh_input.connect,
+            );
+            shader_static = .{ .tex_rgb_f = .{
+                .elem_uvs = elem_uvs,
+                .tex = proj_in.tex,
+                .samp_cfg = proj_in.samp_cfg,
+                .bits = proj_in.bits,
+                .scaling = proj_in.scaling,
+                .normal_type = proj_in.normal_type,
+            } };
+        },
         .func => |tex_func_in| {
             const elem_uvs = if (tex_func_in.uvs) |uvs|
                 try prepUVs(
@@ -586,6 +690,37 @@ fn prepUVs(
     }
 
     return elem_uv_arr;
+}
+
+fn prepProjectedUVs(
+    outer_alloc: std.mem.Allocator,
+    ref_camera: cam.CameraInput,
+    ref_coords: ?meshio.Coords,
+    mesh_coords: *const meshio.Coords,
+    connect: *const meshio.Connect,
+) !ndarray.NDArray(F) {
+    var ref_cam = try cam.CameraPrepared.init(outer_alloc, ref_camera);
+    defer ref_cam.deinit(outer_alloc);
+
+    const total_nodes = mesh_coords.mat.rows_num;
+    const dims = [_]usize{ total_nodes, 2 };
+    var projected_uvs = try ndarray.NDArray(F).initFlat(outer_alloc, dims[0..]);
+    defer {
+        outer_alloc.free(projected_uvs.slice);
+        projected_uvs.deinit(outer_alloc);
+    }
+
+    for (0..total_nodes) |nn| {
+        const coord_world = if (ref_coords) |rc|
+            rc.getVec3(nn)
+        else
+            mesh_coords.getVec3(nn);
+        const uv = rops.calcProjectedNodeUV(&ref_cam, coord_world);
+        projected_uvs.slice[nn * 2 + 0] = uv[0];
+        projected_uvs.slice[nn * 2 + 1] = uv[1];
+    }
+
+    return try prepUVs(outer_alloc, &projected_uvs, connect);
 }
 
 fn initMeshFrameWorkspace(

@@ -19,6 +19,7 @@ const gen_sphere = @import("gengold/gen_gold_sphere.zig");
 const gen_texfunc = @import("gengold/gen_gold_texfunc.zig");
 const gen_ssaa = @import("gengold/gen_gold_ssaa.zig");
 const gen_psf = @import("gengold/gen_gold_psf.zig");
+const gen_projected_tex = @import("gengold/gen_gold_projected_tex.zig");
 const buildconfig = @import("riley/zig/buildconfig.zig");
 
 const cfg = buildconfig.config;
@@ -88,6 +89,9 @@ pub fn main(init: std.process.Init) !void {
 
     std.debug.print("\n--- PSF ---\n", .{});
     try gen_psf.main(init);
+
+    std.debug.print("\n--- ProjectedTex ---\n", .{});
+    try gen_projected_tex.main(init);
 
     std.debug.print("\nALL SIMD Gold Data generation complete.\n", .{});
 }

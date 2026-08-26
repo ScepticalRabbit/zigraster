@@ -64,6 +64,11 @@ pub fn build(b: *std.Build) void {
             .source_path = "src/test_min.zig",
         },
         .{
+            .step_name = "test-projected-tex",
+            .description = "Run the ProjectedTex gold regression test suite",
+            .source_path = "src/test_projected_tex.zig",
+        },
+        .{
             .step_name = "test-gold-all",
             .description = "Run the ALL gold regression test suite",
             .source_path = "src/test_gold_all.zig",
@@ -121,6 +126,11 @@ pub fn build(b: *std.Build) void {
             .source_path = "src/demo_dicuq.zig",
         },
         .{
+            .step_name = "demo-imagewarp2d",
+            .description = "Run the 2D projected image warp demo",
+            .source_path = "src/demo_imagewarp2d.zig",
+        },
+        .{
             .step_name = "demo-stereocal",
             .description = "Run the stereo calibration demo",
             .source_path = "src/demo_stereocal.zig",
@@ -151,6 +161,11 @@ pub fn build(b: *std.Build) void {
             .step_name = "gen-gold-min",
             .description = "Generate the MIN gold datasets",
             .source_path = "src/gen_gold_min.zig",
+        },
+        .{
+            .step_name = "gen-gold-projected-tex",
+            .description = "Generate the ProjectedTex gold datasets",
+            .source_path = "src/gen_gold_projected_tex.zig",
         },
     };
 

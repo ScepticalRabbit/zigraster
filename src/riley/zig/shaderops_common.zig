@@ -23,6 +23,8 @@ const meshio = @import("meshio.zig");
 const maths_simd = @import("maths_simd.zig");
 const simd_impl = @import("shaderops_simd.zig");
 
+const cam_comm = @import("camera_common.zig");
+
 // --------------------------------------------------------------------------------------
 // Public Constants & Public Types
 // --------------------------------------------------------------------------------------
@@ -142,6 +144,21 @@ pub fn TexInput(comptime T: type, comptime C: usize) type {
     };
 }
 
+pub fn ProjectedTexInput(comptime T: type, comptime C: usize) type {
+    return struct {
+        ref_camera: cam_comm.CameraInput,
+        ref_coords: ?meshio.Coords = null,
+        tex: texops.Tex(T, C),
+        samp_cfg: texops.TexSampConfig = .{
+            .sample = .cubic_catmull_rom,
+            .mode = .lut_lerp,
+        },
+        bits: ?u8 = 8,
+        scaling: imageops.ScaleStrategy = .none,
+        normal_type: NormalType = .none,
+    };
+}
+
 pub const FuncInput = struct {
     uvs: ?ndarray.NDArray(F) = null,
     coord_mode: FuncCoordMode = .para,
@@ -160,6 +177,12 @@ pub const ShaderInput = union(enum) {
     tex_rgb_u8: TexInput(u8, 3),
     tex_rgb_u16: TexInput(u16, 3),
     tex_rgb_f: TexInput(F, 3),
+    projected_tex_u8: ProjectedTexInput(u8, 1),
+    projected_tex_u16: ProjectedTexInput(u16, 1),
+    projected_tex_f: ProjectedTexInput(F, 1),
+    projected_tex_rgb_u8: ProjectedTexInput(u8, 3),
+    projected_tex_rgb_u16: ProjectedTexInput(u16, 3),
+    projected_tex_rgb_f: ProjectedTexInput(F, 3),
     func: FuncInput,
     func_rgb: FuncInput,
 };

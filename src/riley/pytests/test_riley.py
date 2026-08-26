@@ -71,6 +71,13 @@ DEMO_CASES = (
         2,
     ),
     (
+        "imagewarp2d",
+        [str(PYTHON_EXE), "-m", "riley", "demo_imagewarp2d"],
+        "out/demo-imagewarp2d",
+        "out-riley-py/demo-imagewarp2d",
+        2,
+    ),
+    (
         "stereocal",
         [str(PYTHON_EXE), "-m", "riley", "demo_stereocal"],
         "out/demo-stereocal",
