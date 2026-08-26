@@ -156,6 +156,11 @@ pub fn build(b: *std.Build) void {
             .description = "Run the stereo calibration demo",
             .source_path = "src/demo_stereocal.zig",
         },
+        .{
+            .step_name = "demo-procedural-speckles",
+            .description = "Run the procedural speckle prototype demo",
+            .source_path = "src/demoproceduralspeckles.zig",
+        },
     };
 
     const demos_step = b.step("demos", "Run all demo entrypoints");
