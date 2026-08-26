@@ -100,6 +100,11 @@ pub fn build(b: *std.Build) void {
             .description = "Run the benchmark regression test suite",
             .source_path = "src/test_bench.zig",
         },
+        .{
+            .step_name = "test-procedural-speckles",
+            .description = "Run the procedural speckle behavior tests",
+            .source_path = "src/testproceduralspeckles.zig",
+        },
     };
 
     for (tests) |entry| {
