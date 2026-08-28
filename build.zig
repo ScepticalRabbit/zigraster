@@ -2,8 +2,8 @@ const std = @import("std");
 
 const riley_version = std.SemanticVersion{
     .major = 2026,
-    .minor = 7,
-    .patch = 1,
+    .minor = 9,
+    .patch = 0,
 };
 
 const RunEntry = struct {
