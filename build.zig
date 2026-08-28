@@ -47,7 +47,7 @@ pub fn build(b: *std.Build) void {
     const speckle_evaluator = b.option(
         []const u8,
         "speckle-evaluator",
-        "Procedural speckle evaluator: cell-hash, list-naive, or list-indexed",
+        "Procedural speckle evaluator: cell-hash, list-naive, list-indexed, or mask-1bit",
     ) orelse "cell-hash";
     const speckle_shape = b.option(
         []const u8,
@@ -60,6 +60,11 @@ pub fn build(b: *std.Build) void {
     validateSpeckleNeighborCount(speckle_neighbor_count);
     validateSpeckleEvaluator(speckle_evaluator);
     validateSpeckleShape(speckle_shape);
+    validateSpeckleEvaluatorConfig(
+        speckle_evaluator,
+        speckle_shape,
+        speckle_boundary_blur,
+    );
 
     const build_options_module = createBuildOptionsModule(
         b,
@@ -604,8 +609,20 @@ fn validateSpeckleShape(shape: []const u8) void {
 fn validateSpeckleEvaluator(evaluator: []const u8) void {
     if (std.mem.eql(u8, evaluator, "cell-hash") or
         std.mem.eql(u8, evaluator, "list-naive") or
-        std.mem.eql(u8, evaluator, "list-indexed")) return;
-    @panic("Supported -Dspeckle-evaluator values are cell-hash, list-naive, and list-indexed.");
+        std.mem.eql(u8, evaluator, "list-indexed") or
+        std.mem.eql(u8, evaluator, "mask-1bit")) return;
+    @panic("Supported -Dspeckle-evaluator values are cell-hash, list-naive, list-indexed, and mask-1bit.");
+}
+
+fn validateSpeckleEvaluatorConfig(
+    evaluator: []const u8,
+    shape: []const u8,
+    boundary_blur: bool,
+) void {
+    if (!std.mem.eql(u8, evaluator, "mask-1bit")) return;
+    if (!std.mem.eql(u8, shape, "disk") or boundary_blur) {
+        @panic("-Dspeckle-evaluator=mask-1bit requires -Dspeckle-shape=disk and -Dspeckle-boundary-blur=false.");
+    }
 }
 
 fn validateSpeckleNeighborCount(count: u8) void {

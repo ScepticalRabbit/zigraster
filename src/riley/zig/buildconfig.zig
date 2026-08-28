@@ -57,6 +57,16 @@ pub const speckle_neighbor_count = buildOptionsSpeckleNeighborCount();
 pub const speckle_evaluator = parseSpeckleEvaluator(buildOptionsSpeckleEvaluator());
 pub const speckle_shape = parseSpeckleShape(buildOptionsSpeckleShape());
 
+comptime {
+    if (speckle_evaluator == .mask_1bit and
+        (speckle_shape != .disk or speckle_boundary_blur))
+    {
+        @compileError(
+            "speckle evaluator mask-1bit requires disk shape and boundary blur false.",
+        );
+    }
+}
+
 pub const config = configForPrecision(F);
 
 pub const SimdWidth = config.simd_vec_width;
@@ -86,6 +96,7 @@ pub const SpeckleEvaluator = enum {
     cell_hash,
     list_naive,
     list_indexed,
+    mask_1bit,
 };
 
 pub const NewtonSolverMode = enum {
@@ -178,8 +189,9 @@ fn parseSpeckleEvaluator(comptime evaluator: []const u8) SpeckleEvaluator {
     if (std.mem.eql(u8, evaluator, "cell-hash")) return .cell_hash;
     if (std.mem.eql(u8, evaluator, "list-naive")) return .list_naive;
     if (std.mem.eql(u8, evaluator, "list-indexed")) return .list_indexed;
+    if (std.mem.eql(u8, evaluator, "mask-1bit")) return .mask_1bit;
     @compileError(
-        "build_options.speckle_evaluator must be cell-hash, list-naive, or list-indexed.",
+        "build_options.speckle_evaluator must be cell-hash, list-naive, list-indexed, or mask-1bit.",
     );
 }
 

@@ -229,7 +229,10 @@ pub inline fn fillFuncClipScal(
     const params = shader.params;
 
     if (comptime C == 1) {
-        const value = if (shader.speckle_list) |speckles|
+        const value = if (shader.speckle_mask) |mask|
+            comm.evalSpeckleMask2D(.{ coords.coord_0, coords.coord_1 }, mask) *
+                params.output_scale + params.output_offset
+        else if (shader.speckle_list) |speckles|
             comm.evalSpeckleList2D(.{ coords.coord_0, coords.coord_1 }, speckles) *
                 params.output_scale + params.output_offset
         else
@@ -266,7 +269,10 @@ pub inline fn fillFuncPerspScal(
     const params = shader.params;
 
     if (comptime C == 1) {
-        const value = if (shader.speckle_list) |speckles|
+        const value = if (shader.speckle_mask) |mask|
+            comm.evalSpeckleMask2D(.{ coords.coord_0, coords.coord_1 }, mask) *
+                params.output_scale + params.output_offset
+        else if (shader.speckle_list) |speckles|
             comm.evalSpeckleList2D(.{ coords.coord_0, coords.coord_1 }, speckles) *
                 params.output_scale + params.output_offset
         else

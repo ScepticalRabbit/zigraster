@@ -15,6 +15,7 @@ const S = buildconfig.SimdWidth;
 const speckle_boundary_blur = buildconfig.speckle_boundary_blur;
 const speckle_neighbor_count = buildconfig.speckle_neighbor_count;
 const speckle_shape = buildconfig.speckle_shape;
+const speckle_mask_samples_per_cell: F = 12.0;
 const VecSF = buildconfig.VecSF;
 
 const ndarray = @import("ndarray.zig");
@@ -336,6 +337,14 @@ pub const SpeckleList2D = struct {
     disk_by_cell: []const u32,
 };
 
+pub const SpeckleMask2D = struct {
+    bits: []const u8,
+    dims: [2]usize,
+    row_stride: usize,
+    uv_to_texel: [2]F,
+    params: Speckle2DParams,
+};
+
 pub const FuncShaderParams = struct {
     coord_scale: [2]F = .{ 1.0, 1.0 },
     coord_offset: [2]F = .{ 0.0, 0.0 },
@@ -391,6 +400,7 @@ pub fn TexStatic(comptime T: type, comptime C: usize) type {
 pub const FuncStatic = struct {
     elem_uvs: ?ndarray.NDArray(F),
     speckle_list: ?SpeckleList2D = null,
+    speckle_mask: ?SpeckleMask2D = null,
     coord_mode: FuncCoordMode = .para,
     builtin: FuncShaderBuiltin,
     params: FuncShaderParams = .{},
@@ -446,6 +456,7 @@ pub fn TexPrepared(comptime T: type, comptime C: usize) type {
 pub const FuncPrepared = struct {
     elem_uvs: ?ndarray.NDArray(F),
     speckle_list: ?SpeckleList2D = null,
+    speckle_mask: ?SpeckleMask2D = null,
     elem_world_ref: ?ndarray.NDArray(F) = null,
     elem_world_def: ?ndarray.NDArray(F) = null,
     coord_mode: FuncCoordMode = .para,
@@ -765,6 +776,164 @@ fn speckleListDiskAt(
     return speckles.disks[encoded];
 }
 
+const SpeckleMaskCellBounds = struct {
+    min: [2]i64,
+    max: [2]i64,
+};
+
+fn speckleMaskCellBounds(params: Speckle2DParams) !SpeckleMaskCellBounds {
+    const min = [2]i64{
+        @as(i64, @intFromFloat(@floor(params.uv_offset[0]))) - 1,
+        @as(i64, @intFromFloat(@floor(params.uv_offset[1]))) - 1,
+    };
+    const max = [2]i64{
+        @as(i64, @intFromFloat(@floor(
+            params.uv_offset[0] + params.cells_per_uv[0],
+        ))) + 1,
+        @as(i64, @intFromFloat(@floor(
+            params.uv_offset[1] + params.cells_per_uv[1],
+        ))) + 1,
+    };
+    const width = std.math.cast(usize, max[0] - min[0] + 1) orelse
+        return error.SpeckleMaskTooLarge;
+    const height = std.math.cast(usize, max[1] - min[1] + 1) orelse
+        return error.SpeckleMaskTooLarge;
+    const cell_count = std.math.mul(usize, width, height) catch
+        return error.SpeckleMaskTooLarge;
+    if (cell_count > 10_000_000) return error.SpeckleMaskTooLarge;
+    return .{ .min = min, .max = max };
+}
+
+fn rasterizeSpeckleMaskDisk(
+    bits: []u8,
+    row_stride: usize,
+    uv_to_texel: [2]F,
+    params: Speckle2DParams,
+    disk: SpeckleDisk2D,
+) void {
+    const proc_to_texel = [2]F{
+        uv_to_texel[0] / params.cells_per_uv[0],
+        uv_to_texel[1] / params.cells_per_uv[1],
+    };
+    const box_min = [2]F{
+        (disk.center[0] - disk.radius - params.uv_offset[0]) * proc_to_texel[0],
+        (disk.center[1] - disk.radius - params.uv_offset[1]) * proc_to_texel[1],
+    };
+    const box_max = [2]F{
+        (disk.center[0] + disk.radius - params.uv_offset[0]) * proc_to_texel[0],
+        (disk.center[1] + disk.radius - params.uv_offset[1]) * proc_to_texel[1],
+    };
+    if (box_max[0] < 0.0 or box_max[1] < 0.0 or
+        box_min[0] > uv_to_texel[0] or box_min[1] > uv_to_texel[1]) return;
+    const min_x: usize = @intFromFloat(@max(0.0, @floor(box_min[0])));
+    const min_y: usize = @intFromFloat(@max(0.0, @floor(box_min[1])));
+    const max_x: usize = @intFromFloat(@min(uv_to_texel[0], @ceil(box_max[0])));
+    const max_y: usize = @intFromFloat(@min(uv_to_texel[1], @ceil(box_max[1])));
+    const radius2 = disk.radius * disk.radius;
+
+    for (min_y..max_y + 1) |yy| {
+        const uv_y = @as(F, @floatFromInt(yy)) / uv_to_texel[1];
+        const delta_y = uv_y * params.cells_per_uv[1] + params.uv_offset[1] -
+            disk.center[1];
+        for (min_x..max_x + 1) |xx| {
+            const uv_x = @as(F, @floatFromInt(xx)) / uv_to_texel[0];
+            const delta_x = uv_x * params.cells_per_uv[0] + params.uv_offset[0] -
+                disk.center[0];
+            if (delta_x * delta_x + delta_y * delta_y <= radius2) {
+                const shift: u3 = @intCast(xx & 7);
+                bits[yy * row_stride + xx / 8] |= @as(u8, 1) << shift;
+            }
+        }
+    }
+}
+
+pub fn generateSpeckleMask2D(
+    allocator: std.mem.Allocator,
+    params: Speckle2DParams,
+) !SpeckleMask2D {
+    try params.validate();
+    const cell_bounds = try speckleMaskCellBounds(params);
+
+    var intervals: [2]usize = undefined;
+    for (params.cells_per_uv, 0..) |cells, axis| {
+        const interval_f = @ceil(cells * speckle_mask_samples_per_cell);
+        const max_interval: F = @floatFromInt(std.math.maxInt(usize) - 1);
+        if (!std.math.isFinite(interval_f) or interval_f > max_interval) {
+            return error.SpeckleMaskTooLarge;
+        }
+        intervals[axis] = @intFromFloat(interval_f);
+    }
+    const dims = [2]usize{
+        std.math.add(usize, intervals[0], 1) catch return error.SpeckleMaskTooLarge,
+        std.math.add(usize, intervals[1], 1) catch return error.SpeckleMaskTooLarge,
+    };
+    const row_stride = std.math.divCeil(usize, dims[0], 8) catch
+        return error.SpeckleMaskTooLarge;
+    const byte_count = std.math.mul(usize, row_stride, dims[1]) catch
+        return error.SpeckleMaskTooLarge;
+    const uv_to_texel = [2]F{
+        @floatFromInt(intervals[0]),
+        @floatFromInt(intervals[1]),
+    };
+    if (params.occupancy == 0.0 or params.foreground == params.background) {
+        return .{
+            .bits = try allocator.alloc(u8, 0),
+            .dims = dims,
+            .row_stride = row_stride,
+            .uv_to_texel = uv_to_texel,
+            .params = params,
+        };
+    }
+
+    const bits = try allocator.alloc(u8, byte_count);
+    @memset(bits, 0);
+    var cell_y = cell_bounds.min[1];
+    while (cell_y <= cell_bounds.max[1]) : (cell_y += 1) {
+        var cell_x = cell_bounds.min[0];
+        while (cell_x <= cell_bounds.max[0]) : (cell_x += 1) {
+            const hash = hashSpeckleCell(cell_x, cell_y, params.seed);
+            if (params.occupancy < 1.0 and
+                randomUnitFromHash(hash, 0) >= params.occupancy)
+            {
+                continue;
+            }
+            rasterizeSpeckleMaskDisk(
+                bits,
+                row_stride,
+                uv_to_texel,
+                params,
+                speckleDiskFromHash(cell_x, cell_y, hash, params),
+            );
+        }
+    }
+
+    return .{
+        .bits = bits,
+        .dims = dims,
+        .row_stride = row_stride,
+        .uv_to_texel = uv_to_texel,
+        .params = params,
+    };
+}
+
+pub inline fn evalSpeckleMask2D(uv: [2]F, mask: SpeckleMask2D) F {
+    if (mask.params.occupancy == 0.0 or
+        mask.params.foreground == mask.params.background)
+    {
+        return mask.params.background;
+    }
+    const texel_x: usize = @intFromFloat(@floor(
+        @max(0.0, @min(1.0, uv[0])) * mask.uv_to_texel[0] + 0.5,
+    ));
+    const texel_y: usize = @intFromFloat(@floor(
+        @max(0.0, @min(1.0, uv[1])) * mask.uv_to_texel[1] + 0.5,
+    ));
+    const shift: u3 = @intCast(texel_x & 7);
+    const is_foreground = mask.bits[texel_y * mask.row_stride + texel_x / 8] &
+        (@as(u8, 1) << shift) != 0;
+    return if (is_foreground) mask.params.foreground else mask.params.background;
+}
+
 pub fn evalSpeckleList2DNaive(uv: [2]F, speckles: SpeckleList2D) F {
     const params = speckles.params;
     if (speckles.disks.len == 0 or params.foreground == params.background) {
@@ -851,7 +1020,7 @@ pub fn evalSpeckleList2DIndexed(uv: [2]F, speckles: SpeckleList2D) F {
 
 pub fn evalSpeckleList2D(uv: [2]F, speckles: SpeckleList2D) F {
     return switch (comptime buildconfig.speckle_evaluator) {
-        .list_indexed => evalSpeckleList2DIndexed(uv, speckles),
+        .list_indexed, .mask_1bit => evalSpeckleList2DIndexed(uv, speckles),
         .cell_hash, .list_naive => evalSpeckleList2DNaive(uv, speckles),
     };
 }
@@ -1620,4 +1789,105 @@ test "procedural speckle exact fast paths preserve endpoint behavior" {
     params.foreground = 0.375;
     params.background = params.foreground;
     try testing.expectEqual(params.background, evalSpeckle2D(.{ 0.37, 0.61 }, params));
+}
+
+fn speckleMaskTestParams() Speckle2DParams {
+    return .{
+        .seed = 0x85ebca6b,
+        .cells_per_uv = .{ 3.25, 2.5 },
+        .uv_offset = .{ 0.37, -0.42 },
+        .occupancy = 0.72,
+        .radius_mean = 0.38,
+        .radius_jitter = 0.07,
+        .foreground = 0.15,
+        .background = 0.85,
+    };
+}
+
+test "direct 1-bit speckle mask preserves list-derived bytes and lattice values" {
+    if (comptime buildconfig.speckle_evaluator != .mask_1bit) return;
+
+    const params = speckleMaskTestParams();
+    const speckles = try generateSpeckleList2D(testing.allocator, params);
+    defer testing.allocator.free(speckles.disk_by_cell);
+    defer testing.allocator.free(speckles.disks);
+
+    var mask_storage: [155]u8 = undefined;
+    var fixed = std.heap.FixedBufferAllocator.init(&mask_storage);
+    const mask = try generateSpeckleMask2D(fixed.allocator(), params);
+    try testing.expectEqual(mask_storage.len, mask.bits.len);
+
+    const list_bits = try testing.allocator.alloc(u8, mask.bits.len);
+    defer testing.allocator.free(list_bits);
+    @memset(list_bits, 0);
+    for (speckles.disks) |disk| {
+        rasterizeSpeckleMaskDisk(
+            list_bits,
+            mask.row_stride,
+            mask.uv_to_texel,
+            params,
+            disk,
+        );
+    }
+    try testing.expectEqualSlices(u8, list_bits, mask.bits);
+
+    var found_foreground = false;
+    var found_background = false;
+    for (0..mask.dims[1]) |yy| {
+        for (0..mask.dims[0]) |xx| {
+            const uv = [2]F{
+                @as(F, @floatFromInt(xx)) / mask.uv_to_texel[0],
+                @as(F, @floatFromInt(yy)) / mask.uv_to_texel[1],
+            };
+            const value = evalSpeckleMask2D(uv, mask);
+            try testing.expectEqual(evalSpeckleList2DIndexed(uv, speckles), value);
+            found_foreground = found_foreground or value == mask.params.foreground;
+            found_background = found_background or value == mask.params.background;
+        }
+    }
+    try testing.expect(found_foreground and found_background);
+}
+
+test "1-bit speckle mask handles degenerate and oversized inputs" {
+    if (comptime buildconfig.speckle_evaluator != .mask_1bit) return;
+
+    var params = speckleMaskTestParams();
+    params.occupancy = 0.0;
+    const empty = try generateSpeckleMask2D(testing.allocator, params);
+    defer testing.allocator.free(empty.bits);
+    try testing.expectEqual(@as(usize, 0), empty.bits.len);
+    try testing.expectEqual(params.background, evalSpeckleMask2D(.{ 0.37, 0.61 }, empty));
+
+    params.occupancy = 1.0;
+    params.foreground = params.background;
+    const equal_colour = try generateSpeckleMask2D(testing.allocator, params);
+    defer testing.allocator.free(equal_colour.bits);
+    try testing.expectEqual(@as(usize, 0), equal_colour.bits.len);
+    try testing.expectEqual(
+        params.background,
+        evalSpeckleMask2D(.{ 0.37, 0.61 }, equal_colour),
+    );
+
+    params = speckleMaskTestParams();
+    params.cells_per_uv = .{ 4000.0, 4000.0 };
+    try testing.expectError(
+        error.SpeckleMaskTooLarge,
+        generateSpeckleMask2D(testing.allocator, params),
+    );
+}
+
+test "1-bit speckle mask clamps UV endpoints" {
+    if (comptime buildconfig.speckle_evaluator != .mask_1bit) return;
+
+    const mask = try generateSpeckleMask2D(testing.allocator, speckleMaskTestParams());
+    defer testing.allocator.free(mask.bits);
+
+    try testing.expectEqual(
+        evalSpeckleMask2D(.{ 0.0, 1.0 }, mask),
+        evalSpeckleMask2D(.{ -2.0, 3.0 }, mask),
+    );
+    try testing.expectEqual(
+        evalSpeckleMask2D(.{ 1.0, 0.0 }, mask),
+        evalSpeckleMask2D(.{ 3.0, -2.0 }, mask),
+    );
 }
