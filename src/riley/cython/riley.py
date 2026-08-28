@@ -7,6 +7,7 @@
 # Authors: scepticalrabbit (Lloyd Fletcher)
 # --------------------------------------------------------------------------
 import cython
+import warnings
 from dataclasses import dataclass, field
 from enum import IntEnum
 from pathlib import Path
@@ -356,6 +357,33 @@ class ImageFormat(IntEnum):
     ppm = 2
     bmp = 3
     tiff = 4
+
+
+class FrameFitMode(IntEnum):
+    contain = 0
+    cover = 1
+    horizontal = 2
+    vertical = 3
+
+
+EFrameFit = FrameFitMode
+
+
+def _fit_mode_to_int(fit_mode: FrameFitMode | str | int) -> int:
+    if isinstance(fit_mode, (FrameFitMode, int)):
+        return int(fit_mode)
+    if isinstance(fit_mode, str):
+        fit_lower = fit_mode.lower()
+        if fit_lower in ("contain", "fit_max", "max"):
+            return int(FrameFitMode.contain)
+        if fit_lower in ("cover", "fit_min", "min"):
+            return int(FrameFitMode.cover)
+        if fit_lower in ("horizontal", "x", "width"):
+            return int(FrameFitMode.horizontal)
+        if fit_lower in ("vertical", "y", "height"):
+            return int(FrameFitMode.vertical)
+        raise ValueError(f"Unknown fit_mode: '{fit_mode}'")
+    raise TypeError(f"Invalid fit_mode type: {type(fit_mode)}")
 
 
 @cython.cfunc
@@ -918,15 +946,25 @@ def roi_cent_from_coords(coords_in: Any) -> tuple[float, float, float]:
     return (out_cent.x, out_cent.y, out_cent.z)
 
 
+def coverage_to_fov_scale(coverage: float) -> float:
+    return float(cr.rileyCoverageToFovScale(float(coverage)))
+
+
+def fov_scale_to_coverage(fov_scale: float) -> float:
+    return float(cr.rileyFovScaleToCoverage(float(fov_scale)))
+
+
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def pos_fill_frame_from_rot(
+def pos_frame_coords(
     coords_in: Any,
     pixels_num: tuple[int, int],
     pixels_size: tuple[float, float],
     focal_length: float,
     rot_world: tuple[float, float, float],
-    frame_fill: float = 1.0,
+    fov_scale: float = 1.0,
+    fit_mode: FrameFitMode | str | int = FrameFitMode.contain,
+    target: tuple[float, float, float] | None = None,
 ) -> tuple[float, float, float]:
     coords_np = _contig_f64_2d(coords_in, "coords")
     rows_num, cols_num = _as_shape_2d(coords_np)
@@ -936,19 +974,82 @@ def pos_fill_frame_from_rot(
     coords_view: cython.double[:, ::1] = coords_np
     coords_c = _make_array_2d_f64(coords_view, rows_num, cols_num)
     out_pos: cr.CVec3F64
+    mode_int: cython.uint = _fit_mode_to_int(fit_mode)
 
-    if cr.rileyPosFillFrameFromRot(
-        cython.address(coords_c),
-        _make_cvec2_u32(tuple(pixels_num)),
-        _make_cvec2_f64(tuple(pixels_size)),
-        float(focal_length),
-        _make_cvec3(tuple(rot_world)),
-        float(frame_fill),
-        cython.address(out_pos),
-    ) != 0:
-        _raise_last_error()
+    if target is None:
+        if cr.rileyPosFrameCoords(
+            cython.address(coords_c),
+            _make_cvec2_u32(tuple(pixels_num)),
+            _make_cvec2_f64(tuple(pixels_size)),
+            float(focal_length),
+            _make_cvec3(tuple(rot_world)),
+            float(fov_scale),
+            mode_int,
+            cython.address(out_pos),
+        ) != 0:
+            _raise_last_error()
+    else:
+        if cr.rileyPosFrameCoordsTarg(
+            cython.address(coords_c),
+            _make_cvec3(tuple(target)),
+            _make_cvec2_u32(tuple(pixels_num)),
+            _make_cvec2_f64(tuple(pixels_size)),
+            float(focal_length),
+            _make_cvec3(tuple(rot_world)),
+            float(fov_scale),
+            mode_int,
+            cython.address(out_pos),
+        ) != 0:
+            _raise_last_error()
 
     return (out_pos.x, out_pos.y, out_pos.z)
+
+
+def pos_frame_mesh(
+    mesh_in: Any,
+    pixels_num: tuple[int, int],
+    pixels_size: tuple[float, float],
+    focal_length: float,
+    rot_world: tuple[float, float, float],
+    fov_scale: float = 1.0,
+    fit_mode: FrameFitMode | str | int = FrameFitMode.contain,
+    target: tuple[float, float, float] | None = None,
+) -> tuple[float, float, float]:
+    coords = getattr(mesh_in, "coords", mesh_in)
+    return pos_frame_coords(
+        coords,
+        pixels_num,
+        pixels_size,
+        focal_length,
+        rot_world,
+        fov_scale=fov_scale,
+        fit_mode=fit_mode,
+        target=target,
+    )
+
+
+def pos_fill_frame_from_rot(
+    coords_in: Any,
+    pixels_num: tuple[int, int],
+    pixels_size: tuple[float, float],
+    focal_length: float,
+    rot_world: tuple[float, float, float],
+    frame_fill: float = 1.0,
+) -> tuple[float, float, float]:
+    warnings.warn(
+        "pos_fill_frame_from_rot is deprecated, use pos_frame_coords instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return pos_frame_coords(
+        coords_in,
+        pixels_num,
+        pixels_size,
+        focal_length,
+        rot_world,
+        fov_scale=frame_fill,
+        fit_mode=FrameFitMode.contain,
+    )
 
 
 @cython.cfunc
@@ -1121,13 +1222,15 @@ def roi_cent_over_meshes(meshes: Any) -> tuple[float, float, float]:
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def pos_fill_frame_from_rot_over_meshes(
+def pos_frame_meshes(
     meshes: Any,
     pixels_num: tuple[int, int],
     pixels_size: tuple[float, float],
     focal_length: float,
     rot_world: tuple[float, float, float],
-    frame_fill: float = 1.0,
+    fov_scale: float = 1.0,
+    fit_mode: FrameFitMode | str | int = FrameFitMode.contain,
+    target: tuple[float, float, float] | None = None,
 ) -> tuple[float, float, float]:
     mesh_list = _normalize_meshes(meshes)
     meshes_len: cython.size_t = len(mesh_list)
@@ -1139,22 +1242,136 @@ def pos_fill_frame_from_rot_over_meshes(
     keepalive: list[Any] = []
     if mesh_array == cython.NULL:
         raise MemoryError()
+    mode_int: cython.uint = _fit_mode_to_int(fit_mode)
     try:
         _fill_mesh_array(mesh_list, mesh_array, keepalive)
-        if cr.rileyPosFillFrameFromRotOverMeshes(
-            mesh_array,
-            meshes_len,
-            _make_cvec2_u32(tuple(pixels_num)),
-            _make_cvec2_f64(tuple(pixels_size)),
-            float(focal_length),
-            _make_cvec3(tuple(rot_world)),
-            float(frame_fill),
-            cython.address(out_pos),
-        ) != 0:
-            _raise_last_error()
+        if target is None:
+            if cr.rileyPosFrameMeshes(
+                mesh_array,
+                meshes_len,
+                _make_cvec2_u32(tuple(pixels_num)),
+                _make_cvec2_f64(tuple(pixels_size)),
+                float(focal_length),
+                _make_cvec3(tuple(rot_world)),
+                float(fov_scale),
+                mode_int,
+                cython.address(out_pos),
+            ) != 0:
+                _raise_last_error()
+        else:
+            if cr.rileyPosFrameMeshesTarg(
+                mesh_array,
+                meshes_len,
+                _make_cvec3(tuple(target)),
+                _make_cvec2_u32(tuple(pixels_num)),
+                _make_cvec2_f64(tuple(pixels_size)),
+                float(focal_length),
+                _make_cvec3(tuple(rot_world)),
+                float(fov_scale),
+                mode_int,
+                cython.address(out_pos),
+            ) != 0:
+                _raise_last_error()
     finally:
         free(mesh_array)
     return (out_pos.x, out_pos.y, out_pos.z)
+
+
+def pos_fill_frame_from_rot_over_meshes(
+    meshes: Any,
+    pixels_num: tuple[int, int],
+    pixels_size: tuple[float, float],
+    focal_length: float,
+    rot_world: tuple[float, float, float],
+    frame_fill: float = 1.0,
+) -> tuple[float, float, float]:
+    warnings.warn(
+        "pos_fill_frame_from_rot_over_meshes is deprecated, "
+        "use pos_frame_meshes instead",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return pos_frame_meshes(
+        meshes,
+        pixels_num,
+        pixels_size,
+        focal_length,
+        rot_world,
+        fov_scale=frame_fill,
+        fit_mode=FrameFitMode.contain,
+    )
+
+
+def pos_orbit_cam(
+    target: tuple[float, float, float],
+    azimuth_rad: float,
+    elevation_rad: float,
+    distance: float,
+) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
+    out_pos: cr.CVec3F64
+    out_rot: cr.CVec3F64
+    if cr.rileyPosOrbitCam(
+        _make_cvec3(tuple(target)),
+        float(azimuth_rad),
+        float(elevation_rad),
+        float(distance),
+        cython.address(out_pos),
+        cython.address(out_rot),
+    ) != 0:
+        _raise_last_error()
+    return (
+        (out_pos.x, out_pos.y, out_pos.z),
+        (out_rot.x, out_rot.y, out_rot.z),
+    )
+
+
+def pos_stereo_pair(
+    target: tuple[float, float, float],
+    distance: float,
+    stereo_angle_rad: float,
+    baseline_angle_rad: float = 0.0,
+) -> tuple[
+    tuple[float, float, float],
+    tuple[float, float, float],
+    tuple[float, float, float],
+    tuple[float, float, float],
+]:
+    cam0_pos: cr.CVec3F64
+    cam0_rot: cr.CVec3F64
+    cam1_pos: cr.CVec3F64
+    cam1_rot: cr.CVec3F64
+    if cr.rileyPosStereoPair(
+        _make_cvec3(tuple(target)),
+        float(distance),
+        float(stereo_angle_rad),
+        float(baseline_angle_rad),
+        cython.address(cam0_pos),
+        cython.address(cam0_rot),
+        cython.address(cam1_pos),
+        cython.address(cam1_rot),
+    ) != 0:
+        _raise_last_error()
+    return (
+        (cam0_pos.x, cam0_pos.y, cam0_pos.z),
+        (cam0_rot.x, cam0_rot.y, cam0_rot.z),
+        (cam1_pos.x, cam1_pos.y, cam1_pos.z),
+        (cam1_rot.x, cam1_rot.y, cam1_rot.z),
+    )
+
+
+def calc_pixel_resolution(
+    camera: Any,
+    target: tuple[float, float, float],
+) -> float:
+    cam_c = _make_camera_input(camera)
+    out_res: cython.double = 0.0
+    if cr.rileyCalcPixelResolution(
+        cython.address(cam_c),
+        _make_cvec3(tuple(target)),
+        cython.address(out_res),
+    ) != 0:
+        _raise_last_error()
+    return float(out_res)
 
 
 def save_stereo_pair(

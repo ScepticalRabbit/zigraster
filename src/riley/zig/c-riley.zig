@@ -2033,6 +2033,265 @@ pub export fn rileyPosFillFrameFromRotOverMeshes(
     return 0;
 }
 
+pub export fn rileyPosFrameCoords(
+    in_coords: *const CArray2DF64,
+    pixels_num: CVec2U32,
+    pixels_size: CVec2F64,
+    focal_length: F,
+    rot_world: CVec3F64,
+    fov_scale: F,
+    fit_mode: u32,
+    out_pos: *CVec3F64,
+) c_int {
+    clearLastError();
+
+    const coords = buildCoordsFromC(in_coords) catch |err| {
+        setLastError(err);
+        return 1;
+    };
+    const rot = rotation.Rotation.init(
+        rot_world.x,
+        rot_world.y,
+        rot_world.z,
+    );
+    const fit_enum: cameraops.FrameFitMode = @enumFromInt(fit_mode);
+    const cam_pos = cameraops.posFrameCoords(
+        &coords,
+        .{ pixels_num.x, pixels_num.y },
+        .{ pixels_size.x, pixels_size.y },
+        focal_length,
+        rot,
+        fov_scale,
+        fit_enum,
+    );
+    out_pos.* = vec3ToCVec3(cam_pos);
+    return 0;
+}
+
+pub export fn rileyPosFrameCoordsTarg(
+    in_coords: *const CArray2DF64,
+    targ_world: CVec3F64,
+    pixels_num: CVec2U32,
+    pixels_size: CVec2F64,
+    focal_length: F,
+    rot_world: CVec3F64,
+    fov_scale: F,
+    fit_mode: u32,
+    out_pos: *CVec3F64,
+) c_int {
+    clearLastError();
+
+    const coords = buildCoordsFromC(in_coords) catch |err| {
+        setLastError(err);
+        return 1;
+    };
+    const rot = rotation.Rotation.init(
+        rot_world.x,
+        rot_world.y,
+        rot_world.z,
+    );
+    const targ = cVec3ToVec3(targ_world);
+    const fit_enum: cameraops.FrameFitMode = @enumFromInt(fit_mode);
+    const cam_pos = cameraops.posFrameCoordsTarg(
+        &coords,
+        targ,
+        .{ pixels_num.x, pixels_num.y },
+        .{ pixels_size.x, pixels_size.y },
+        focal_length,
+        rot,
+        fov_scale,
+        fit_enum,
+    );
+    out_pos.* = vec3ToCVec3(cam_pos);
+    return 0;
+}
+
+pub export fn rileyPosFrameMeshes(
+    in_meshes: [*c]const CMeshInput,
+    meshes_len: usize,
+    pixels_num: CVec2U32,
+    pixels_size: CVec2F64,
+    focal_length: F,
+    rot_world: CVec3F64,
+    fov_scale: F,
+    fit_mode: u32,
+    out_pos: *CVec3F64,
+) c_int {
+    clearLastError();
+
+    var arena = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
+    defer arena.deinit();
+    const aa = arena.allocator();
+
+    const built_meshes = buildMeshInputSlice(
+        aa,
+        in_meshes,
+        meshes_len,
+    ) catch |err| {
+        setLastError(err);
+        return 1;
+    };
+    defer deinitMeshInputSlice(aa, built_meshes);
+
+    const mesh_inputs = extractMeshInputs(aa, built_meshes) catch |err| {
+        setLastError(err);
+        return 1;
+    };
+
+    const rot = rotation.Rotation.init(
+        rot_world.x,
+        rot_world.y,
+        rot_world.z,
+    );
+    const fit_enum: cameraops.FrameFitMode = @enumFromInt(fit_mode);
+    const cam_pos = cameraops.posFrameMeshes(
+        mesh_inputs,
+        .{ pixels_num.x, pixels_num.y },
+        .{ pixels_size.x, pixels_size.y },
+        focal_length,
+        rot,
+        fov_scale,
+        fit_enum,
+    );
+    out_pos.* = vec3ToCVec3(cam_pos);
+    return 0;
+}
+
+pub export fn rileyPosFrameMeshesTarg(
+    in_meshes: [*c]const CMeshInput,
+    meshes_len: usize,
+    targ_world: CVec3F64,
+    pixels_num: CVec2U32,
+    pixels_size: CVec2F64,
+    focal_length: F,
+    rot_world: CVec3F64,
+    fov_scale: F,
+    fit_mode: u32,
+    out_pos: *CVec3F64,
+) c_int {
+    clearLastError();
+
+    var arena = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
+    defer arena.deinit();
+    const aa = arena.allocator();
+
+    const built_meshes = buildMeshInputSlice(
+        aa,
+        in_meshes,
+        meshes_len,
+    ) catch |err| {
+        setLastError(err);
+        return 1;
+    };
+    defer deinitMeshInputSlice(aa, built_meshes);
+
+    const mesh_inputs = extractMeshInputs(aa, built_meshes) catch |err| {
+        setLastError(err);
+        return 1;
+    };
+
+    const rot = rotation.Rotation.init(
+        rot_world.x,
+        rot_world.y,
+        rot_world.z,
+    );
+    const targ = cVec3ToVec3(targ_world);
+    const fit_enum: cameraops.FrameFitMode = @enumFromInt(fit_mode);
+    const cam_pos = cameraops.posFrameMeshesTarg(
+        mesh_inputs,
+        targ,
+        .{ pixels_num.x, pixels_num.y },
+        .{ pixels_size.x, pixels_size.y },
+        focal_length,
+        rot,
+        fov_scale,
+        fit_enum,
+    );
+    out_pos.* = vec3ToCVec3(cam_pos);
+    return 0;
+}
+
+pub export fn rileyCoverageToFovScale(coverage: F) F {
+    return cameraops.coverageToFovScale(coverage);
+}
+
+pub export fn rileyFovScaleToCoverage(fov_scale: F) F {
+    return cameraops.fovScaleToCoverage(fov_scale);
+}
+
+pub export fn rileyPosOrbitCam(
+    targ_world: CVec3F64,
+    azimuth_rad: F,
+    elevation_rad: F,
+    dist: F,
+    out_pos: *CVec3F64,
+    out_rot: *CVec3F64,
+) c_int {
+    clearLastError();
+    const targ = cVec3ToVec3(targ_world);
+    const orbit = cameraops.posOrbitCam(
+        targ,
+        azimuth_rad,
+        elevation_rad,
+        dist,
+    );
+    out_pos.* = vec3ToCVec3(orbit.pos);
+    out_rot.* = .{
+        .x = orbit.rot.alpha_z,
+        .y = orbit.rot.beta_y,
+        .z = orbit.rot.gamma_x,
+    };
+    return 0;
+}
+
+pub export fn rileyPosStereoPair(
+    targ_world: CVec3F64,
+    dist: F,
+    stereo_angle_rad: F,
+    baseline_angle_rad: F,
+    out_cam0_pos: *CVec3F64,
+    out_cam0_rot: *CVec3F64,
+    out_cam1_pos: *CVec3F64,
+    out_cam1_rot: *CVec3F64,
+) c_int {
+    clearLastError();
+    const targ = cVec3ToVec3(targ_world);
+    const stereo = cameraops.posStereoPair(
+        targ,
+        dist,
+        stereo_angle_rad,
+        baseline_angle_rad,
+    );
+    out_cam0_pos.* = vec3ToCVec3(stereo.cam0_pos);
+    out_cam0_rot.* = .{
+        .x = stereo.cam0_rot.alpha_z,
+        .y = stereo.cam0_rot.beta_y,
+        .z = stereo.cam0_rot.gamma_x,
+    };
+    out_cam1_pos.* = vec3ToCVec3(stereo.cam1_pos);
+    out_cam1_rot.* = .{
+        .x = stereo.cam1_rot.alpha_z,
+        .y = stereo.cam1_rot.beta_y,
+        .z = stereo.cam1_rot.gamma_x,
+    };
+    return 0;
+}
+
+pub export fn rileyCalcPixelResolution(
+    in_camera: *const CCameraInput,
+    targ_world: CVec3F64,
+    out_res: *F,
+) c_int {
+    clearLastError();
+    const cam_input = buildCameraInput(in_camera) catch |err| {
+        setLastError(err);
+        return 1;
+    };
+    const targ = cVec3ToVec3(targ_world);
+    out_res.* = cameraops.calcPixelResolution(cam_input, targ);
+    return 0;
+}
+
 pub export fn rileyCalcOutputDimsScene(
     in_meshes: [*c]const CMeshInput,
     meshes_len: usize,

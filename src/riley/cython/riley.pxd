@@ -284,6 +284,83 @@ cdef extern from "riley.h":
         CVec3F64* out_pos,
     )
 
+    int rileyPosFrameCoords(
+        const CArray2DF64* in_coords,
+        CVec2U32 pixels_num,
+        CVec2F64 pixels_size,
+        double focal_length,
+        CVec3F64 rot_world,
+        double fov_scale,
+        uint32_t fit_mode,
+        CVec3F64* out_pos,
+    )
+
+    int rileyPosFrameCoordsTarg(
+        const CArray2DF64* in_coords,
+        CVec3F64 targ_world,
+        CVec2U32 pixels_num,
+        CVec2F64 pixels_size,
+        double focal_length,
+        CVec3F64 rot_world,
+        double fov_scale,
+        uint32_t fit_mode,
+        CVec3F64* out_pos,
+    )
+
+    int rileyPosFrameMeshes(
+        const CMeshInput* in_meshes,
+        size_t meshes_len,
+        CVec2U32 pixels_num,
+        CVec2F64 pixels_size,
+        double focal_length,
+        CVec3F64 rot_world,
+        double fov_scale,
+        uint32_t fit_mode,
+        CVec3F64* out_pos,
+    )
+
+    int rileyPosFrameMeshesTarg(
+        const CMeshInput* in_meshes,
+        size_t meshes_len,
+        CVec3F64 targ_world,
+        CVec2U32 pixels_num,
+        CVec2F64 pixels_size,
+        double focal_length,
+        CVec3F64 rot_world,
+        double fov_scale,
+        uint32_t fit_mode,
+        CVec3F64* out_pos,
+    )
+
+    double rileyCoverageToFovScale(double coverage)
+    double rileyFovScaleToCoverage(double fov_scale)
+
+    int rileyPosOrbitCam(
+        CVec3F64 targ_world,
+        double azimuth_rad,
+        double elevation_rad,
+        double dist,
+        CVec3F64* out_pos,
+        CVec3F64* out_rot,
+    )
+
+    int rileyPosStereoPair(
+        CVec3F64 targ_world,
+        double dist,
+        double stereo_angle_rad,
+        double baseline_angle_rad,
+        CVec3F64* out_cam0_pos,
+        CVec3F64* out_cam0_rot,
+        CVec3F64* out_cam1_pos,
+        CVec3F64* out_cam1_rot,
+    )
+
+    int rileyCalcPixelResolution(
+        const CCameraInput* in_camera,
+        CVec3F64 targ_world,
+        double* out_res,
+    )
+
     int rileyCalcOutputDimsScene(
         const CMeshInput* in_meshes,
         size_t meshes_len,
