@@ -30,13 +30,13 @@ def main() -> None:
     coords, connect, uvs, _ = riley.load_sim_csvs(data_dir)
     texture = riley.load_texture_u8(texture_path)
     roi_cent_world = riley.roi_cent_from_coords(coords)
-    pos_world = riley.pos_fill_frame_from_rot(
+    pos_world = riley.pos_frame_coords(
         coords,
         pixels_num,
         pixels_size,
         focal_length,
         rot_world,
-        1.0,
+        fov_scale=1.0,
     )
     mesh = riley.Mesh(
         mesh_type=riley.MeshType.tri6,

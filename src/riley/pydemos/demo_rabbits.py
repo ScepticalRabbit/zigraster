@@ -184,13 +184,13 @@ def main() -> None:
     )
 
     roi_pos = riley.roi_cent_over_meshes(mesh_inputs)
-    cam_pos = riley.pos_fill_frame_from_rot_over_meshes(
+    cam_pos = riley.pos_frame_meshes(
         mesh_inputs,
         pixels_num,
         default_pixel_size,
         default_focal_length,
         rot_world,
-        fov_scale,
+        fov_scale=fov_scale,
     )
     camera = riley.Camera(
         pixels_num=pixels_num,

@@ -102,13 +102,13 @@ def main() -> None:
     )
 
     roi_pos = riley.roi_cent_from_coords(coords)
-    camera_0_pos = riley.pos_fill_frame_from_rot(
+    camera_0_pos = riley.pos_frame_coords(
         coords,
         pixels_num,
         pixels_size,
         focal_length,
         (0.0, 0.0, 0.0),
-        fov_scale_factor,
+        fov_scale=fov_scale_factor,
     )
     camera_0 = riley.Camera(
         pixels_num=pixels_num,
@@ -121,13 +121,13 @@ def main() -> None:
         **distortion_model,
     )
     camera_1_rot = (0.0, np.deg2rad(stereo_angle_deg), 0.0)
-    camera_1_pos = riley.pos_fill_frame_from_rot(
+    camera_1_pos = riley.pos_frame_coords(
         coords,
         pixels_num,
         pixels_size,
         focal_length,
         camera_1_rot,
-        fov_scale_factor,
+        fov_scale=fov_scale_factor,
     )
     camera_1 = riley.Camera(
         pixels_num=pixels_num,

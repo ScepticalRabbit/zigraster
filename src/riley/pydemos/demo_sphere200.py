@@ -29,13 +29,13 @@ def main() -> None:
     texture = riley.load_texture_u8(texture_path)
 
     roi_cent_world = riley.roi_cent_from_coords(coords)
-    pos_world = riley.pos_fill_frame_from_rot(
+    pos_world = riley.pos_frame_coords(
         coords,
         pixels_num,
         pixels_size,
         focal_length,
         rot_world,
-        frame_fill,
+        fov_scale=frame_fill,
     )
 
     mesh = riley.Mesh(
