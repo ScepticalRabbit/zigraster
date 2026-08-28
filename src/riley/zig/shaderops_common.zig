@@ -15,7 +15,8 @@ const S = buildconfig.SimdWidth;
 const speckle_boundary_blur = buildconfig.speckle_boundary_blur;
 const speckle_neighbor_count = buildconfig.speckle_neighbor_count;
 const speckle_shape = buildconfig.speckle_shape;
-const speckle_mask_samples_per_cell: F = 12.0;
+const speckle_mask_samples_per_cell: F =
+    @floatFromInt(buildconfig.speckle_mask_samples_per_cell);
 const VecSF = buildconfig.VecSF;
 
 const ndarray = @import("ndarray.zig");
@@ -804,10 +805,11 @@ fn speckleMaskCellBounds(params: Speckle2DParams) !SpeckleMaskCellBounds {
     return .{ .min = min, .max = max };
 }
 
-fn rasterizeSpeckleMaskDisk(
+inline fn rasterizeSpeckleMaskDisk(
     bits: []u8,
     row_stride: usize,
     uv_to_texel: [2]F,
+    proc_samples: [2][]const F,
     params: Speckle2DParams,
     disk: SpeckleDisk2D,
 ) void {
@@ -832,13 +834,9 @@ fn rasterizeSpeckleMaskDisk(
     const radius2 = disk.radius * disk.radius;
 
     for (min_y..max_y + 1) |yy| {
-        const uv_y = @as(F, @floatFromInt(yy)) / uv_to_texel[1];
-        const delta_y = uv_y * params.cells_per_uv[1] + params.uv_offset[1] -
-            disk.center[1];
+        const delta_y = proc_samples[1][yy] - disk.center[1];
         for (min_x..max_x + 1) |xx| {
-            const uv_x = @as(F, @floatFromInt(xx)) / uv_to_texel[0];
-            const delta_x = uv_x * params.cells_per_uv[0] + params.uv_offset[0] -
-                disk.center[0];
+            const delta_x = proc_samples[0][xx] - disk.center[0];
             if (delta_x * delta_x + delta_y * delta_y <= radius2) {
                 const shift: u3 = @intCast(xx & 7);
                 bits[yy * row_stride + xx / 8] |= @as(u8, 1) << shift;
@@ -886,7 +884,22 @@ pub fn generateSpeckleMask2D(
     }
 
     const bits = try allocator.alloc(u8, byte_count);
+    errdefer allocator.free(bits);
     @memset(bits, 0);
+    const proc_sample_count = std.math.add(usize, dims[0], dims[1]) catch
+        return error.SpeckleMaskTooLarge;
+    const proc_sample_storage = try allocator.alloc(F, proc_sample_count);
+    defer allocator.free(proc_sample_storage);
+    const proc_samples = [2][]F{
+        proc_sample_storage[0..dims[0]],
+        proc_sample_storage[dims[0]..],
+    };
+    for (proc_samples, 0..) |axis_samples, axis| {
+        for (axis_samples, 0..) |*sample, idx| {
+            const uv = @as(F, @floatFromInt(idx)) / uv_to_texel[axis];
+            sample.* = uv * params.cells_per_uv[axis] + params.uv_offset[axis];
+        }
+    }
     var cell_y = cell_bounds.min[1];
     while (cell_y <= cell_bounds.max[1]) : (cell_y += 1) {
         var cell_x = cell_bounds.min[0];
@@ -901,6 +914,7 @@ pub fn generateSpeckleMask2D(
                 bits,
                 row_stride,
                 uv_to_texel,
+                proc_samples,
                 params,
                 speckleDiskFromHash(cell_x, cell_y, hash, params),
             );
@@ -922,12 +936,12 @@ pub inline fn evalSpeckleMask2D(uv: [2]F, mask: SpeckleMask2D) F {
     {
         return mask.params.background;
     }
-    const texel_x: usize = @intFromFloat(@floor(
+    const texel_x: usize = @intFromFloat(
         @max(0.0, @min(1.0, uv[0])) * mask.uv_to_texel[0] + 0.5,
-    ));
-    const texel_y: usize = @intFromFloat(@floor(
+    );
+    const texel_y: usize = @intFromFloat(
         @max(0.0, @min(1.0, uv[1])) * mask.uv_to_texel[1] + 0.5,
-    ));
+    );
     const shift: u3 = @intCast(texel_x & 7);
     const is_foreground = mask.bits[texel_y * mask.row_stride + texel_x / 8] &
         (@as(u8, 1) << shift) != 0;
@@ -1812,19 +1826,37 @@ test "direct 1-bit speckle mask preserves list-derived bytes and lattice values"
     defer testing.allocator.free(speckles.disk_by_cell);
     defer testing.allocator.free(speckles.disks);
 
-    var mask_storage: [155]u8 = undefined;
+    var mask_storage: [1200]u8 = undefined;
     var fixed = std.heap.FixedBufferAllocator.init(&mask_storage);
     const mask = try generateSpeckleMask2D(fixed.allocator(), params);
-    try testing.expectEqual(mask_storage.len, mask.bits.len);
+    const expected_byte_count = mask.row_stride * mask.dims[1];
+    try testing.expectEqual(expected_byte_count, mask.bits.len);
+    if (comptime buildconfig.speckle_mask_samples_per_cell == 12) {
+        try testing.expectEqual(@as(usize, 155), mask.bits.len);
+    }
 
     const list_bits = try testing.allocator.alloc(u8, mask.bits.len);
     defer testing.allocator.free(list_bits);
     @memset(list_bits, 0);
+    const proc_sample_count = mask.dims[0] + mask.dims[1];
+    const proc_sample_storage = try testing.allocator.alloc(F, proc_sample_count);
+    defer testing.allocator.free(proc_sample_storage);
+    const proc_samples = [2][]F{
+        proc_sample_storage[0..mask.dims[0]],
+        proc_sample_storage[mask.dims[0]..],
+    };
+    for (proc_samples, 0..) |axis_samples, axis| {
+        for (axis_samples, 0..) |*sample, idx| {
+            const uv = @as(F, @floatFromInt(idx)) / mask.uv_to_texel[axis];
+            sample.* = uv * params.cells_per_uv[axis] + params.uv_offset[axis];
+        }
+    }
     for (speckles.disks) |disk| {
         rasterizeSpeckleMaskDisk(
             list_bits,
             mask.row_stride,
             mask.uv_to_texel,
+            proc_samples,
             params,
             disk,
         );

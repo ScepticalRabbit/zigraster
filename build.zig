@@ -54,12 +54,18 @@ pub fn build(b: *std.Build) void {
         "speckle-shape",
         "Procedural speckle shape: disk or gaussian",
     ) orelse "gaussian";
+    const speckle_mask_samples_per_cell = b.option(
+        u8,
+        "speckle-mask-samples-per-cell",
+        "1-bit speckle mask resolution per cell: 8, 12, or 16",
+    ) orelse 12;
     validatePrecision(precision);
     validateSimd(simd);
     validateNewtonSolver(newton_solver);
     validateSpeckleNeighborCount(speckle_neighbor_count);
     validateSpeckleEvaluator(speckle_evaluator);
     validateSpeckleShape(speckle_shape);
+    validateSpeckleMaskSamplesPerCell(speckle_mask_samples_per_cell);
     validateSpeckleEvaluatorConfig(
         speckle_evaluator,
         speckle_shape,
@@ -76,6 +82,7 @@ pub fn build(b: *std.Build) void {
         speckle_neighbor_count,
         speckle_evaluator,
         speckle_shape,
+        speckle_mask_samples_per_cell,
     );
     const shared_lib = addRileySharedLibrary(
         b,
@@ -126,8 +133,43 @@ pub fn build(b: *std.Build) void {
             speckle_neighbor_count,
             speckle_evaluator,
             speckle_shape,
+            speckle_mask_samples_per_cell,
         );
         test_step.dependOn(&test_run.step);
+    }
+
+    const mask_tests = [_]TestEntry{
+        .{
+            .step_name = "test-speckle-mask-common",
+            .description = "Run direct 1-bit speckle mask tests",
+            .source_path = "src/riley/zig/shaderops_common.zig",
+        },
+        .{
+            .step_name = "test-speckle-mask-simd",
+            .description = "Run direct 1-bit speckle mask SIMD tests",
+            .source_path = "src/riley/zig/shaderops_simd.zig",
+        },
+    };
+    const mask_test_step = b.step(
+        "test-speckle-mask",
+        "Run focused 1-bit speckle mask tests",
+    );
+    for (mask_tests) |entry| {
+        const test_run = addTestRunStep(
+            b,
+            .ReleaseSafe,
+            entry,
+            precision,
+            simd,
+            newton_solver,
+            simd_vector_width,
+            false,
+            9,
+            "mask-1bit",
+            "disk",
+            speckle_mask_samples_per_cell,
+        );
+        mask_test_step.dependOn(&test_run.step);
     }
 
     const demos = [_]RunEntry{
@@ -325,6 +367,7 @@ fn addTestRunStep(
     speckle_neighbor_count: u8,
     speckle_evaluator: []const u8,
     speckle_shape: []const u8,
+    speckle_mask_samples_per_cell: u8,
 ) *std.Build.Step.Run {
     const run_step = b.addSystemCommand(&.{
         "sh",
@@ -340,8 +383,9 @@ fn addTestRunStep(
         \\speckle_neighbor_count="$8"
         \\speckle_evaluator="$9"
         \\speckle_shape="${10}"
-        \\zigexe="${11}"
-        \\opt="${12}"
+        \\speckle_mask_samples_per_cell="${11}"
+        \\zigexe="${12}"
+        \\opt="${13}"
         \\cache_root=".zig-cache/riley-test"
         \\mkdir -p "$cache_root"
         \\src_hash="$(
@@ -351,7 +395,7 @@ fn addTestRunStep(
         \\    sha256sum |
         \\    cut -d' ' -f1
         \\)"
-        \\tree_dir="${cache_root}/${step_name}_${precision}_${simd}_${newton_solver}_${simd_vector_width}_${speckle_boundary_blur}_${speckle_neighbor_count}_${speckle_evaluator}_${speckle_shape}_${opt}_${src_hash}"
+        \\tree_dir="${cache_root}/${step_name}_${precision}_${simd}_${newton_solver}_${simd_vector_width}_${speckle_boundary_blur}_${speckle_neighbor_count}_${speckle_evaluator}_${speckle_shape}_${speckle_mask_samples_per_cell}_${opt}_${src_hash}"
         \\if [ ! -d "$tree_dir" ]; then
         \\    lock_dir="${tree_dir}.lock"
         \\    while ! mkdir "$lock_dir" 2>/dev/null; do
@@ -377,6 +421,7 @@ fn addTestRunStep(
         \\            printf '    pub const speckle_neighbor_count: comptime_int = %s;\n' "$speckle_neighbor_count"
         \\            printf '    pub const speckle_evaluator = "%s";\n' "$speckle_evaluator"
         \\            printf '    pub const speckle_shape = "%s";\n' "$speckle_shape"
+        \\            printf '    pub const speckle_mask_samples_per_cell: comptime_int = %s;\n' "$speckle_mask_samples_per_cell"
         \\            printf '};\n\n'
         \\            cat "$src_orig"
         \\        } > "$src_file"
@@ -395,6 +440,7 @@ fn addTestRunStep(
         b.fmt("{d}", .{speckle_neighbor_count}),
         speckle_evaluator,
         speckle_shape,
+        b.fmt("{d}", .{speckle_mask_samples_per_cell}),
         b.graph.zig_exe,
         @tagName(optimize),
     });
@@ -470,6 +516,7 @@ fn createBuildOptionsModule(
     speckle_neighbor_count: u8,
     speckle_evaluator: []const u8,
     speckle_shape: []const u8,
+    speckle_mask_samples_per_cell: u8,
 ) *std.Build.Module {
     const options = b.addOptions();
     options.addOption([]const u8, "precision", precision);
@@ -480,6 +527,11 @@ fn createBuildOptionsModule(
     options.addOption(u8, "speckle_neighbor_count", speckle_neighbor_count);
     options.addOption([]const u8, "speckle_evaluator", speckle_evaluator);
     options.addOption([]const u8, "speckle_shape", speckle_shape);
+    options.addOption(
+        u8,
+        "speckle_mask_samples_per_cell",
+        speckle_mask_samples_per_cell,
+    );
     return options.createModule();
 }
 
@@ -623,6 +675,11 @@ fn validateSpeckleEvaluatorConfig(
     if (!std.mem.eql(u8, shape, "disk") or boundary_blur) {
         @panic("-Dspeckle-evaluator=mask-1bit requires -Dspeckle-shape=disk and -Dspeckle-boundary-blur=false.");
     }
+}
+
+fn validateSpeckleMaskSamplesPerCell(samples: u8) void {
+    if (samples == 8 or samples == 12 or samples == 16) return;
+    @panic("Supported -Dspeckle-mask-samples-per-cell values are 8, 12, and 16.");
 }
 
 fn validateSpeckleNeighborCount(count: u8) void {

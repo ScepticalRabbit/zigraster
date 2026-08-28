@@ -20,6 +20,7 @@ else
         pub const simd_vector_width: comptime_int = 0;
         pub const speckle_boundary_blur = false;
         pub const speckle_neighbor_count: comptime_int = 9;
+        pub const speckle_mask_samples_per_cell: comptime_int = 12;
         pub const speckle_evaluator = "cell-hash";
         pub const speckle_shape = "gaussian";
     };
@@ -54,6 +55,7 @@ pub const default_newton_solver_mode =
     parseNewtonSolverMode(build_options.newton_solver);
 pub const speckle_boundary_blur = buildOptionsSpeckleBoundaryBlur();
 pub const speckle_neighbor_count = buildOptionsSpeckleNeighborCount();
+pub const speckle_mask_samples_per_cell = buildOptionsSpeckleMaskSamplesPerCell();
 pub const speckle_evaluator = parseSpeckleEvaluator(buildOptionsSpeckleEvaluator());
 pub const speckle_shape = parseSpeckleShape(buildOptionsSpeckleShape());
 
@@ -204,6 +206,17 @@ fn buildOptionsSpeckleNeighborCount() comptime_int {
         @compileError("build_options.speckle_neighbor_count must be 9, 4, or 1.");
     }
     return count;
+}
+
+fn buildOptionsSpeckleMaskSamplesPerCell() comptime_int {
+    const samples = if (@hasDecl(build_options, "speckle_mask_samples_per_cell"))
+        build_options.speckle_mask_samples_per_cell
+    else
+        12;
+    if (samples != 8 and samples != 12 and samples != 16) {
+        @compileError("build_options.speckle_mask_samples_per_cell must be 8, 12, or 16.");
+    }
+    return samples;
 }
 
 fn buildOptionsSpeckleBoundaryBlur() bool {

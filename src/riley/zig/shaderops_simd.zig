@@ -383,7 +383,7 @@ fn evalFuncShaderGreyPreparedSIMD(
     v_mask_active: VecSB,
 ) VecSF {
     if (comptime buildconfig.speckle_evaluator == .mask_1bit) {
-        if (shader.speckle_mask) |mask| {
+        if (shader.speckle_mask) |*mask| {
             const v_zero: VecSF = @splat(0.0);
             const v_one: VecSF = @splat(1.0);
             const v_half: VecSF = @splat(0.5);
@@ -392,24 +392,27 @@ fn evalFuncShaderGreyPreparedSIMD(
                 (@abs(coord.coord_1) < v_inf);
             const v_u = @select(F, v_sample, coord.coord_0, v_zero);
             const v_v = @select(F, v_sample, coord.coord_1, v_zero);
-            const v_texel_x: VecSI = @intFromFloat(@floor(
+            const v_texel_x: VecSI = @intFromFloat(
                 @max(v_zero, @min(v_one, v_u)) *
                     @as(VecSF, @splat(mask.uv_to_texel[0])) + v_half,
-            ));
-            const v_texel_y: VecSI = @intFromFloat(@floor(
+            );
+            const v_texel_y: VecSI = @intFromFloat(
                 @max(v_zero, @min(v_one, v_v)) *
                     @as(VecSF, @splat(mask.uv_to_texel[1])) + v_half,
-            ));
+            );
+            const sample: [S]bool = v_sample;
             const texel_x: [S]isize = v_texel_x;
             const texel_y: [S]isize = v_texel_y;
 
-            var is_foreground: [S]bool = undefined;
-            for (0..S) |lane| {
-                const x: usize = @intCast(texel_x[lane]);
-                const y: usize = @intCast(texel_y[lane]);
-                const shift: u3 = @intCast(x & 7);
-                is_foreground[lane] = mask.bits[y * mask.row_stride + x / 8] &
-                    (@as(u8, 1) << shift) != 0;
+            var is_foreground = [_]bool{false} ** S;
+            inline for (0..S) |lane| {
+                if (sample[lane]) {
+                    const x: usize = @intCast(texel_x[lane]);
+                    const y: usize = @intCast(texel_y[lane]);
+                    const shift: u3 = @intCast(x & 7);
+                    is_foreground[lane] = mask.bits[y * mask.row_stride + x / 8] &
+                        (@as(u8, 1) << shift) != 0;
+                }
             }
             const v_value = @select(
                 F,
