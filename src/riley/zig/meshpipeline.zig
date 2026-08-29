@@ -414,7 +414,7 @@ pub fn initMeshStatic(
                             params.settings.speckle,
                         );
                     },
-                    .mask_1bit => {
+                    .mask_1bit, .mask_u8 => {
                         speckle_mask = try shaderops.generateSpeckleMask2D(
                             allocator,
                             params.settings.speckle,

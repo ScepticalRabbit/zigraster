@@ -47,7 +47,7 @@ pub fn build(b: *std.Build) void {
     const speckle_evaluator = b.option(
         []const u8,
         "speckle-evaluator",
-        "Procedural speckle evaluator: cell-hash, list-naive, list-indexed, or mask-1bit",
+        "Procedural speckle evaluator: cell-hash, list-naive, list-indexed, mask-1bit, or mask-u8",
     ) orelse "cell-hash";
     const speckle_shape = b.option(
         []const u8,
@@ -57,7 +57,7 @@ pub fn build(b: *std.Build) void {
     const speckle_mask_samples_per_cell = b.option(
         u8,
         "speckle-mask-samples-per-cell",
-        "1-bit speckle mask resolution per cell: 8, 12, or 16",
+        "Speckle mask resolution per cell: 8, 12, or 16",
     ) orelse 12;
     validatePrecision(precision);
     validateSimd(simd);
@@ -141,12 +141,17 @@ pub fn build(b: *std.Build) void {
     const mask_tests = [_]TestEntry{
         .{
             .step_name = "test-speckle-mask-common",
-            .description = "Run direct 1-bit speckle mask tests",
+            .description = "Run direct speckle mask tests",
             .source_path = "src/riley/zig/shaderops_common.zig",
         },
         .{
+            .step_name = "test-speckle-mask-scalar",
+            .description = "Run direct speckle mask scalar tests",
+            .source_path = "src/riley/zig/shaderops_scalar.zig",
+        },
+        .{
             .step_name = "test-speckle-mask-simd",
-            .description = "Run direct 1-bit speckle mask SIMD tests",
+            .description = "Run direct speckle mask SIMD tests",
             .source_path = "src/riley/zig/shaderops_simd.zig",
         },
     };
@@ -170,6 +175,27 @@ pub fn build(b: *std.Build) void {
             speckle_mask_samples_per_cell,
         );
         mask_test_step.dependOn(&test_run.step);
+    }
+    const mask_u8_test_step = b.step(
+        "test-speckle-mask-u8",
+        "Run focused Gaussian u8 speckle mask tests",
+    );
+    for (mask_tests) |entry| {
+        const test_run = addTestRunStep(
+            b,
+            .ReleaseSafe,
+            entry,
+            precision,
+            simd,
+            newton_solver,
+            simd_vector_width,
+            speckle_boundary_blur,
+            9,
+            "mask-u8",
+            "gaussian",
+            speckle_mask_samples_per_cell,
+        );
+        mask_u8_test_step.dependOn(&test_run.step);
     }
 
     const demos = [_]RunEntry{
@@ -662,8 +688,9 @@ fn validateSpeckleEvaluator(evaluator: []const u8) void {
     if (std.mem.eql(u8, evaluator, "cell-hash") or
         std.mem.eql(u8, evaluator, "list-naive") or
         std.mem.eql(u8, evaluator, "list-indexed") or
-        std.mem.eql(u8, evaluator, "mask-1bit")) return;
-    @panic("Supported -Dspeckle-evaluator values are cell-hash, list-naive, list-indexed, and mask-1bit.");
+        std.mem.eql(u8, evaluator, "mask-1bit") or
+        std.mem.eql(u8, evaluator, "mask-u8")) return;
+    @panic("Supported -Dspeckle-evaluator values are cell-hash, list-naive, list-indexed, mask-1bit, and mask-u8.");
 }
 
 fn validateSpeckleEvaluatorConfig(

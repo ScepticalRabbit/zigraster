@@ -99,6 +99,7 @@ pub const SpeckleEvaluator = enum {
     list_naive,
     list_indexed,
     mask_1bit,
+    mask_u8,
 };
 
 pub const NewtonSolverMode = enum {
@@ -192,8 +193,9 @@ fn parseSpeckleEvaluator(comptime evaluator: []const u8) SpeckleEvaluator {
     if (std.mem.eql(u8, evaluator, "list-naive")) return .list_naive;
     if (std.mem.eql(u8, evaluator, "list-indexed")) return .list_indexed;
     if (std.mem.eql(u8, evaluator, "mask-1bit")) return .mask_1bit;
+    if (std.mem.eql(u8, evaluator, "mask-u8")) return .mask_u8;
     @compileError(
-        "build_options.speckle_evaluator must be cell-hash, list-naive, list-indexed, or mask-1bit.",
+        "build_options.speckle_evaluator must be cell-hash, list-naive, list-indexed, mask-1bit, or mask-u8.",
     );
 }
 

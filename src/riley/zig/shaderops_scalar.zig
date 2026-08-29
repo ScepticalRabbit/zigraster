@@ -6,6 +6,8 @@
 //
 // Authors: scepticalrabbit (Lloyd Fletcher)
 // --------------------------------------------------------------------------------------
+const std = @import("std");
+
 const buildconfig = @import("buildconfig.zig");
 const F = buildconfig.F;
 const ndarray = @import("ndarray.zig");
@@ -214,6 +216,15 @@ inline fn resolveFuncCoordsPersp(
     };
 }
 
+inline fn evalPreparedSpeckleMaskScal(
+    uv: [2]F,
+    mask: comm.SpeckleMask2D,
+    params: comm.FuncShaderParams,
+) F {
+    return comm.evalSpeckleMask2D(uv, mask) * params.output_scale +
+        params.output_offset;
+}
+
 pub inline fn fillFuncClipScal(
     comptime N: usize,
     comptime C: usize,
@@ -230,8 +241,11 @@ pub inline fn fillFuncClipScal(
 
     if (comptime C == 1) {
         const value = if (shader.speckle_mask) |mask|
-            comm.evalSpeckleMask2D(.{ coords.coord_0, coords.coord_1 }, mask) *
-                params.output_scale + params.output_offset
+            evalPreparedSpeckleMaskScal(
+                .{ coords.coord_0, coords.coord_1 },
+                mask,
+                params,
+            )
         else if (shader.speckle_list) |speckles|
             comm.evalSpeckleList2D(.{ coords.coord_0, coords.coord_1 }, speckles) *
                 params.output_scale + params.output_offset
@@ -270,8 +284,11 @@ pub inline fn fillFuncPerspScal(
 
     if (comptime C == 1) {
         const value = if (shader.speckle_mask) |mask|
-            comm.evalSpeckleMask2D(.{ coords.coord_0, coords.coord_1 }, mask) *
-                params.output_scale + params.output_offset
+            evalPreparedSpeckleMaskScal(
+                .{ coords.coord_0, coords.coord_1 },
+                mask,
+                params,
+            )
         else if (shader.speckle_list) |speckles|
             comm.evalSpeckleList2D(.{ coords.coord_0, coords.coord_1 }, speckles) *
                 params.output_scale + params.output_offset
@@ -292,4 +309,45 @@ pub inline fn fillFuncPerspScal(
             spx_img_scratch.slice[idx] = vals[ch] * shader.scale_mul + shader.scale_add;
         }
     }
+}
+
+test "u8 speckle mask scalar sampling handles scaling and nonfinite UVs" {
+    if (comptime buildconfig.speckle_evaluator != .mask_u8) return;
+
+    const bits = [_]u8{ 0, 64, 128, 255 };
+    const mask_params: comm.Speckle2DParams = .{
+        .foreground = 0.8,
+        .background = 0.2,
+    };
+    const mask: comm.SpeckleMask2D = .{
+        .bits = &bits,
+        .dims = .{ 2, 2 },
+        .row_stride = 2,
+        .uv_to_texel = .{ 1.0, 1.0 },
+        .params = mask_params,
+    };
+    const params: comm.FuncShaderParams = .{
+        .output_scale = 1.75,
+        .output_offset = -0.125,
+        .settings = .{ .speckle = mask_params },
+    };
+
+    const coverage: F = 64.0 / 255.0;
+    const expected = (mask_params.background +
+        coverage * (mask_params.foreground - mask_params.background)) *
+        params.output_scale + params.output_offset;
+    try std.testing.expectEqual(
+        expected,
+        evalPreparedSpeckleMaskScal(.{ 1.0, 0.0 }, mask, params),
+    );
+    const expected_background = mask_params.background * params.output_scale +
+        params.output_offset;
+    try std.testing.expectEqual(
+        expected_background,
+        evalPreparedSpeckleMaskScal(.{ std.math.nan(F), 0.0 }, mask, params),
+    );
+    try std.testing.expectEqual(
+        expected_background,
+        evalPreparedSpeckleMaskScal(.{ 0.0, std.math.inf(F) }, mask, params),
+    );
 }
