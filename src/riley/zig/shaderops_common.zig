@@ -1060,9 +1060,11 @@ pub fn generateSpeckleMask2D(
     };
     var mask_params = params;
     if (comptime speckle_shape == .perlin) mask_params.occupancy = 1.0;
-    if ((comptime speckle_shape != .perlin and params.occupancy == 0.0) or
-        params.foreground == params.background)
-    {
+    const empty_pattern = if (comptime speckle_shape == .perlin)
+        false
+    else
+        params.occupancy == 0.0;
+    if (empty_pattern or params.foreground == params.background) {
         return .{
             .bits = try allocator.alloc(u8, 0),
             .dims = dims,
