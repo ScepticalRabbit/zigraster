@@ -52,7 +52,7 @@ pub fn build(b: *std.Build) void {
     const speckle_shape = b.option(
         []const u8,
         "speckle-shape",
-        "Procedural speckle shape: disk or gaussian",
+        "Procedural speckle shape: disk, gaussian, or perlin",
     ) orelse "gaussian";
     const speckle_mask_samples_per_cell = b.option(
         u8,
@@ -196,6 +196,27 @@ pub fn build(b: *std.Build) void {
             speckle_mask_samples_per_cell,
         );
         mask_u8_test_step.dependOn(&test_run.step);
+    }
+    const perlin_mask_test_step = b.step(
+        "test-speckle-mask-perlin",
+        "Run focused Perlin u8 speckle mask tests",
+    );
+    for (mask_tests) |entry| {
+        const test_run = addTestRunStep(
+            b,
+            .ReleaseSafe,
+            entry,
+            precision,
+            simd,
+            newton_solver,
+            simd_vector_width,
+            speckle_boundary_blur,
+            9,
+            "mask-u8",
+            "perlin",
+            speckle_mask_samples_per_cell,
+        );
+        perlin_mask_test_step.dependOn(&test_run.step);
     }
 
     const demos = [_]RunEntry{
@@ -680,8 +701,9 @@ fn buildWrapperImports(
 
 fn validateSpeckleShape(shape: []const u8) void {
     if (std.mem.eql(u8, shape, "disk") or
-        std.mem.eql(u8, shape, "gaussian")) return;
-    @panic("Supported -Dspeckle-shape values are disk and gaussian.");
+        std.mem.eql(u8, shape, "gaussian") or
+        std.mem.eql(u8, shape, "perlin")) return;
+    @panic("Supported -Dspeckle-shape values are disk, gaussian, and perlin.");
 }
 
 fn validateSpeckleEvaluator(evaluator: []const u8) void {
@@ -698,8 +720,14 @@ fn validateSpeckleEvaluatorConfig(
     shape: []const u8,
     boundary_blur: bool,
 ) void {
-    if (!std.mem.eql(u8, evaluator, "mask-1bit")) return;
-    if (!std.mem.eql(u8, shape, "disk") or boundary_blur) {
+    if (std.mem.eql(u8, shape, "perlin") and
+        !std.mem.eql(u8, evaluator, "mask-u8"))
+    {
+        @panic("-Dspeckle-shape=perlin requires -Dspeckle-evaluator=mask-u8.");
+    }
+    if (std.mem.eql(u8, evaluator, "mask-1bit") and
+        (!std.mem.eql(u8, shape, "disk") or boundary_blur))
+    {
         @panic("-Dspeckle-evaluator=mask-1bit requires -Dspeckle-shape=disk and -Dspeckle-boundary-blur=false.");
     }
 }

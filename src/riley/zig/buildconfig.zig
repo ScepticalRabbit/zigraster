@@ -67,6 +67,9 @@ comptime {
             "speckle evaluator mask-1bit requires disk shape and boundary blur false.",
         );
     }
+    if (speckle_shape == .perlin and speckle_evaluator != .mask_u8) {
+        @compileError("speckle shape perlin requires evaluator mask-u8.");
+    }
 }
 
 pub const config = configForPrecision(F);
@@ -92,6 +95,7 @@ pub const SimdTexInterpMode = enum {
 pub const SpeckleShape = enum {
     disk,
     gaussian,
+    perlin,
 };
 
 pub const SpeckleEvaluator = enum {
@@ -178,7 +182,8 @@ fn buildOptionsSpeckleShape() []const u8 {
 fn parseSpeckleShape(comptime shape: []const u8) SpeckleShape {
     if (std.mem.eql(u8, shape, "disk")) return .disk;
     if (std.mem.eql(u8, shape, "gaussian")) return .gaussian;
-    @compileError("build_options.speckle_shape must be disk or gaussian.");
+    if (std.mem.eql(u8, shape, "perlin")) return .perlin;
+    @compileError("build_options.speckle_shape must be disk, gaussian, or perlin.");
 }
 
 fn buildOptionsSpeckleEvaluator() []const u8 {
