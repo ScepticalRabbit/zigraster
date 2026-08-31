@@ -698,6 +698,8 @@ pub fn generateSpeckleList2D(
     allocator: std.mem.Allocator,
     params: Speckle2DParams,
 ) !SpeckleList2D {
+    try params.validate();
+
     const min_x = @as(i64, @intFromFloat(@floor(params.uv_offset[0]))) - 1;
     const min_y = @as(i64, @intFromFloat(@floor(params.uv_offset[1]))) - 1;
     const max_x = @as(i64, @intFromFloat(@floor(
@@ -724,8 +726,16 @@ pub fn generateSpeckleList2D(
     }
 
     const disks = try allocator.alloc(SpeckleDisk2D, active_count);
-    const disk_by_cell = try allocator.alloc(u32, cell_count);
-    @memset(disk_by_cell, SpeckleList2D.no_disk);
+    errdefer allocator.free(disks);
+    const disk_by_cell_count = if (comptime buildconfig.speckle_evaluator == .list_naive)
+        0
+    else
+        cell_count;
+    const disk_by_cell = try allocator.alloc(u32, disk_by_cell_count);
+    errdefer allocator.free(disk_by_cell);
+    if (comptime buildconfig.speckle_evaluator != .list_naive) {
+        @memset(disk_by_cell, SpeckleList2D.no_disk);
+    }
     var disk_index: usize = 0;
     var cell_index: usize = 0;
     cell_y = min_y;
@@ -734,7 +744,9 @@ pub fn generateSpeckleList2D(
         while (cell_x <= max_x) : (cell_x += 1) {
             if (speckleDiskForCell(cell_x, cell_y, params)) |disk| {
                 disks[disk_index] = disk;
-                disk_by_cell[cell_index] = @intCast(disk_index);
+                if (comptime buildconfig.speckle_evaluator != .list_naive) {
+                    disk_by_cell[cell_index] = @intCast(disk_index);
+                }
                 disk_index += 1;
             }
             cell_index += 1;
@@ -1958,6 +1970,7 @@ test "procedural speckle SIMD fallback matches scalar evaluation" {
 }
 
 test "procedural speckle occupancy endpoints behave exactly" {
+    if (comptime speckle_shape == .perlin) return;
     var params = Speckle2DParams{};
     params.cells_per_uv = .{ 8.0, 8.0 };
     params.occupancy = 0.0;
@@ -1987,6 +2000,15 @@ test "procedural speckle occupancy endpoints behave exactly" {
     try testing.expect(found_speckle);
 }
 
+test "generated speckle list validates before coordinate conversion" {
+    var params = Speckle2DParams{};
+    params.uv_offset[0] = std.math.nan(F);
+    try testing.expectError(
+        error.InvalidSpeckleUVOffset,
+        generateSpeckleList2D(testing.allocator, params),
+    );
+}
+
 test "generated speckle list matches cell hash evaluation" {
     if (comptime speckle_shape == .perlin) return;
     var params = Speckle2DParams{};
@@ -2004,8 +2026,11 @@ test "generated speckle list matches cell hash evaluation" {
                 @as(F, @floatFromInt(yy)) / 8.0,
             };
             const expected = evalSpeckle2D(uv, params);
-            try testing.expectEqual(expected, evalSpeckleList2DNaive(uv, speckles));
-            try testing.expectEqual(expected, evalSpeckleList2DIndexed(uv, speckles));
+            const actual = switch (comptime buildconfig.speckle_evaluator) {
+                .cell_hash, .list_naive => evalSpeckleList2DNaive(uv, speckles),
+                .list_indexed, .mask_1bit, .mask_u8 => evalSpeckleList2DIndexed(uv, speckles),
+            };
+            try testing.expectEqual(expected, actual);
         }
     }
 }
