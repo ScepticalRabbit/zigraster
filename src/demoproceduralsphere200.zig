@@ -59,14 +59,7 @@ pub fn main(init: std.process.Init) !void {
 
     std.debug.print("Procedural sphere200 comparison demo\n", .{});
     std.debug.print("  texture baseline: zig build demo-sphere200 -Dsimd=off\n", .{});
-    std.debug.print("  seed: {d} (0x{x})\n", .{ args.params.seed, args.params.seed });
-    std.debug.print(
-        "  cells per UV: {d} x {d}\n",
-        .{ args.params.cells_per_uv[0], args.params.cells_per_uv[1] },
-    );
-    std.debug.print("  nominal radius/size: {d} cell units\n", .{args.params.radius_mean});
-    std.debug.print("  occupancy: {d}\n", .{args.params.occupancy});
-    std.debug.print("  texture allocation: none\n", .{});
+    printProceduralConfig(args.params);
 
     const sim_data = try meshio.loadSimData(
         allocator,
@@ -155,6 +148,78 @@ const DemoArgs = struct {
     out_dir: []const u8 = out_dir_def,
 };
 
+fn printProceduralConfig(params: shaderops.Speckle2DParams) void {
+    const evaluator_name = switch (comptime buildconfig.speckle_evaluator) {
+        .cell_hash => "cell-hash",
+        .list_naive => "list-naive",
+        .list_indexed => "list-indexed",
+        .mask_1bit => "mask-1bit",
+        .mask_u8 => "mask-u8",
+    };
+    const perlin_note = if (comptime buildconfig.speckle_shape == .perlin)
+        " (not used by Perlin)"
+    else
+        "";
+    const effective_boundary_blur = if (comptime buildconfig.speckle_shape == .disk and
+        buildconfig.speckle_boundary_blur)
+        params.edge_softness
+    else
+        0.0;
+
+    std.debug.print("  evaluator (compile-time): {s}\n", .{evaluator_name});
+    std.debug.print("  shape (compile-time): {s}\n", .{@tagName(buildconfig.speckle_shape)});
+    std.debug.print(
+        "  neighbor count (compile-time): {d}{s}\n",
+        .{ buildconfig.speckle_neighbor_count, perlin_note },
+    );
+    std.debug.print(
+        "  effective boundary blur: {d} cell units\n",
+        .{effective_boundary_blur},
+    );
+    std.debug.print("  seed: {d} (0x{x})\n", .{ params.seed, params.seed });
+    std.debug.print(
+        "  cells per UV: {d} x {d}\n",
+        .{ params.cells_per_uv[0], params.cells_per_uv[1] },
+    );
+
+    switch (comptime buildconfig.speckle_shape) {
+        .perlin => {
+            std.debug.print(
+                "  coverage threshold: {d}\n",
+                .{params.perlin_coverage_threshold},
+            );
+            std.debug.print(
+                "  coverage transition width: {d}\n",
+                .{params.perlin_coverage_transition_width},
+            );
+        },
+        .disk, .gaussian => {
+            std.debug.print("  nominal radius: {d} cell units\n", .{params.radius_mean});
+            std.debug.print("  radius jitter: {d} cell units\n", .{params.radius_jitter});
+            std.debug.print("  occupancy: {d}\n", .{params.occupancy});
+        },
+    }
+
+    if (comptime buildconfig.speckle_evaluator == .mask_1bit or
+        buildconfig.speckle_evaluator == .mask_u8)
+    {
+        const samples: F = @floatFromInt(buildconfig.speckle_mask_samples_per_cell);
+        const mask_dims = [2]F{
+            @ceil(params.cells_per_uv[0] * samples) + 1.0,
+            @ceil(params.cells_per_uv[1] * samples) + 1.0,
+        };
+        const allocation = if (comptime buildconfig.speckle_evaluator == .mask_1bit)
+            "packed 1-bit coverage"
+        else
+            "8-bit coverage";
+        std.debug.print("  generated mask allocation: {s}\n", .{allocation});
+        std.debug.print(
+            "  mask resolution: {d} x {d} texels ({d} samples/cell)\n",
+            .{ mask_dims[0], mask_dims[1], buildconfig.speckle_mask_samples_per_cell },
+        );
+    }
+}
+
 fn parseDemoArgs(raw_args: anytype) !?DemoArgs {
     var args = DemoArgs{};
     var arg_idx: usize = 1;
@@ -183,6 +248,10 @@ fn parseDemoArgs(raw_args: anytype) !?DemoArgs {
             args.params.radius_jitter = try std.fmt.parseFloat(F, value);
         } else if (std.mem.eql(u8, arg, "--softness")) {
             args.params.edge_softness = try std.fmt.parseFloat(F, value);
+        } else if (std.mem.eql(u8, arg, "--threshold")) {
+            args.params.perlin_coverage_threshold = try std.fmt.parseFloat(F, value);
+        } else if (std.mem.eql(u8, arg, "--transition")) {
+            args.params.perlin_coverage_transition_width = try std.fmt.parseFloat(F, value);
         } else if (std.mem.eql(u8, arg, "--seed")) {
             args.params.seed = try std.fmt.parseInt(u32, value, 0);
         } else if (std.mem.eql(u8, arg, "--output")) {
@@ -207,19 +276,21 @@ fn printUsage() void {
         \\  Procedural: zig build demo-procedural-sphere200 -Dsimd=off
         \\
         \\Options:
-        \\  --size <value>       Mean speckle radius in cell units
-        \\  --occupancy <value>  Active-cell probability in [0, 1]
-        \\  --cells-u <value>    Procedural cell count across U
-        \\  --cells-v <value>    Procedural cell count across V
-        \\  --jitter <value>     Symmetric radius variation in cell units
-        \\  --softness <value>   Edge-transition width in cell units
-        \\  --seed <integer>     Deterministic unsigned 32-bit seed
-        \\  --output <path>      Output directory
-        \\  --help               Show this help
+        \\  --size <value>        Mean radius in cell units (disk/Gaussian)
+        \\  --occupancy <value>   Active-cell probability (disk/Gaussian)
+        \\  --cells-u <value>     Procedural cell count across U
+        \\  --cells-v <value>     Procedural cell count across V
+        \\  --jitter <value>      Radius variation in cell units (disk/Gaussian)
+        \\  --softness <value>    Boundary-blur width in cell units (disk only)
+        \\  --threshold <value>   Coverage threshold (Perlin only)
+        \\  --transition <value>  Coverage transition width (Perlin only)
+        \\  --seed <integer>      Deterministic unsigned 32-bit seed
+        \\  --output <path>       Output directory
+        \\  --help                Show this help
         \\
-        \\Constraints:
+        \\Disk/Gaussian constraints:
         \\  jitter <= size
-        \\  size + jitter + softness <= 1
+        \\  size + jitter + effective boundary blur <= 1
         \\
     , .{});
 }
