@@ -158,6 +158,22 @@ pub const CCameraInput = extern struct {
     psf_separable: u32,
 };
 
+pub const CSpeckle2DParams = extern struct {
+    seed: u32,
+    cells_per_uv_0: F,
+    cells_per_uv_1: F,
+    uv_offset_0: F,
+    uv_offset_1: F,
+    occupancy: F,
+    radius_mean: F,
+    radius_jitter: F,
+    edge_softness: F,
+    perlin_coverage_threshold: F,
+    perlin_coverage_transition_width: F,
+    foreground: F,
+    background: F,
+};
+
 pub const CFuncShaderParams = extern struct {
     coord_scale_0: F,
     coord_scale_1: F,
@@ -240,6 +256,7 @@ pub const CFuncShaderParams = extern struct {
     extra_1: F,
     extra_2: F,
     extra_3: F,
+    speckle: CSpeckle2DParams,
 };
 
 pub const CMeshInput = extern struct {
@@ -703,6 +720,7 @@ fn funcShaderBuiltinFromC(
 ) !shaderops.FuncShaderBuiltin {
     const lambertian = shaderops.FuncShaderBuiltin.lambertian_normal_z;
     const eggbox = shaderops.FuncShaderBuiltin.eggbox;
+    const speckle = shaderops.FuncShaderBuiltin.speckle;
     return switch (func_shader_builtin) {
         @intFromEnum(shaderops.FuncShaderBuiltin.constant) => .constant,
         @intFromEnum(shaderops.FuncShaderBuiltin.linear) => .linear,
@@ -713,6 +731,7 @@ fn funcShaderBuiltinFromC(
         @intFromEnum(shaderops.FuncShaderBuiltin.checker_smooth) => .checker_smooth,
         @intFromEnum(lambertian) => .lambertian_normal_z,
         @intFromEnum(eggbox) => .eggbox,
+        @intFromEnum(speckle) => .speckle,
         else => error.InvalidFuncShaderBuiltin,
     };
 }
@@ -933,7 +952,27 @@ fn funcShaderParamsFromC(
                     },
                 },
             },
-            .speckle => .{ .speckle = .{} },
+            .speckle => .{
+                .speckle = .{
+                    .seed = in_params.speckle.seed,
+                    .cells_per_uv = .{
+                        in_params.speckle.cells_per_uv_0,
+                        in_params.speckle.cells_per_uv_1,
+                    },
+                    .uv_offset = .{
+                        in_params.speckle.uv_offset_0,
+                        in_params.speckle.uv_offset_1,
+                    },
+                    .occupancy = in_params.speckle.occupancy,
+                    .radius_mean = in_params.speckle.radius_mean,
+                    .radius_jitter = in_params.speckle.radius_jitter,
+                    .edge_softness = in_params.speckle.edge_softness,
+                    .perlin_coverage_threshold = in_params.speckle.perlin_coverage_threshold,
+                    .perlin_coverage_transition_width = in_params.speckle.perlin_coverage_transition_width,
+                    .foreground = in_params.speckle.foreground,
+                    .background = in_params.speckle.background,
+                },
+            },
         },
     };
 }
