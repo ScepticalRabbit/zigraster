@@ -771,7 +771,7 @@ fn rasterTileComm(
     // Report aggregate worker-time for the overlap loop. Camera fill is timed
     // separately and removed below so all three raster phases share one basis.
     const time_elem_start: ?Timestamp =
-        if (comptime report_mode !=  .off)
+        if (comptime report_mode != .off)
             Timestamp.now(io, .awake)
         else
             null;
@@ -941,9 +941,9 @@ fn rasterTileComm(
                                     };
                                     const nodal_fields_num: u8 =
                                         if (nodal.elem_field.dims.len == 3)
-                                        @intCast(nodal.elem_field.dims[1])
-                                    else
-                                        @intCast(nodal.elem_field.dims[2]);
+                                            @intCast(nodal.elem_field.dims[1])
+                                        else
+                                            @intCast(nodal.elem_field.dims[2]);
                                     local_pipe_buf.loadNodal(
                                         nodal.elem_field,
                                         start_idx,

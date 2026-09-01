@@ -1651,17 +1651,18 @@ fn rasterFrame(
     var global_resolve_time_ns: F = 0.0;
     if (input.config.buffer_mode != .tile_local) {
         const sub_samp: usize = @intCast(input.camera.sub_sample);
-        const halo_px = input.config.raster_halo_px_override orelse
+        const halo_px: u32 =
+            input.config.raster_halo_px_override orelse
             input.camera.prep_psf.halo_px;
+        const tile_full_px = @as(usize, ctx.actual_tile_size) +
+            2 * @as(usize, halo_px);
         ctx.frame_times.global_subpx_stats = .{
             .mode = input.config.buffer_mode,
             .output_w_subpx = @as(usize, input.camera.pixels_num[0]) * sub_samp,
             .output_h_subpx = @as(usize, input.camera.pixels_num[1]) * sub_samp,
             .outer_halo_subpx = @as(usize, halo_px) * sub_samp,
             .tile_core_subpx = @as(usize, ctx.actual_tile_size) * sub_samp,
-            .tile_scratch_subpx =
-                (@as(usize, ctx.actual_tile_size) + 2 * @as(usize, halo_px)) *
-                sub_samp,
+            .tile_scratch_subpx = tile_full_px * sub_samp,
         };
     }
 
@@ -1699,7 +1700,9 @@ fn rasterFrame(
             );
             defer target.deinit(outer_alloc);
             ctx.frame_times.global_subpx_times.buffer_setup += @floatFromInt(
-                time_start_buffer_setup.durationTo(Timestamp.now(io, .awake)).raw.nanoseconds,
+                time_start_buffer_setup.durationTo(
+                    Timestamp.now(io, .awake),
+                ).raw.nanoseconds,
             );
             if (ctx.frame_times.global_subpx_stats) |*stats| {
                 const tiles_x = std.math.divCeil(
@@ -1731,7 +1734,9 @@ fn rasterFrame(
             );
             ctx.frame_times.raster_workers_used = @intCast(workers_used);
             ctx.frame_times.global_subpx_times.tile_raster += @floatFromInt(
-                time_start_tile_raster.durationTo(Timestamp.now(io, .awake)).raw.nanoseconds,
+                time_start_tile_raster.durationTo(
+                    Timestamp.now(io, .awake),
+                ).raw.nanoseconds,
             );
             const time_start_resolve = Timestamp.now(io, .awake);
             const resolve_workers_used = try scratchresolveglobal.resolve(

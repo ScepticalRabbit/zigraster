@@ -14,28 +14,24 @@ const shaderops = @import("shaderops.zig");
 const shaderpipe = @import("shaderpipe.zig");
 const CoordSpace = @import("geometrykernels.zig").CoordSpace;
 const texops = @import("textureops.zig");
+const scal = @import("shaderpipekernels_scalar.zig");
+const simd = @import("shaderpipekernels_simd.zig");
 
 // --------------------------------------------------------------------------------------
 // Public Constants & Public Types
 // --------------------------------------------------------------------------------------
 
 pub fn MonoShaderPipeKern(comptime N: usize) type {
-    const scal = @import("shaderpipekernels_scalar.zig");
-    const simd = @import("shaderpipekernels_simd.zig");
     const impl = if (buildconfig.config.simd == .on) simd else scal;
     return impl.MonoShaderPipeKern(N);
 }
 
 pub fn RgbShaderPipeKern(comptime N: usize) type {
-    const scal = @import("shaderpipekernels_scalar.zig");
-    const simd = @import("shaderpipekernels_simd.zig");
     const impl = if (buildconfig.config.simd == .on) simd else scal;
     return impl.RgbShaderPipeKern(N);
 }
 
 pub fn MultiShaderPipeKern(comptime N: usize, comptime C: usize) type {
-    const scal = @import("shaderpipekernels_scalar.zig");
-    const simd = @import("shaderpipekernels_simd.zig");
     const impl = if (buildconfig.config.simd == .on) simd else scal;
     return impl.MultiShaderPipeKern(N, C);
 }

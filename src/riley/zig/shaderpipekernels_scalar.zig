@@ -11,6 +11,7 @@ const buildconfig = @import("buildconfig.zig");
 const F = buildconfig.F;
 const MatSlice = @import("matslice.zig").MatSlice;
 const shaderops = @import("shaderops.zig");
+const shaderops_common = @import("shaderops_common.zig");
 const shaderpipe = @import("shaderpipe.zig");
 const CoordSpace = @import("geometrykernels.zig").CoordSpace;
 const texops = @import("textureops.zig");
@@ -187,8 +188,7 @@ pub fn MonoShaderPipeKern(comptime N: usize) type {
                             .normal_y = norm[1],
                             .normal_z = norm[2],
                         };
-                        const sc_comm = @import("shaderops_common.zig");
-                        const val = sc_comm.evalFuncShaderBuiltinGreyNorm(
+                        const val = shaderops_common.evalFuncShaderBuiltinGreyNorm(
                             func_stage.builtin,
                             coord,
                             func_stage.params,
@@ -358,8 +358,7 @@ pub fn RgbShaderPipeKern(comptime N: usize) type {
                             .normal_y = norm[1],
                             .normal_z = norm[2],
                         };
-                        const sc_comm = @import("shaderops_common.zig");
-                        const vals = sc_comm.evalFuncShaderBuiltinRGBNorm(
+                        const vals = shaderops_common.evalFuncShaderBuiltinRGBNorm(
                             func_stage.builtin,
                             coord,
                             func_stage.params,

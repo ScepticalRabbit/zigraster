@@ -13,6 +13,7 @@ const F = buildconfig.F;
 const mono = @import("shaderpipe_mono.zig");
 const rgb = @import("shaderpipe_rgb.zig");
 const multi = @import("shaderpipe_multi.zig");
+const shaderops_common = @import("shaderops_common.zig");
 
 // --------------------------------------------------------------------------------------
 // Public Constants & Public Types
@@ -41,11 +42,11 @@ pub const ShaderPipeRequest = union(ShaderPipeKind) {
     }
 };
 
-pub const ScaleOver = @import("shaderops_common.zig").ScaleOver;
-pub const NormalType = @import("shaderops_common.zig").NormalType;
-pub const FuncCoordMode = @import("shaderops_common.zig").FuncCoordMode;
-pub const FuncShaderBuiltin = @import("shaderops_common.zig").FuncShaderBuiltin;
-pub const FuncShaderParams = @import("shaderops_common.zig").FuncShaderParams;
+pub const ScaleOver = shaderops_common.ScaleOver;
+pub const NormalType = shaderops_common.NormalType;
+pub const FuncCoordMode = shaderops_common.FuncCoordMode;
+pub const FuncShaderBuiltin = shaderops_common.FuncShaderBuiltin;
+pub const FuncShaderParams = shaderops_common.FuncShaderParams;
 
 pub const MonoPipeState = mono.MonoPipeState;
 pub const MonoPipeStateSIMD = mono.MonoPipeStateSIMD;

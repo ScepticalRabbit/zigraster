@@ -243,10 +243,8 @@ pub fn meshInputFromSimDataSlice(
 
             const uvmap = try uvio.loadUVMap(outer_alloc, io, path_uvs);
 
-            const format: imageio.ImageFormat = if (std.mem.endsWith(u8, tex_path.?, ".bmp"))
-                .bmp
-            else
-                .tiff;
+            const is_bmp = std.mem.endsWith(u8, tex_path.?, ".bmp");
+            const format: imageio.ImageFormat = if (is_bmp) .bmp else .tiff;
 
             const tex = try imageio.loadImage(
                 u8,

@@ -21,6 +21,7 @@ const texops = @import("textureops.zig");
 const TexSampConfig = texops.TexSampConfig;
 const report = @import("report.zig");
 const simdops = @import("simdops.zig");
+const shaderops_simd = @import("shaderops_simd.zig");
 const scal_impl = @import("shaderpipekernels_scalar.zig");
 
 // --------------------------------------------------------------------------------------
@@ -306,8 +307,7 @@ pub fn MonoShaderPipeKern(comptime N: usize) type {
                             .normal_y = normal_vecs[1],
                             .normal_z = normal_vecs[2],
                         };
-                        const v_eval = @import("shaderops_simd.zig")
-                            .evalFuncShaderGreyNormSIMD(
+                        const v_eval = shaderops_simd.evalFuncShaderGreyNormSIMD(
                             func_stage.builtin,
                             coord,
                             func_stage.params,
@@ -330,8 +330,8 @@ pub fn MonoShaderPipeKern(comptime N: usize) type {
                     .map_range => |mr| {
                         state.value = @as(VecSF, @splat(mr.out_min)) +
                             (state.value - @as(VecSF, @splat(mr.in_min))) /
-                            @as(VecSF, @splat(mr.in_max - mr.in_min)) *
-                            @as(VecSF, @splat(mr.out_max - mr.out_min));
+                                @as(VecSF, @splat(mr.in_max - mr.in_min)) *
+                                @as(VecSF, @splat(mr.out_max - mr.out_min));
                     },
                     .clamp => |cl| {
                         state.value = @min(
@@ -422,9 +422,9 @@ pub fn RgbShaderPipeKern(comptime N: usize) type {
                                     v_field += v_weights[nn] *
                                         v_nodes_inv_z[nn] *
                                         @as(
-                                        VecSF,
-                                        @splat(pipe_buf.nodal_data[base + nn]),
-                                    );
+                                            VecSF,
+                                            @splat(pipe_buf.nodal_data[base + nn]),
+                                        );
                                 }
                                 v_field = (v_field * v_subpx_z) *
                                     @as(VecSF, @splat(nodal.scale_mul)) +
@@ -433,9 +433,9 @@ pub fn RgbShaderPipeKern(comptime N: usize) type {
                                 inline for (0..N) |nn| {
                                     v_field += v_weights[nn] *
                                         @as(
-                                        VecSF,
-                                        @splat(pipe_buf.nodal_data[base + nn]),
-                                    );
+                                            VecSF,
+                                            @splat(pipe_buf.nodal_data[base + nn]),
+                                        );
                                 }
                                 v_field = v_field *
                                     @as(VecSF, @splat(nodal.scale_mul)) +
@@ -546,8 +546,7 @@ pub fn RgbShaderPipeKern(comptime N: usize) type {
                             .normal_y = normal_vecs[1],
                             .normal_z = normal_vecs[2],
                         };
-                        const v_vals = @import("shaderops_simd.zig")
-                            .evalFuncShaderRGBNormSIMD(
+                        const v_vals = shaderops_simd.evalFuncShaderRGBNormSIMD(
                             func_stage.builtin,
                             coord,
                             func_stage.params,

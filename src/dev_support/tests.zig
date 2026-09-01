@@ -807,11 +807,17 @@ pub fn runSingleMeshSuiteDriver(
                         if (first_err == null) {
                             if (err == error.PixelMismatch) {
                                 if (tcfg.TEST_CASE_VERBOSE) {
-                                    std.debug.print("MISMATCH! ({d:.2} ms)\n", .{duration_ms});
+                                    std.debug.print(
+                                        "MISMATCH! ({d:.2} ms)\n",
+                                        .{duration_ms},
+                                    );
                                 }
                             } else {
                                 if (tcfg.TEST_CASE_VERBOSE) {
-                                    std.debug.print("ERROR! ({d:.2} ms)\n", .{duration_ms});
+                                    std.debug.print(
+                                        "ERROR! ({d:.2} ms)\n",
+                                        .{duration_ms},
+                                    );
                                 }
                             }
                             first_err = err;

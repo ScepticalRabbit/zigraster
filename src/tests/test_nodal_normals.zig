@@ -122,7 +122,8 @@ test "Nodal normals are prepared when requested" {
     try std.testing.expect(frame_mesh.total_elems_num > 0);
     try std.testing.expect(frame_mesh.elems_in_image > 0);
 
-    const mono_pipe = frame_mesh.mesh.pipes.mono orelse return error.UnexpectedShaderVariant;
+    const mono_pipe = frame_mesh.mesh.pipes.mono orelse
+        return error.UnexpectedShaderVariant;
     try std.testing.expect(mono_pipe.stages.len > 0);
     switch (mono_pipe.stages[0]) {
         .nodal => |shader| {

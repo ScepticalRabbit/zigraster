@@ -590,7 +590,9 @@ test "BrownConradyPolynomial.forwardInv" {
             .polynomial = .{
                 .forward_map = .{
                     .order = .quadratic,
-                    .coeffs_u = .{ 0.0, 0.01, -0.005, 0.002, 0.001, -0.001 } ++ [_]F{0.0} ** 4,
+                    .coeffs_u = .{
+                        0.0, 0.01, -0.005, 0.002, 0.001, -0.001,
+                    } ++ [_]F{0.0} ** 4,
                     .coeffs_v = .{
                         0.0, -0.004, 0.012, 0.001, -0.002, 0.0015,
                     } ++ [_]F{0.0} ** 4,

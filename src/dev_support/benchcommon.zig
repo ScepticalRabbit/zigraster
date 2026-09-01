@@ -420,7 +420,8 @@ pub fn writeBenchmarkConfig(
     );
     if (config.geom_scheduling_mode == .auto) {
         try writer.writeAll(
-            "geom_scheduling_mode_auto_note=spread if total_scene_elems < 100000 else pack\n",
+            "geom_scheduling_mode_auto_note=" ++
+                "spread if total_scene_elems < 100000 else pack\n",
         );
     }
     try writer.print(
@@ -552,7 +553,13 @@ pub fn loadNDArray(
         }
         return array;
     }
-    return try loadNDArrayFromCSV(outer_alloc, io, path, requested_channels, is_time_series);
+    return try loadNDArrayFromCSV(
+        outer_alloc,
+        io,
+        path,
+        requested_channels,
+        is_time_series,
+    );
 }
 
 pub fn loadNDArrayFromCSV(
