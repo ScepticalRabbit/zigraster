@@ -172,7 +172,7 @@ pub fn RasterEngineFor(
             coords: *const NDArray(F),
             raster_hull: ?*const NDArray(F),
             shader: *const ShaderData,
-            shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
+            shader_buf: anytype,
             subpx_scratch: *ScratchBuffs,
         ) !u64 {
             const sub_samp_u: usize = @intCast(ctx_rast.camera.sub_sample);
@@ -240,7 +240,7 @@ pub fn RasterEngineFor(
             rast_bounds: RasterBounds,
             nodes_coords: Vec3Slices(F),
             shader: *const ShaderData,
-            shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
+            shader_buf: anytype,
             subpx_scratch: *ScratchBuffs,
         ) !u64 {
             if (comptime Geom == geomkerns.Tri3OptKernel()) {
@@ -315,7 +315,7 @@ pub fn RasterEngineFor(
             rast_bounds: RasterBounds,
             nodes_coords: Vec3Slices(F),
             shader: *const ShaderData,
-            shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
+            shader_buf: anytype,
             subpx_scratch: *ScratchBuffs,
         ) !u64 {
             return rasterNewtonImpl(
@@ -355,7 +355,7 @@ fn rasterDirectImpl(
     rast_bounds: RasterBounds,
     nodes_coords: Vec3Slices(F),
     shader: *const ShaderData,
-    shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
+    shader_buf: anytype,
     subpx_scratch: *ScratchBuffs,
 ) !u64 {
     std.debug.assert(subpx_scratch.image.rows_num <= std.math.maxInt(u8));
@@ -396,7 +396,7 @@ fn rasterNewtonImpl(
     rast_bounds: RasterBounds,
     nodes_coords: Vec3Slices(F),
     shader: *const ShaderData,
-    shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
+    shader_buf: anytype,
     subpx_scratch: *ScratchBuffs,
 ) !u64 {
     comptime {
@@ -701,7 +701,7 @@ fn rasterSteppedScal(
     rast_bounds: RasterBounds,
     nodes_coords: Vec3Slices(F),
     shader: *const ShaderData,
-    shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
+    shader_buf: anytype,
     subpx_scratch: *ScratchBuffs,
 ) !u64 {
     const sub_samp: usize = @intCast(ctx_rast.camera.sub_sample);
@@ -780,7 +780,7 @@ fn rasterSteppedScalFixP(
     rast_bounds: RasterBounds,
     nodes_coords: Vec3Slices(F),
     shader: *const ShaderData,
-    shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
+    shader_buf: anytype,
     subpx_scratch: *ScratchBuffs,
     fixed: comm.Tri3FixedEdges,
 ) !u64 {
@@ -984,7 +984,7 @@ fn rasterSteppedScalFloat(
     rast_bounds: RasterBounds,
     nodes_coords: Vec3Slices(F),
     shader: *const ShaderData,
-    shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
+    shader_buf: anytype,
     subpx_scratch: *ScratchBuffs,
 ) !u64 {
     const N = Geom.nodes_num;

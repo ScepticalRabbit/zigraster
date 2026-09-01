@@ -80,6 +80,7 @@ test "Nodal normals are prepared when requested" {
             .roi_cent_world = roi_cent,
             .focal_length = focal_leng,
             .sub_sample = 2,
+            .pipe_request = .monochrome,
         },
     );
     defer camera.deinit(arena_alloc);
@@ -89,10 +90,16 @@ test "Nodal normals are prepared when requested" {
         .coords = sim_data.coords,
         .connect = sim_data.connect,
         .disp = null,
-        .shader = .{ .nodal = .{
-            .field = sim_data.field.?,
-            .normal_type = .avg,
-        } },
+        .pipes = .{
+            .mono = .{
+                .source = .{
+                    .nodal = .{
+                        .field = sim_data.field.?,
+                        .normal_type = .avg,
+                    },
+                },
+            },
+        },
     };
 
     const mesh_static = try mo.initMeshStatic(arena_alloc, &mesh_input);
@@ -115,7 +122,9 @@ test "Nodal normals are prepared when requested" {
     try std.testing.expect(frame_mesh.total_elems_num > 0);
     try std.testing.expect(frame_mesh.elems_in_image > 0);
 
-    switch (frame_mesh.mesh.shader) {
+    const mono_pipe = frame_mesh.mesh.pipes.mono orelse return error.UnexpectedShaderVariant;
+    try std.testing.expect(mono_pipe.stages.len > 0);
+    switch (mono_pipe.stages[0]) {
         .nodal => |shader| {
             try std.testing.expectEqual(
                 shaderops.NormalType.avg,

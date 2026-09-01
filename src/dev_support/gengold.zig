@@ -16,6 +16,7 @@ const gk = @import("../riley/zig/geometrykernels.zig");
 const meshio = @import("../riley/zig/meshio.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
 const shaderops = @import("../riley/zig/shaderops.zig");
+const shaderpipe = @import("../riley/zig/shaderpipe.zig");
 const MeshType = gk.MeshType;
 const MeshInput = mo.MeshInput;
 const CameraPrepared = @import("../riley/zig/camera.zig").CameraPrepared;
@@ -35,7 +36,7 @@ pub fn renderAndSave(
     coords: meshio.Coords,
     connect: meshio.Connect,
     disp: ?meshio.Field,
-    sh: shaderops.ShaderInput,
+    sh: shaderpipe.MeshShaderPipesInput,
     dir: []const u8,
     add_disp: bool,
     config: RasterConfig,
@@ -48,7 +49,7 @@ pub fn renderAndSave(
         .coords = coords,
         .connect = connect,
         .disp = if (add_disp) disp else null,
-        .shader = sh,
+        .pipes = sh,
     };
 
     const meshes = &[_]MeshInput{mesh_input};
@@ -60,6 +61,7 @@ pub fn renderAndSave(
         .roi_cent_world = camera.roi_cent_world,
         .focal_length = camera.focal_length,
         .sub_sample = camera.sub_sample,
+        .pipe_request = .monochrome,
         .distortion = camera.distortion,
     };
     const render_groups = [_]riley.RenderGroupSpec{
@@ -177,6 +179,7 @@ pub fn runMultimeshGenerationExt(
             .roi_cent_world = camera.roi_cent_world,
             .focal_length = camera.focal_length,
             .sub_sample = camera.sub_sample,
+            .pipe_request = .monochrome,
             .distortion = camera.distortion,
         };
         const render_groups = [_]riley.RenderGroupSpec{
@@ -261,6 +264,7 @@ pub fn runMultimeshMixedGenerationExt(
         .roi_cent_world = camera.roi_cent_world,
         .focal_length = camera.focal_length,
         .sub_sample = camera.sub_sample,
+        .pipe_request = .monochrome,
         .distortion = camera.distortion,
     };
     const render_groups = [_]riley.RenderGroupSpec{
@@ -281,42 +285,34 @@ pub fn runMultimeshMixedGenerationExt(
 }
 
 pub fn runMultimeshMixedRGBGeneration(
-    allocator: std.mem.Allocator,
+    outer_alloc: std.mem.Allocator,
     io: std.Io,
     config: RasterConfig,
 ) !void {
-    const gold_root = comptime policy.goldRoot(.multimesh);
     try runMultimeshMixedRGBGenerationExt(
-        allocator,
+        outer_alloc,
         io,
         config,
-        gold_root ++ "/allelem_allshade_rgb",
+        policy.goldRoot(.multimesh_rgb),
         &orch.default_multimesh_dir_paths,
         .{ 1200, 800 },
     );
 }
 
 pub fn runMultimeshMixedRGBGenerationExt(
-    allocator: std.mem.Allocator,
+    outer_alloc: std.mem.Allocator,
     io: std.Io,
     config: RasterConfig,
-    gold_dir: []const u8,
+    out_dir_root: []const u8,
     dir_paths: []const []const u8,
     pixel_num: [2]u32,
 ) !void {
-    var arena = std.heap.ArenaAllocator.init(allocator);
+    var arena = std.heap.ArenaAllocator.init(outer_alloc);
     defer arena.deinit();
     const aa = arena.allocator();
 
-    const texture = try iio.loadImage(
-        u8,
-        3,
-        aa,
-        io,
-        "texture/speckle_rgb.bmp",
-        .bmp,
-    );
-
+    const texture = try iio.loadTestPatternRGB(aa);
+    const gold_dir = try std.fmt.allocPrint(aa, "{s}/allelem_mixed_rgb", .{out_dir_root});
     const mesh_inputs = try orch.buildMixedRgbMeshInputs(
         aa,
         io,
@@ -334,13 +330,7 @@ pub fn runMultimeshMixedRGBGenerationExt(
     defer camera_rgb.deinit(aa);
 
     var config_rgb = config;
-    if (config_rgb.image_save_opts.len == 0) {
-        config_rgb.image_save_opts = &[_]iio.ImageSaveOpts{
-            .{ .format = .bmp, .bits = 8, .scaling = .auto, .channels = 3 },
-            .{ .format = .fimg, .bits = null, .scaling = .none, .channels = 3 },
-        };
-    } else {
-        // If save_opts are provided, ensure they use 3 channels for RGB
+    if (config_rgb.image_save_opts.len > 0) {
         const opts_rgb = try aa.alloc(iio.ImageSaveOpts, config_rgb.image_save_opts.len);
         for (config_rgb.image_save_opts, 0..) |opt, ii| {
             opts_rgb[ii] = opt;
@@ -363,6 +353,7 @@ pub fn runMultimeshMixedRGBGenerationExt(
         .roi_cent_world = camera_rgb.roi_cent_world,
         .focal_length = camera_rgb.focal_length,
         .sub_sample = camera_rgb.sub_sample,
+        .pipe_request = .rgb,
         .distortion = camera_rgb.distortion,
     };
     _ = try riley.raster(

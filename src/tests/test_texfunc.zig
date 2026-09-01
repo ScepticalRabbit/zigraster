@@ -143,22 +143,30 @@ fn runTexFuncCase(
         .coords = prepared.coords,
         .connect = prepared.connect,
         .disp = null,
-        .shader = if (is_rgb)
+        .pipes = if (is_rgb)
             .{
-                .func_rgb = .{
-                    .uvs = uvs,
-                    .coord_mode = if (coord_mode == .uv) .uv else .para,
-                    .builtin = builtin,
-                    .normal_type = normal_type,
+                .rgb = .{
+                    .source = .{
+                        .func = .{
+                            .uvs = uvs,
+                            .coord_mode = if (coord_mode == .uv) .uv else .para,
+                            .builtin = builtin,
+                            .normal_type = normal_type,
+                        },
+                    },
                 },
             }
         else
             .{
-                .func = .{
-                    .uvs = uvs,
-                    .coord_mode = if (coord_mode == .uv) .uv else .para,
-                    .builtin = builtin,
-                    .normal_type = normal_type,
+                .mono = .{
+                    .source = .{
+                        .func = .{
+                            .uvs = uvs,
+                            .coord_mode = if (coord_mode == .uv) .uv else .para,
+                            .builtin = builtin,
+                            .normal_type = normal_type,
+                        },
+                    },
                 },
             },
     };
@@ -173,7 +181,8 @@ fn runTexFuncCase(
         .{ .format = .csv, .bits = null, .scaling = .none },
     };
 
-    const camera_input: CameraInput = prepared.camera_input;
+    var camera_input: CameraInput = prepared.camera_input;
+    camera_input.pipe_request = if (is_rgb) .rgb else .monochrome;
     const time_start = Timestamp.now(io, .awake);
     const render_groups = [_]riley.RenderGroupSpec{
         .{ .io = io, .workers = @max(@as(u16, 1), config.total_threads) },
@@ -188,7 +197,10 @@ fn runTexFuncCase(
     )) orelse return error.NoResult;
     defer aa.free(result.slice);
     const time_end = Timestamp.now(io, .awake);
-    const duration_ms = @as(F, @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds)) / 1e6;
+    const duration_ms = @as(
+        F,
+        @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds),
+    ) / 1e6;
 
     const frames_num = if (result.dims.len == 5)
         result.dims[1]

@@ -19,6 +19,7 @@ const iio = @import("../riley/zig/imageio.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
 const gk = @import("../riley/zig/geometrykernels.zig");
 const texops = @import("../riley/zig/textureops.zig");
+const shaderpipe = @import("../riley/zig/shaderpipe.zig");
 const camera_mod = @import("../riley/zig/camera.zig");
 const cameraops = @import("../riley/zig/cameraops.zig");
 const Rotation = @import("../riley/zig/rotation.zig").Rotation;
@@ -251,13 +252,19 @@ pub fn prepareBenchmark(
         .coords = sim_data.coords,
         .connect = sim_data.connect,
         .disp = sim_data.disp,
-        .shader = .{ .tex_u8 = .{
-            .uvs = uvs.array,
-            .tex = texture,
-            .samp_cfg = samp_cfg,
-            .bits = 8,
-            .scaling = .none,
-        } },
+        .pipes = .{
+            .mono = .{
+                .source = .{
+                    .tex = .{
+                        .uvs = uvs.array,
+                        .tex = .{ .u8 = texture },
+                        .samp_cfg = samp_cfg,
+                        .bits = 8,
+                        .scaling = .none,
+                    },
+                },
+            },
+        },
     };
 
     const pixel_size = defaults.pixels_size;
@@ -305,6 +312,7 @@ pub fn prepareBenchmark(
                 .roi_cent_world = roi_pos,
                 .focal_length = focal_length,
                 .sub_sample = defaults.sub_sample,
+                .pipe_request = .monochrome,
             },
             .{
                 .pixels_num = defaults.pixels_num,
@@ -314,6 +322,7 @@ pub fn prepareBenchmark(
                 .roi_cent_world = roi_pos,
                 .focal_length = focal_length,
                 .sub_sample = defaults.sub_sample,
+                .pipe_request = .monochrome,
             },
         },
         .samp_cfg = samp_cfg,

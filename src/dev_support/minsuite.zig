@@ -145,6 +145,7 @@ pub fn runSphere200MultiCullQuiet(
     else
         null;
 
+    const is_rgb = (shader_type == .tex8_rgb or shader_type == .nodal_rgb);
     const e2e_start = std.Io.Clock.Timestamp.now(io, .awake);
     const camera_input = CameraInput{
         .pixels_num = camera.pixels_num,
@@ -154,6 +155,7 @@ pub fn runSphere200MultiCullQuiet(
         .roi_cent_world = camera.roi_cent_world,
         .focal_length = camera.focal_length,
         .sub_sample = camera.sub_sample,
+        .pipe_request = if (is_rgb) .rgb else .monochrome,
         .distortion = camera.distortion,
     };
     const render_groups = [_]riley.RenderGroupSpec{

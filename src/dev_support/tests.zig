@@ -19,6 +19,7 @@ const CameraInput = @import("../riley/zig/camera.zig").CameraInput;
 
 const gk = @import("../riley/zig/geometrykernels.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
+const shaderpipe = @import("../riley/zig/shaderpipe.zig");
 const MeshType = gk.MeshType;
 const MeshInput = mo.MeshInput;
 
@@ -61,13 +62,18 @@ fn getGoldValue(
     row: usize,
     col: usize,
 ) F {
-    if (path_is_fimg) {
-        return gold.get(&[_]usize{ ch, row, col });
+    if (gold.dims.len == 3) {
+        if (path_is_fimg) {
+            return gold.get(&[_]usize{ ch, row, col });
+        } else {
+            return gold.get(&[_]usize{ row, col, ch });
+        }
     }
-    if (channels == 1) {
+    if (gold.dims.len == 2) {
         return gold.get(&[_]usize{ row, col });
     }
-    return gold.get(&[_]usize{ row, col, ch });
+    _ = channels;
+    unreachable;
 }
 
 fn getActualValue(
@@ -88,7 +94,9 @@ fn getActualValue(
             col,
         }),
         4 => array.get(&[_]usize{ frame, field_start + ch, row, col }),
-        else => array.get(&[_]usize{ field_start + ch, row, col }),
+        3 => array.get(&[_]usize{ field_start + ch, row, col }),
+        2 => array.get(&[_]usize{ row, col }),
+        else => unreachable,
     };
 }
 
@@ -134,12 +142,16 @@ pub fn compareNDArrayToGold(
     const rows = switch (array.dims.len) {
         5 => array.dims[3],
         4 => array.dims[2],
-        else => array.dims[1],
+        3 => array.dims[1],
+        2 => array.dims[0],
+        else => unreachable,
     };
     const cols = switch (array.dims.len) {
         5 => array.dims[4],
         4 => array.dims[3],
-        else => array.dims[2],
+        3 => array.dims[2],
+        2 => array.dims[1],
+        else => unreachable,
     };
 
     if (gold_rows != rows) {
@@ -290,12 +302,16 @@ fn extractFrameImage(
     const rows = switch (dims.len) {
         5 => dims[3],
         4 => dims[2],
-        else => dims[1],
+        3 => dims[1],
+        2 => dims[0],
+        else => unreachable,
     };
     const cols = switch (dims.len) {
         5 => dims[4],
         4 => dims[3],
-        else => dims[2],
+        3 => dims[2],
+        2 => dims[1],
+        else => unreachable,
     };
     var image = try NDArray(F).initFlat(allocator, &[_]usize{ rows, cols, channels });
 
@@ -311,7 +327,9 @@ fn extractFrameImage(
                         cc,
                     }),
                     4 => array.get(&[_]usize{ frame, field_start + ch, rr, cc }),
-                    else => array.get(&[_]usize{ field_start + ch, rr, cc }),
+                    3 => array.get(&[_]usize{ field_start + ch, rr, cc }),
+                    2 => array.get(&[_]usize{ rr, cc }),
+                    else => unreachable,
                 };
                 image.set(&[_]usize{ rr, cc, ch }, val);
             }
@@ -699,10 +717,14 @@ pub fn runSingleMeshSuiteDriver(
                 .coords = prepared.sim_data.coords,
                 .connect = prepared.sim_data.connect,
                 .disp = if (add_disp) prepared.sim_data.field else null,
-                .shader = .{
-                    .nodal = .{
-                        .field = prepared.sim_data.field.?,
-                        .bits = 8,
+                .pipes = .{
+                    .mono = .{
+                        .source = .{
+                            .nodal = .{
+                                .field = prepared.sim_data.field.?,
+                                .bits = 8,
+                            },
+                        },
                     },
                 },
             };
@@ -727,6 +749,7 @@ pub fn runSingleMeshSuiteDriver(
                 .roi_cent_world = prepared.camera.roi_cent_world,
                 .focal_length = prepared.camera.focal_length,
                 .sub_sample = prepared.camera.sub_sample,
+                .pipe_request = .monochrome,
                 .distortion = prepared.camera.distortion,
             };
 
@@ -756,7 +779,10 @@ pub fn runSingleMeshSuiteDriver(
                 var render_result = result orelse return error.NoResult;
                 defer aa.free(render_result.slice);
                 const time_end = Timestamp.now(io, .awake);
-                const duration_ms = @as(F, @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds)) / 1e6;
+                const duration_ms = @as(
+                    F,
+                    @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds),
+                ) / 1e6;
 
                 const frames_num = if (render_result.dims.len == 5)
                     render_result.dims[1]
@@ -822,7 +848,13 @@ pub fn runSingleMeshSuiteDriver(
                 const case_dir_name = try std.fmt.allocPrint(
                     aa,
                     "{s}_{s}_{s}_tex_{s}_{s}",
-                    .{ test_type, @tagName(mesh_type), d_str, @tagName(sc.sample), @tagName(sc.mode) },
+                    .{
+                        test_type,
+                        @tagName(mesh_type),
+                        d_str,
+                        @tagName(sc.sample),
+                        @tagName(sc.mode),
+                    },
                 );
                 const tex_dir = try std.fmt.allocPrint(
                     aa,
@@ -835,11 +867,15 @@ pub fn runSingleMeshSuiteDriver(
                     .coords = prepared.sim_data.coords,
                     .connect = prepared.sim_data.connect,
                     .disp = if (add_disp) prepared.sim_data.field else null,
-                    .shader = .{
-                        .tex_u8 = .{
-                            .uvs = prepared.uvs.array,
-                            .tex = texture,
-                            .samp_cfg = sc,
+                    .pipes = .{
+                        .mono = .{
+                            .source = .{
+                                .tex = .{
+                                    .uvs = prepared.uvs.array,
+                                    .tex = .{ .u8 = texture },
+                                    .samp_cfg = sc,
+                                },
+                            },
                         },
                     },
                 };
@@ -864,6 +900,7 @@ pub fn runSingleMeshSuiteDriver(
                     .roi_cent_world = prepared.camera.roi_cent_world,
                     .focal_length = prepared.camera.focal_length,
                     .sub_sample = prepared.camera.sub_sample,
+                    .pipe_request = .monochrome,
                     .distortion = prepared.camera.distortion,
                 };
 
@@ -893,7 +930,10 @@ pub fn runSingleMeshSuiteDriver(
                     var render_result = result orelse return error.NoResult;
                     defer aa.free(render_result.slice);
                     const time_end = Timestamp.now(io, .awake);
-                    const duration_ms = @as(F, @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds)) / 1e6;
+                    const duration_ms = @as(
+                        F,
+                        @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds),
+                    ) / 1e6;
 
                     const frames_num = if (render_result.dims.len == 5)
                         render_result.dims[1]
@@ -918,11 +958,17 @@ pub fn runSingleMeshSuiteDriver(
                             if (first_err == null) {
                                 if (err == error.PixelMismatch) {
                                     if (tcfg.TEST_CASE_VERBOSE) {
-                                        std.debug.print("MISMATCH! ({d:.2} ms)\n", .{duration_ms});
+                                        std.debug.print(
+                                            "MISMATCH! ({d:.2} ms)\n",
+                                            .{duration_ms},
+                                        );
                                     }
                                 } else {
                                     if (tcfg.TEST_CASE_VERBOSE) {
-                                        std.debug.print("ERROR! ({d:.2} ms)\n", .{duration_ms});
+                                        std.debug.print(
+                                            "ERROR! ({d:.2} ms)\n",
+                                            .{duration_ms},
+                                        );
                                     }
                                 }
                                 first_err = err;
@@ -1097,6 +1143,7 @@ pub fn runMultimeshTestExt(
             .roi_cent_world = camera.roi_cent_world,
             .focal_length = camera.focal_length,
             .sub_sample = camera.sub_sample,
+            .pipe_request = .monochrome,
             .distortion = camera.distortion,
         };
         const case_name = if (mode == .nodal)
@@ -1120,7 +1167,10 @@ pub fn runMultimeshTestExt(
             null,
         )) orelse return error.NoResult;
         const time_end = Timestamp.now(io, .awake);
-        const duration_ms = @as(F, @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds)) / 1e6;
+        const duration_ms = @as(
+            F,
+            @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds),
+        ) / 1e6;
 
         const gold_dir = if (mode == .nodal)
             try std.fmt.allocPrint(aa, "{s}/allelem_nodal", .{gold_dir_root})
@@ -1151,16 +1201,11 @@ pub fn runMultimeshTestExt(
                         std.debug.print("ERROR! ({d:.2} ms)\n", .{duration_ms});
                     }
                 }
-                const fail_dir_name = try std.fmt.allocPrint(
-                    aa,
-                    "all_{s}{s}",
-                    .{ case_name, impl_suffix },
-                );
                 try saveComparisonArtifactsFromResult(
                     aa,
                     io,
                     default_fails_root,
-                    fail_dir_name,
+                    case_name,
                     &result,
                     0,
                     f,
@@ -1250,6 +1295,7 @@ pub fn runMultimeshMixedTestExt(
         .roi_cent_world = camera.roi_cent_world,
         .focal_length = camera.focal_length,
         .sub_sample = camera.sub_sample,
+        .pipe_request = .monochrome,
         .distortion = camera.distortion,
     };
 
@@ -1266,7 +1312,10 @@ pub fn runMultimeshMixedTestExt(
         null,
     )) orelse return error.NoResult;
     const time_end = Timestamp.now(io, .awake);
-    const duration_ms = @as(F, @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds)) / 1e6;
+    const duration_ms = @as(
+        F,
+        @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds),
+    ) / 1e6;
 
     const frames_num = if (result.dims.len == 5) result.dims[1] else result.dims[0];
     for (0..frames_num) |f| {
@@ -1383,6 +1432,7 @@ pub fn runMultimeshMixedRGBTestExt(
         .roi_cent_world = camera.roi_cent_world,
         .focal_length = camera.focal_length,
         .sub_sample = camera.sub_sample,
+        .pipe_request = .rgb,
         .distortion = camera.distortion,
     };
 
@@ -1399,7 +1449,10 @@ pub fn runMultimeshMixedRGBTestExt(
         null,
     )) orelse return error.NoResult;
     const time_end = Timestamp.now(io, .awake);
-    const duration_ms = @as(F, @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds)) / 1e6;
+    const duration_ms = @as(
+        F,
+        @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds),
+    ) / 1e6;
 
     const frames_num = if (result.dims.len == 5) result.dims[1] else result.dims[0];
     for (0..frames_num) |f| {
@@ -1508,12 +1561,16 @@ pub fn runEdgeTexFuncConstantSuiteDriver(
         .coords = prepared.sim_data.coords,
         .connect = prepared.sim_data.connect,
         .disp = prepared.sim_data.field,
-        .shader = .{
-            .func = .{
-                .uvs = null,
-                .coord_mode = .para,
-                .builtin = .constant,
-                .normal_type = .none,
+        .pipes = .{
+            .mono = .{
+                .source = .{
+                    .func = .{
+                        .uvs = null,
+                        .coord_mode = .para,
+                        .builtin = .constant,
+                        .normal_type = .none,
+                    },
+                },
             },
         },
     };
@@ -1540,6 +1597,7 @@ pub fn runEdgeTexFuncConstantSuiteDriver(
         .roi_cent_world = prepared.camera.roi_cent_world,
         .focal_length = prepared.camera.focal_length,
         .sub_sample = prepared.camera.sub_sample,
+        .pipe_request = .monochrome,
         .distortion = prepared.camera.distortion,
     };
 
@@ -1574,7 +1632,10 @@ pub fn runEdgeTexFuncConstantSuiteDriver(
             @floatFromInt(start_time.durationTo(end_time).raw.nanoseconds),
         ) / 1e6;
 
-        const frames_num = if (render_result.dims.len == 5) render_result.dims[1] else render_result.dims[0];
+        const frames_num = if (render_result.dims.len == 5)
+            render_result.dims[1]
+        else
+            render_result.dims[0];
         var first_err: ?anyerror = null;
         for (0..frames_num) |frame_idx| {
             const gold_path = try findGoldPath(

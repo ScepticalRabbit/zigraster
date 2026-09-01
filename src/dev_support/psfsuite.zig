@@ -20,6 +20,7 @@ const NDArray = @import("../riley/zig/ndarray.zig").NDArray;
 const rastcfg = @import("../riley/zig/rasterconfig.zig");
 const riley = @import("../riley/zig/riley.zig");
 const shaderops = @import("../riley/zig/shaderops.zig");
+const shaderpipe = @import("../riley/zig/shaderpipe.zig");
 
 pub const gold_root = policy.goldRoot(.psf);
 pub const pixel_num = [_]u32{ 512, 512 };
@@ -152,16 +153,23 @@ fn buildMeshInput(
         .coords = prepared.sim_data.coords,
         .connect = prepared.sim_data.connect,
         .disp = prepared.sim_data.field,
-        .shader = .{
-            .func = .{
-                .uvs = if (render_case.shader_case.use_uvs)
-                    prepared.uvs.array
-                else
-                    null,
-                .coord_mode = if (render_case.shader_case.use_uvs) .uv else .para,
-                .builtin = render_case.shader_case.builtin,
-                .params = render_case.shader_case.params,
-                .normal_type = .none,
+        .pipes = .{
+            .mono = .{
+                .source = .{
+                    .func = .{
+                        .uvs = if (render_case.shader_case.use_uvs)
+                            prepared.uvs.array
+                        else
+                            null,
+                        .coord_mode = if (render_case.shader_case.use_uvs)
+                            .uv
+                        else
+                            .para,
+                        .builtin = render_case.shader_case.builtin,
+                        .params = render_case.shader_case.params,
+                        .normal_type = .none,
+                    },
+                },
             },
         },
     };
@@ -179,6 +187,7 @@ fn buildCameraInput(
         .roi_cent_world = prepared.camera.roi_cent_world,
         .focal_length = prepared.camera.focal_length,
         .sub_sample = prepared.camera.sub_sample,
+        .pipe_request = .monochrome,
         .distortion = prepared.camera.distortion,
         .psf = psf,
         .coord_sys = prepared.camera.coord_sys,

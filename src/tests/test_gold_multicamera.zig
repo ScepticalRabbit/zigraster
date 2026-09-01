@@ -27,6 +27,7 @@ const meshio = @import("../riley/zig/meshio.zig");
 const ndarray = @import("../riley/zig/ndarray.zig");
 const NDArray = @import("../riley/zig/ndarray.zig").NDArray;
 const texops = @import("../riley/zig/textureops.zig");
+const shaderpipe = @import("../riley/zig/shaderpipe.zig");
 const uvio = @import("../riley/zig/uvio.zig");
 const riley = @import("../riley/zig/riley.zig");
 const GeometrySchedulingMode =
@@ -234,6 +235,7 @@ test "Multicamera duplicate sphere200 cameras match each other" {
         .roi_cent_world = camera.roi_cent_world,
         .focal_length = camera.focal_length,
         .sub_sample = camera.sub_sample,
+        .pipe_request = .monochrome,
         .distortion = camera.distortion,
     };
     const cameras = [_]CameraInput{ camera_input, camera_input };
@@ -243,13 +245,17 @@ test "Multicamera duplicate sphere200 cameras match each other" {
         .coords = sim_data.coords,
         .connect = sim_data.connect,
         .disp = null,
-        .shader = .{
-            .nodal = .{
-                .field = .{
-                    .array = field_raw,
-                    .array_mem = field_raw.slice,
+        .pipes = .{
+            .mono = .{
+                .source = .{
+                    .nodal = .{
+                        .field = .{
+                            .array = field_raw,
+                            .array_mem = field_raw.slice,
+                        },
+                        .scaling = .auto,
+                    },
                 },
-                .scaling = .auto,
             },
         },
     };
@@ -346,13 +352,17 @@ test "Multicamera grouped render groups match reference across scheduler modes" 
         .coords = sim_data.coords,
         .connect = sim_data.connect,
         .disp = null,
-        .shader = .{
-            .nodal = .{
-                .field = .{
-                    .array = field_raw,
-                    .array_mem = field_raw.slice,
+        .pipes = .{
+            .mono = .{
+                .source = .{
+                    .nodal = .{
+                        .field = .{
+                            .array = field_raw,
+                            .array_mem = field_raw.slice,
+                        },
+                        .scaling = .auto,
+                    },
                 },
-                .scaling = .auto,
             },
         },
     };
@@ -366,6 +376,7 @@ test "Multicamera grouped render groups match reference across scheduler modes" 
             .roi_cent_world = camera_a.roi_cent_world,
             .focal_length = camera_a.focal_length,
             .sub_sample = camera_a.sub_sample,
+            .pipe_request = .monochrome,
             .distortion = camera_a.distortion,
         },
         .{
@@ -376,6 +387,7 @@ test "Multicamera grouped render groups match reference across scheduler modes" 
             .roi_cent_world = camera_b.roi_cent_world,
             .focal_length = camera_b.focal_length,
             .sub_sample = camera_b.sub_sample,
+            .pipe_request = .monochrome,
             .distortion = camera_b.distortion,
         },
     };
@@ -643,6 +655,7 @@ fn runMulticameraSaveCase(
             .roi_cent_world = camera_a.roi_cent_world,
             .focal_length = camera_a.focal_length,
             .sub_sample = camera_a.sub_sample,
+            .pipe_request = .monochrome,
             .distortion = camera_a.distortion,
         },
         .{
@@ -653,6 +666,7 @@ fn runMulticameraSaveCase(
             .roi_cent_world = camera_b.roi_cent_world,
             .focal_length = camera_b.focal_length,
             .sub_sample = camera_b.sub_sample,
+            .pipe_request = .monochrome,
             .distortion = camera_b.distortion,
         },
     };
@@ -661,13 +675,17 @@ fn runMulticameraSaveCase(
         .coords = sim_data.coords,
         .connect = sim_data.connect,
         .disp = null,
-        .shader = .{
-            .nodal = .{
-                .field = .{
-                    .array = field_raw,
-                    .array_mem = field_raw.slice,
+        .pipes = .{
+            .mono = .{
+                .source = .{
+                    .nodal = .{
+                        .field = .{
+                            .array = field_raw,
+                            .array_mem = field_raw.slice,
+                        },
+                        .scaling = .auto,
+                    },
                 },
-                .scaling = .auto,
             },
         },
     };
@@ -870,6 +888,8 @@ test "Sphere200 multicamera gold tests" {
             10.0,
         );
         defer for (cameras) |cam| cam.deinit(aa);
+        const pipe_req: shaderpipe.ShaderPipeRequest =
+            if (render_case.channels == 3) .rgb else .monochrome;
         const camera_inputs = [_]CameraInput{
             CameraInput{
                 .pixels_num = cameras[0].pixels_num,
@@ -879,6 +899,7 @@ test "Sphere200 multicamera gold tests" {
                 .roi_cent_world = cameras[0].roi_cent_world,
                 .focal_length = cameras[0].focal_length,
                 .sub_sample = cameras[0].sub_sample,
+                .pipe_request = pipe_req,
                 .distortion = cameras[0].distortion,
             },
             CameraInput{
@@ -889,6 +910,7 @@ test "Sphere200 multicamera gold tests" {
                 .roi_cent_world = cameras[1].roi_cent_world,
                 .focal_length = cameras[1].focal_length,
                 .sub_sample = cameras[1].sub_sample,
+                .pipe_request = pipe_req,
                 .distortion = cameras[1].distortion,
             },
         };
@@ -899,13 +921,17 @@ test "Sphere200 multicamera gold tests" {
                 .coords = sim_data.coords,
                 .connect = sim_data.connect,
                 .disp = null,
-                .shader = .{
-                    .nodal = .{
-                        .field = .{
-                            .array = field_raw,
-                            .array_mem = field_raw.slice,
+                .pipes = .{
+                    .mono = .{
+                        .source = .{
+                            .nodal = .{
+                                .field = .{
+                                    .array = field_raw,
+                                    .array_mem = field_raw.slice,
+                                },
+                                .scaling = .auto,
+                            },
                         },
-                        .scaling = .auto,
                     },
                 },
             },
@@ -925,11 +951,15 @@ test "Sphere200 multicamera gold tests" {
                     .coords = sim_data.coords,
                     .connect = sim_data.connect,
                     .disp = null,
-                    .shader = .{
-                        .tex_rgb_u8 = .{
-                            .uvs = uv_map.array,
-                            .tex = texture_rgb,
-                            .samp_cfg = samp_cfg,
+                    .pipes = .{
+                        .rgb = .{
+                            .source = .{
+                                .tex = .{
+                                    .uvs = uv_map.array,
+                                    .tex = .{ .u8 = texture_rgb },
+                                    .samp_cfg = samp_cfg,
+                                },
+                            },
                         },
                     },
                 };
@@ -964,7 +994,10 @@ test "Sphere200 multicamera gold tests" {
         )) orelse return error.NoResult;
         defer aa.free(result.slice);
         const time_end = Timestamp.now(io, .awake);
-        const duration_ms = @as(F, @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds)) / 1e6;
+        const duration_ms = @as(
+            F,
+            @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds),
+        ) / 1e6;
 
         try std.testing.expectEqual(@as(usize, 2), result.dims[0]);
         try expectCamerasDifferent(
@@ -1118,13 +1151,17 @@ test "Multicamera mixed sensor sizes return padded batch and save actual size" {
         .coords = sim_data.coords,
         .connect = sim_data.connect,
         .disp = null,
-        .shader = .{
-            .nodal = .{
-                .field = .{
-                    .array = field_raw,
-                    .array_mem = field_raw.slice,
+        .pipes = .{
+            .mono = .{
+                .source = .{
+                    .nodal = .{
+                        .field = .{
+                            .array = field_raw,
+                            .array_mem = field_raw.slice,
+                        },
+                        .scaling = .auto,
+                    },
                 },
-                .scaling = .auto,
             },
         },
     };
@@ -1149,6 +1186,7 @@ test "Multicamera mixed sensor sizes return padded batch and save actual size" {
             .roi_cent_world = small_camera.roi_cent_world,
             .focal_length = small_camera.focal_length,
             .sub_sample = small_camera.sub_sample,
+            .pipe_request = .monochrome,
             .distortion = small_camera.distortion,
         }},
         &[_]mo.MeshInput{mesh_input},
@@ -1171,6 +1209,7 @@ test "Multicamera mixed sensor sizes return padded batch and save actual size" {
             .roi_cent_world = large_camera.roi_cent_world,
             .focal_length = large_camera.focal_length,
             .sub_sample = large_camera.sub_sample,
+            .pipe_request = .monochrome,
             .distortion = large_camera.distortion,
         }},
         &[_]mo.MeshInput{mesh_input},
@@ -1200,6 +1239,7 @@ test "Multicamera mixed sensor sizes return padded batch and save actual size" {
                 .roi_cent_world = small_camera.roi_cent_world,
                 .focal_length = small_camera.focal_length,
                 .sub_sample = small_camera.sub_sample,
+                .pipe_request = .monochrome,
                 .distortion = small_camera.distortion,
             },
             CameraInput{
@@ -1210,6 +1250,7 @@ test "Multicamera mixed sensor sizes return padded batch and save actual size" {
                 .roi_cent_world = large_camera.roi_cent_world,
                 .focal_length = large_camera.focal_length,
                 .sub_sample = large_camera.sub_sample,
+                .pipe_request = .monochrome,
                 .distortion = large_camera.distortion,
             },
         },

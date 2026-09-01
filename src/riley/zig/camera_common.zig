@@ -33,6 +33,7 @@ pub const CameraInput = struct {
     roi_cent_world: vec.Vec3f,
     focal_length: F,
     sub_sample: u32,
+    pipe_request: @import("shaderpipe.zig").ShaderPipeRequest = .monochrome,
     distortion: cm.DistortionModel = .none,
     psf: cm.PointSpreadFunc = .{ .pixel_box = .{} },
     coord_sys: CameraCoordSys = .opengl,
@@ -133,6 +134,7 @@ pub fn CameraPreparedType(comptime CameraBackend: type) type {
         roi_cent_world: vec.Vec3f,
         focal_length: F,
         sub_sample: u32,
+        pipe_request: @import("shaderpipe.zig").ShaderPipeRequest,
         sensor_size: [2]F,
         image_dims: [2]F,
         image_dist: F,
@@ -217,14 +219,22 @@ pub fn CameraPreparedType(comptime CameraBackend: type) type {
                 },
             };
 
+            var prep_psf = try cm.preparePSF(
+                allocator,
+                input.psf,
+                actual_sub_sample,
+            );
+            errdefer prep_psf.deinit(allocator);
+
             var self = Self{
                 .pixels_num = input.pixels_num,
                 .pixels_size = input.pixels_size,
-                .pos_world = input.pos_world,
+                .pos_world = pos_w,
                 .rot_world = input.rot_world,
                 .roi_cent_world = input.roi_cent_world,
                 .focal_length = input.focal_length,
                 .sub_sample = actual_sub_sample,
+                .pipe_request = input.pipe_request,
                 .sensor_size = sensor_size,
                 .image_dims = image_dims,
                 .image_dist = image_dist,
@@ -232,11 +242,7 @@ pub fn CameraPreparedType(comptime CameraBackend: type) type {
                 .world_to_cam_mat = world_to_cam_mat,
                 .distortion = input.distortion,
                 .psf = input.psf,
-                .prep_psf = try cm.preparePSF(
-                    allocator,
-                    input.psf,
-                    actual_sub_sample,
-                ),
+                .prep_psf = prep_psf,
                 .coord_sys = input.coord_sys,
                 .ideal_pixel_centers = ideal_pixel_centers,
                 .pixel_center_jac = pixel_center_jac,
@@ -585,7 +591,9 @@ test "BrownConradyPolynomial.forwardInv" {
                 .forward_map = .{
                     .order = .quadratic,
                     .coeffs_u = .{ 0.0, 0.01, -0.005, 0.002, 0.001, -0.001 } ++ [_]F{0.0} ** 4,
-                    .coeffs_v = .{ 0.0, -0.004, 0.012, 0.001, -0.002, 0.0015 } ++ [_]F{0.0} ** 4,
+                    .coeffs_v = .{
+                        0.0, -0.004, 0.012, 0.001, -0.002, 0.0015,
+                    } ++ [_]F{0.0} ** 4,
                 },
             },
         },

@@ -1131,6 +1131,7 @@ fn initTestCullCameraManual(distortion: cam.DistortionModel) cam.CameraPrepared 
         .roi_cent_world = Vec3f.initZeros(),
         .focal_length = 1.0,
         .sub_sample = 1,
+        .pipe_request = .monochrome,
         .sensor_size = .{ 0.1, 0.1 },
         .image_dims = .{ 0.1, 0.1 },
         .image_dist = 1.0,

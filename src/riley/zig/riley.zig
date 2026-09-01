@@ -950,6 +950,36 @@ fn runGeometryStage(
     var timing = mo.GeomTimes{};
     const raster_halo_px = job.desc.config.raster_halo_px_override orelse
         job.desc.camera.prep_psf.halo_px;
+
+    var compat_mesh_static = try arena_alloc.alloc(
+        mo.MeshStatic,
+        job.ctx.frame_meshes.len,
+    );
+    var compat_nodal_scaling = try arena_alloc.alloc(
+        ?imageops.ScalingParams,
+        job.ctx.frame_meshes.len,
+    );
+    var orig_mesh_indices = try arena_alloc.alloc(
+        usize,
+        job.ctx.frame_meshes.len,
+    );
+
+    var cur_idx: usize = 0;
+    for (job.desc.mesh_static, 0..) |mesh, orig_idx| {
+        const is_compat = switch (job.desc.camera.pipe_request) {
+            .monochrome => mesh.pipes.mono != null,
+            .rgb => mesh.pipes.rgb != null,
+            .multi_channel => mesh.pipes.multi != null,
+            .infrared => false,
+        };
+        if (is_compat) {
+            compat_mesh_static[cur_idx] = mesh;
+            compat_nodal_scaling[cur_idx] = job.desc.nodal_global_scaling[orig_idx];
+            orig_mesh_indices[cur_idx] = orig_idx;
+            cur_idx += 1;
+        }
+    }
+
     const geo_res = try mo.prepMeshFrames(
         arena_alloc,
         &chunk_exec,
@@ -958,8 +988,8 @@ fn runGeometryStage(
         raster_halo_px,
         job.desc.config,
         job.desc.frame_idx,
-        job.desc.mesh_static,
-        job.desc.nodal_global_scaling,
+        compat_mesh_static,
+        compat_nodal_scaling,
         job.ctx.frame_meshes,
         &timing,
     );
@@ -972,6 +1002,7 @@ fn runGeometryStage(
     job.ctx.frame_times.geom_remap_inds = @floatFromInt(timing.remap_inds);
 
     for (job.ctx.frame_meshes, 0..) |*fm, ii| {
+        fm.mesh.scene_mesh_index = orig_mesh_indices[ii];
         job.ctx.prep_meshes[ii] = fm.mesh;
         job.ctx.elem_bboxes_by_mesh[ii] = fm.elem_bboxes;
         job.ctx.elems_in_image_by_mesh[ii] = fm.elems_in_image;
@@ -1273,21 +1304,47 @@ fn initNodalGlobalScaling(
     outer_alloc: std.mem.Allocator,
     meshes: []const mo.MeshInput,
 ) ![]?imageops.ScalingParams {
-    var nodal_global_scaling = try outer_alloc.alloc(?imageops.ScalingParams, meshes.len);
+    var nodal_global_scaling = try outer_alloc.alloc(
+        ?imageops.ScalingParams,
+        meshes.len,
+    );
 
     for (meshes, 0..) |mesh, ii| {
         nodal_global_scaling[ii] = null;
-        switch (mesh.shader) {
-            .nodal => |s| {
-                if (s.scale_over == .over_frames) {
-                    nodal_global_scaling[ii] = imageops.getScalingParamsNDArray(
-                        &s.field.array,
-                        null,
-                        s.scaling,
-                    );
-                }
-            },
-            else => {},
+        if (mesh.pipes.mono) |mono_in| {
+            switch (mono_in.source) {
+                .nodal => |s| {
+                    if (s.scale_over == .over_frames) {
+                        nodal_global_scaling[ii] = imageops.getScalingParamsNDArray(
+                            &s.field.array,
+                            null,
+                            s.scaling,
+                        );
+                    }
+                },
+                else => {},
+            }
+        } else if (mesh.pipes.rgb) |rgb_in| {
+            switch (rgb_in.source) {
+                .nodal => |s| {
+                    if (s.scale_over == .over_frames) {
+                        nodal_global_scaling[ii] = imageops.getScalingParamsNDArray(
+                            &s.field.array,
+                            null,
+                            s.scaling,
+                        );
+                    }
+                },
+                else => {},
+            }
+        } else if (mesh.pipes.multi) |multi_in| {
+            if (multi_in.nodal.scale_over == .over_frames) {
+                nodal_global_scaling[ii] = imageops.getScalingParamsNDArray(
+                    &multi_in.nodal.field.array,
+                    null,
+                    multi_in.nodal.scaling,
+                );
+            }
         }
     }
 
@@ -1465,12 +1522,22 @@ fn prepareFrameContext(
         input.config,
     );
 
-    const mesh_n = input.mesh_static.len;
-    ctx.frame_meshes = try arena_alloc.alloc(mo.MeshFrame, mesh_n);
-    ctx.prep_meshes = try arena_alloc.alloc(mo.MeshPrepared, mesh_n);
-    ctx.elem_bboxes_by_mesh = try arena_alloc.alloc([]rops.ElemBBox, mesh_n);
-    ctx.elems_in_image_by_mesh = try arena_alloc.alloc(usize, mesh_n);
-    ctx.raster_hulls = try arena_alloc.alloc(?ndarray.NDArray(F), mesh_n);
+    var compat_mesh_n: usize = 0;
+    for (input.mesh_static) |mesh| {
+        const is_compat = switch (input.camera.pipe_request) {
+            .monochrome => mesh.pipes.mono != null,
+            .rgb => mesh.pipes.rgb != null,
+            .multi_channel => mesh.pipes.multi != null,
+            .infrared => false,
+        };
+        if (is_compat) compat_mesh_n += 1;
+    }
+
+    ctx.frame_meshes = try arena_alloc.alloc(mo.MeshFrame, compat_mesh_n);
+    ctx.prep_meshes = try arena_alloc.alloc(mo.MeshPrepared, compat_mesh_n);
+    ctx.elem_bboxes_by_mesh = try arena_alloc.alloc([]rops.ElemBBox, compat_mesh_n);
+    ctx.elems_in_image_by_mesh = try arena_alloc.alloc(usize, compat_mesh_n);
+    ctx.raster_hulls = try arena_alloc.alloc(?ndarray.NDArray(F), compat_mesh_n);
 }
 
 fn prepareFrameBuff(
@@ -1592,7 +1659,8 @@ fn rasterFrame(
             .output_h_subpx = @as(usize, input.camera.pixels_num[1]) * sub_samp,
             .outer_halo_subpx = @as(usize, halo_px) * sub_samp,
             .tile_core_subpx = @as(usize, ctx.actual_tile_size) * sub_samp,
-            .tile_scratch_subpx = (@as(usize, ctx.actual_tile_size) + 2 * @as(usize, halo_px)) *
+            .tile_scratch_subpx =
+                (@as(usize, ctx.actual_tile_size) + 2 * @as(usize, halo_px)) *
                 sub_samp,
         };
     }
@@ -1705,8 +1773,11 @@ fn rasterFrame(
                 input.config.background_value,
             );
             defer stripe.deinit(outer_alloc);
+            const time_end_buffer_setup = Timestamp.now(io, .awake);
             ctx.frame_times.global_subpx_times.buffer_setup += @floatFromInt(
-                time_start_buffer_setup.durationTo(Timestamp.now(io, .awake)).raw.nanoseconds,
+                time_start_buffer_setup.durationTo(
+                    time_end_buffer_setup,
+                ).raw.nanoseconds,
             );
 
             var core_suby_min: usize = 0;
@@ -1741,8 +1812,9 @@ fn rasterFrame(
                     );
                     stripe_tiling_owned = true;
                 }
+                const now_plan = Timestamp.now(io, .awake);
                 ctx.frame_times.global_subpx_times.buffer_setup += @floatFromInt(
-                    time_start_buffer_plan.durationTo(Timestamp.now(io, .awake)).raw.nanoseconds,
+                    time_start_buffer_plan.durationTo(now_plan).raw.nanoseconds,
                 );
                 if (ctx.frame_times.global_subpx_stats) |*stats| {
                     const tiles_x = std.math.divCeil(
@@ -1792,8 +1864,9 @@ fn rasterFrame(
                     ctx.frame_times.raster_workers_used,
                     @as(u16, @intCast(workers_used)),
                 );
+                const now_raster = Timestamp.now(io, .awake);
                 ctx.frame_times.global_subpx_times.tile_raster += @floatFromInt(
-                    time_start_tile_raster.durationTo(Timestamp.now(io, .awake)).raw.nanoseconds,
+                    time_start_tile_raster.durationTo(now_raster).raw.nanoseconds,
                 );
                 const time_start_resolve = Timestamp.now(io, .awake);
                 const resolve_workers_used = try scratchresolveglobal.resolveRows(

@@ -136,6 +136,22 @@ pub fn checkRenderInpsErr(
     for (cam_inps) |cam_inp| {
         try checkCamInpErr(cam_inp);
         try checkGlobalSubpxAlignment(config, cam_inp.sub_sample);
+        var has_compat_mesh = false;
+        for (meshes) |mesh| {
+            const is_compat = switch (cam_inp.pipe_request) {
+                .monochrome => mesh.pipes.mono != null,
+                .rgb => mesh.pipes.rgb != null,
+                .multi_channel => mesh.pipes.multi != null,
+                .infrared => false,
+            };
+            if (is_compat) {
+                has_compat_mesh = true;
+                break;
+            }
+        }
+        if (!has_compat_mesh) {
+            return error.NoCompatibleShaderPipe;
+        }
     }
 
     const num_time = mo.countFrames(meshes);
@@ -246,6 +262,20 @@ pub fn checkRenderInpsAssert(
     for (cam_inps) |cam_inp| {
         checkCamInpAssert(cam_inp);
         checkGlobalSubpxAlignment(config, cam_inp.sub_sample) catch unreachable;
+        var has_compat_mesh = false;
+        for (meshes) |mesh| {
+            const is_compat = switch (cam_inp.pipe_request) {
+                .monochrome => mesh.pipes.mono != null,
+                .rgb => mesh.pipes.rgb != null,
+                .multi_channel => mesh.pipes.multi != null,
+                .infrared => false,
+            };
+            if (is_compat) {
+                has_compat_mesh = true;
+                break;
+            }
+        }
+        std.debug.assert(has_compat_mesh);
     }
 
     const num_time = mo.countFrames(meshes);
