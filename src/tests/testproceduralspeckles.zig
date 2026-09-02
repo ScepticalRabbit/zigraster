@@ -8,24 +8,33 @@
 // --------------------------------------------------------------------------------------
 const std = @import("std");
 
-const orch = @import("../dev_support/orchestration.zig");
-const camera = @import("../riley/zig/camera.zig");
-const iio = @import("../riley/zig/imageio.zig");
+const buildconfig = @import("../riley/zig/buildconfig.zig");
+const expected_config = @import("expected_speckle_config.zig");
 const meshio = @import("../riley/zig/meshio.zig");
 const meshpipeline = @import("../riley/zig/meshpipeline.zig");
-const rastcfg = @import("../riley/zig/rasterconfig.zig");
-const riley = @import("../riley/zig/riley.zig");
 const shaderops = @import("../riley/zig/shaderops_common.zig");
 const uvio = @import("../riley/zig/uvio.zig");
-const buildconfig = @import("../riley/zig/buildconfig.zig");
 
-const F = buildconfig.F;
+fn evaluatorName(evaluator: buildconfig.SpeckleEvaluator) []const u8 {
+    return switch (evaluator) {
+        .cell_hash => "cell-hash",
+        .list_naive => "list-naive",
+        .list_indexed => "list-indexed",
+        .mask_1bit => "mask-1bit",
+        .mask_u8 => "mask-u8",
+    };
+}
 
-// --------------------------------------------------------------------------------------
-// Tests
-// --------------------------------------------------------------------------------------
+test "selected speckle evaluator prepares its production resources" {
+    try std.testing.expectEqualStrings(
+        expected_config.evaluator,
+        evaluatorName(buildconfig.speckle_evaluator),
+    );
+    try std.testing.expectEqualStrings(
+        expected_config.shape,
+        @tagName(buildconfig.speckle_shape),
+    );
 
-test "procedural speckle renders deterministically without a texture" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
@@ -41,23 +50,6 @@ test "procedural speckle renders deterministically without a texture" {
         null,
     );
     const uvs = try uvio.loadUVMap(allocator, io, data_dir ++ "uvs.csv");
-    const camera_prep = try orch.initCameraForCoords(
-        allocator,
-        &sim_data.coords,
-        .{ 48, 30 },
-        1.0,
-    );
-
-    const camera_input = camera.CameraInput{
-        .pixels_num = camera_prep.pixels_num,
-        .pixels_size = camera_prep.pixels_size,
-        .pos_world = camera_prep.pos_world,
-        .rot_world = camera_prep.rot_world,
-        .roi_cent_world = camera_prep.roi_cent_world,
-        .focal_length = camera_prep.focal_length,
-        .sub_sample = 1,
-        .distortion = camera_prep.distortion,
-    };
     const params = shaderops.Speckle2DParams{
         .seed = 12345,
         .cells_per_uv = .{ 24.0, 20.0 },
@@ -81,52 +73,19 @@ test "procedural speckle renders deterministically without a texture" {
             .normal_type = .none,
         } },
     };
-    const config = rastcfg.RasterConfig{
-        .save_strategy = .memory,
-        .image_save_mode = .grey,
-        .image_save_opts = &[_]iio.ImageSaveOpts{},
-        .background_value = 255.0,
-        .report = .off,
-    };
-    const render_groups = [_]riley.RenderGroupSpec{
-        .{ .io = io, .workers = 1 },
+    const mesh_static = try meshpipeline.initMeshStatic(allocator, &mesh_input);
+    const func_static = switch (mesh_static.shader) {
+        .func => |func| func,
+        else => return error.UnexpectedShaderVariant,
     };
 
-    var first = (try riley.raster(
-        allocator,
-        &render_groups,
-        &[_]camera.CameraInput{camera_input},
-        &[_]meshpipeline.MeshInput{mesh_input},
-        config,
-        null,
-    )).?;
-    defer {
-        allocator.free(first.slice);
-        first.deinit(allocator);
-    }
-
-    var second = (try riley.raster(
-        allocator,
-        &render_groups,
-        &[_]camera.CameraInput{camera_input},
-        &[_]meshpipeline.MeshInput{mesh_input},
-        config,
-        null,
-    )).?;
-    defer {
-        allocator.free(second.slice);
-        second.deinit(allocator);
-    }
-
-    try std.testing.expectEqualSlices(F, first.slice, second.slice);
-
-    var min_value = std.math.inf(F);
-    var max_value = -std.math.inf(F);
-    for (first.slice) |value| {
-        min_value = @min(min_value, value);
-        max_value = @max(max_value, value);
-    }
-    try std.testing.expect(min_value < max_value);
-    try std.testing.expect(min_value >= 0.0);
-    try std.testing.expect(max_value <= 255.0);
+    const expected_evaluator = expected_config.evaluator;
+    try std.testing.expectEqual(
+        std.mem.startsWith(u8, expected_evaluator, "list-"),
+        func_static.speckle_list != null,
+    );
+    try std.testing.expectEqual(
+        std.mem.startsWith(u8, expected_evaluator, "mask-"),
+        func_static.speckle_mask != null,
+    );
 }

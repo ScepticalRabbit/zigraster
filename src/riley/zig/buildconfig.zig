@@ -8,22 +8,14 @@
 // --------------------------------------------------------------------------------------
 const std = @import("std");
 const root = @import("root");
+const buildconfig_override = @import("buildconfig_override.zig");
 
-const build_options = if (@hasDecl(root, "build_options"))
+const build_options = if (buildconfig_override.enabled)
+    buildconfig_override
+else if (@hasDecl(root, "build_options"))
     root.build_options
 else
-    struct {
-        pub const precision = "f64";
-        pub const simd = "on";
-        pub const newton_solver = "fast";
-        pub const simd_vec_width: comptime_int = 0;
-        pub const simd_vector_width: comptime_int = 0;
-        pub const speckle_boundary_blur = false;
-        pub const speckle_neighbor_count: comptime_int = 9;
-        pub const speckle_mask_samples_per_cell: comptime_int = 12;
-        pub const speckle_evaluator = "cell-hash";
-        pub const speckle_shape = "gaussian";
-    };
+    buildconfig_override;
 
 pub const comptime_eval_branch_quota: comptime_int = 50000;
 

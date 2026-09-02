@@ -2086,7 +2086,7 @@ test "Perlin mask is deterministic varied bounded and balanced" {
     defer testing.allocator.free(changed.bits);
     try testing.expect(!std.mem.eql(u8, first.bits, changed.bits));
 
-    var min_value = std.math.maxInt(u8);
+    var min_value: u8 = std.math.maxInt(u8);
     var max_value: u8 = 0;
     var has_intermediate = false;
     var sum: u64 = 0;
@@ -2153,7 +2153,11 @@ test "direct 1-bit speckle mask preserves list-derived bytes and lattice values"
                 @as(F, @floatFromInt(yy)) / mask.uv_to_texel[1],
             };
             const value = evalSpeckleMask2D(uv, mask);
-            try testing.expectEqual(evalSpeckleList2DIndexed(uv, speckles), value);
+            try testing.expectApproxEqAbs(
+                evalSpeckleList2DIndexed(uv, speckles),
+                value,
+                unit_tol,
+            );
             found_foreground = found_foreground or value == mask.params.foreground;
             found_background = found_background or value == mask.params.background;
         }

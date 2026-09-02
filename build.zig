@@ -138,6 +138,47 @@ pub fn build(b: *std.Build) void {
         test_step.dependOn(&test_run.step);
     }
 
+    const speckle_configs = [_]struct {
+        evaluator: []const u8,
+        shape: []const u8,
+    }{
+        .{ .evaluator = "cell-hash", .shape = "gaussian" },
+        .{ .evaluator = "list-naive", .shape = "gaussian" },
+        .{ .evaluator = "list-indexed", .shape = "gaussian" },
+        .{ .evaluator = "mask-1bit", .shape = "disk" },
+        .{ .evaluator = "mask-u8", .shape = "gaussian" },
+        .{ .evaluator = "mask-u8", .shape = "perlin" },
+    };
+    const speckle_configs_step = b.step(
+        "test-speckle-configs",
+        "Run procedural speckle production resource tests across retained configurations",
+    );
+    for (speckle_configs) |config| {
+        const entry = TestEntry{
+            .step_name = b.fmt(
+                "test-speckle-config-{s}-{s}",
+                .{ config.evaluator, config.shape },
+            ),
+            .description = "Run one procedural speckle configuration test",
+            .source_path = "src/testproceduralspeckles.zig",
+        };
+        const test_run = addTestRunStep(
+            b,
+            .ReleaseSafe,
+            entry,
+            precision,
+            simd,
+            newton_solver,
+            simd_vector_width,
+            false,
+            speckle_neighbor_count,
+            config.evaluator,
+            config.shape,
+            speckle_mask_samples_per_cell,
+        );
+        speckle_configs_step.dependOn(&test_run.step);
+    }
+
     const mask_tests = [_]TestEntry{
         .{
             .step_name = "test-speckle-mask-common",
@@ -455,23 +496,24 @@ fn addTestRunStep(
         \\    if [ ! -d "$tree_dir" ]; then
         \\        mkdir -p "$tree_dir"
         \\        cp -a src "$tree_dir/src"
-        \\        src_file="$tree_dir/$src"
-        \\        src_orig="${src_file}.orig"
-        \\        mv "$src_file" "$src_orig"
+        \\        override_file="$tree_dir/src/riley/zig/buildconfig_override.zig"
         \\        {
-        \\            printf 'pub const build_options = struct {\n'
-        \\            printf '    pub const precision = "%s";\n' "$precision"
-        \\            printf '    pub const simd = "%s";\n' "$simd"
-        \\            printf '    pub const newton_solver = "%s";\n' "$newton_solver"
-        \\            printf '    pub const simd_vector_width: comptime_int = %s;\n' "$simd_vector_width"
-        \\            printf '    pub const speckle_boundary_blur = %s;\n' "$speckle_boundary_blur"
-        \\            printf '    pub const speckle_neighbor_count: comptime_int = %s;\n' "$speckle_neighbor_count"
-        \\            printf '    pub const speckle_evaluator = "%s";\n' "$speckle_evaluator"
-        \\            printf '    pub const speckle_shape = "%s";\n' "$speckle_shape"
-        \\            printf '    pub const speckle_mask_samples_per_cell: comptime_int = %s;\n' "$speckle_mask_samples_per_cell"
-        \\            printf '};\n\n'
-        \\            cat "$src_orig"
-        \\        } > "$src_file"
+        \\            printf 'pub const enabled = true;\n'
+        \\            printf 'pub const precision = "%s";\n' "$precision"
+        \\            printf 'pub const simd = "%s";\n' "$simd"
+        \\            printf 'pub const newton_solver = "%s";\n' "$newton_solver"
+        \\            printf 'pub const simd_vector_width: comptime_int = %s;\n' "$simd_vector_width"
+        \\            printf 'pub const speckle_boundary_blur = %s;\n' "$speckle_boundary_blur"
+        \\            printf 'pub const speckle_neighbor_count: comptime_int = %s;\n' "$speckle_neighbor_count"
+        \\            printf 'pub const speckle_evaluator = "%s";\n' "$speckle_evaluator"
+        \\            printf 'pub const speckle_shape = "%s";\n' "$speckle_shape"
+        \\            printf 'pub const speckle_mask_samples_per_cell: comptime_int = %s;\n' "$speckle_mask_samples_per_cell"
+        \\        } > "$override_file"
+        \\        expected_config_file="$tree_dir/src/tests/expected_speckle_config.zig"
+        \\        {
+        \\            printf 'pub const evaluator = "%s";\n' "$speckle_evaluator"
+        \\            printf 'pub const shape = "%s";\n' "$speckle_shape"
+        \\        } > "$expected_config_file"
         \\    fi
         \\fi
         \\"$zigexe" test -lc -O "$opt" "$tree_dir/$src"
