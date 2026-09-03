@@ -225,6 +225,36 @@ inline fn evalPreparedSpeckleMaskScal(
         params.output_offset;
 }
 
+inline fn evalFuncShaderGreyPreparedScal(
+    shader: *const comm.FuncPrepared,
+    coord: comm.FuncCoord,
+) F {
+    if (shader.builtin == .speckle) {
+        const uv = [2]F{ coord.coord_0, coord.coord_1 };
+        const params = shader.params;
+        switch (comptime buildconfig.speckle_evaluator) {
+            .cell_hash => {},
+            .list_naive, .list_indexed => {
+                if (shader.speckle_list) |speckles| {
+                    return comm.evalSpeckleList2D(uv, speckles) *
+                        params.output_scale + params.output_offset;
+                }
+            },
+            .mask_1bit, .mask_u8 => {
+                if (shader.speckle_mask) |mask| {
+                    return evalPreparedSpeckleMaskScal(uv, mask, params);
+                }
+            },
+        }
+    }
+
+    return comm.evalFuncShaderBuiltinGreyNorm(
+        shader.builtin,
+        coord,
+        shader.params,
+    );
+}
+
 pub inline fn fillFuncClipScal(
     comptime N: usize,
     comptime C: usize,
@@ -240,18 +270,7 @@ pub inline fn fillFuncClipScal(
     const params = shader.params;
 
     if (comptime C == 1) {
-        const value = if (shader.speckle_mask) |mask|
-            evalPreparedSpeckleMaskScal(
-                .{ coords.coord_0, coords.coord_1 },
-                mask,
-                params,
-            )
-        else if (shader.speckle_list) |speckles|
-            comm.evalSpeckleList2D(.{ coords.coord_0, coords.coord_1 }, speckles) *
-                params.output_scale + params.output_offset
-        else
-            comm.evalFuncShaderBuiltinGreyNorm(shader.builtin, coord, params);
-
+        const value = evalFuncShaderGreyPreparedScal(shader, coord);
         spx_img_scratch.slice[ctx_shade.scratch_idx] =
             value * shader.scale_mul + shader.scale_add;
     } else {
@@ -283,18 +302,7 @@ pub inline fn fillFuncPerspScal(
     const params = shader.params;
 
     if (comptime C == 1) {
-        const value = if (shader.speckle_mask) |mask|
-            evalPreparedSpeckleMaskScal(
-                .{ coords.coord_0, coords.coord_1 },
-                mask,
-                params,
-            )
-        else if (shader.speckle_list) |speckles|
-            comm.evalSpeckleList2D(.{ coords.coord_0, coords.coord_1 }, speckles) *
-                params.output_scale + params.output_offset
-        else
-            comm.evalFuncShaderBuiltinGreyNorm(shader.builtin, coord, params);
-
+        const value = evalFuncShaderGreyPreparedScal(shader, coord);
         spx_img_scratch.slice[ctx_shade.scratch_idx] =
             value * shader.scale_mul + shader.scale_add;
     } else {

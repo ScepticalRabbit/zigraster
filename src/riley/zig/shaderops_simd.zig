@@ -377,82 +377,11 @@ pub inline fn evalFuncShaderGreyNormSIMD(
     return comm.applyFuncShaderOutputParamsSIMD(v_value, params);
 }
 
-fn evalFuncShaderGreyPreparedSIMD(
-    shader: *const comm.FuncPrepared,
+inline fn evalPreparedSpeckleListSIMD(
     coord: comm.FuncCoordSIMD,
-    v_mask_active: VecSB,
+    speckles: comm.SpeckleList2D,
+    params: comm.FuncShaderParams,
 ) VecSF {
-    if (comptime buildconfig.speckle_evaluator == .mask_1bit or
-        buildconfig.speckle_evaluator == .mask_u8)
-    {
-        if (shader.speckle_mask) |*mask| {
-            const params = mask.params;
-            const v_background: VecSF = @splat(params.background);
-            if (params.occupancy == 0.0 or params.foreground == params.background) {
-                return comm.applyFuncShaderOutputParamsSIMD(v_background, shader.params);
-            }
-
-            const v_zero: VecSF = @splat(0.0);
-            const v_one: VecSF = @splat(1.0);
-            const v_half: VecSF = @splat(0.5);
-            const v_inf: VecSF = @splat(std.math.inf(F));
-            const v_sample = v_mask_active & (@abs(coord.coord_0) < v_inf) &
-                (@abs(coord.coord_1) < v_inf);
-            const v_u = @select(F, v_sample, coord.coord_0, v_zero);
-            const v_v = @select(F, v_sample, coord.coord_1, v_zero);
-            const v_texel_x: VecSI = @intFromFloat(
-                @max(v_zero, @min(v_one, v_u)) *
-                    @as(VecSF, @splat(mask.uv_to_texel[0])) + v_half,
-            );
-            const v_texel_y: VecSI = @intFromFloat(
-                @max(v_zero, @min(v_one, v_v)) *
-                    @as(VecSF, @splat(mask.uv_to_texel[1])) + v_half,
-            );
-            const sample: [S]bool = v_sample;
-            const texel_x: [S]isize = v_texel_x;
-            const texel_y: [S]isize = v_texel_y;
-
-            if (comptime buildconfig.speckle_evaluator == .mask_u8) {
-                var coverage_bytes = [_]u8{0} ** S;
-                inline for (0..S) |lane| {
-                    if (sample[lane]) {
-                        const x: usize = @intCast(texel_x[lane]);
-                        const y: usize = @intCast(texel_y[lane]);
-                        coverage_bytes[lane] = mask.bits[y * mask.row_stride + x];
-                    }
-                }
-                const v_coverage_u8: @Vector(S, u8) = coverage_bytes;
-                const v_coverage: VecSF = @as(
-                    VecSF,
-                    @floatFromInt(v_coverage_u8),
-                ) / @as(VecSF, @splat(255.0));
-                const v_value = v_background + v_coverage *
-                    @as(VecSF, @splat(params.foreground - params.background));
-                return comm.applyFuncShaderOutputParamsSIMD(v_value, shader.params);
-            }
-
-            var is_foreground = [_]bool{false} ** S;
-            inline for (0..S) |lane| {
-                if (sample[lane]) {
-                    const x: usize = @intCast(texel_x[lane]);
-                    const y: usize = @intCast(texel_y[lane]);
-                    const shift: u3 = @intCast(x & 7);
-                    is_foreground[lane] = mask.bits[y * mask.row_stride + x / 8] &
-                        (@as(u8, 1) << shift) != 0;
-                }
-            }
-            const v_value = @select(
-                F,
-                v_sample & @as(VecSB, is_foreground),
-                @as(VecSF, @splat(params.foreground)),
-                v_background,
-            );
-            return comm.applyFuncShaderOutputParamsSIMD(v_value, shader.params);
-        }
-    }
-
-    const speckles = shader.speckle_list orelse
-        return evalFuncShaderGreyNormSIMD(shader.builtin, coord, shader.params);
     const coord_0: [S]F = coord.coord_0;
     const coord_1: [S]F = coord.coord_1;
     var values: [S]F = undefined;
@@ -463,7 +392,106 @@ fn evalFuncShaderGreyPreparedSIMD(
         else
             speckles.params.background;
     }
-    return comm.applyFuncShaderOutputParamsSIMD(values, shader.params);
+    return comm.applyFuncShaderOutputParamsSIMD(values, params);
+}
+
+inline fn evalPreparedSpeckleMaskSIMD(
+    coord: comm.FuncCoordSIMD,
+    v_mask_active: VecSB,
+    mask: *const comm.SpeckleMask2D,
+    shader_params: comm.FuncShaderParams,
+) VecSF {
+    const params = mask.params;
+    const v_background: VecSF = @splat(params.background);
+    if (params.occupancy == 0.0 or params.foreground == params.background) {
+        return comm.applyFuncShaderOutputParamsSIMD(v_background, shader_params);
+    }
+
+    const v_zero: VecSF = @splat(0.0);
+    const v_one: VecSF = @splat(1.0);
+    const v_half: VecSF = @splat(0.5);
+    const v_inf: VecSF = @splat(std.math.inf(F));
+    const v_sample = v_mask_active & (@abs(coord.coord_0) < v_inf) &
+        (@abs(coord.coord_1) < v_inf);
+    const v_u = @select(F, v_sample, coord.coord_0, v_zero);
+    const v_v = @select(F, v_sample, coord.coord_1, v_zero);
+    const v_texel_x: VecSI = @intFromFloat(
+        @max(v_zero, @min(v_one, v_u)) *
+            @as(VecSF, @splat(mask.uv_to_texel[0])) + v_half,
+    );
+    const v_texel_y: VecSI = @intFromFloat(
+        @max(v_zero, @min(v_one, v_v)) *
+            @as(VecSF, @splat(mask.uv_to_texel[1])) + v_half,
+    );
+    const sample: [S]bool = v_sample;
+    const texel_x: [S]isize = v_texel_x;
+    const texel_y: [S]isize = v_texel_y;
+
+    if (comptime buildconfig.speckle_evaluator == .mask_u8) {
+        var coverage_bytes = [_]u8{0} ** S;
+        inline for (0..S) |lane| {
+            if (sample[lane]) {
+                const x: usize = @intCast(texel_x[lane]);
+                const y: usize = @intCast(texel_y[lane]);
+                coverage_bytes[lane] = mask.bits[y * mask.row_stride + x];
+            }
+        }
+        const v_coverage_u8: @Vector(S, u8) = coverage_bytes;
+        const v_coverage: VecSF = @as(
+            VecSF,
+            @floatFromInt(v_coverage_u8),
+        ) / @as(VecSF, @splat(255.0));
+        const v_value = v_background + v_coverage *
+            @as(VecSF, @splat(params.foreground - params.background));
+        return comm.applyFuncShaderOutputParamsSIMD(v_value, shader_params);
+    }
+
+    var is_foreground = [_]bool{false} ** S;
+    inline for (0..S) |lane| {
+        if (sample[lane]) {
+            const x: usize = @intCast(texel_x[lane]);
+            const y: usize = @intCast(texel_y[lane]);
+            const shift: u3 = @intCast(x & 7);
+            is_foreground[lane] = mask.bits[y * mask.row_stride + x / 8] &
+                (@as(u8, 1) << shift) != 0;
+        }
+    }
+    const v_value = @select(
+        F,
+        v_sample & @as(VecSB, is_foreground),
+        @as(VecSF, @splat(params.foreground)),
+        v_background,
+    );
+    return comm.applyFuncShaderOutputParamsSIMD(v_value, shader_params);
+}
+
+fn evalFuncShaderGreyPreparedSIMD(
+    shader: *const comm.FuncPrepared,
+    coord: comm.FuncCoordSIMD,
+    v_mask_active: VecSB,
+) VecSF {
+    if (shader.builtin == .speckle) {
+        switch (comptime buildconfig.speckle_evaluator) {
+            .cell_hash => {},
+            .list_naive, .list_indexed => {
+                if (shader.speckle_list) |speckles| {
+                    return evalPreparedSpeckleListSIMD(coord, speckles, shader.params);
+                }
+            },
+            .mask_1bit, .mask_u8 => {
+                if (shader.speckle_mask) |*mask| {
+                    return evalPreparedSpeckleMaskSIMD(
+                        coord,
+                        v_mask_active,
+                        mask,
+                        shader.params,
+                    );
+                }
+            },
+        }
+    }
+
+    return evalFuncShaderGreyNormSIMD(shader.builtin, coord, shader.params);
 }
 
 pub inline fn evalFuncShaderRGBNormSIMD(

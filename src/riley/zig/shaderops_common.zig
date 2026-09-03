@@ -928,25 +928,23 @@ fn rasterizePerlinSpeckleMask(
         }
     }
 
-    const texel_to_proc = [2]F{
-        params.cells_per_uv[0] / uv_to_texel[0],
-        params.cells_per_uv[1] / uv_to_texel[1],
-    };
     for (0..dims[1]) |yy| {
-        const proc_y = @as(F, @floatFromInt(yy)) * texel_to_proc[1] +
-            params.uv_offset[1];
+        const uv_y = @as(F, @floatFromInt(yy)) / uv_to_texel[1];
+        const proc_y = uv_y * params.cells_per_uv[1] + params.uv_offset[1];
         const cell_y = @as(i64, @intFromFloat(@floor(proc_y)));
         const rel_y = std.math.cast(usize, cell_y - cell_bounds.min[1]) orelse
-            unreachable;
+            return error.SpeckleMaskTooLarge;
+        if (rel_y + 1 >= cell_bounds.dims[1]) return error.SpeckleMaskTooLarge;
         const frac_y = proc_y - @as(F, @floatFromInt(cell_y));
         const fade_y = quinticPerlinFade(frac_y);
 
         for (0..dims[0]) |xx| {
-            const proc_x = @as(F, @floatFromInt(xx)) * texel_to_proc[0] +
-                params.uv_offset[0];
+            const uv_x = @as(F, @floatFromInt(xx)) / uv_to_texel[0];
+            const proc_x = uv_x * params.cells_per_uv[0] + params.uv_offset[0];
             const cell_x = @as(i64, @intFromFloat(@floor(proc_x)));
             const rel_x = std.math.cast(usize, cell_x - cell_bounds.min[0]) orelse
-                unreachable;
+                return error.SpeckleMaskTooLarge;
+            if (rel_x + 1 >= cell_bounds.dims[0]) return error.SpeckleMaskTooLarge;
             const frac_x = proc_x - @as(F, @floatFromInt(cell_x));
             const fade_x = quinticPerlinFade(frac_x);
             const gradient_row_0 = rel_y * cell_bounds.dims[0];
@@ -2111,6 +2109,13 @@ test "Perlin mask is deterministic varied bounded and balanced" {
         evalSpeckleMask2D(.{ 0.0, 1.0 }, first),
         evalSpeckleMask2D(.{ -2.0, 3.0 }, first),
     );
+
+    var endpoint_params = params;
+    endpoint_params.cells_per_uv = .{ 1.0 - std.math.floatEps(F), 1.0 };
+    endpoint_params.uv_offset = .{ 0.0, 0.0 };
+    const endpoint = try generateSpeckleMask2D(testing.allocator, endpoint_params);
+    defer testing.allocator.free(endpoint.bits);
+    try testing.expect(std.math.isFinite(evalSpeckleMask2D(.{ 1.0, 1.0 }, endpoint)));
 }
 
 test "direct 1-bit speckle mask preserves list-derived bytes and lattice values" {
