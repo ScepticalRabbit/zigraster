@@ -8,7 +8,6 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
-from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
@@ -56,11 +55,21 @@ _HIGH_ORDER_HEX_TYPES = {
 }
 
 
+def _mesh(
+    coords: np.ndarray,
+    element_type: meshconv.EElementType,
+    connect: np.ndarray,
+) -> meshconv.SimData:
+    return meshconv.SimData(
+        coords=coords,
+        blocks={"connect1": meshconv.ElementBlock(element_type, connect)},
+    )
+
+
 def test_element_specs_are_complete_and_mapping_is_read_only() -> None:
-    node_counts: set[int] = set()
-    for spec in _meshconv.ELEMENT_SPECS.values():
-        node_counts.add(spec.nodes_per_elem)
-    assert node_counts == {3, 4, 6, 7, 8, 9, 10, 20, 27}
+    assert {
+        spec.nodes_per_elem for spec in _meshconv.ELEMENT_SPECS.values()
+    } == {3, 4, 6, 7, 8, 9, 10, 20, 27}
     assert (
         _meshconv.ELEMENT_SPECS[meshconv.EElementType.HEX27].centre_idx
         is None
@@ -73,106 +82,238 @@ def test_element_specs_are_complete_and_mapping_is_read_only() -> None:
 
 
 def test_check_mesh_convention_passes_for_std_quad() -> None:
-    mesh = meshconv.SimData(
-        coords=_quad_coords(),
-        connect={"connect1": np.array(((0, 1, 2, 3),), dtype=np.int64)},
-    )
-    mesh.update_mesh_type()
-
-    report = meshconv.check_mesh_convention(mesh)
-
-    assert mesh.mesh_type is meshconv.EMeshType.SURF
-    assert report == {}
-
-
-def test_enforce_mesh_convention_corrects_legacy_connectivity() -> None:
-    mesh = meshconv.SimData(
-        coords=_quad_coords(),
-        connect={"connect1": np.array(((1,), (2,), (3,), (4,)))},
-    )
-
-    mesh_out = meshconv.enforce_mesh_convention(mesh)
-
-    assert mesh_out.connect is not None
-    assert np.array_equal(
-        mesh_out.connect["connect1"],
+    assert meshconv.check_mesh_convention(_mesh(
+        _quad_coords(),
+        meshconv.EElementType.QUAD4,
         np.array(((0, 1, 2, 3),), dtype=np.int64),
-    )
-    assert not meshconv.check_mesh_convention(mesh_out)
+    )) == {}
 
 
 @pytest.mark.parametrize(
-    "operation",
-    (meshconv.check_mesh_convention, meshconv.enforce_mesh_convention),
+    ("layout", "indexing", "offset", "dtype"),
+    (
+        (meshconv.EConnectLayout.ROW_MAJOR,
+         meshconv.EConnectIndexing.ZERO_BASED, 0, np.int32),
+        (meshconv.EConnectLayout.ROW_MAJOR,
+         meshconv.EConnectIndexing.ONE_BASED, 1, np.int32),
+        (meshconv.EConnectLayout.NODE_MAJOR,
+         meshconv.EConnectIndexing.ZERO_BASED, 0, np.int32),
+        (meshconv.EConnectLayout.NODE_MAJOR,
+         meshconv.EConnectIndexing.ONE_BASED, 1, np.int32),
+        (meshconv.EConnectLayout.ROW_MAJOR,
+         meshconv.EConnectIndexing.ONE_BASED, 1, np.float64),
+    ),
 )
-def test_mesh_convention_rejects_mixed_indexing_between_tables(
-    operation: Callable[[meshconv.SimData], object],
+def test_convert_source_block_normalises_declared_source(
+    layout: meshconv.EConnectLayout,
+    indexing: meshconv.EConnectIndexing,
+    offset: int,
+    dtype: type[np.generic],
 ) -> None:
-    coords = np.vstack((_quad_coords(), _quad_coords() + (2.0, 0.0, 0.0)))
-    mesh = meshconv.SimData(
-        coords=coords,
-        connect={
-            "connect_zero_based": np.array(((0, 1, 2, 3),)),
-            "connect_one_based": np.array(((5, 6, 7, 8),)),
-        },
-        mesh_type=meshconv.EMeshType.SURF,
+    source = (np.arange(4, dtype=dtype) + offset)[None, :]
+    if layout is meshconv.EConnectLayout.NODE_MAJOR:
+        source = source.T
+    spec = meshconv.SourceBlockSpec(
+        element_type=meshconv.EElementType.QUAD4,
+        indexing=indexing,
+        layout=layout,
     )
 
-    with pytest.raises(ValueError, match="Mixed zero-based and one-based"):
-        operation(mesh)
+    block = meshconv.convert_source_block(source, node_count=4, spec=spec)
+
+    assert block.connect.dtype == np.int64
+    assert block.connect.flags.c_contiguous
+    assert np.array_equal(block.connect, np.array(((0, 1, 2, 3),)))
 
 
-def test_check_mesh_convention_reports_failed_checks() -> None:
+
+def test_convert_source_block_rejects_float_outside_int64() -> None:
+    source = np.array(((0.0, 1.0, 2.0, float(1 << 63)),))
+    spec = meshconv.SourceBlockSpec(
+        element_type=meshconv.EElementType.QUAD4,
+        indexing=meshconv.EConnectIndexing.ZERO_BASED,
+        layout=meshconv.EConnectLayout.ROW_MAJOR,
+    )
+
+    with pytest.raises(ValueError, match="outside the int64 range"):
+        meshconv.convert_source_block(source, node_count=1 << 63, spec=spec)
+
+
+def test_source_blocks_can_declare_different_index_bases() -> None:
+    coords = np.vstack((_quad_coords(), _quad_coords() + (2.0, 0.0, 0.0)))
+    blocks = {}
+    for name, source, indexing in (
+        ("zero_based", np.array(((0, 1, 2, 3),)),
+         meshconv.EConnectIndexing.ZERO_BASED),
+        ("one_based", np.array(((5, 6, 7, 8),)),
+         meshconv.EConnectIndexing.ONE_BASED),
+    ):
+        source_spec = meshconv.SourceBlockSpec(
+            element_type=meshconv.EElementType.QUAD4,
+            indexing=indexing,
+            layout=meshconv.EConnectLayout.ROW_MAJOR,
+        )
+        blocks[name] = meshconv.convert_source_block(source, 8, source_spec)
+
+    mesh = meshconv.SimData(coords=coords, blocks=blocks)
+
+    assert np.array_equal(
+        mesh.blocks["one_based"].connect,
+        np.array(((4, 5, 6, 7),)),
+    )
+    assert meshconv.check_mesh_convention(mesh) == {}
+
+
+def test_source_block_spec_rejects_automatic_indexing() -> None:
+    with pytest.raises(ValueError, match="AUTO is not explicit"):
+        meshconv.SourceBlockSpec(
+            element_type=meshconv.EElementType.QUAD4,
+            indexing=meshconv.EConnectIndexing.AUTO,
+            layout=meshconv.EConnectLayout.ROW_MAJOR,
+        )
+
+
+@pytest.mark.parametrize(
+    ("connect", "error", "message"),
+    (
+        (np.arange(4, dtype=np.int64), ValueError, "2D array"),
+        (np.arange(4, dtype=np.float64)[None, :], TypeError, "integer dtype"),
+        (np.array(((0, 1, 2.5, 3),)), ValueError, "fractional"),
+        (np.array(((0, 1, 2, -1),)), ValueError, "negative"),
+        (np.array(((0, 1, 2),)), ValueError, "exactly 4 columns"),
+        (np.empty((0, 4), dtype=np.int64), ValueError, "at least one"),
+    ),
+)
+def test_element_block_strictly_validates_canonical_connectivity(
+    connect: np.ndarray,
+    error: type[Exception],
+    message: str,
+) -> None:
+    with pytest.raises(error, match=message):
+        meshconv.ElementBlock(meshconv.EElementType.QUAD4, connect)
+
+
+def test_sim_data_rejects_out_of_bounds_block_connectivity() -> None:
+    block = meshconv.ElementBlock(
+        meshconv.EElementType.QUAD4,
+        np.array(((0, 1, 2, 4),)),
+    )
+
+    with pytest.raises(ValueError, match="outside \\[0, 3\\]"):
+        meshconv.SimData(coords=_quad_coords(), blocks={"surface": block})
+
+
+def test_sim_data_rejects_mixed_surface_and_volume_blocks() -> None:
+    blocks = {
+        "surface": meshconv.ElementBlock(
+            meshconv.EElementType.QUAD4,
+            np.array(((0, 1, 2, 3),)),
+        ),
+        "volume": meshconv.ElementBlock(
+            meshconv.EElementType.TET4,
+            np.array(((0, 1, 2, 3),)),
+        ),
+    }
+
+    with pytest.raises(ValueError, match="cannot mix surface and volume"):
+        meshconv.SimData(coords=_quad_coords(), blocks=blocks)
+
+
+def test_canonical_mesh_owns_validated_arrays() -> None:
+    connect = np.array(((0, 1, 2, 3),), dtype=np.int64)
+    damage = np.array((0.5,))
+    block = meshconv.ElementBlock(
+        meshconv.EElementType.QUAD4,
+        connect,
+        elem_vars={"damage": damage},
+    )
     mesh = meshconv.SimData(
         coords=_quad_coords(),
-        connect={"connect1": np.array(((1,), (4,), (3,), (2,)))},
+        blocks={"surface": block},
     )
 
-    report = meshconv.check_mesh_convention(mesh)
+    connect[0, 0] = 3
+    damage[0] = 2.0
 
-    assert report["connect1"] == [
-        meshconv.MeshCheckCode.ROW_MAJOR_CONNECTIVITY,
-        meshconv.MeshCheckCode.ZERO_BASED_INDEXING,
+    assert mesh.blocks["surface"] is block
+    assert np.array_equal(
+        mesh.blocks["surface"].connect,
+        np.array(((0, 1, 2, 3),)),
+    )
+    assert block.elem_vars is not None
+    assert np.array_equal(block.elem_vars["damage"], np.array((0.5,)))
+
+
+def test_sim_data_rejects_complex_coordinates() -> None:
+    coords = _quad_coords().astype(np.complex128)
+    coords[0, 0] = 1.0j
+    with pytest.raises(TypeError, match="real numeric"):
+        _mesh(coords, meshconv.EElementType.QUAD4, np.array(((0, 1, 2, 3),)))
+
+
+def test_sim_data_validates_block_local_element_variable_rows() -> None:
+    block = meshconv.ElementBlock(
+        meshconv.EElementType.QUAD4,
+        np.array(((0, 1, 2, 3), (0, 1, 2, 3))),
+        elem_vars={"damage": np.array((0.5,))},
+    )
+
+    with pytest.raises(ValueError, match="has 1 rows; expected 2"):
+        meshconv.SimData(coords=_quad_coords(), blocks={"surface": block})
+
+
+def test_check_mesh_convention_reports_geometric_failures_only() -> None:
+    assert meshconv.check_mesh_convention(_mesh(
+        _quad_coords(),
+        meshconv.EElementType.QUAD4,
+        np.array(((0, 3, 2, 1),)),
+    ))["connect1"] == [
         meshconv.MeshCheckCode.CCW_WINDING,
         meshconv.MeshCheckCode.RIGHT_HANDED_GEOMETRY,
     ]
 
 
-def test_enforce_mesh_convention_raises_for_invalid_indices() -> None:
-    mesh = meshconv.SimData(
-        coords=_quad_coords(),
-        connect={"connect1": np.array(((0, 1, 2, 10),), dtype=np.int64)},
+def test_enforce_connectivity_returns_a_canonical_table() -> None:
+    connect = np.array(((0, 3, 2, 1),), dtype=np.int64)
+
+    connect_out = meshconv.enforce_connectivity(
+        _quad_coords(),
+        connect,
+        meshconv.EElementType.QUAD4,
     )
 
-    with pytest.raises(ValueError, match="invalid|outside"):
-        meshconv.enforce_mesh_convention(mesh)
+    assert np.array_equal(connect_out, np.array(((0, 1, 2, 3),)))
+    assert connect_out.dtype == np.int64
+    assert connect_out.flags.c_contiguous
+    assert np.array_equal(connect, np.array(((0, 3, 2, 1),)))
 
 
 def test_enforce_mesh_convention_fixes_tet_handedness() -> None:
-    mesh = meshconv.SimData(
-        coords=np.array(
+    mesh = _mesh(
+        np.array(
             ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0),
              (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)),
             dtype=np.float64,
         ),
-        connect={"connect1": np.array(((0, 2, 1, 3),), dtype=np.int64)},
+        meshconv.EElementType.TET4,
+        np.array(((0, 2, 1, 3),), dtype=np.int64),
     )
 
     mesh_out = meshconv.enforce_mesh_convention(mesh)
 
     assert not meshconv.check_mesh_convention(mesh_out)
     assert np.array_equal(
-        mesh_out.connect["connect1"],
+        mesh_out.blocks["connect1"].connect,
         np.array(((0, 1, 2, 3),), dtype=np.int64),
     )
 
 
 def test_enforce_returns_same_object_when_mesh_conforms() -> None:
-    mesh = meshconv.SimData(
-        coords=_quad_coords(),
-        connect={"connect1": np.array(((0, 1, 2, 3),), dtype=np.int64)},
+    mesh = _mesh(
+        _quad_coords(),
+        meshconv.EElementType.QUAD4,
+        np.array(((0, 1, 2, 3),), dtype=np.int64),
     )
-    mesh.update_mesh_type()
 
     assert meshconv.enforce_mesh_convention(mesh) is mesh
 
@@ -188,30 +329,28 @@ def test_enforce_emits_conforming_sibling_tables_untouched() -> None:
     fixed_connect = np.array(((4, 5, 6, 7),), dtype=np.int64)
     mesh = meshconv.SimData(
         coords=coords,
-        connect={"connect_good": good_connect, "connect_bad": bad_connect},
+        blocks={
+            "connect_good": meshconv.ElementBlock(
+                meshconv.EElementType.QUAD4, good_connect
+            ),
+            "connect_bad": meshconv.ElementBlock(
+                meshconv.EElementType.QUAD4, bad_connect
+            ),
+        },
     )
 
     mesh_out = meshconv.enforce_mesh_convention(mesh)
 
     assert mesh_out is not mesh
-    assert mesh_out.connect is not None
-    assert np.array_equal(mesh_out.connect["connect_good"], good_connect)
-    assert np.array_equal(mesh_out.connect["connect_bad"], fixed_connect)
-    assert mesh.connect is not None
-    assert np.array_equal(mesh.connect["connect_bad"], bad_connect)
-
-
-def test_enforce_reports_indices_outside_coordinate_array() -> None:
-    mesh = meshconv.SimData(
-        coords=_quad_coords(),
-        connect={"connect1": np.array(((0, 1, 2, 10),), dtype=np.int64)},
+    assert np.array_equal(
+        mesh_out.blocks["connect_good"].connect,
+        good_connect,
     )
-
-    with pytest.raises(
-        ValueError,
-        match="contains indices outside the coordinate array",
-    ):
-        meshconv.enforce_mesh_convention(mesh)
+    assert np.array_equal(
+        mesh_out.blocks["connect_bad"].connect,
+        fixed_connect,
+    )
+    assert np.array_equal(mesh.blocks["connect_bad"].connect, bad_connect)
 
 
 def test_enforce_propagates_zero_volume_topology_errors() -> None:
@@ -219,14 +358,13 @@ def test_enforce_propagates_zero_volume_topology_errors() -> None:
         ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (2.0, 0.5, 0.0)),
         dtype=np.float64,
     )
-    mesh = meshconv.SimData(
-        coords=coords,
-        connect={
-            "connect1": np.array(
-                ((0, 1, 2), (0, 3, 1), (0, 2, 3), (1, 3, 2)), dtype=np.int64,
-            ),
-        },
-        mesh_type=meshconv.EMeshType.SURF,
+    mesh = _mesh(
+        coords,
+        meshconv.EElementType.TRI3,
+        np.array(
+            ((0, 1, 2), (0, 3, 1), (0, 2, 3), (1, 3, 2)),
+            dtype=np.int64,
+        ),
     )
 
     with pytest.raises(ValueError, match="zero signed volume"):
@@ -242,15 +380,13 @@ def test_enforce_tolerates_nonmanifold_surface_slices() -> None:
          (0.0, -1.0, 0.5), (0.0, 0.0, -1.0)),
         dtype=np.float64,
     )
-    mesh = meshconv.SimData(
-        coords=coords,
-        connect={
-            "connect1": np.array(
-                ((0, 1, 2), (0, 3, 1), (0, 1, 4)),
-                dtype=np.int64,
-            ),
-        },
-        mesh_type=meshconv.EMeshType.SURF,
+    mesh = _mesh(
+        coords,
+        meshconv.EElementType.TRI3,
+        np.array(
+            ((0, 1, 2), (0, 3, 1), (0, 1, 4)),
+            dtype=np.int64,
+        ),
     )
 
     assert not meshconv.check_mesh_convention(mesh)
@@ -274,17 +410,17 @@ def test_duplicate_surf_faces_finish_with_matching_orient(
     first = connect[0]
     duplicate = first.copy()
     if opposite_orient:
-        duplicate = _meshconv._reverse_surf_row(duplicate)
-    mesh = meshconv.SimData(
-        coords=coords,
-        connect={"connect1": np.vstack((first, duplicate))},
-        mesh_type=meshconv.EMeshType.SURF,
+        spec = _meshconv.ELEMENT_SPECS[elem_type]
+        duplicate = _meshconv._reverse_surf_row(duplicate, spec)
+    mesh = _mesh(
+        coords,
+        elem_type,
+        np.vstack((first, duplicate)),
     )
 
     mesh_out = meshconv.enforce_mesh_convention(mesh)
 
-    assert mesh_out.connect is not None
-    connect_out = mesh_out.connect["connect1"]
+    connect_out = mesh_out.blocks["connect1"].connect
     assert np.array_equal(connect_out[0], connect_out[1])
     assert not meshconv.check_mesh_convention(mesh_out)
 
@@ -297,7 +433,7 @@ def test_enforce_fixes_mirrored_hex_handedness_and_is_idempotent() -> None:
     )
     mirrored_row = np.array((0, 3, 2, 1, 4, 7, 6, 5), dtype=np.int64)[None, :]
     report = meshconv.check_mesh_convention(
-        meshconv.SimData(coords=coords, connect={"connect1": mirrored_row}),
+        _mesh(coords, meshconv.EElementType.HEX8, mirrored_row),
     )
     expected = {meshconv.MeshCheckCode.RIGHT_HANDED_GEOMETRY}
     assert set(report["connect1"]) == expected
@@ -310,46 +446,44 @@ def test_enforce_fixes_mirrored_hex_handedness_and_is_idempotent() -> None:
 
     assert hex_volume(mirrored_row) < 0.0
 
-    mesh = meshconv.SimData(coords=coords, connect={"connect1": mirrored_row})
+    mesh = _mesh(coords, meshconv.EElementType.HEX8, mirrored_row)
     mesh_out = meshconv.enforce_mesh_convention(mesh)
 
-    assert mesh_out.connect is not None
     assert not meshconv.check_mesh_convention(mesh_out)
-    assert hex_volume(mesh_out.connect["connect1"]) > 0.0
+    connect_out = mesh_out.blocks["connect1"].connect
+    assert hex_volume(connect_out) > 0.0
     assert np.array_equal(
-        meshconv.enforce_mesh_convention(mesh_out).connect["connect1"],
-        mesh_out.connect["connect1"],
+        meshconv.enforce_mesh_convention(mesh_out).blocks["connect1"].connect,
+        connect_out,
     )
 
 
-def test_explicit_mesh_convention_reorders_source_slots() -> None:
+def test_source_block_spec_reorders_source_slots() -> None:
     mesh = _load_cube("hex20")
-    assert mesh.connect is not None
-    std = mesh.connect["connect1"]
-    source_to_riley = (
+    expected = mesh.blocks["connect1"].connect
+    target_to_source = (
         0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
         16, 17, 18, 19, 12, 13, 14, 15,
     )
-    mesh.connect["connect1"] = std[:, np.argsort(source_to_riley)]
-    convention = meshconv.MeshConvention({
-        meshconv.EElementType.HEX20: source_to_riley,
-    })
+    source = expected[:, np.argsort(target_to_source)]
+    block = meshconv.convert_source_block(
+        source,
+        node_count=mesh.coords.shape[0],
+        spec=meshconv.SourceBlockSpec(
+            element_type=meshconv.EElementType.HEX20,
+            indexing=meshconv.EConnectIndexing.ZERO_BASED,
+            layout=meshconv.EConnectLayout.ROW_MAJOR,
+            target_to_source_perm=target_to_source,
+        ),
+    )
 
-    assert meshconv.MeshCheckCode.NODE_ORDER in meshconv.check_mesh_convention(
-        mesh,
-        convention,
-    )["connect1"]
-    mesh_out = meshconv.enforce_mesh_convention(mesh, convention)
-
-    assert mesh_out.connect is not None
-    assert np.array_equal(mesh_out.connect["connect1"], std)
-    assert not meshconv.check_mesh_convention(mesh_out)
+    assert np.array_equal(block.connect, expected)
 
 
 @pytest.mark.parametrize(
     ("permutation", "error", "message"),
     (
-        ((0, 1, 2), ValueError, "requires a 4-slot"),
+        ((0, 1, 2), ValueError, "requires 4 slots"),
         ((0, 1, 1, 3), ValueError, "exactly once"),
         ((0, 1, 2, 3.0), TypeError, "integers"),
     ),
@@ -373,14 +507,16 @@ def test_mesh_convention_defensively_copies_its_mapping() -> None:
 
     permutations[meshconv.EElementType.QUAD4] = (0, 3, 2, 1)
 
-    assert convention.get_src_perm(meshconv.EElementType.QUAD4) == (
+    assert convention.get_target_to_source_perm(
+        meshconv.EElementType.QUAD4,
+    ) == (
         0,
         1,
         2,
         3,
     )
     with pytest.raises(TypeError):
-        convention.src_to_riley_perms[
+        convention.target_to_source_perms[
             meshconv.EElementType.QUAD4
         ] = (0, 3, 2, 1)
 
@@ -397,9 +533,10 @@ def test_coincident_nodes_do_not_bypass_node_role_validation() -> None:
         ),
         dtype=np.float64,
     )
-    spec = _meshconv.ELEMENT_SPECS[meshconv.EElementType.TRI6]
-
-    assert not _meshconv._check_std_node_roles(coords, spec)
+    assert not _meshconv._check_std_node_roles(
+        coords,
+        _meshconv.ELEMENT_SPECS[meshconv.EElementType.TRI6],
+    )
 
 
 @pytest.mark.parametrize("cube_name", SUPPORTED_CUBES)
@@ -413,68 +550,112 @@ def test_std_cube_meshes_pass_and_enforcement_is_idempotent(
     enforced_twice = meshconv.enforce_mesh_convention(enforced_once)
 
     assert not meshconv.check_mesh_convention(enforced_once)
-    assert enforced_once.connect is not None
-    assert enforced_twice.connect is not None
-    for name, connect in enforced_once.connect.items():
-        assert np.array_equal(connect, enforced_twice.connect[name])
-
-
-def test_tet14_cube_is_explicitly_unsupported() -> None:
-    with pytest.raises(
-        NotImplementedError,
-        match="supported nodes-per-element",
-    ):
-        meshconv.check_mesh_convention(
-            meshconv.SimData(
-                coords=np.zeros((14, 3), dtype=np.float64),
-                connect={
-                    "connect1": np.arange(14, dtype=np.int64).reshape(1, 14),
-                },
-            )
+    for name, block in enforced_once.blocks.items():
+        assert np.array_equal(
+            block.connect,
+            enforced_twice.blocks[name].connect,
         )
+
+
+def test_enforce_preserves_block_local_and_mesh_metadata() -> None:
+    elem_vars = {"damage": np.array(((0.25, 0.5),))}
+    mesh = meshconv.SimData(
+        coords=_quad_coords(),
+        blocks={
+            "surface": meshconv.ElementBlock(
+                meshconv.EElementType.QUAD4,
+                np.array(((0, 3, 2, 1),)),
+                elem_vars=elem_vars,
+            ),
+        },
+        time=np.array((0.0, 1.0)),
+        side_sets={("surface", "edge"): np.array((0,))},
+        node_vars={"disp": np.arange(12).reshape(4, 3)},
+        glob_vars={"load": np.array((1.0, 2.0))},
+    )
+
+    mesh_out = meshconv.enforce_mesh_convention(mesh)
+
+    assert mesh_out is not mesh
+    elem_vars_out = mesh_out.blocks["surface"].elem_vars
+    assert elem_vars_out is not None
+    assert np.array_equal(elem_vars_out["damage"], elem_vars["damage"])
+    assert mesh_out.time is mesh.time
+    assert mesh_out.side_sets is mesh.side_sets
+    assert mesh_out.node_vars is mesh.node_vars
+    assert mesh_out.glob_vars is mesh.glob_vars
 
 
 @pytest.mark.parametrize("cube_name", SUPPORTED_CUBES)
 def test_extracted_cube_surface_passes_convention_check(cube_name: str) -> None:
-    surface = meshconv.extract_surf_mesh(
+    assert not meshconv.check_mesh_convention(meshconv.extract_surf_mesh(
         meshconv.enforce_mesh_convention(_load_cube(cube_name)),
+    ))
+
+
+def test_one_hex_surface_stays_six_quad4_rows_through_check_enforce() -> None:
+    coords, _ = _cube_surface(1.0, 0)
+    elem_vars = {"material": np.array(((7, 8),))}
+    mesh = meshconv.SimData(
+        coords=coords,
+        blocks={
+            "hex": meshconv.ElementBlock(
+                meshconv.EElementType.HEX8,
+                np.arange(8, dtype=np.int64)[None, :],
+                elem_vars=elem_vars,
+            ),
+        },
+        time=np.array((0.0,)),
+        node_vars={"temperature": np.arange(8, dtype=np.float64)},
+        glob_vars={"load": np.array((3.0,))},
     )
 
-    assert not meshconv.check_mesh_convention(surface)
+    surface = meshconv.extract_surf_mesh(mesh)
+    block = surface.blocks["hex"]
+    connect_before = block.connect.copy()
+
+    assert block.element_type is meshconv.EElementType.QUAD4
+    assert block.connect.shape == (6, 4)
+    assert meshconv.check_mesh_convention(surface) == {}
+    enforced = meshconv.enforce_mesh_convention(surface)
+    assert enforced is surface
+    assert np.array_equal(enforced.blocks["hex"].connect, connect_before)
+    assert block.elem_vars is not None
+    assert np.array_equal(
+        block.elem_vars["material"],
+        np.repeat(elem_vars["material"], 6, axis=0),
+    )
+    assert surface.node_vars is not None
+    assert np.array_equal(surface.node_vars["temperature"], np.arange(8))
+    assert surface.time is mesh.time
+    assert surface.glob_vars is mesh.glob_vars
 
 
 def test_surface_extraction_clears_volume_side_sets() -> None:
     mesh = _load_cube("hex8")
     mesh.side_sets = {("surface", "connect1"): np.array((0,), dtype=np.int64)}
 
-    surface = meshconv.extract_surf_mesh(mesh)
-
-    assert surface.side_sets is None
+    assert meshconv.extract_surf_mesh(mesh).side_sets is None
 
 
-def test_surface_slice_sets_surface_mesh_type() -> None:
-    mesh = _load_cube("hex8")
-    mesh.mesh_type = meshconv.EMeshType.VOL
-
+def test_surface_slice_emits_explicit_surface_block_type() -> None:
     surface = meshconv.extract_surf_between(
-        mesh,
+        _load_cube("hex8"),
         point=(0.0, 0.0, 0.0),
         normal=(0.0, 0.0, 1.0),
     )
 
-    assert surface.mesh_type is meshconv.EMeshType.SURF
+    assert surface.blocks["connect1"].element_type is meshconv.EElementType.QUAD4
 
 
 def test_surface_slice_uses_first_three_vector_components() -> None:
-    mesh = _load_cube("hex8")
-
     surface = meshconv.extract_surf_between(
-        mesh,
+        _load_cube("hex8"),
         point=(0.0, 0.0, 0.0, 10.0),
         normal=(0.0, 0.0, 1.0, 10.0),
     )
 
-    assert surface.connect is not None
+    assert surface.blocks["connect1"].connect.size
 
 
 @pytest.mark.parametrize(
@@ -491,7 +672,6 @@ def test_surface_slice_rejects_invalid_arguments(
     value: object,
     message: str,
 ) -> None:
-    mesh = _load_cube("hex8")
     arguments: dict[str, object] = {
         "point": (0.0, 0.0, 0.0),
         "normal": (0.0, 0.0, 1.0),
@@ -499,16 +679,17 @@ def test_surface_slice_rejects_invalid_arguments(
     arguments[argument] = value
 
     with pytest.raises(ValueError, match=message):
-        meshconv.extract_surf_between(mesh, **arguments)
+        meshconv.extract_surf_between(_load_cube("hex8"), **arguments)
 
 
 @pytest.mark.parametrize("mesh_name", SPHERE_MESHES)
 def test_native_sphere_meshes_normalize_to_an_idempotent_convention(
     mesh_name: str,
 ) -> None:
+    elem_name = mesh_name.split("_", maxsplit=1)[0].replace("newton", "")
     mesh = _load_native_mesh(
         data.sphere200_case_path(mesh_name),
-        mesh_type=meshconv.EMeshType.SURF,
+        meshconv.EElementType(elem_name),
     )
 
     mesh_out = meshconv.enforce_mesh_convention(mesh)
@@ -516,10 +697,8 @@ def test_native_sphere_meshes_normalize_to_an_idempotent_convention(
 
     assert not meshconv.check_mesh_convention(mesh_out)
     assert np.array_equal(mesh.coords, mesh_out.coords)
-    assert mesh_out.connect is not None
-    assert mesh_twice.connect is not None
-    for name, connect in mesh_out.connect.items():
-        assert np.array_equal(connect, mesh_twice.connect[name])
+    for name, block in mesh_out.blocks.items():
+        assert np.array_equal(block.connect, mesh_twice.blocks[name].connect)
 
 
 def test_plate_with_hole_keeps_inward_bore_normals() -> None:
@@ -527,20 +706,17 @@ def test_plate_with_hole_keeps_inward_bore_normals() -> None:
 
     mesh = _load_native_mesh(
         data.platehole_csv_case_path(),
-        mesh_type=meshconv.EMeshType.SURF,
+        meshconv.EElementType.QUAD8,
     )
 
     assert not meshconv.check_mesh_convention(mesh)
     mesh_out = meshconv.enforce_mesh_convention(mesh)
-    assert mesh_out.connect is not None
-    assert mesh.connect is not None
     assert np.array_equal(
-        mesh_out.connect["connect1"],
-        mesh.connect["connect1"],
+        mesh_out.blocks["connect1"].connect,
+        mesh.blocks["connect1"].connect,
     )
 
-    connect = mesh_out.connect["connect1"]
-    assert mesh_out.coords is not None
+    connect = mesh_out.blocks["connect1"].connect
     corners = mesh_out.coords[connect[:, :4]]
     normals = np.cross(
         corners[:, 1] - corners[:, 0],
@@ -571,18 +747,14 @@ def test_cube_ring_orients_bore_into_void(
     elem_type: meshconv.EElementType,
 ) -> None:
     coords, connect = _build_cube_ring_surf(elem_type)
-    reversed_rows: list[np.ndarray] = []
-    for row in connect:
-        reversed_rows.append(_meshconv._reverse_surf_row(row))
-    mesh = meshconv.SimData(
-        coords=coords,
-        connect={"connect1": np.asarray(reversed_rows)},
-        mesh_type=meshconv.EMeshType.SURF,
-    )
+    spec = _meshconv.ELEMENT_SPECS[elem_type]
+    reversed_rows = [
+        _meshconv._reverse_surf_row(row, spec) for row in connect
+    ]
+    mesh = _mesh(coords, elem_type, np.asarray(reversed_rows))
 
     mesh_out = meshconv.enforce_mesh_convention(mesh)
 
-    assert mesh_out.connect is not None
     assert not meshconv.check_mesh_convention(mesh_out)
     corners = _get_surf_corner_coords(mesh_out, elem_type)
     normals = np.cross(
@@ -618,13 +790,10 @@ def test_cube_ring_vol_extracts_complete_oriented_surf(
 ) -> None:
     mesh = _build_cube_ring_vol(elem_type)
 
-    mesh_std = meshconv.enforce_mesh_convention(mesh)
-    surf = meshconv.extract_surf_mesh(mesh_std)
+    surf = meshconv.extract_surf_mesh(meshconv.enforce_mesh_convention(mesh))
 
-    assert surf.coords is not None
-    assert surf.connect is not None
     assert not meshconv.check_mesh_convention(surf)
-    connect = surf.connect["connect1"]
+    connect = surf.blocks["connect1"].connect
     from_tets = elem_type in (
         meshconv.EElementType.TET4,
         meshconv.EElementType.TET10,
@@ -666,17 +835,12 @@ def test_nested_closed_surface_orients_cavity_into_void(
         elem_type,
     )
     outer_rows = 12 if elem_type.name.startswith("TRI") else 6
-    mesh = meshconv.SimData(
-        coords=coords,
-        connect={"connect1": connect},
-        mesh_type=meshconv.EMeshType.SURF,
-    )
+    mesh = _mesh(coords, elem_type, connect)
 
     mesh_out = meshconv.enforce_mesh_convention(mesh)
 
-    assert mesh_out.connect is not None
     assert not meshconv.check_mesh_convention(mesh_out)
-    connect = mesh_out.connect["connect1"]
+    connect = mesh_out.blocks["connect1"].connect
     corner_idxs = _meshconv.ELEMENT_SPECS[elem_type].corner_idxs
     corners = connect[:, corner_idxs]
     assert _surface_volume(mesh_out.coords, corners[:outer_rows]) > 0.0
@@ -698,18 +862,12 @@ def test_three_nested_surfs_alternate_material_orient(
         np.vstack((outer_connect, cavity_connect, island_connect)),
         elem_type,
     )
-    mesh = meshconv.SimData(
-        coords=coords,
-        connect={"connect1": connect},
-        mesh_type=meshconv.EMeshType.SURF,
-    )
+    mesh = _mesh(coords, elem_type, connect)
 
     mesh_out = meshconv.enforce_mesh_convention(mesh)
 
-    assert mesh_out.coords is not None
-    assert mesh_out.connect is not None
     corner_idxs = _meshconv.ELEMENT_SPECS[elem_type].corner_idxs
-    corners = mesh_out.connect["connect1"][:, corner_idxs]
+    corners = mesh_out.blocks["connect1"].connect[:, corner_idxs]
     rows_per_shell = 12 if elem_type is meshconv.EElementType.TRI3 else 6
     outer_end = rows_per_shell
     cavity_end = rows_per_shell * 2
@@ -725,21 +883,19 @@ def test_disconnected_closed_surfs_each_orient_outward() -> None:
     first_coords, first_connect = _cube_surface(1.0, 0)
     second_coords, second_connect = _cube_surface(1.0, 8)
     second_coords = second_coords + (4.0, 0.0, 0.0)
-    reversed_rows: list[np.ndarray] = []
-    for row in second_connect:
-        reversed_rows.append(_meshconv._reverse_surf_row(row))
-    second_connect = np.asarray(reversed_rows)
-    mesh = meshconv.SimData(
-        coords=np.vstack((first_coords, second_coords)),
-        connect={"connect1": np.vstack((first_connect, second_connect))},
-        mesh_type=meshconv.EMeshType.SURF,
+    spec = _meshconv.ELEMENT_SPECS[meshconv.EElementType.QUAD4]
+    second_connect = np.asarray([
+        _meshconv._reverse_surf_row(row, spec) for row in second_connect
+    ])
+    mesh = _mesh(
+        np.vstack((first_coords, second_coords)),
+        meshconv.EElementType.QUAD4,
+        np.vstack((first_connect, second_connect)),
     )
 
     mesh_out = meshconv.enforce_mesh_convention(mesh)
 
-    assert mesh_out.coords is not None
-    assert mesh_out.connect is not None
-    connect = mesh_out.connect["connect1"]
+    connect = mesh_out.blocks["connect1"].connect
     faces_per_cube = 6
     assert _surface_volume(mesh_out.coords, connect[:faces_per_cube]) > 0.0
     assert _surface_volume(mesh_out.coords, connect[faces_per_cube:]) > 0.0
@@ -762,23 +918,19 @@ def test_open_surf_component_has_stable_orient(nonplanar: bool) -> None:
              (1.0, 1.0, 0.0), (2.0, 1.0, 0.0)),
         )
         connect_std = np.array(((0, 1, 4, 3), (1, 2, 5, 4)))
-        reversed_rows: list[np.ndarray] = []
-        for row in connect_std:
-            reversed_rows.append(_meshconv._reverse_surf_row(row))
-        connect = np.asarray(reversed_rows)
-    mesh = meshconv.SimData(
-        coords=coords,
-        connect={"connect1": connect},
-        mesh_type=meshconv.EMeshType.SURF,
-    )
+        spec = _meshconv.ELEMENT_SPECS[meshconv.EElementType.QUAD4]
+        connect = np.asarray([
+            _meshconv._reverse_surf_row(row, spec) for row in connect_std
+        ])
+    mesh = _mesh(coords, meshconv.EElementType.QUAD4, connect)
 
     mesh_out = meshconv.enforce_mesh_convention(mesh)
+    connect_out = mesh_out.blocks["connect1"].connect
 
-    assert mesh_out.connect is not None
     if nonplanar:
-        assert np.array_equal(mesh_out.connect["connect1"], connect)
+        assert np.array_equal(connect_out, connect)
     else:
-        assert np.array_equal(mesh_out.connect["connect1"], connect_std)
+        assert np.array_equal(connect_out, connect_std)
     assert meshconv.enforce_mesh_convention(mesh_out) is mesh_out
 
 
@@ -814,58 +966,42 @@ def _build_cube_ring_surf(
     elem_type: meshconv.EElementType,
 ) -> tuple[np.ndarray, np.ndarray]:
     coords, connect = _build_hex8_ring()
-    volume_mesh = meshconv.SimData(
-        coords=coords,
-        connect={"connect1": connect},
-        mesh_type=meshconv.EMeshType.VOL,
-    )
-    volume_mesh = meshconv.enforce_mesh_convention(volume_mesh)
-    surf_mesh = meshconv.extract_surf_mesh(volume_mesh)
-    assert surf_mesh.coords is not None
-    assert surf_mesh.connect is not None
+    surf_mesh = meshconv.extract_surf_mesh(meshconv.enforce_mesh_convention(
+        _mesh(coords, meshconv.EElementType.HEX8, connect),
+    ))
     return _upgrade_surf_elem(
         surf_mesh.coords,
-        surf_mesh.connect["connect1"],
+        surf_mesh.blocks["connect1"].connect,
         elem_type,
     )
 
 
 def _build_hex8_ring() -> tuple[np.ndarray, np.ndarray]:
-    nodes_per_grid_row = 4
-    nodes_per_grid_layer = 16
-    coords_list: list[tuple[float, float, float]] = []
-    for zz in range(2):
-        for yy in range(4):
-            for xx in range(4):
-                coords_list.append((float(xx), float(yy), float(zz)))
-    coords = np.asarray(coords_list, dtype=np.float64)
-
     def get_node_idx(xx: int, yy: int, zz: int) -> int:
-        return (
-            zz * nodes_per_grid_layer
-            + yy * nodes_per_grid_row
-            + xx
-        )
+        return zz * 16 + yy * 4 + xx
 
-    connect_rows: list[tuple[int, ...]] = []
-    for yy in range(3):
-        for xx in range(3):
-            if xx == 1 and yy == 1:
-                continue
-            connect_rows.append((
-                get_node_idx(xx, yy, 0),
-                get_node_idx(xx + 1, yy, 0),
-                get_node_idx(xx + 1, yy + 1, 0),
-                get_node_idx(xx, yy + 1, 0),
-                get_node_idx(xx, yy, 1),
-                get_node_idx(xx + 1, yy, 1),
-                get_node_idx(xx + 1, yy + 1, 1),
-                get_node_idx(xx, yy + 1, 1),
-            ))
-    return (
-        coords,
-        np.asarray(connect_rows, dtype=np.int64),
-    )
+    coords = np.asarray([
+        (float(xx), float(yy), float(zz))
+        for zz in range(2)
+        for yy in range(4)
+        for xx in range(4)
+    ], dtype=np.float64)
+    connect = np.asarray([
+        (
+            get_node_idx(xx, yy, 0),
+            get_node_idx(xx + 1, yy, 0),
+            get_node_idx(xx + 1, yy + 1, 0),
+            get_node_idx(xx, yy + 1, 0),
+            get_node_idx(xx, yy, 1),
+            get_node_idx(xx + 1, yy, 1),
+            get_node_idx(xx + 1, yy + 1, 1),
+            get_node_idx(xx, yy + 1, 1),
+        )
+        for yy in range(3)
+        for xx in range(3)
+        if (xx, yy) != (1, 1)
+    ], dtype=np.int64)
+    return coords, connect
 
 
 def _build_cube_ring_vol(
@@ -875,21 +1011,14 @@ def _build_cube_ring_vol(
     if elem_type in _HIGH_ORDER_HEX_TYPES:
         coords, connect = _upgrade_hex_vol(coords, hex8_connect, elem_type)
     else:
-        tet4_rows: list[list[int]] = []
-        for hex_row in hex8_connect:
-            for corner_idxs in _HEX_TO_TET_CORNER_IDXS:
-                tet_row: list[int] = []
-                for corner_idx in corner_idxs:
-                    tet_row.append(int(hex_row[corner_idx]))
-                tet4_rows.append(tet_row)
-        connect = np.asarray(tet4_rows, dtype=np.int64)
+        connect = np.asarray([
+            [int(hex_row[idx]) for idx in corner_idxs]
+            for hex_row in hex8_connect
+            for corner_idxs in _HEX_TO_TET_CORNER_IDXS
+        ], dtype=np.int64)
         if elem_type is meshconv.EElementType.TET10:
             coords, connect = _upgrade_tet_vol(coords, connect)
-    return meshconv.SimData(
-        coords=coords,
-        connect={"connect1": connect},
-        mesh_type=meshconv.EMeshType.VOL,
-    )
+    return _mesh(coords, elem_type, connect)
 
 
 def _get_or_add_edge_node(
@@ -904,8 +1033,7 @@ def _get_or_add_edge_node(
     if edge_node is None:
         edge_node = len(coords_out)
         edge_nodes[edge] = edge_node
-        midpoint = 0.5 * (coords[node_a] + coords[node_b])
-        coords_out.append(midpoint.tolist())
+        coords_out.append((0.5 * (coords[node_a] + coords[node_b])).tolist())
     return edge_node
 
 
@@ -917,17 +1045,16 @@ def _upgrade_tet_vol(
     edge_nodes: dict[tuple[int, int], int] = {}
     connect_out: list[list[int]] = []
     for corners in tet4_connect:
-        row_out = corners.tolist()
-        for node_a_idx, node_b_idx in _TET_EDGE_CORNER_IDXS:
-            edge_node = _get_or_add_edge_node(
+        connect_out.append(corners.tolist() + [
+            _get_or_add_edge_node(
                 int(corners[node_a_idx]),
                 int(corners[node_b_idx]),
                 coords,
                 coords_out,
                 edge_nodes,
             )
-            row_out.append(edge_node)
-        connect_out.append(row_out)
+            for node_a_idx, node_b_idx in _TET_EDGE_CORNER_IDXS
+        ])
     return (
         np.asarray(coords_out, dtype=np.float64),
         np.asarray(connect_out, dtype=np.int64),
@@ -944,34 +1071,33 @@ def _upgrade_hex_vol(
     face_nodes: dict[tuple[int, ...], int] = {}
     connect_out: list[list[int]] = []
     for corners in hex8_connect:
-        row_out = corners.tolist()
-        for node_a_idx, node_b_idx in _HEX_EDGE_CORNER_IDXS:
-            edge_node = _get_or_add_edge_node(
+        row_out = corners.tolist() + [
+            _get_or_add_edge_node(
                 int(corners[node_a_idx]),
                 int(corners[node_b_idx]),
                 coords,
                 coords_out,
                 edge_nodes,
             )
-            row_out.append(edge_node)
+            for node_a_idx, node_b_idx in _HEX_EDGE_CORNER_IDXS
+        ]
         if elem_type is meshconv.EElementType.HEX27:
             spec = _meshconv.ELEMENT_SPECS[elem_type]
-            unassigned_node = -1
-            while len(row_out) < spec.nodes_per_elem:
-                row_out.append(unassigned_node)
+            row_out.extend([-1] * (spec.nodes_per_elem - len(row_out)))
             for face_idx, corner_idxs in enumerate(_HEX_FACE_CORNER_IDXS):
-                face_corner_nodes: list[int] = []
-                for corner_idx in corner_idxs:
-                    face_corner_nodes.append(int(corners[corner_idx]))
+                face_corner_nodes = [
+                    int(corners[corner_idx]) for corner_idx in corner_idxs
+                ]
                 face_key = tuple(sorted(face_corner_nodes))
                 face_node = face_nodes.get(face_key)
                 if face_node is None:
                     face_node = len(coords_out)
                     face_nodes[face_key] = face_node
-                    face_coords = coords[np.asarray(face_corner_nodes)]
-                    coords_out.append(np.mean(face_coords, axis=0).tolist())
-                centre_slot = spec.face_centre_idxs[face_idx]
-                row_out[centre_slot] = face_node
+                    coords_out.append(np.mean(
+                        coords[np.asarray(face_corner_nodes)],
+                        axis=0,
+                    ).tolist())
+                row_out[spec.face_centre_idxs[face_idx]] = face_node
             if spec.cell_centre_idx is None:
                 raise ValueError("HEX27 requires a cell-centre slot.")
             row_out[spec.cell_centre_idx] = len(coords_out)
@@ -991,10 +1117,7 @@ def _upgrade_surf_elem(
     linear_rows: list[tuple[int, ...]] = []
     use_tris = elem_type.name.startswith("TRI")
     for row in quad_connect:
-        corner_nodes: list[int] = []
-        for node in row[:4]:
-            corner_nodes.append(int(node))
-        corners = tuple(corner_nodes)
+        corners = tuple(int(node) for node in row[:4])
         if use_tris:
             linear_rows.append((corners[0], corners[1], corners[2]))
             linear_rows.append((corners[0], corners[2], corners[3]))
@@ -1012,19 +1135,18 @@ def _upgrade_surf_elem(
     for corners in linear_rows:
         row_out = list(corners)
         for corner_idx, node_a in enumerate(corners):
-            node_b = corners[(corner_idx + 1) % corner_count]
-            edge = (min(node_a, node_b), max(node_a, node_b))
-            edge_node = edge_nodes.get(edge)
-            if edge_node is None:
-                edge_node = len(coords_out)
-                edge_nodes[edge] = edge_node
-                midpoint = 0.5 * (coords[node_a] + coords[node_b])
-                coords_out.append(midpoint.tolist())
-            row_out.append(edge_node)
+            row_out.append(_get_or_add_edge_node(
+                node_a,
+                corners[(corner_idx + 1) % corner_count],
+                coords,
+                coords_out,
+                edge_nodes,
+            ))
         if nodes_per_elem == corner_count * 2 + 1:
             row_out.append(len(coords_out))
-            centre = np.mean(coords[np.asarray(corners)], axis=0)
-            coords_out.append(centre.tolist())
+            coords_out.append(
+                np.mean(coords[np.asarray(corners)], axis=0).tolist()
+            )
         connect_out.append(row_out)
     return (
         np.asarray(coords_out, dtype=np.float64),
@@ -1036,10 +1158,8 @@ def _get_surf_corner_coords(
     mesh: meshconv.SimData,
     elem_type: meshconv.EElementType,
 ) -> np.ndarray:
-    assert mesh.coords is not None
-    assert mesh.connect is not None
     corner_idxs = _meshconv.ELEMENT_SPECS[elem_type].corner_idxs
-    return mesh.coords[mesh.connect["connect1"][:, corner_idxs]]
+    return mesh.coords[mesh.blocks["connect1"].connect[:, corner_idxs]]
 
 
 def _surface_volume(coords: np.ndarray, connect: np.ndarray) -> float:
@@ -1055,13 +1175,12 @@ def _surface_volume(coords: np.ndarray, connect: np.ndarray) -> float:
 
 
 def _load_cube(name: str) -> meshconv.SimData:
-    return _load_native_mesh(data.cube_case_path(name))
+    return _load_native_mesh(data.cube_case_path(name), meshconv.EElementType(name))
 
 
 def _load_native_mesh(
     mesh_dir: Path,
-    *,
-    mesh_type: meshconv.EMeshType | None = None,
+    element_type: meshconv.EElementType,
 ) -> meshconv.SimData:
     coords = np.loadtxt(
         mesh_dir / "coords.csv",
@@ -1076,9 +1195,5 @@ def _load_native_mesh(
         delimiter=",",
         dtype=np.float64,
     )
-    connect = connect_raw.astype(np.int64)
-    return meshconv.SimData(
-        coords=coords,
-        connect={"connect1": connect},
-        mesh_type=mesh_type,
-    )
+    connect = np.atleast_2d(connect_raw).astype(np.int64)
+    return _mesh(coords, element_type, connect)

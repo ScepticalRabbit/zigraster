@@ -25,6 +25,7 @@ def save_case(
     name,
     coords,
     connect,
+    element_type,
     disp_x,
     disp_y,
     disp_z,
@@ -39,12 +40,7 @@ def save_case(
         disp_z,
         ELEM_ROT,
     )
-    mesh = meshconv.MeshData(
-        coords=np.ascontiguousarray(coords, dtype=np.float64),
-        connect={"connect1": np.ascontiguousarray(connect, dtype=np.int64)},
-        mesh_type="surface",
-    )
-    connect = meshconv.enforce_mesh_convention(mesh).connect["connect1"]
+    connect = meshconv.enforce_connectivity(coords, connect, element_type)
     np.savetxt(out_dir / "coords.csv", coords, delimiter=",")
     np.savetxt(
         out_dir / "connect.csv",
@@ -219,7 +215,7 @@ def rotate_points(points, angle_deg, center):
     return np.array([rot_mat @ (pp - center) + center for pp in points])
 
 
-def generate_case(base_dir, name, coords_initial, coords_final, connect):
+def generate_case(base_dir, name, coords_initial, coords_final, connect, element_type):
     disp_x, disp_y, disp_z = build_disp_fields_to_target(
         coords_initial,
         coords_final,
@@ -230,6 +226,7 @@ def generate_case(base_dir, name, coords_initial, coords_final, connect):
         name,
         coords_initial,
         connect,
+        element_type,
         disp_x,
         disp_y,
         disp_z,
@@ -318,6 +315,7 @@ def generate_tri3_stretch(base_dir, edge_length, stretch_ratio):
         coords_initial,
         coords_final,
         np.array([[0, 1, 2]]),
+        meshconv.EElementType.TRI3,
     )
 
 
@@ -335,6 +333,7 @@ def generate_tri6_stretch(base_dir, edge_length, stretch_ratio):
         coords_initial,
         coords_final,
         np.array([[0, 1, 2, 3, 4, 5]]),
+        meshconv.EElementType.TRI6,
     )
 
 
@@ -347,6 +346,7 @@ def generate_quad4_stretch(base_dir, edge_length, stretch_ratio):
         coords_initial,
         coords_final,
         np.array([[0, 1, 2, 3]]),
+        meshconv.EElementType.QUAD4,
     )
 
 
@@ -364,6 +364,7 @@ def generate_quad8_stretch(base_dir, edge_length, stretch_ratio):
         coords_initial,
         coords_final,
         np.array([[0, 1, 2, 3, 4, 5, 6, 7]]),
+        meshconv.EElementType.QUAD8,
     )
 
 
@@ -383,6 +384,7 @@ def generate_quad9_stretch(base_dir, edge_length, stretch_ratio):
         coords_initial,
         coords_final,
         np.array([[0, 1, 2, 3, 4, 5, 6, 7, 8]]),
+        meshconv.EElementType.QUAD9,
     )
 
 
@@ -395,6 +397,7 @@ def generate_tri3_shear(base_dir, edge_length, shear_ratio):
         coords_initial,
         coords_final,
         np.array([[0, 1, 2]]),
+        meshconv.EElementType.TRI3,
     )
 
 
@@ -412,6 +415,7 @@ def generate_tri6_shear(base_dir, edge_length, shear_ratio):
         coords_initial,
         coords_final,
         np.array([[0, 1, 2, 3, 4, 5]]),
+        meshconv.EElementType.TRI6,
     )
 
 
@@ -424,6 +428,7 @@ def generate_quad4_shear(base_dir, edge_length, shear_ratio):
         coords_initial,
         coords_final,
         np.array([[0, 1, 2, 3]]),
+        meshconv.EElementType.QUAD4,
     )
 
 
@@ -441,6 +446,7 @@ def generate_quad8_shear(base_dir, edge_length, shear_ratio):
         coords_initial,
         coords_final,
         np.array([[0, 1, 2, 3, 4, 5, 6, 7]]),
+        meshconv.EElementType.QUAD8,
     )
 
 
@@ -460,6 +466,7 @@ def generate_quad9_shear(base_dir, edge_length, shear_ratio):
         coords_initial,
         coords_final,
         np.array([[0, 1, 2, 3, 4, 5, 6, 7, 8]]),
+        meshconv.EElementType.QUAD9,
     )
 
 
@@ -506,6 +513,7 @@ def generate_tri6_bulge(base_dir, edge_length, time_steps):
         "tri6_distort_bulge",
         coords,
         np.array([[0, 1, 2, 3, 4, 5]]),
+        meshconv.EElementType.TRI6,
         disp_x,
         disp_y,
         disp_z,
@@ -556,6 +564,7 @@ def generate_tri6_tan(base_dir, edge_length, time_steps, tan_offset_factor):
         "tri6_distort_tan",
         coords,
         np.array([[0, 1, 2, 3, 4, 5]]),
+        meshconv.EElementType.TRI6,
         disp_x,
         disp_y,
         disp_z,
@@ -563,7 +572,7 @@ def generate_tri6_tan(base_dir, edge_length, time_steps, tan_offset_factor):
     )
 
 
-def generate_quad_bulge(base_dir, edge_length, time_steps, include_center):
+def generate_quad_bulge(base_dir, edge_length, time_steps, include_center, element_type):
     vertices = quad_vertices_final(edge_length)
     centroid = np.array([0.5 * edge_length, 0.5 * edge_length, 0.0])
     max_offset = BULGE_MIDSIDE_OFFSET_FACTOR * edge_length
@@ -610,6 +619,7 @@ def generate_quad_bulge(base_dir, edge_length, time_steps, include_center):
         mesh_name,
         coords,
         connect,
+        element_type,
         disp_x,
         disp_y,
         disp_z,
@@ -617,7 +627,7 @@ def generate_quad_bulge(base_dir, edge_length, time_steps, include_center):
     )
 
 
-def generate_quad_tan(base_dir, edge_length, time_steps, tan_offset_factor, include_center):
+def generate_quad_tan(base_dir, edge_length, time_steps, tan_offset_factor, include_center, element_type):
     vertices = quad_vertices_final(edge_length)
     centroid = np.array([0.5 * edge_length, 0.5 * edge_length, 0.0])
 
@@ -665,6 +675,7 @@ def generate_quad_tan(base_dir, edge_length, time_steps, tan_offset_factor, incl
         mesh_name,
         coords,
         connect,
+        element_type,
         disp_x,
         disp_y,
         disp_z,
@@ -683,6 +694,7 @@ def generate_tri3_rot(base_dir, edge_length, time_steps):
         "tri3_distort_rot",
         coords,
         np.array([[0, 1, 2]]),
+        meshconv.EElementType.TRI3,
         disp_x,
         disp_y,
         disp_z,
@@ -704,6 +716,7 @@ def generate_tri6_rot(base_dir, edge_length, time_steps):
         "tri6_distort_rot",
         coords,
         np.array([[0, 1, 2, 3, 4, 5]]),
+        meshconv.EElementType.TRI6,
         disp_x,
         disp_y,
         disp_z,
@@ -711,7 +724,7 @@ def generate_tri6_rot(base_dir, edge_length, time_steps):
     )
 
 
-def generate_quad_rot(base_dir, edge_length, time_steps, include_center):
+def generate_quad_rot(base_dir, edge_length, time_steps, include_center, element_type):
     coords_vertices = quad_vertices_final(edge_length)
     edge_pairs = [(0, 1), (1, 2), (2, 3), (3, 0)]
     midsides = build_edge_midpoints(coords_vertices, edge_pairs)
@@ -731,6 +744,7 @@ def generate_quad_rot(base_dir, edge_length, time_steps, include_center):
         mesh_name,
         coords,
         connect,
+        element_type,
         disp_x,
         disp_y,
         disp_z,
@@ -749,6 +763,7 @@ def generate_quad4_rot(base_dir, edge_length, time_steps):
         "quad4_distort_rot",
         coords,
         np.array([[0, 1, 2, 3]]),
+        meshconv.EElementType.QUAD4,
         disp_x,
         disp_y,
         disp_z,
@@ -767,12 +782,12 @@ def main():
     base_dir = "data/edge"
 
     generate_tri6_bulge(base_dir, EDGE_LENG, BULGE_TIME_STEPS)
-    generate_quad_bulge(base_dir, EDGE_LENG, BULGE_TIME_STEPS, False)
-    generate_quad_bulge(base_dir, EDGE_LENG, BULGE_TIME_STEPS, True)
+    generate_quad_bulge(base_dir, EDGE_LENG, BULGE_TIME_STEPS, False, meshconv.EElementType.QUAD8)
+    generate_quad_bulge(base_dir, EDGE_LENG, BULGE_TIME_STEPS, True, meshconv.EElementType.QUAD9)
 
     generate_tri6_tan(base_dir, EDGE_LENG, TAN_TIME_STEPS, TAN_OFFSET_FACTOR)
-    generate_quad_tan(base_dir, EDGE_LENG, TAN_TIME_STEPS, TAN_OFFSET_FACTOR, False)
-    generate_quad_tan(base_dir, EDGE_LENG, TAN_TIME_STEPS, TAN_OFFSET_FACTOR, True)
+    generate_quad_tan(base_dir, EDGE_LENG, TAN_TIME_STEPS, TAN_OFFSET_FACTOR, False, meshconv.EElementType.QUAD8)
+    generate_quad_tan(base_dir, EDGE_LENG, TAN_TIME_STEPS, TAN_OFFSET_FACTOR, True, meshconv.EElementType.QUAD9)
 
     generate_tri3_stretch(base_dir, EDGE_LENG, STRETCH)
     generate_tri6_stretch(base_dir, EDGE_LENG, STRETCH)
@@ -789,8 +804,8 @@ def main():
     generate_tri3_rot(base_dir, EDGE_LENG, ROT_TIME_STEPS)
     generate_tri6_rot(base_dir, EDGE_LENG, ROT_TIME_STEPS)
     generate_quad4_rot(base_dir, EDGE_LENG, ROT_TIME_STEPS)
-    generate_quad_rot(base_dir, EDGE_LENG, ROT_TIME_STEPS, False)
-    generate_quad_rot(base_dir, EDGE_LENG, ROT_TIME_STEPS, True)
+    generate_quad_rot(base_dir, EDGE_LENG, ROT_TIME_STEPS, False, meshconv.EElementType.QUAD8)
+    generate_quad_rot(base_dir, EDGE_LENG, ROT_TIME_STEPS, True, meshconv.EElementType.QUAD9)
 
     print(
         "Generated distortion edge data: "

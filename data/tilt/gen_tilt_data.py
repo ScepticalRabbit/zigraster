@@ -3,6 +3,7 @@ import os
 
 from riley.python import meshconv
 
+
 def save_csv(path, data):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     np.savetxt(
@@ -48,7 +49,7 @@ def apply_tilt(coords):
     tilted[:, 2] = TILT_Z * (coords[:, 0] / WIDTH)
     return tilted
 
-def generate_fullscreen_tilt(etype, out_dir):
+def generate_fullscreen_tilt(etype, out_dir, element_type):
     if "tri" in etype:
         coords = np.array(
             [
@@ -110,13 +111,7 @@ def generate_fullscreen_tilt(etype, out_dir):
             connect = np.array([[0, 1, 2, 3]])
     
     tilted_coords = apply_tilt(coords)
-    connect = meshconv.enforce_mesh_convention(
-        meshconv.MeshData(
-            coords=np.ascontiguousarray(tilted_coords, dtype=np.float64),
-            connect={"connect1": np.ascontiguousarray(connect, dtype=np.int64)},
-            mesh_type="surface",
-        )
-    ).connect["connect1"]
+    connect = meshconv.enforce_connectivity(tilted_coords, connect, element_type)
     save_csv(f"{out_dir}/coords.csv", tilted_coords)
     save_csv(f"{out_dir}/connect.csv", connect)
     save_csv(f"{out_dir}/field.csv", compute_rgb_fields(tilted_coords))
@@ -124,13 +119,13 @@ def generate_fullscreen_tilt(etype, out_dir):
 
 if __name__ == "__main__":
     elements = [
-        "tri3",
-        "tri6",
-        "quad4ibi",
-        "quad4newton",
-        "quad8",
-        "quad9"
+        ("tri3", meshconv.EElementType.TRI3),
+        ("tri6", meshconv.EElementType.TRI6),
+        ("quad4ibi", meshconv.EElementType.QUAD4),
+        ("quad4newton", meshconv.EElementType.QUAD4),
+        ("quad8", meshconv.EElementType.QUAD8),
+        ("quad9", meshconv.EElementType.QUAD9),
     ]
-    for et in elements:
+    for et, element_type in elements:
         print(f"Generating tilted data for {et}...")
-        generate_fullscreen_tilt(et, f"data/tilt/{et}_fullraster")
+        generate_fullscreen_tilt(et, f"data/tilt/{et}_fullraster", element_type)

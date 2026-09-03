@@ -5,6 +5,8 @@ from pathlib import Path
 
 import numpy as np
 
+from riley.python import meshconv
+
 import main_gen_calplate as base
 
 
@@ -175,20 +177,20 @@ def tri6_mesh_3d() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     return coords, connect, uvs
 
 
-def mesh_cases() -> dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]]:
+def mesh_cases() -> dict[str, tuple[meshconv.EElementType, np.ndarray, np.ndarray, np.ndarray]]:
     return {
-        "tri3_calplate3d": tri3_mesh_3d(),
-        "tri6_calplate3d": tri6_mesh_3d(),
-        "quad4_calplate3d": quad4_mesh_3d(),
-        "quad8_calplate3d": quad8_mesh_3d(),
-        "quad9_calplate3d": quad9_mesh_3d(),
+        "tri3_calplate3d": (meshconv.EElementType.TRI3, *tri3_mesh_3d()),
+        "tri6_calplate3d": (meshconv.EElementType.TRI6, *tri6_mesh_3d()),
+        "quad4_calplate3d": (meshconv.EElementType.QUAD4, *quad4_mesh_3d()),
+        "quad8_calplate3d": (meshconv.EElementType.QUAD8, *quad8_mesh_3d()),
+        "quad9_calplate3d": (meshconv.EElementType.QUAD9, *quad9_mesh_3d()),
     }
 
 
 def main() -> None:
     states = base.selected_motion_states()
-    for case_name, (coords, connect, uvs) in mesh_cases().items():
-        base.write_case(case_name, coords, connect, uvs, states)
+    for case_name, (element_type, coords, connect, uvs) in mesh_cases().items():
+        base.write_case(case_name, element_type, coords, connect, uvs, states)
 
     print(f"Generated 3D calplate mesh cases in {BASE_DIR}")
     print(f"Thickness: {THICKNESS:.10f} m")

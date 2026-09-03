@@ -7,13 +7,8 @@ from riley.python import meshconv
 # Coordinate System: Right-handed Cartesian (X right, Y up, Z towards viewer).
 # Vertex Winding: All elements MUST follow Counter-Clockwise (CCW) winding.
 
-def save_case(base_dir, name, coords, connect, disp_x, disp_y, disp_z):
-    mesh = meshconv.MeshData(
-        coords=np.ascontiguousarray(coords, dtype=np.float64),
-        connect={"connect1": np.ascontiguousarray(connect, dtype=np.int64)},
-        mesh_type="surface",
-    )
-    connect = meshconv.enforce_mesh_convention(mesh).connect["connect1"]
+def save_case(base_dir, name, coords, connect, element_type, disp_x, disp_y, disp_z):
+    connect = meshconv.enforce_connectivity(coords, connect, element_type)
     out_dir = Path(base_dir) / name
     out_dir.mkdir(parents=True, exist_ok=True)
     np.savetxt(out_dir / "coords.csv", coords, delimiter=",")
@@ -86,10 +81,10 @@ def generate_tri6(base_dir, L, H, D, rot_angle, f0, f1, ur, vr):
         m20 = move_midside(v_tri[2], v_tri[0], centroid, offset)
         coords = rotate_points(np.vstack([v_tri, [m01, m12, m20]]), rot_angle, centroid)
         dx, dy, dz = compute_disps(coords, f0, f1)
-        save_case(base_dir, name, coords, np.array([[0, 1, 2, 3, 4, 5]]), dx, dy, dz)
+        save_case(base_dir, name, coords, np.array([[0, 1, 2, 3, 4, 5]]), meshconv.EElementType.TRI6, dx, dy, dz)
         save_uvs(base_dir, name, compute_uvs(coords, ur, vr))
 
-def generate_quad(base_dir, N, L, D, rot_angle, f0, f1, ur, vr):
+def generate_quad(base_dir, N, L, D, rot_angle, f0, f1, ur, vr, element_type):
     # Quad Corners: (0,0), (L,0), (L,L), (0,L)
     v_quad = np.array([[0, 0, 0], [L, 0, 0], [L, L, 0], [0, L, 0]], dtype=float)
     centroid = np.array([L/2, L/2, 0], dtype=float)
@@ -106,10 +101,10 @@ def generate_quad(base_dir, N, L, D, rot_angle, f0, f1, ur, vr):
         
         coords = rotate_points(np.array(nodes), rot_angle, centroid)
         dx, dy, dz = compute_disps(coords, f0, f1)
-        save_case(base_dir, name, coords, np.array([list(range(N))]), dx, dy, dz)
+        save_case(base_dir, name, coords, np.array([list(range(N))]), element_type, dx, dy, dz)
         save_uvs(base_dir, name, compute_uvs(coords, ur, vr))
 
-def generate_quad_vertbulge(base_dir, N, L, f0, f1, ur, vr):
+def generate_quad_vertbulge(base_dir, N, L, f0, f1, ur, vr, element_type):
     # trapezoid on top of a rectangle
     # Bottom corners: (0,0), (L,0)
     # Midsides on left/right: (0, L/2), (L, L/2) -> directly above bottom corners
@@ -131,7 +126,7 @@ def generate_quad_vertbulge(base_dir, N, L, f0, f1, ur, vr):
     name = f"quad{N}_vertbulge"
     coords = np.array(nodes)
     dx, dy, dz = compute_disps(coords, f0, f1)
-    save_case(base_dir, name, coords, np.array([list(range(N))]), dx, dy, dz)
+    save_case(base_dir, name, coords, np.array([list(range(N))]), element_type, dx, dy, dz)
     save_uvs(base_dir, name, compute_uvs(coords, ur, vr))
 
 def main():
@@ -141,9 +136,9 @@ def main():
     UR, VR = (0.4, 0.6), (0.4, 0.6)
 
     generate_tri6(base_dir, L, H, D, 45.0, F0, F1, UR, VR)
-    for n in [8, 9]:
-        generate_quad(base_dir, n, L, D, 30.0, F0, F1, UR, VR)
-        generate_quad_vertbulge(base_dir, n, L, F0, F1, UR, VR)
+    for n, element_type in [(8, meshconv.EElementType.QUAD8), (9, meshconv.EElementType.QUAD9)]:
+        generate_quad(base_dir, n, L, D, 30.0, F0, F1, UR, VR, element_type)
+        generate_quad_vertbulge(base_dir, n, L, F0, F1, UR, VR, element_type)
 
     # Re-generate tri6_vertbulge just in case (already existed but good to ensure consistent params)
     # The existing one was likely different. I'll stick to what I had or make it similar to quad.

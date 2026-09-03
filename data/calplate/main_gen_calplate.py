@@ -225,13 +225,13 @@ def quad9_mesh() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     return coords, connect, uvs
 
 
-def mesh_cases() -> dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]]:
+def mesh_cases() -> dict[str, tuple[meshconv.EElementType, np.ndarray, np.ndarray, np.ndarray]]:
     return {
-        "tri3_calplate": tri3_mesh(),
-        "tri6_calplate": tri6_mesh(),
-        "quad4_calplate": quad4_mesh(),
-        "quad8_calplate": quad8_mesh(),
-        "quad9_calplate": quad9_mesh(),
+        "tri3_calplate": (meshconv.EElementType.TRI3, *tri3_mesh()),
+        "tri6_calplate": (meshconv.EElementType.TRI6, *tri6_mesh()),
+        "quad4_calplate": (meshconv.EElementType.QUAD4, *quad4_mesh()),
+        "quad8_calplate": (meshconv.EElementType.QUAD8, *quad8_mesh()),
+        "quad9_calplate": (meshconv.EElementType.QUAD9, *quad9_mesh()),
     }
 
 
@@ -443,6 +443,7 @@ def save_csv_matrix(file_path: Path, data: np.ndarray, fmt: str) -> None:
 
 def write_case(
     case_name: str,
+    element_type: meshconv.EElementType,
     coords: np.ndarray,
     connect: np.ndarray,
     uvs: np.ndarray,
@@ -454,13 +455,7 @@ def write_case(
 
     disp_x, disp_y, disp_z = displacement_fields(coords, states)
     if enforce_convention:
-        connect = meshconv.enforce_mesh_convention(
-            meshconv.MeshData(
-                coords=np.ascontiguousarray(coords, dtype=np.float64),
-                connect={"connect1": np.ascontiguousarray(connect, dtype=np.int64)},
-                mesh_type="surface",
-            )
-        ).connect["connect1"]
+        connect = meshconv.enforce_connectivity(coords, connect, element_type)
 
     save_csv_matrix(out_dir / "coords.csv", coords, "%.10f")
     save_csv_matrix(out_dir / "connect.csv", connect, "%d")
@@ -488,8 +483,8 @@ def main() -> None:
     states = selected_motion_states()
     cases = mesh_cases()
 
-    for case_name, (coords, connect, uvs) in cases.items():
-        write_case(case_name, coords, connect, uvs, states, enforce_convention=True)
+    for case_name, (element_type, coords, connect, uvs) in cases.items():
+        write_case(case_name, element_type, coords, connect, uvs, states, enforce_convention=True)
 
     print(f"Generated {len(cases)} calplate mesh cases in {BASE_DIR}")
     print(f"Mode: {CAL_MODE}")

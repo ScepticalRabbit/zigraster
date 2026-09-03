@@ -3,6 +3,8 @@ from pathlib import Path
 import gendata
 import gen_data_twoelems
 
+from riley.python import meshconv
+
 # Coordinate System: Right-handed Cartesian (X right, Y up, Z towards viewer).
 # Vertex Winding: All elements MUST follow Counter-Clockwise (CCW) winding.
 # This ensures positive signed area calculation in the rasterizer, which is 
@@ -16,7 +18,7 @@ def generate_fullscreen(base_dir, width, height, frame0, frame1):
     # 0,1,2 (CCW), 0,2,3 (CCW)
     connect_tri3 = np.array([[0, 1, 2], [0, 2, 3]])
     dx, dy, dz = gendata.compute_disps(coords_tri3, frame0, frame1)
-    gendata.save_case(base_dir, "tri3_fullscreen", coords_tri3, connect_tri3, dx, dy, dz)
+    gendata.save_case(base_dir, "tri3_fullscreen", coords_tri3, connect_tri3, meshconv.EElementType.TRI3, dx, dy, dz)
 
     # Tri6 Full Screen (2 elements)
     coords_tri6 = np.array([
@@ -31,14 +33,14 @@ def generate_fullscreen(base_dir, width, height, frame0, frame1):
         [0, 2, 3, 8, 6, 7]
     ])
     dx, dy, dz = gendata.compute_disps(coords_tri6, frame0, frame1)
-    gendata.save_case(base_dir, "tri6_fullscreen", coords_tri6, connect_tri6, dx, dy, dz)
+    gendata.save_case(base_dir, "tri6_fullscreen", coords_tri6, connect_tri6, meshconv.EElementType.TRI6, dx, dy, dz)
 
     # Quad4 Full Screen (1 element)
     coords_quad4 = coords_tri3.copy()
     # 0,1,2,3 (CCW)
     connect_quad4 = np.array([[0, 1, 2, 3]])
     dx, dy, dz = gendata.compute_disps(coords_quad4, frame0, frame1)
-    gendata.save_case(base_dir, "quad4_fullscreen", coords_quad4, connect_quad4, dx, dy, dz)
+    gendata.save_case(base_dir, "quad4_fullscreen", coords_quad4, connect_quad4, meshconv.EElementType.QUAD4, dx, dy, dz)
 
     # Quad8 Full Screen (1 element)
     coords_quad8 = np.array([
@@ -48,7 +50,7 @@ def generate_fullscreen(base_dir, width, height, frame0, frame1):
     # 0,1,2,3, 4,5,6,7 (CCW)
     connect_quad8 = np.array([[0, 1, 2, 3, 4, 5, 6, 7]])
     dx, dy, dz = gendata.compute_disps(coords_quad8, frame0, frame1)
-    gendata.save_case(base_dir, "quad8_fullscreen", coords_quad8, connect_quad8, dx, dy, dz)
+    gendata.save_case(base_dir, "quad8_fullscreen", coords_quad8, connect_quad8, meshconv.EElementType.QUAD8, dx, dy, dz)
 
     # Quad9 Full Screen (1 element)
     coords_quad9 = np.array([
@@ -59,7 +61,7 @@ def generate_fullscreen(base_dir, width, height, frame0, frame1):
     # 0,1,2,3, 4,5,6,7, 8 (CCW)
     connect_quad9 = np.array([[0, 1, 2, 3, 4, 5, 6, 7, 8]])
     dx, dy, dz = gendata.compute_disps(coords_quad9, frame0, frame1)
-    gendata.save_case(base_dir, "quad9_fullscreen", coords_quad9, connect_quad9, dx, dy, dz)
+    gendata.save_case(base_dir, "quad9_fullscreen", coords_quad9, connect_quad9, meshconv.EElementType.QUAD9, dx, dy, dz)
 
 def generate_singleelem(base_dir, length, d_shift, frame0, frame1):
     """
@@ -76,7 +78,7 @@ def generate_singleelem(base_dir, length, d_shift, frame0, frame1):
 
     # Tri3 Single: 0,1,2 (CCW)
     dx, dy, dz = gendata.compute_disps(v_tri, frame0, frame1)
-    gendata.save_case(base_dir, "tri3_single", v_tri, np.array([[0, 1, 2]]), dx, dy, dz)
+    gendata.save_case(base_dir, "tri3_single", v_tri, np.array([[0, 1, 2]]), meshconv.EElementType.TRI3, dx, dy, dz)
 
     # Tri6 Single: 0,1,2, 3,4,5 (CCW)
     m01 = (v_tri[0] + v_tri[1]) / 2.0
@@ -84,7 +86,7 @@ def generate_singleelem(base_dir, length, d_shift, frame0, frame1):
     m20 = gendata.move_midside(v_tri[2], v_tri[0], tri_centroid, -d_shift)
     coords_tri6 = np.vstack([v_tri, [m01, m12, m20]])
     dx, dy, dz = gendata.compute_disps(coords_tri6, frame0, frame1)
-    gendata.save_case(base_dir, "tri6_single", coords_tri6, np.array([[0, 1, 2, 3, 4, 5]]), dx, dy, dz)
+    gendata.save_case(base_dir, "tri6_single", coords_tri6, np.array([[0, 1, 2, 3, 4, 5]]), meshconv.EElementType.TRI6, dx, dy, dz)
 
     # Quad Single (Square)
     v_quad = np.array([
@@ -94,7 +96,7 @@ def generate_singleelem(base_dir, length, d_shift, frame0, frame1):
 
     # Quad4 Single: 0,1,2,3 (CCW)
     dx, dy, dz = gendata.compute_disps(v_quad, frame0, frame1)
-    gendata.save_case(base_dir, "quad4_single", v_quad, np.array([[0, 1, 2, 3]]), dx, dy, dz)
+    gendata.save_case(base_dir, "quad4_single", v_quad, np.array([[0, 1, 2, 3]]), meshconv.EElementType.QUAD4, dx, dy, dz)
 
     # Quad8 Single: 0,1,2,3, 4,5,6,7 (CCW)
     m01_q = (v_quad[0] + v_quad[1]) / 2.0
@@ -103,12 +105,12 @@ def generate_singleelem(base_dir, length, d_shift, frame0, frame1):
     m30_q = (v_quad[3] + v_quad[0]) / 2.0
     coords_quad8 = np.vstack([v_quad, [m01_q, m12_q, m23_q, m30_q]])
     dx, dy, dz = gendata.compute_disps(coords_quad8, frame0, frame1)
-    gendata.save_case(base_dir, "quad8_single", coords_quad8, np.array([[0, 1, 2, 3, 4, 5, 6, 7]]), dx, dy, dz)
+    gendata.save_case(base_dir, "quad8_single", coords_quad8, np.array([[0, 1, 2, 3, 4, 5, 6, 7]]), meshconv.EElementType.QUAD8, dx, dy, dz)
 
     # Quad9 Single: 0,1,2,3, 4,5,6,7, 8 (CCW)
     coords_quad9 = np.vstack([coords_quad8, [quad_centroid]])
     dx, dy, dz = gendata.compute_disps(coords_quad9, frame0, frame1)
-    gendata.save_case(base_dir, "quad9_single", coords_quad9, np.array([[0, 1, 2, 3, 4, 5, 6, 7, 8]]), dx, dy, dz)
+    gendata.save_case(base_dir, "quad9_single", coords_quad9, np.array([[0, 1, 2, 3, 4, 5, 6, 7, 8]]), meshconv.EElementType.QUAD9, dx, dy, dz)
 
 def generate_uvs(base_dir, u_range, v_range):
     cases = [

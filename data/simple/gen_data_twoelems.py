@@ -2,6 +2,8 @@ import numpy as np
 from pathlib import Path
 import gendata
 
+from riley.python import meshconv
+
 # Coordinate System: Right-handed Cartesian (X right, Y up, Z towards viewer).
 # Vertex Winding: All elements MUST follow Counter-Clockwise (CCW) winding.
 # This ensures positive signed area calculation in the rasterizer, which is 
@@ -32,7 +34,7 @@ def generate_twoelems(base_dir, length, d_shift, frame0, frame1):
     # Right: [1, 0, 2], Left: [2, 0, 3] (CCW)
     connect_tri3 = np.array([[1, 0, 2], [2, 0, 3]])
     dx, dy, dz = gendata.compute_disps(coords_tri3, frame0, frame1)
-    gendata.save_case(base_dir, "tri3_twoelems", coords_tri3, connect_tri3, dx, dy, dz)
+    gendata.save_case(base_dir, "tri3_twoelems", coords_tri3, connect_tri3, meshconv.EElementType.TRI3, dx, dy, dz)
     
     # Tri6
     m10_r = gendata.move_midside(v1, v0, c_right, d_shift)
@@ -48,7 +50,7 @@ def generate_twoelems(base_dir, length, d_shift, frame0, frame1):
         [2, 0, 3, 7, 8, 9]
     ])
     dx, dy, dz = gendata.compute_disps(coords_tri6, frame0, frame1)
-    gendata.save_case(base_dir, "tri6_twoelems", coords_tri6, connect_tri6, dx, dy, dz)
+    gendata.save_case(base_dir, "tri6_twoelems", coords_tri6, connect_tri6, meshconv.EElementType.TRI6, dx, dy, dz)
     
     # --- Quads ---
     vq0 = np.array([-length, length/2.0, 0.0])
@@ -66,7 +68,7 @@ def generate_twoelems(base_dir, length, d_shift, frame0, frame1):
     # Left: [3, 4, 1, 0], Right: [4, 5, 2, 1] (CCW)
     connect_q4 = np.array([[3, 4, 1, 0], [4, 5, 2, 1]])
     dx, dy, dz = gendata.compute_disps(coords_q4, frame0, frame1)
-    gendata.save_case(base_dir, "quad4_twoelems", coords_q4, connect_q4, dx, dy, dz)
+    gendata.save_case(base_dir, "quad4_twoelems", coords_q4, connect_q4, meshconv.EElementType.QUAD4, dx, dy, dz)
     
     # Quad8
     mq34_l = gendata.move_midside(vq3, vq4, cq_left, -d_shift)
@@ -88,7 +90,7 @@ def generate_twoelems(base_dir, length, d_shift, frame0, frame1):
         [4, 5, 2, 1, 10, 11, 12, 13]
     ])
     dx, dy, dz = gendata.compute_disps(coords_q8, frame0, frame1)
-    gendata.save_case(base_dir, "quad8_twoelems", coords_q8, connect_q8, dx, dy, dz)
+    gendata.save_case(base_dir, "quad8_twoelems", coords_q8, connect_q8, meshconv.EElementType.QUAD8, dx, dy, dz)
     
     # Quad9
     coords_q9 = np.vstack([coords_q8, [cq_left, cq_right]])
@@ -97,7 +99,7 @@ def generate_twoelems(base_dir, length, d_shift, frame0, frame1):
         [4, 5, 2, 1, 10, 11, 12, 13, 15]
     ])
     dx, dy, dz = gendata.compute_disps(coords_q9, frame0, frame1)
-    gendata.save_case(base_dir, "quad9_twoelems", coords_q9, connect_q9, dx, dy, dz)
+    gendata.save_case(base_dir, "quad9_twoelems", coords_q9, connect_q9, meshconv.EElementType.QUAD9, dx, dy, dz)
 
 def main():
     base_dir = "."
