@@ -14,39 +14,16 @@ from riley.cython.riley import (
     NodalShader,
     TextureShader,
 )
+from riley.python.meshconstants import (
+    ELEMENT_FAMILIES,
+    ELEMENT_NODE_COUNTS,
+    ELEMENT_ORDERS,
+    RILEY_MESH_ELEMENT_TYPES,
+)
 from riley.python.meshconv import (
     ConnectConvention, EElementType, MeshConvErr, MeshGeometry,
     _extract_surface_with_node_idxs, convert_mesh, verify_mesh,
 )
-
-_MESH_ELEM = {
-    MeshType.tri3: EElementType.TRI3, MeshType.tri3opt: EElementType.TRI3,
-    MeshType.tri6: EElementType.TRI6,
-    MeshType.quad4ibi: EElementType.QUAD4,
-    MeshType.quad4newton: EElementType.QUAD4,
-    MeshType.quad8: EElementType.QUAD8, MeshType.quad9: EElementType.QUAD9,
-}
-_FAMILY = {
-    EElementType.TRI3: "tri",
-    EElementType.TRI6: "tri",
-    EElementType.TRI7: "tri",
-    EElementType.QUAD4: "quad",
-    EElementType.QUAD8: "quad",
-    EElementType.QUAD9: "quad",
-    EElementType.TET4: "tet", EElementType.TET10: "tet",
-    EElementType.HEX8: "hex",
-    EElementType.HEX20: "hex",
-    EElementType.HEX27: "hex",
-}
-_ORDER = {
-    EElementType.TRI3: 1, EElementType.TRI6: 2, EElementType.TRI7: 2,
-    EElementType.QUAD4: 1, EElementType.QUAD8: 2, EElementType.QUAD9: 2,
-}
-_NODES = {
-    EElementType.TRI3: 3, EElementType.TRI6: 6, EElementType.TRI7: 7,
-    EElementType.QUAD4: 4, EElementType.QUAD8: 8, EElementType.QUAD9: 9,
-}
-
 
 def load_csv(
     path: str | Path,
@@ -111,12 +88,15 @@ def _compact(
     source_idxs: np.ndarray,
     target: EElementType,
 ) -> tuple[MeshGeometry, np.ndarray]:
-    connect = mesh.connect[:, :_NODES[target]]
+    connect = mesh.connect[:, :ELEMENT_NODE_COUNTS[target]]
     retained = np.unique(connect)
     remap = np.full(mesh.coords.shape[0], -1, dtype=np.int64)
     remap[retained] = np.arange(retained.size, dtype=np.int64)
-    result = MeshGeometry(target, np.ascontiguousarray(mesh.coords[retained]),
-                          np.ascontiguousarray(remap[connect]))
+    result = MeshGeometry(
+        target,
+        np.ascontiguousarray(mesh.coords[retained]),
+        np.ascontiguousarray(remap[connect], dtype=np.uintp),
+    )
     verify_mesh(result)
     return result, np.ascontiguousarray(source_idxs[retained])
 
@@ -128,20 +108,20 @@ def _prepare_geometry(
     connect: np.ndarray,
 ) -> tuple[MeshGeometry, np.ndarray]:
     mesh = convert_mesh(coords, connect, convention)
-    source_idxs = np.arange(mesh.coords.shape[0], dtype=np.int64)
-    target = _MESH_ELEM[mesh_type]
+    source_idxs = np.arange(mesh.coords.shape[0], dtype=np.uintp)
+    target = RILEY_MESH_ELEMENT_TYPES[mesh_type]
     source = mesh.elem_type
-    if _FAMILY[source] in ("tet", "hex"):
-        required = "tri" if _FAMILY[source] == "tet" else "quad"
-        if _FAMILY[target] != required:
+    if ELEMENT_FAMILIES[source] in ("tet", "hex"):
+        required = "tri" if ELEMENT_FAMILIES[source] == "tet" else "quad"
+        if ELEMENT_FAMILIES[target] != required:
             raise MeshConvErr(
                 f"Cannot create {target.value} from {source.value}."
             )
         mesh, source_idxs = _extract_surface_with_node_idxs(mesh)
         source = mesh.elem_type
-    if _FAMILY[source] != _FAMILY[target]:
+    if ELEMENT_FAMILIES[source] != ELEMENT_FAMILIES[target]:
         raise MeshConvErr(f"Cannot change {source.value} into {target.value}.")
-    if _ORDER[target] > _ORDER[source]:
+    if ELEMENT_ORDERS[target] > ELEMENT_ORDERS[source]:
         raise MeshConvErr(f"Cannot elevate {source.value} to {target.value}.")
     if source is target:
         return mesh, source_idxs

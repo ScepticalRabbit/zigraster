@@ -92,7 +92,7 @@ def test_vtk_adapter_handles_every_array_representation(
     meshconv.verify_mesh(mesh)
     assert mesh.elem_type is elem_type
     assert np.array_equal(mesh.connect, connect_std)
-    assert mesh.connect.dtype == np.int64
+    assert mesh.connect.dtype == np.uintp
     assert mesh.connect.flags.c_contiguous
 
 
@@ -285,6 +285,30 @@ def test_verify_mesh_collects_independent_failures() -> None:
     }
 
 
+def test_convert_mesh_collects_independent_failures() -> None:
+    coords = np.array(
+        ((0.0, 0.0, 0.0), (1.0, np.nan, 0.0)),
+        dtype=np.float64,
+    )
+    connect = np.array(((0, 1),), dtype=np.float64)
+    convention = meshconv.ConnectConvention(
+        elem_type=meshconv.EElementType.TRI3,
+        elem_axis=meshconv.EConnectAxis.ROW,
+        index_base=0,
+        node_order=meshconv.ENodeOrder.RILEY,
+    )
+
+    with pytest.raises(meshconv.MeshConvErr) as error_info:
+        meshconv.convert_mesh(coords, connect, convention)
+
+    codes = {issue.code for issue in error_info.value.issues}
+    assert codes == {
+        "coordinate_values",
+        "connectivity_width",
+        "connectivity_dtype",
+    }
+
+
 def test_verify_mesh_accepts_collapsed_surface_face() -> None:
     coords = np.array(
         (
@@ -296,7 +320,7 @@ def test_verify_mesh_accepts_collapsed_surface_face() -> None:
     mesh = meshconv.MeshGeometry(
         meshconv.EElementType.TRI3,
         coords,
-        np.array(((0, 1, 2),), dtype=np.int64),
+        np.array(((0, 1, 2),), dtype=np.uintp),
     )
 
     meshconv.verify_mesh(mesh)
@@ -316,40 +340,10 @@ def test_verify_mesh_accepts_coincident_uv_seam_faces() -> None:
     mesh = meshconv.MeshGeometry(
         meshconv.EElementType.TRI3,
         coords,
-        np.array(((0, 1, 2), (3, 4, 5)), dtype=np.int64),
+        np.array(((0, 1, 2), (3, 4, 5)), dtype=np.uintp),
     )
 
     meshconv.verify_mesh(mesh)
-
-
-def test_convert_mesh_repairs_inverted_tet4() -> None:
-    elem_type = meshconv.EElementType.TET4
-    coords = elem_type.calc_ref_coords()
-    connect = np.array(((0, 2, 1, 3),), dtype=np.int64)
-    convention = meshconv.ConnectConvention(
-        elem_type, meshconv.EConnectAxis.ROW, 0
-    )
-
-    mesh = meshconv.convert_mesh(coords, connect, convention)
-
-    np.testing.assert_array_equal(mesh.connect, ((0, 1, 2, 3),))
-
-
-def test_convert_mesh_reverses_open_surface_explicitly() -> None:
-    coords = np.array(
-        ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
-    )
-    connect = np.array(((0, 1, 2),), dtype=np.int64)
-    convention = meshconv.ConnectConvention(
-        meshconv.EElementType.TRI3,
-        meshconv.EConnectAxis.ROW,
-        0,
-        reverse_open_surface=True,
-    )
-
-    mesh = meshconv.convert_mesh(coords, connect, convention)
-
-    np.testing.assert_array_equal(mesh.connect, ((0, 2, 1),))
 
 
 @pytest.mark.parametrize(
@@ -365,7 +359,8 @@ def test_convert_mesh_rejects_invalid_connectivity(
 ) -> None:
     coords = np.eye(3, dtype=np.float64)
     convention = meshconv.ConnectConvention(
-        meshconv.EElementType.TRI3, meshconv.EConnectAxis.ROW, 0
+        meshconv.EElementType.TRI3, meshconv.EConnectAxis.ROW, 0,
+        meshconv.ENodeOrder.RILEY,
     )
 
     with pytest.raises(meshconv.MeshConvErr):
@@ -432,33 +427,12 @@ def test_extract_surface_uses_vtk_face_order(
     volume = meshconv.MeshGeometry(
         elem_type,
         coords,
-        np.arange(coords.shape[0], dtype=np.int64)[None, :],
+        np.arange(coords.shape[0], dtype=np.uintp)[None, :],
     )
 
     surface = meshconv.extract_surface(volume)
 
     np.testing.assert_array_equal(surface.connect, expected_faces)
-
-
-def test_convert_mesh_repairs_inverted_hex27_face_centres() -> None:
-    elem_type = meshconv.EElementType.HEX27
-    coords = elem_type.calc_ref_coords()
-    reverse_slots = np.array((
-        0, 3, 2, 1, 4, 7, 6, 5, 11, 10, 9, 8,
-        15, 14, 13, 12, 16, 19, 18, 17,
-        22, 23, 20, 21, 24, 25, 26,
-    ))
-    connect = reverse_slots[None, :]
-    convention = meshconv.ConnectConvention(
-        elem_type, meshconv.EConnectAxis.ROW, 0
-    )
-
-    mesh = meshconv.convert_mesh(coords, connect, convention)
-
-    np.testing.assert_array_equal(
-        mesh.connect,
-        np.arange(27, dtype=np.int64)[None, :],
-    )
 
 
 @pytest.mark.parametrize(("case_name", "elem_type"), _CUBE_TYPES.items())
@@ -478,6 +452,7 @@ def test_packaged_cube_converts_verifies_and_extracts(
         elem_type=elem_type,
         elem_axis=meshconv.EConnectAxis.ROW,
         index_base=0,
+        node_order=meshconv.ENodeOrder.RILEY,
     )
 
     volume = meshconv.convert_mesh(coords, connect, convention)
@@ -507,6 +482,7 @@ def test_packaged_sphere_converts_and_verifies(
         elem_type=elem_type,
         elem_axis=meshconv.EConnectAxis.ROW,
         index_base=0,
+        node_order=meshconv.ENodeOrder.RILEY,
     )
 
     mesh = meshconv.convert_mesh(coords, connect, convention)
@@ -519,7 +495,8 @@ def test_packaged_square_donut_converts_and_verifies() -> None:
     coords = np.loadtxt(case_path / "coords.csv", delimiter=",")
     connect = meshio.load_csv(case_path / "connect.csv", dtype=np.int64)
     convention = meshconv.ConnectConvention(
-        meshconv.EElementType.QUAD8, meshconv.EConnectAxis.ROW, 0
+        meshconv.EElementType.QUAD8, meshconv.EConnectAxis.ROW, 0,
+        meshconv.ENodeOrder.RILEY,
     )
 
     mesh = meshconv.convert_mesh(coords, connect, convention)

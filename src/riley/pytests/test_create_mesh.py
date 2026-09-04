@@ -40,7 +40,9 @@ def test_create_mesh_identity_representations(
     connect = np.arange(coords.shape[0], dtype=np.int64)[None, :] + index_base
     if axis is riley.EConnectAxis.COLUMN:
         connect = connect.T
-    convention = riley.ConnectConvention(elem_type, axis, index_base)
+    convention = riley.ConnectConvention(
+        elem_type, axis, index_base, riley.ENodeOrder.RILEY
+    )
     mesh = riley.create_mesh(
         convention, mesh_type, coords, connect, shader=_function_shader()
     )
@@ -75,7 +77,9 @@ def test_create_mesh_supported_topology_transitions(source, target) -> None:
     coords = _coords_3d(source)
     connect = np.arange(coords.shape[0], dtype=np.int64)[None, :]
     mesh = riley.create_mesh(
-        riley.ConnectConvention(source, riley.EConnectAxis.ROW, 0),
+        riley.ConnectConvention(
+            source, riley.EConnectAxis.ROW, 0, riley.ENodeOrder.RILEY
+        ),
         target, coords, connect, shader=_function_shader(),
     )
     assert mesh.connect.shape[1] in (3, 4, 6, 8, 9)
@@ -99,7 +103,9 @@ def test_create_mesh_rejects_unsupported_topology_transitions(
     connect = np.arange(coords.shape[0], dtype=np.int64)[None, :]
     with pytest.raises(riley.MeshConvErr):
         riley.create_mesh(
-            riley.ConnectConvention(source, riley.EConnectAxis.ROW, 0),
+            riley.ConnectConvention(
+                source, riley.EConnectAxis.ROW, 0, riley.ENodeOrder.RILEY
+            ),
             target, coords, connect, shader=_function_shader(),
         )
 
@@ -111,7 +117,9 @@ def test_create_mesh_remaps_every_nodal_array_by_source_index() -> None:
     uvs = np.column_stack((ids, -ids))
     texture = np.zeros((1, 2, 2), dtype=np.uint8)
     mesh = riley.create_mesh(
-        riley.ConnectConvention(source, riley.EConnectAxis.ROW, 0),
+        riley.ConnectConvention(
+            source, riley.EConnectAxis.ROW, 0, riley.ENodeOrder.RILEY
+        ),
         riley.MeshType.quad4newton,
         coords,
         np.arange(27, dtype=np.int64)[None, :],
@@ -130,7 +138,8 @@ def test_create_mesh_prepares_nodal_shader(channels: int) -> None:
     field = np.ones((3, 2, channels), dtype=np.float32)
     mesh = riley.create_mesh(
         riley.ConnectConvention(
-            riley.EElementType.TRI3, riley.EConnectAxis.ROW, 0
+            riley.EElementType.TRI3, riley.EConnectAxis.ROW, 0,
+            riley.ENodeOrder.RILEY,
         ),
         riley.MeshType.tri3,
         coords,
@@ -145,7 +154,8 @@ def test_create_mesh_result_crosses_cython_mesh_boundary() -> None:
     coords = _coords_3d(riley.EElementType.TRI3)
     mesh = riley.create_mesh(
         riley.ConnectConvention(
-            riley.EElementType.TRI3, riley.EConnectAxis.ROW, 0
+            riley.EElementType.TRI3, riley.EConnectAxis.ROW, 0,
+            riley.ENodeOrder.RILEY,
         ),
         riley.MeshType.tri3,
         coords,
@@ -173,7 +183,9 @@ def test_create_mesh_reuses_packaged_cube_fixtures(
 ) -> None:
     case_path = riley.data.cube_case_path(case_name)
     mesh = riley.create_mesh(
-        riley.ConnectConvention(elem_type, riley.EConnectAxis.ROW, 0),
+        riley.ConnectConvention(
+            elem_type, riley.EConnectAxis.ROW, 0, riley.ENodeOrder.RILEY
+        ),
         mesh_type,
         riley.load_csv(case_path / "coords.csv"),
         riley.load_csv(case_path / "connectivity.csv", dtype=np.int64),
@@ -194,7 +206,8 @@ def test_create_mesh_supports_all_texture_storage_types(
     shader = riley.TextureShader(coords[:, :2], texture)
     mesh = riley.create_mesh(
         riley.ConnectConvention(
-            riley.EElementType.TRI3, riley.EConnectAxis.ROW, 0
+            riley.EElementType.TRI3, riley.EConnectAxis.ROW, 0,
+            riley.ENodeOrder.RILEY,
         ),
         riley.MeshType.tri3,
         coords,
@@ -210,7 +223,8 @@ def test_create_mesh_supports_every_function_shader(builtin, channels) -> None:
     coords = _coords_3d(riley.EElementType.TRI3)
     mesh = riley.create_mesh(
         riley.ConnectConvention(
-            riley.EElementType.TRI3, riley.EConnectAxis.ROW, 0
+            riley.EElementType.TRI3, riley.EConnectAxis.ROW, 0,
+            riley.ENodeOrder.RILEY,
         ),
         riley.MeshType.tri3,
         coords,

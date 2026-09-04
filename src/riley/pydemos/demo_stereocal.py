@@ -115,7 +115,8 @@ def main() -> None:
 
     mesh = riley.create_mesh(
         convention=riley.ConnectConvention(
-            riley.EElementType.TRI3, riley.EConnectAxis.ROW, 0
+            riley.EElementType.TRI3, riley.EConnectAxis.ROW, 0,
+            riley.ENodeOrder.RILEY,
         ),
         mesh_type=riley.MeshType.tri3,
         coords=coords,

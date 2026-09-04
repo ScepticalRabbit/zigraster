@@ -64,7 +64,7 @@ def make_grey_mesh_input(
         riley.MeshType.quad9: riley.EElementType.QUAD9,
     }[mesh_type]
     convention = riley.ConnectConvention(
-        elem_type, riley.EConnectAxis.ROW, 0
+        elem_type, riley.EConnectAxis.ROW, 0, riley.ENodeOrder.RILEY,
     )
 
     if shader_idx == 0:
