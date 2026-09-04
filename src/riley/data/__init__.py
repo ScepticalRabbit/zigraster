@@ -77,6 +77,18 @@ def cube_case_path(case_name: str) -> Path:
     )
 
 
+def cube_exodus_path(case_name: str) -> Path:
+    if case_name not in _CUBE_CASE_NAMES:
+        raise ValueError(
+            f"Unsupported cube data case: {case_name!r}. "
+            f"Expected one of {_CUBE_CASE_NAMES}.",
+        )
+    return _resolve_data_path(
+        f"cubes/{case_name}/cube_out.e",
+        f"data/cubes/{case_name}/cube_out.e",
+    )
+
+
 def sphere200_case_path(case_name: str = "tri6_sphere200") -> Path:
     if case_name not in _SPHERE200_CASE_NAMES:
         raise ValueError(
@@ -129,6 +141,7 @@ def rabbit_case_path(
 __all__ = [
     "cal_target_texture_path",
     "cube_case_path",
+    "cube_exodus_path",
     "platehole_csv_case_path",
     "platehole_exodus_path",
     "rabbit_case_path",

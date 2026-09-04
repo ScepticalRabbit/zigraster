@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import netCDF4
 import numpy as np
 import pytest
 
@@ -115,6 +116,121 @@ def test_exodus_hex20_adapter_reorders_edge_groups() -> None:
     mesh = meshconv.convert_mesh(coords, connect_src, convention)
 
     assert np.array_equal(mesh.connect, connect_std)
+
+
+def test_exodus_hex27_adapter_reorders_edges_faces_and_centre() -> None:
+    elem_type = meshconv.EElementType.HEX27
+    coords = elem_type.calc_ref_coords()
+    connect_std = np.arange(27, dtype=np.int64)[None, :]
+    riley_from_exodus = np.array((
+        0, 1, 2, 3, 4, 5, 6, 7,
+        8, 9, 10, 11, 16, 17, 18, 19, 12, 13, 14, 15,
+        23, 24, 25, 26, 21, 22, 20,
+    ))
+    connect_src = np.empty_like(connect_std)
+    connect_src[:, riley_from_exodus] = connect_std
+    convention = meshconv.ConnectConvention(
+        elem_type=elem_type,
+        elem_axis=meshconv.EConnectAxis.ROW,
+        index_base=0,
+        node_order=meshconv.ENodeOrder.EXODUS,
+    )
+
+    mesh = meshconv.convert_mesh(coords, connect_src, convention)
+
+    assert np.array_equal(mesh.connect, connect_std)
+
+
+@pytest.mark.parametrize(("case_name", "elem_type"), _CUBE_TYPES.items())
+def test_moose_exodus_cube_converts_verifies_and_extracts(
+    case_name: str,
+    elem_type: meshconv.EElementType,
+) -> None:
+    with netCDF4.Dataset(data.cube_exodus_path(case_name)) as dataset:
+        coords = np.column_stack((
+            dataset.variables["coordx"][:],
+            dataset.variables["coordy"][:],
+            dataset.variables["coordz"][:],
+        ))
+        connect = np.asarray(dataset.variables["connect1"][:])
+        node_count = len(dataset.dimensions["num_nodes"])
+        for variable_idx in (1, 2, 3, 10):
+            assert dataset.variables[
+                f"vals_nod_var{variable_idx}"
+            ].shape == (21, node_count)
+
+    convention = meshconv.ConnectConvention(
+        elem_type=elem_type,
+        elem_axis=meshconv.EConnectAxis.ROW,
+        index_base=1,
+        node_order=meshconv.ENodeOrder.EXODUS,
+    )
+
+    volume = meshconv.convert_mesh(coords, connect, convention)
+    surface = meshconv.extract_surface(volume)
+
+    meshconv.verify_mesh(volume)
+    meshconv.verify_mesh(surface)
+    assert volume.connect.shape == connect.shape
+    assert surface.coords.shape[0] < volume.coords.shape[0]
+
+
+@pytest.mark.parametrize(
+    "case_name",
+    ("tet10", "hex20", "hex27"),
+)
+def test_moose_exodus_high_order_nodes_have_standard_roles(
+    case_name: str,
+) -> None:
+    elem_type = _CUBE_TYPES[case_name]
+    with netCDF4.Dataset(data.cube_exodus_path(case_name)) as dataset:
+        coords = np.column_stack((
+            dataset.variables["coordx"][:],
+            dataset.variables["coordy"][:],
+            dataset.variables["coordz"][:],
+        ))
+        connect = np.asarray(dataset.variables["connect1"][:])
+
+    convention = meshconv.ConnectConvention(
+        elem_type=elem_type,
+        elem_axis=meshconv.EConnectAxis.ROW,
+        index_base=1,
+        node_order=meshconv.ENodeOrder.EXODUS,
+    )
+    volume = meshconv.convert_mesh(coords, connect, convention)
+    if elem_type is meshconv.EElementType.TET10:
+        edges = (
+            (0, 1), (1, 2), (2, 0),
+            (0, 3), (1, 3), (2, 3),
+        )
+        corner_count = 4
+    else:
+        edges = (
+            (0, 1), (1, 2), (2, 3), (3, 0),
+            (4, 5), (5, 6), (6, 7), (7, 4),
+            (0, 4), (1, 5), (2, 6), (3, 7),
+        )
+        corner_count = 8
+
+    for elem_connect in volume.connect:
+        elem_coords = volume.coords[elem_connect]
+        for edge_slot, edge_corners in enumerate(edges, corner_count):
+            expected = np.mean(elem_coords[list(edge_corners)], axis=0)
+            np.testing.assert_allclose(elem_coords[edge_slot], expected)
+
+        if elem_type is meshconv.EElementType.HEX27:
+            faces = (
+                (0, 4, 7, 3), (1, 2, 6, 5),
+                (0, 1, 5, 4), (3, 7, 6, 2),
+                (0, 1, 2, 3), (4, 5, 6, 7),
+            )
+            for face_slot, face_corners in enumerate(faces, 20):
+                expected = np.mean(elem_coords[list(face_corners)], axis=0)
+                np.testing.assert_allclose(elem_coords[face_slot], expected)
+            np.testing.assert_allclose(
+                elem_coords[26],
+                np.mean(elem_coords[:8], axis=0),
+            )
 
 
 def test_user_topology_describes_source_relationships() -> None:

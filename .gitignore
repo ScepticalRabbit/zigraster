@@ -49,6 +49,7 @@ refs/
 !data/min/**/*.csv
 !data/cubes/
 !data/cubes/**/*.csv
+!data/cubes/*/cube_out.e
 !gold/min/
 !gold/min/**/*.fimg
 !gold/min/**/*.bmp

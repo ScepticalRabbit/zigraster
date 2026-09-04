@@ -175,6 +175,14 @@ meshconv.verify_mesh(mesh)
 surface = meshconv.extract_surface(mesh)
 ```
 
+The Exodus adapter follows the official
+[SEACAS element definitions](https://sandialabs.github.io/seacas-docs/html/element_types.html).
+For HEX20 and HEX27, Exodus places the vertical edge nodes before the top
+edge nodes; Riley/VTK places the top edge nodes first. Exodus HEX27 also
+places its cell centre before its face centres. Conversion moves the Exodus
+face centres into Riley/VTK order: left, right, front, back, bottom and top,
+followed by the cell centre.
+
 An unknown source convention uses `UserTopology`. It describes source slots
 and source corner relationships; it does not require Riley slot numbers.
 

@@ -24,6 +24,7 @@ def test_packaged_cube_data_paths_exist(case_name: str) -> None:
     case_path = riley.data.cube_case_path(case_name)
     assert (case_path / "coords.csv").is_file()
     assert (case_path / "connectivity.csv").is_file()
+    assert riley.data.cube_exodus_path(case_name).is_file()
 
 
 @pytest.mark.parametrize(
@@ -45,6 +46,8 @@ def test_packaged_sphere_data_paths_exist(case_name: str) -> None:
 def test_packaged_data_paths_reject_unknown_cases() -> None:
     with pytest.raises(ValueError, match="Unsupported cube data case"):
         riley.data.cube_case_path("tet14")
+    with pytest.raises(ValueError, match="Unsupported cube data case"):
+        riley.data.cube_exodus_path("tet14")
     with pytest.raises(ValueError, match="Unsupported sphere200 data case"):
         riley.data.sphere200_case_path("unknown")
 

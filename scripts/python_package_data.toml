@@ -99,12 +99,20 @@ source = "data/cubes/tet4/connectivity.csv"
 dest = "cubes/tet4/connectivity.csv"
 
 [[copy]]
+source = "data/cubes/tet4/cube_out.e"
+dest = "cubes/tet4/cube_out.e"
+
+[[copy]]
 source = "data/cubes/tet10/coords.csv"
 dest = "cubes/tet10/coords.csv"
 
 [[copy]]
 source = "data/cubes/tet10/connectivity.csv"
 dest = "cubes/tet10/connectivity.csv"
+
+[[copy]]
+source = "data/cubes/tet10/cube_out.e"
+dest = "cubes/tet10/cube_out.e"
 
 [[copy]]
 source = "data/cubes/hex8/coords.csv"
@@ -115,6 +123,10 @@ source = "data/cubes/hex8/connectivity.csv"
 dest = "cubes/hex8/connectivity.csv"
 
 [[copy]]
+source = "data/cubes/hex8/cube_out.e"
+dest = "cubes/hex8/cube_out.e"
+
+[[copy]]
 source = "data/cubes/hex20/coords.csv"
 dest = "cubes/hex20/coords.csv"
 
@@ -123,12 +135,20 @@ source = "data/cubes/hex20/connectivity.csv"
 dest = "cubes/hex20/connectivity.csv"
 
 [[copy]]
+source = "data/cubes/hex20/cube_out.e"
+dest = "cubes/hex20/cube_out.e"
+
+[[copy]]
 source = "data/cubes/hex27/coords.csv"
 dest = "cubes/hex27/coords.csv"
 
 [[copy]]
 source = "data/cubes/hex27/connectivity.csv"
 dest = "cubes/hex27/connectivity.csv"
+
+[[copy]]
+source = "data/cubes/hex27/cube_out.e"
+dest = "cubes/hex27/cube_out.e"
 
 [[copy]]
 source = "data/FE/platehole3d_2mr_63f/connect.csv"

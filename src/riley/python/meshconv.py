@@ -351,6 +351,11 @@ _EXODUS_TO_RILEY = MappingProxyType({
         0, 1, 2, 3, 4, 5, 6, 7,
         8, 9, 10, 11, 16, 17, 18, 19, 12, 13, 14, 15,
     ),
+    EElementType.HEX27: (
+        0, 1, 2, 3, 4, 5, 6, 7,
+        8, 9, 10, 11, 16, 17, 18, 19, 12, 13, 14, 15,
+        23, 24, 25, 26, 21, 22, 20,
+    ),
 })
 
 
@@ -448,11 +453,6 @@ def _get_source_perm(convention: ConnectConvention) -> tuple[int, ...]:
     if convention.node_order in (ENodeOrder.RILEY, ENodeOrder.VTK):
         return _VTK_TO_RILEY[convention.elem_type]
     if convention.node_order is ENodeOrder.EXODUS:
-        if convention.elem_type is EElementType.HEX27:
-            raise MeshConvErr(
-                "The Exodus HEX27 adapter requires an authoritative fixture; "
-                "supply UserTopology explicitly."
-            )
         return _EXODUS_TO_RILEY[convention.elem_type]
     raise MeshConvErr(f"Unsupported node ordering: {convention.node_order}.")
 
@@ -1015,11 +1015,15 @@ def _extract_surface_with_node_idxs(
     surf_spec = _ELEMENT_SPECS[surf_type]
     face_uses: dict[tuple[int, ...], list[np.ndarray]] = {}
     corner_count = len(surf_spec.corner_slots)
+
     for elem_row in mesh.connect:
+
         parent_centre = np.mean(
             mesh.coords[elem_row[np.asarray(spec.corner_slots)]], axis=0
         )
+
         for face_slots in spec.surface_faces:
+
             face = elem_row[np.asarray(face_slots, dtype=np.int64)]
             face_corners = mesh.coords[face[:corner_count]]
             face_centre = np.mean(face_corners, axis=0)
@@ -1027,14 +1031,17 @@ def _extract_surface_with_node_idxs(
             points_outward = np.dot(
                 face_normal, face_centre - parent_centre
             ) > 0.0
+
             if not points_outward:
                 reverse_slots = np.asarray(
                     surf_spec.reverse_slots, dtype=np.int64
                 )
                 face = face[reverse_slots]
+
             face_nodes = []
             for node in face[:corner_count]:
                 face_nodes.append(int(node))
+
             face_key = tuple(sorted(face_nodes))
             face_uses.setdefault(face_key, []).append(face)
 
@@ -1045,8 +1052,10 @@ def _extract_surface_with_node_idxs(
                 f"Non-manifold volume face {face_key} has {len(uses)} "
                 "incident elements."
             )
+
         if len(uses) == 1:
             surf_faces.append(uses[0])
+
     if not surf_faces:
         raise MeshConvErr("Volume mesh has no boundary faces.")
 
@@ -1054,16 +1063,20 @@ def _extract_surface_with_node_idxs(
         np.vstack(surf_faces), dtype=np.int64
     )
     surf_node_idxs = np.unique(surf_connect_glob)
+
     node_remap = np.full(mesh.coords.shape[0], -1, dtype=np.int64)
     node_remap[surf_node_idxs] = np.arange(
         surf_node_idxs.shape[0], dtype=np.int64
     )
+
     mesh_out = MeshGeometry(
         elem_type=surf_type,
         coords=np.ascontiguousarray(mesh.coords[surf_node_idxs]),
         connect=np.ascontiguousarray(node_remap[surf_connect_glob]),
     )
+
     verify_mesh(mesh_out)
+
     return mesh_out, surf_node_idxs
 
 
