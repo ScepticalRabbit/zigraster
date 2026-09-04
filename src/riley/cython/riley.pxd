@@ -63,14 +63,7 @@ cdef extern from "riley.h":
         double* elems
         CDims5Usize dims
 
-    ctypedef struct CCameraInput:
-        CVec2U32 pixels_num
-        CVec2F64 pixels_size
-        CVec3F64 pos_world
-        CVec3F64 rot_world
-        CVec3F64 roi_cent_world
-        double focal_length
-        uint32_t sub_sample
+    ctypedef struct CDistortion:
         uint32_t distortion_model
         double distortion_k1
         double distortion_k2
@@ -87,14 +80,27 @@ cdef extern from "riley.h":
         double distortion_poly_forward_v[10]
         double distortion_poly_inv_u[10]
         double distortion_poly_inv_v[10]
-        uint32_t coord_sys
-        uint32_t subpixel_center_map
+
+    ctypedef struct CPSF:
         uint32_t psf_type
         double psf_sigma_x
         double psf_sigma_y
         double psf_theta
         double psf_supp_rad
         uint32_t psf_separable
+
+    ctypedef struct CCameraInput:
+        CVec2U32 pixels_num
+        CVec2F64 pixels_size
+        CVec3F64 pos_world
+        CVec3F64 rot_world
+        CVec3F64 roi_cent_world
+        double focal_length
+        uint32_t sub_sample
+        CDistortion distortion
+        CPSF psf
+        uint32_t coord_sys
+        uint32_t subpixel_center_map
 
     ctypedef struct CFuncShaderParams:
         double coord_scale_0
@@ -180,11 +186,7 @@ cdef extern from "riley.h":
         double extra_3
 
 
-    ctypedef struct CMeshInput:
-        uint32_t mesh_type
-        CArray2DF64 coords
-        CArray2DUsize connect
-        CArray3DF64 disp
+    ctypedef struct CShaderInput:
         uint32_t shader_tag
         CArray2DF64 uvs
         CArray3DF64 tex
@@ -203,6 +205,13 @@ cdef extern from "riley.h":
         uint32_t func_shader_coord_mode
         CFuncShaderParams func_shader_params
         uint32_t normal_type
+
+    ctypedef struct CMeshInput:
+        uint32_t mesh_type
+        CArray2DF64 coords
+        CArray2DUsize connect
+        CArray3DF64 disp
+        CShaderInput shader
 
     ctypedef struct CRasterConfig:
         uint32_t render_mode

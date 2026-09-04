@@ -9,15 +9,14 @@
 from __future__ import annotations
 
 from time import perf_counter
+from pathlib import Path
+import shutil
 
 import numpy as np
 
 import riley
-from riley.pydemos.common import (
+from riley.pydemos.demoframes import (
     evenly_spaced_frame_indices,
-    load_demo_arrays,
-    make_demo_out_dir,
-    select_frames,
 )
 
 FRAMES_MAX = 8
@@ -80,17 +79,23 @@ def create_stereo_cameras(
 def main() -> None:
     data_dir = riley.data.stereocal_case_path()
     texture_path = riley.data.cal_target_texture_path()
-    out_dir = make_demo_out_dir("demo-stereocal")
+    out_dir = Path.cwd() / "out-riley-py" / "demo-stereocal"
+    shutil.rmtree(out_dir, ignore_errors=True)
+    out_dir.mkdir(parents=True)
     total_threads = 8
 
-    coords, connect, uvs, disp = load_demo_arrays(
-        data_dir, riley.EElementType.TRI3
+    coords = riley.load_csv(data_dir / "coords.csv")
+    connect = riley.load_csv(data_dir / "connect.csv", dtype=np.int64)
+    uvs = riley.load_csv(data_dir / "uvs.csv")
+    disp_components = tuple(
+        riley.load_csv(data_dir / f"field_disp_{axis}.csv")
+        for axis in "xyz"
     )
-    if disp is None:
-        raise ValueError("The stereo calibration demo requires displacement.")
-    frame_indices = evenly_spaced_frame_indices(disp.shape[0], FRAMES_MAX)
-    disp = select_frames(disp, frame_indices)
-    texture = riley.load_texture_u8(texture_path)
+    frame_indices = evenly_spaced_frame_indices(
+        disp_components[0].shape[1], FRAMES_MAX
+    )
+    disp_components = tuple(item[:, frame_indices] for item in disp_components)
+    texture = riley.load_texture_mono_u8(texture_path)
 
     # Shift calibration plate to match the DICUQ specimen center
     roi_pos_orig = riley.roi_cent_from_coords(coords)
@@ -108,22 +113,19 @@ def main() -> None:
     # Load stereo pair back from output directory (standalone test)
     camera_0, camera_1 = riley.load_stereo_pair(str(out_dir), stereo_file)
 
-    mesh = riley.Mesh(
+    mesh = riley.create_mesh(
+        convention=riley.ConnectConvention(
+            riley.EElementType.TRI3, riley.EConnectAxis.ROW, 0
+        ),
         mesh_type=riley.MeshType.tri3,
         coords=coords,
         connect=connect,
-        disp=disp,
-        shader_type=riley.ShaderType.tex,
-        uvs=uvs,
-        texture=texture,
-        sample=riley.TextureSample.cubic_catmull_rom,
-        sample_mode=riley.TextureSampleMode.lut_lerp,
-        bits=8,
-        scaling_type=riley.ScaleStrategy.none,
+        disp=disp_components,
+        shader=riley.TextureShader(uvs=uvs, texture=texture),
     )
 
     config = riley.create_raster_config(
-        num_frames=disp.shape[0],
+        num_frames=mesh.disp.shape[0],
         total_threads=total_threads,
         save_strategy=riley.SaveStrategy.disk,
     )

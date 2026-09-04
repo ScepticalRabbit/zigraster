@@ -10,77 +10,37 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+import shutil
 from time import perf_counter
 
 import netCDF4
 import numpy as np
 
 import riley
-from riley.pydemos.common import (
-    first_last_frame_indices,
-    make_demo_out_dir,
-    select_frames,
-)
+from riley.pydemos.demoframes import first_last_frame_indices
 
 
-def load_surface_sim(
+def load_volume_sim(
     exodus_path: Path,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    dataset = netCDF4.Dataset(str(exodus_path))
-    coords_raw = np.column_stack((
-        dataset.variables["coordx"][:],
-        dataset.variables["coordy"][:],
-        dataset.variables["coordz"][:],
-    ))
-    connect_raw = np.asarray(
-        dataset.variables["connect1"][:],
-        dtype=np.int64,
-    )
-
-    convention = riley.ConnectConvention(
-        elem_type=riley.EElementType.HEX20,
-        elem_axis=riley.EConnectAxis.ROW,
-        index_base=1,
-        node_order=riley.ENodeOrder.EXODUS,
-    )
-    mesh_vol = riley.convert_mesh(coords_raw, connect_raw, convention)
-    mesh_surf = riley.extract_surface(mesh_vol)
-
-    coord_to_idx = {
-        tuple(coord): idx for idx, coord in enumerate(mesh_vol.coords)
-    }
-    surf_node_idxs = np.array(
-        [coord_to_idx[tuple(coord)] for coord in mesh_surf.coords],
-        dtype=np.int64,
-    )
-
-    disp_x = np.asarray(
-        dataset.variables["vals_nod_var1"][:],
-        dtype=np.float64,
-    )
-    disp_y = np.asarray(
-        dataset.variables["vals_nod_var2"][:],
-        dtype=np.float64,
-    )
-    disp_z = np.asarray(
-        dataset.variables["vals_nod_var3"][:],
-        dtype=np.float64,
-    )
-
-    disp = np.zeros(
-        (disp_x.shape[0], surf_node_idxs.shape[0], 3),
-        dtype=np.float64,
-    )
-    disp[:, :, 0] = disp_x[:, surf_node_idxs]
-    disp[:, :, 1] = disp_y[:, surf_node_idxs]
-    disp[:, :, 2] = disp_z[:, surf_node_idxs]
-    return mesh_surf.coords, mesh_surf.connect, disp
+) -> tuple[np.ndarray, np.ndarray, tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    with netCDF4.Dataset(str(exodus_path)) as dataset:
+        coords = np.column_stack((dataset.variables["coordx"][:],
+                                  dataset.variables["coordy"][:],
+                                  dataset.variables["coordz"][:]))
+        connect = np.asarray(dataset.variables["connect1"][:], dtype=np.int64)
+        disp = tuple(np.ascontiguousarray(
+            dataset.variables[f"vals_nod_var{idx}"][:].T,
+            dtype=np.float64,
+        ) for idx in (1, 2, 3))
+    return np.ascontiguousarray(coords, dtype=np.float64), connect, disp
 
 
 def main() -> None:
     exodus_path = riley.data.platehole_exodus_path()
     texture_path = riley.data.speckle_texture_path()
-    out_dir = make_demo_out_dir("demo-dicuq-from-exodus")
+    out_dir = Path.cwd() / "out-riley-py" / "demo-dicuq-from-exodus"
+    shutil.rmtree(out_dir, ignore_errors=True)
+    out_dir.mkdir(parents=True)
     pixels_num = (2464, 2056)
     pixels_size = (3.45e-6, 3.45e-6)
     focal_length = 50.0e-3
@@ -97,9 +57,9 @@ def main() -> None:
         "distortion_p2": -0.0001,
     }
 
-    coords, connect, disp = load_surface_sim(exodus_path)
-    frame_indices = first_last_frame_indices(disp.shape[0])
-    disp = select_frames(disp, frame_indices)
+    coords, connect, disp = load_volume_sim(exodus_path)
+    frame_indices = first_last_frame_indices(disp[0].shape[1])
+    disp = tuple(item[:, frame_indices] for item in disp)
     uvs = riley.project_uvs_planar_centered(
         coords,
         pixels_num,
@@ -109,21 +69,20 @@ def main() -> None:
             np.array((0.0, 0.0, 0.0), dtype=np.float64),
         ),
     )
-    texture = riley.load_texture_u8(texture_path)
+    texture = riley.load_texture_mono_u8(texture_path)
 
-    mesh = riley.Mesh(
+    mesh = riley.create_mesh(
+        convention=riley.ConnectConvention(
+            riley.EElementType.HEX20, riley.EConnectAxis.ROW, 1,
+            riley.ENodeOrder.EXODUS,
+        ),
         mesh_type=riley.MeshType.quad8,
         coords=coords,
         connect=connect,
         disp=disp,
-        shader_type=riley.ShaderType.tex,
-        uvs=uvs,
-        texture=texture,
-        sample=riley.TextureSample.cubic_catmull_rom,
-        sample_mode=riley.TextureSampleMode.lut_lerp,
-        bits=8,
-        scaling_type=riley.ScaleStrategy.none,
+        shader=riley.TextureShader(uvs=uvs, texture=texture),
     )
+    coords = mesh.coords
 
     roi_pos = riley.roi_cent_from_coords(coords)
     camera_0_pos = riley.pos_frame_coords(
@@ -165,7 +124,7 @@ def main() -> None:
     )
 
     config = riley.create_raster_config(
-        num_frames=disp.shape[0],
+        num_frames=mesh.disp.shape[0],
         total_threads=total_threads,
         save_strategy=riley.SaveStrategy.disk,
     )

@@ -1002,8 +1002,10 @@ _VOLUME_SURFACE_TYPES = MappingProxyType({
 })
 
 
-def extract_surface(mesh: MeshGeometry) -> MeshGeometry:
-    """Extract a compact Riley-standard surface from a volume mesh."""
+def _extract_surface_with_node_idxs(
+    mesh: MeshGeometry,
+) -> tuple[MeshGeometry, np.ndarray]:
+    """Extract a surface and return its original global node indices."""
     verify_mesh(mesh)
     if mesh.elem_type not in _VOLUME_SURFACE_TYPES:
         raise MeshConvErr("extract_surface requires a volume mesh.")
@@ -1062,6 +1064,12 @@ def extract_surface(mesh: MeshGeometry) -> MeshGeometry:
         connect=np.ascontiguousarray(node_remap[surf_connect_glob]),
     )
     verify_mesh(mesh_out)
+    return mesh_out, surf_node_idxs
+
+
+def extract_surface(mesh: MeshGeometry) -> MeshGeometry:
+    """Extract a compact Riley-standard surface from a volume mesh."""
+    mesh_out, _ = _extract_surface_with_node_idxs(mesh)
     return mesh_out
 
 

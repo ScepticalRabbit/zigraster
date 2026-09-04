@@ -8,10 +8,13 @@
 # --------------------------------------------------------------------------
 
 from riley.python import sceneops
-from riley.python.helpers import (
-    create_raster_config,
-    load_texture_u8,
-    load_texture_u16,
+from riley.python.rileyconfig import create_raster_config
+from riley.python.textureio import (
+    ETextureCoercion,
+    load_texture_mono_u8,
+    load_texture_mono_u16,
+    load_texture_rgb_u8,
+    load_texture_rgb_u16,
 )
 from riley.python.meshconv import (
     ConnectConvention,
@@ -29,12 +32,7 @@ from riley.python.meshconv import (
     extract_surface,
     verify_mesh,
 )
-from riley.python.meshio import (
-    load_connect_csv,
-    load_coord_csv,
-    load_csv,
-    load_field_csv,
-)
+from riley.python.meshio import create_mesh, load_csv
 from riley.python.uvtools import (
     EPlanarProjMode,
     EProjPlane,
@@ -60,13 +58,14 @@ __all__ = [
     "UserTopology",
     "convert_mesh",
     "create_raster_config",
+    "create_mesh",
     "extract_surface",
-    "load_connect_csv",
-    "load_coord_csv",
     "load_csv",
-    "load_field_csv",
-    "load_texture_u8",
-    "load_texture_u16",
+    "ETextureCoercion",
+    "load_texture_mono_u8",
+    "load_texture_mono_u16",
+    "load_texture_rgb_u8",
+    "load_texture_rgb_u16",
     "project_uvs_planar_bbox",
     "project_uvs_planar_centered",
     "sceneops",

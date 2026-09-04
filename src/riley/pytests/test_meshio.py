@@ -73,25 +73,25 @@ def test_load_csv_preserves_table_orientation(tmp_path: Path) -> None:
     np.testing.assert_allclose(loaded, table)
 
 
-def test_load_connect_csv_preserves_one_based_indices(tmp_path: Path) -> None:
+def test_load_csv_preserves_integer_indices(tmp_path: Path) -> None:
     connect = np.array(((1, 2, 3), (3, 4, 1)), dtype=np.int64)
     np.savetxt(tmp_path / "connect.csv", connect, delimiter=",", fmt="%d")
 
-    loaded = riley.load_connect_csv(tmp_path / "connect.csv")
+    loaded = riley.load_csv(tmp_path / "connect.csv", dtype=np.int64)
 
     assert loaded.dtype == np.int64
     np.testing.assert_array_equal(loaded, connect)
 
 
-def test_load_connect_csv_rejects_fractional_indices(tmp_path: Path) -> None:
+def test_load_csv_rejects_fractional_integer_input(tmp_path: Path) -> None:
     _save_csv(tmp_path / "connect.csv", np.array(((0.0, 1.5, 2.0),)))
 
     with pytest.raises(ValueError, match="integer"):
-        riley.load_connect_csv(tmp_path / "connect.csv")
+        riley.load_csv(tmp_path / "connect.csv", dtype=np.int64)
 
 
-def test_load_coord_csv_rejects_non_finite_values(tmp_path: Path) -> None:
+def test_load_csv_rejects_non_finite_values(tmp_path: Path) -> None:
     _save_csv(tmp_path / "coords.csv", np.array(((0.0, np.nan, 1.0),)))
 
     with pytest.raises(ValueError, match="non-finite"):
-        riley.load_coord_csv(tmp_path / "coords.csv")
+        riley.load_csv(tmp_path / "coords.csv")

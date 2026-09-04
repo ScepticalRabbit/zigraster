@@ -401,7 +401,7 @@ def test_packaged_sphere_converts_and_verifies(
 def test_packaged_square_donut_converts_and_verifies() -> None:
     case_path = data.platehole_csv_case_path()
     coords = np.loadtxt(case_path / "coords.csv", delimiter=",")
-    connect = meshio.load_connect_csv(case_path / "connect.csv")
+    connect = meshio.load_csv(case_path / "connect.csv", dtype=np.int64)
     convention = meshconv.ConnectConvention(
         meshconv.EElementType.QUAD8, meshconv.EConnectAxis.ROW, 0
     )

@@ -9,9 +9,11 @@
 from __future__ import annotations
 
 from time import perf_counter
+from pathlib import Path
+import shutil
+import numpy as np
 
 import riley
-from riley.pydemos.common import load_demo_arrays, make_demo_out_dir
 
 RASTER_THREADS = 8
 
@@ -19,16 +21,21 @@ RASTER_THREADS = 8
 def main() -> None:
     data_dir = riley.data.sphere200_case_path()
     texture_path = riley.data.speckle_texture_path()
-    out_dir_root = make_demo_out_dir("demo-psf")
+    out_dir_root = Path.cwd() / "out-riley-py" / "demo-psf"
+    shutil.rmtree(out_dir_root, ignore_errors=True)
+    out_dir_root.mkdir(parents=True)
     pixels_num = (800, 500)
     pixels_size = (5.3e-6, 5.3e-6)
     focal_length = 50.0e-3
     rot_world = (0.0, 0.0, 0.0)
 
-    coords, connect, uvs, _ = load_demo_arrays(
-        data_dir, riley.EElementType.TRI6
+    coords = riley.load_csv(data_dir / "coords.csv")
+    connect = riley.load_csv(data_dir / "connect.csv", dtype=np.int64)
+    uvs = riley.load_csv(data_dir / "uvs.csv")
+    texture = riley.load_texture_mono_u8(texture_path)
+    convention = riley.ConnectConvention(
+        riley.EElementType.TRI6, riley.EConnectAxis.ROW, 0
     )
-    texture = riley.load_texture_u8(texture_path)
     roi_cent_world = riley.roi_cent_from_coords(coords)
     pos_world = riley.pos_frame_coords(
         coords,
@@ -38,16 +45,12 @@ def main() -> None:
         rot_world,
         fov_scale=1.0,
     )
-    mesh = riley.Mesh(
+    mesh = riley.create_mesh(
+        convention=convention,
         mesh_type=riley.MeshType.tri6,
         coords=coords,
         connect=connect,
-        uvs=uvs,
-        texture=texture,
-        sample=riley.TextureSample.cubic_catmull_rom,
-        sample_mode=riley.TextureSampleMode.lut_lerp,
-        bits=8,
-        scaling_type=riley.ScaleStrategy.none,
+        shader=riley.TextureShader(uvs=uvs, texture=texture),
     )
     camera = riley.Camera(
         pixels_num=pixels_num,

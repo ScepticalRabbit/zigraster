@@ -9,23 +9,22 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
+import shutil
 from time import perf_counter
 
 import numpy as np
 
 import riley
-from riley.pydemos.common import (
-    first_last_frame_indices,
-    load_demo_arrays,
-    make_demo_out_dir,
-    select_frames,
-)
+from riley.pydemos.demoframes import first_last_frame_indices
 
 
 def main() -> None:
     data_dir = riley.data.platehole_csv_case_path()
     texture_path = riley.data.speckle_texture_path()
-    out_dir = make_demo_out_dir("demo-dicuq")
+    out_dir = Path.cwd() / "out-riley-py" / "demo-dicuq"
+    shutil.rmtree(out_dir, ignore_errors=True)
+    out_dir.mkdir(parents=True)
     pixels_num = (2464, 2056)
     pixels_size = (3.45e-6, 3.45e-6)
     focal_length = 50.0e-3
@@ -42,27 +41,27 @@ def main() -> None:
         "distortion_p2": -0.0001,
     }
 
-    coords, connect, uvs, disp = load_demo_arrays(
-        data_dir, riley.EElementType.QUAD8
+    coords = riley.load_csv(data_dir / "coords.csv")
+    connect = riley.load_csv(data_dir / "connect.csv", dtype=np.int64)
+    uvs = riley.load_csv(data_dir / "uvs.csv")
+    disp_components = tuple(
+        riley.load_csv(data_dir / f"field_disp_{axis}.csv")
+        for axis in "xyz"
     )
-    if disp is None:
-        raise ValueError("The DIC UQ demo requires displacement.")
-    frame_indices = first_last_frame_indices(disp.shape[0])
-    disp = select_frames(disp, frame_indices)
-    texture = riley.load_texture_u8(texture_path)
+    frame_indices = first_last_frame_indices(disp_components[0].shape[1])
+    disp_components = tuple(item[:, frame_indices] for item in disp_components)
+    texture = riley.load_texture_mono_u8(texture_path)
+    convention = riley.ConnectConvention(
+        riley.EElementType.QUAD8, riley.EConnectAxis.ROW, 0
+    )
 
-    mesh = riley.Mesh(
+    mesh = riley.create_mesh(
+        convention=convention,
         mesh_type=riley.MeshType.quad8,
         coords=coords,
         connect=connect,
-        disp=disp,
-        shader_type=riley.ShaderType.tex,
-        uvs=uvs,
-        texture=texture,
-        sample=riley.TextureSample.cubic_catmull_rom,
-        sample_mode=riley.TextureSampleMode.lut_lerp,
-        bits=8,
-        scaling_type=riley.ScaleStrategy.none,
+        disp=disp_components,
+        shader=riley.TextureShader(uvs=uvs, texture=texture),
     )
 
     roi_pos = riley.roi_cent_from_coords(coords)
@@ -105,7 +104,7 @@ def main() -> None:
     )
 
     config = riley.create_raster_config(
-        num_frames=disp.shape[0],
+        num_frames=mesh.disp.shape[0],
         total_threads=total_threads,
         save_strategy=riley.SaveStrategy.disk,
     )

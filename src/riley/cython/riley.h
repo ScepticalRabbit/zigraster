@@ -76,6 +76,23 @@ typedef struct c_image_buff_f64 {
     CDims5Usize dims;
 } CImageBuffF64;
 
+typedef struct c_distortion {
+    uint32_t distortion_model;
+    double distortion_k1, distortion_k2, distortion_k3;
+    double distortion_k4, distortion_k5, distortion_k6;
+    double distortion_p1, distortion_p2;
+    uint32_t distortion_poly_order;
+    uint8_t distortion_poly_has_forward, distortion_poly_has_inv;
+    double distortion_poly_forward_u[10], distortion_poly_forward_v[10];
+    double distortion_poly_inv_u[10], distortion_poly_inv_v[10];
+} CDistortion;
+
+typedef struct c_psf {
+    uint32_t psf_type;
+    double psf_sigma_x, psf_sigma_y, psf_theta, psf_supp_rad;
+    uint32_t psf_separable;
+} CPSF;
+
 typedef struct c_camera_input {
     CVec2U32 pixels_num;
     CVec2F64 pixels_size;
@@ -84,30 +101,10 @@ typedef struct c_camera_input {
     CVec3F64 roi_cent_world;
     double focal_length;
     uint32_t sub_sample;
-    uint32_t distortion_model;
-    double distortion_k1;
-    double distortion_k2;
-    double distortion_k3;
-    double distortion_k4;
-    double distortion_k5;
-    double distortion_k6;
-    double distortion_p1;
-    double distortion_p2;
-    uint32_t distortion_poly_order;
-    uint8_t distortion_poly_has_forward;
-    uint8_t distortion_poly_has_inv;
-    double distortion_poly_forward_u[10];
-    double distortion_poly_forward_v[10];
-    double distortion_poly_inv_u[10];
-    double distortion_poly_inv_v[10];
+    CDistortion distortion;
+    CPSF psf;
     uint32_t coord_sys;
     uint32_t subpixel_center_map;
-    uint32_t psf_type;
-    double psf_sigma_x;
-    double psf_sigma_y;
-    double psf_theta;
-    double psf_supp_rad;
-    uint32_t psf_separable;
 } CCameraInput;
 
 typedef struct c_func_shader_params {
@@ -195,11 +192,7 @@ typedef struct c_func_shader_params {
 } CFuncShaderParams;
 
 
-typedef struct c_mesh_input {
-    uint32_t mesh_type;
-    CArray2DF64 coords;
-    CArray2DUsize connect;
-    CArray3DF64 disp;
+typedef struct c_shader_input {
     uint32_t shader_tag;
     CArray2DF64 uvs;
     CArray3DF64 tex;
@@ -218,6 +211,14 @@ typedef struct c_mesh_input {
     uint32_t func_shader_coord_mode;
     CFuncShaderParams func_shader_params;
     uint32_t normal_type;
+} CShaderInput;
+
+typedef struct c_mesh_input {
+    uint32_t mesh_type;
+    CArray2DF64 coords;
+    CArray2DUsize connect;
+    CArray3DF64 disp;
+    CShaderInput shader;
 } CMeshInput;
 
 typedef struct c_raster_config {

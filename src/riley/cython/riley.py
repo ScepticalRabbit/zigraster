@@ -127,35 +127,6 @@ class FuncShaderParams:
 
 
 @dataclass(slots=True)
-class Mesh:
-    mesh_type: int
-    coords: np.ndarray
-    connect: np.ndarray
-    disp: np.ndarray | None = None
-    shader_type: int = 0
-    uvs: np.ndarray | None = None
-    texture: np.ndarray | None = None
-    texture_storage: int = 0
-    sample: int = 2
-    sample_mode: int = 2
-    bits: int = 8
-    scaling_type: int = 0
-    scaling_min: float = 0.0
-    scaling_max: float = 0.0
-    nodal_field: np.ndarray | None = None
-    scale_over: int = 1
-    func_shader_builtin: int = 0
-    func_shader_coord_mode: int = 1
-    func_shader_params: FuncShaderParams = field(
-        default_factory=FuncShaderParams,
-    )
-    normal_type: int = 0
-
-
-MeshInput = Mesh
-
-
-@dataclass(slots=True)
 class RasterConfig:
     render_mode: int = 0
     total_threads: int = 1
@@ -351,6 +322,64 @@ class PsfType(IntEnum):
     anisotropic_gaussian = 2
 
 
+@dataclass(slots=True)
+class TextureShader:
+    """Configure a monochrome or RGB texture shader."""
+
+    uvs: np.ndarray
+    texture: np.ndarray
+    sample: TextureSample = TextureSample.cubic_catmull_rom
+    sample_mode: TextureSampleMode = TextureSampleMode.lut_lerp
+    bits: int = 8
+    scaling_type: ScaleStrategy = ScaleStrategy.none
+    scaling_min: float = 0.0
+    scaling_max: float = 0.0
+    normal_type: NormalType = NormalType.none
+
+
+@dataclass(slots=True)
+class NodalShader:
+    """Configure a scalar or RGB nodal-field shader."""
+
+    field: np.ndarray
+    bits: int = 8
+    scaling_type: ScaleStrategy = ScaleStrategy.auto
+    scaling_min: float = 0.0
+    scaling_max: float = 0.0
+    scale_over: ScaleOver = ScaleOver.over_frames
+    normal_type: NormalType = NormalType.none
+
+
+@dataclass(slots=True)
+class FunctionShader:
+    """Configure a scalar or RGB procedural function shader."""
+
+    builtin: FuncShaderBuiltin
+    coord_mode: FuncCoordMode = FuncCoordMode.parametric
+    params: FuncShaderParams = field(default_factory=FuncShaderParams)
+    uvs: np.ndarray | None = None
+    channels: int = 1
+    bits: int = 8
+    scaling_type: ScaleStrategy = ScaleStrategy.auto
+    scaling_min: float = 0.0
+    scaling_max: float = 0.0
+    normal_type: NormalType = NormalType.none
+
+
+Shader = TextureShader | NodalShader | FunctionShader
+
+
+@dataclass(slots=True)
+class Mesh:
+    """Hold one renderer-ready Riley surface mesh."""
+
+    mesh_type: MeshType
+    coords: np.ndarray
+    connect: np.ndarray
+    disp: np.ndarray | None
+    shader: Shader
+
+
 class ImageFormat(IntEnum):
     csv = 0
     fimg = 1
@@ -416,39 +445,39 @@ def _make_camera_input(camera: Any) -> cr.CCameraInput:
     camera_out.roi_cent_world = _make_cvec3(camera.roi_cent_world)
     camera_out.focal_length = float(camera.focal_length)
     camera_out.sub_sample = int(camera.sub_sample)
-    camera_out.distortion_model = int(camera.distortion_model)
-    camera_out.distortion_k1 = float(camera.distortion_k1)
-    camera_out.distortion_k2 = float(camera.distortion_k2)
-    camera_out.distortion_k3 = float(camera.distortion_k3)
-    camera_out.distortion_k4 = float(camera.distortion_k4)
-    camera_out.distortion_k5 = float(camera.distortion_k5)
-    camera_out.distortion_k6 = float(camera.distortion_k6)
-    camera_out.distortion_p1 = float(camera.distortion_p1)
-    camera_out.distortion_p2 = float(camera.distortion_p2)
-    camera_out.distortion_poly_order = int(camera.distortion_poly_order)
-    camera_out.distortion_poly_has_forward = int(camera.distortion_poly_has_forward)
-    camera_out.distortion_poly_has_inv = int(camera.distortion_poly_has_inverse)
+    camera_out.distortion.distortion_model = int(camera.distortion_model)
+    camera_out.distortion.distortion_k1 = float(camera.distortion_k1)
+    camera_out.distortion.distortion_k2 = float(camera.distortion_k2)
+    camera_out.distortion.distortion_k3 = float(camera.distortion_k3)
+    camera_out.distortion.distortion_k4 = float(camera.distortion_k4)
+    camera_out.distortion.distortion_k5 = float(camera.distortion_k5)
+    camera_out.distortion.distortion_k6 = float(camera.distortion_k6)
+    camera_out.distortion.distortion_p1 = float(camera.distortion_p1)
+    camera_out.distortion.distortion_p2 = float(camera.distortion_p2)
+    camera_out.distortion.distortion_poly_order = int(camera.distortion_poly_order)
+    camera_out.distortion.distortion_poly_has_forward = int(camera.distortion_poly_has_forward)
+    camera_out.distortion.distortion_poly_has_inv = int(camera.distortion_poly_has_inverse)
     for idx in range(10):
-        camera_out.distortion_poly_forward_u[idx] = float(
+        camera_out.distortion.distortion_poly_forward_u[idx] = float(
             camera.distortion_poly_forward_u[idx]
         )
-        camera_out.distortion_poly_forward_v[idx] = float(
+        camera_out.distortion.distortion_poly_forward_v[idx] = float(
             camera.distortion_poly_forward_v[idx]
         )
-        camera_out.distortion_poly_inv_u[idx] = float(
+        camera_out.distortion.distortion_poly_inv_u[idx] = float(
             camera.distortion_poly_inverse_u[idx]
         )
-        camera_out.distortion_poly_inv_v[idx] = float(
+        camera_out.distortion.distortion_poly_inv_v[idx] = float(
             camera.distortion_poly_inverse_v[idx]
         )
     camera_out.coord_sys = int(camera.coord_sys)
     camera_out.subpixel_center_map = int(camera.subpixel_center_map)
-    camera_out.psf_type = int(camera.psf_type)
-    camera_out.psf_sigma_x = float(camera.psf_sigma_x)
-    camera_out.psf_sigma_y = float(camera.psf_sigma_y)
-    camera_out.psf_theta = float(camera.psf_theta)
-    camera_out.psf_supp_rad = float(camera.psf_support_rad)
-    camera_out.psf_separable = int(camera.psf_separable)
+    camera_out.psf.psf_type = int(camera.psf_type)
+    camera_out.psf.psf_sigma_x = float(camera.psf_sigma_x)
+    camera_out.psf.psf_sigma_y = float(camera.psf_sigma_y)
+    camera_out.psf.psf_theta = float(camera.psf_theta)
+    camera_out.psf.psf_supp_rad = float(camera.psf_support_rad)
+    camera_out.psf.psf_separable = int(camera.psf_separable)
     return camera_out
 
 
@@ -459,10 +488,10 @@ def _camera_input_from_c(camera_in: cr.CCameraInput) -> Camera:
     inverse_u = [0.0] * 10
     inverse_v = [0.0] * 10
     for idx in range(10):
-        forward_u[idx] = camera_in.distortion_poly_forward_u[idx]
-        forward_v[idx] = camera_in.distortion_poly_forward_v[idx]
-        inverse_u[idx] = camera_in.distortion_poly_inv_u[idx]
-        inverse_v[idx] = camera_in.distortion_poly_inv_v[idx]
+        forward_u[idx] = camera_in.distortion.distortion_poly_forward_u[idx]
+        forward_v[idx] = camera_in.distortion.distortion_poly_forward_v[idx]
+        inverse_u[idx] = camera_in.distortion.distortion_poly_inv_u[idx]
+        inverse_v[idx] = camera_in.distortion.distortion_poly_inv_v[idx]
     return Camera(
         pixels_num=(camera_in.pixels_num.x, camera_in.pixels_num.y),
         pixels_size=(camera_in.pixels_size.x, camera_in.pixels_size.y),
@@ -483,30 +512,30 @@ def _camera_input_from_c(camera_in: cr.CCameraInput) -> Camera:
         ),
         focal_length=camera_in.focal_length,
         sub_sample=camera_in.sub_sample,
-        distortion_model=camera_in.distortion_model,
-        distortion_k1=camera_in.distortion_k1,
-        distortion_k2=camera_in.distortion_k2,
-        distortion_k3=camera_in.distortion_k3,
-        distortion_k4=camera_in.distortion_k4,
-        distortion_k5=camera_in.distortion_k5,
-        distortion_k6=camera_in.distortion_k6,
-        distortion_p1=camera_in.distortion_p1,
-        distortion_p2=camera_in.distortion_p2,
-        distortion_poly_order=camera_in.distortion_poly_order,
-        distortion_poly_has_forward=bool(camera_in.distortion_poly_has_forward),
-        distortion_poly_has_inverse=bool(camera_in.distortion_poly_has_inv),
+        distortion_model=camera_in.distortion.distortion_model,
+        distortion_k1=camera_in.distortion.distortion_k1,
+        distortion_k2=camera_in.distortion.distortion_k2,
+        distortion_k3=camera_in.distortion.distortion_k3,
+        distortion_k4=camera_in.distortion.distortion_k4,
+        distortion_k5=camera_in.distortion.distortion_k5,
+        distortion_k6=camera_in.distortion.distortion_k6,
+        distortion_p1=camera_in.distortion.distortion_p1,
+        distortion_p2=camera_in.distortion.distortion_p2,
+        distortion_poly_order=camera_in.distortion.distortion_poly_order,
+        distortion_poly_has_forward=bool(camera_in.distortion.distortion_poly_has_forward),
+        distortion_poly_has_inverse=bool(camera_in.distortion.distortion_poly_has_inv),
         distortion_poly_forward_u=tuple(forward_u),
         distortion_poly_forward_v=tuple(forward_v),
         distortion_poly_inverse_u=tuple(inverse_u),
         distortion_poly_inverse_v=tuple(inverse_v),
         coord_sys=camera_in.coord_sys,
         subpixel_center_map=camera_in.subpixel_center_map,
-        psf_type=camera_in.psf_type,
-        psf_sigma_x=camera_in.psf_sigma_x,
-        psf_sigma_y=camera_in.psf_sigma_y,
-        psf_theta=camera_in.psf_theta,
-        psf_support_rad=camera_in.psf_supp_rad,
-        psf_separable=camera_in.psf_separable,
+        psf_type=camera_in.psf.psf_type,
+        psf_sigma_x=camera_in.psf.psf_sigma_x,
+        psf_sigma_y=camera_in.psf.psf_sigma_y,
+        psf_theta=camera_in.psf.psf_theta,
+        psf_support_rad=camera_in.psf.psf_supp_rad,
+        psf_separable=camera_in.psf.psf_separable,
     )
 
 
@@ -1095,83 +1124,115 @@ def _fill_mesh_array(
             )
             keepalive.append(disp_np)
 
-        shader_tag = int(mesh.shader_type)
-        mesh_array[nn].shader_tag = shader_tag
-        texture_storage = int(mesh.texture_storage)
-        mesh_array[nn].texture_storage = texture_storage
-        mesh_array[nn].sample = int(mesh.sample)
-        mesh_array[nn].sample_mode = int(mesh.sample_mode)
-        mesh_array[nn].bits = int(mesh.bits)
-        mesh_array[nn].scaling_tag = int(mesh.scaling_type)
-        mesh_array[nn].scaling_min = float(mesh.scaling_min)
-        mesh_array[nn].scaling_max = float(mesh.scaling_max)
-        mesh_array[nn].scale_over = int(mesh.scale_over)
-        mesh_array[nn].func_shader_builtin = int(mesh.func_shader_builtin)
-        mesh_array[nn].func_shader_coord_mode = int(mesh.func_shader_coord_mode)
-        mesh_array[nn].func_shader_params = _make_func_params(
-            mesh.func_shader_params,
-        )
-        mesh_array[nn].normal_type = int(mesh.normal_type)
-
-        if mesh.uvs is None:
-            mesh_array[nn].uvs = _empty_array_2d_f64()
+        shader = mesh.shader
+        texture_channels = 0
+        if isinstance(shader, TextureShader):
+            texture_channels = int(shader.texture.shape[0])
+            shader_tag = int(
+                ShaderType.tex_rgb
+                if texture_channels == 3
+                else ShaderType.tex
+            )
+            if shader.texture.dtype == np.uint16:
+                texture_storage = int(TextureStorage.u16)
+            elif shader.texture.dtype == np.uint8:
+                texture_storage = int(TextureStorage.u8)
+            else:
+                texture_storage = int(TextureStorage.floating)
+        elif isinstance(shader, NodalShader):
+            field_channels = int(shader.field.shape[2])
+            shader_tag = int(
+                ShaderType.nodal_rgb
+                if field_channels == 3
+                else ShaderType.nodal
+            )
+            texture_storage = int(TextureStorage.u8)
+        elif isinstance(shader, FunctionShader):
+            shader_tag = int(
+                ShaderType.func_rgb
+                if shader.channels == 3
+                else ShaderType.func
+            )
+            texture_storage = int(TextureStorage.u8)
         else:
-            uvs_np = _contig_f64_2d(mesh.uvs, "uvs")
+            raise TypeError("mesh.shader must be a Riley shader object")
+
+        mesh_array[nn].shader.shader_tag = shader_tag
+        mesh_array[nn].shader.texture_storage = texture_storage
+        mesh_array[nn].shader.sample = int(getattr(shader, "sample", 0))
+        mesh_array[nn].shader.sample_mode = int(getattr(shader, "sample_mode", 0))
+        mesh_array[nn].shader.bits = int(getattr(shader, "bits", 8))
+        mesh_array[nn].shader.scaling_tag = int(shader.scaling_type)
+        mesh_array[nn].shader.scaling_min = float(shader.scaling_min)
+        mesh_array[nn].shader.scaling_max = float(shader.scaling_max)
+        mesh_array[nn].shader.scale_over = int(
+            getattr(shader, "scale_over", ScaleOver.over_frames)
+        )
+        mesh_array[nn].shader.func_shader_builtin = int(
+            getattr(shader, "builtin", FuncShaderBuiltin.constant)
+        )
+        mesh_array[nn].shader.func_shader_coord_mode = int(
+            getattr(shader, "coord_mode", FuncCoordMode.parametric)
+        )
+        mesh_array[nn].shader.func_shader_params = _make_func_params(
+            getattr(shader, "params", FuncShaderParams()),
+        )
+        mesh_array[nn].shader.normal_type = int(shader.normal_type)
+
+        shader_uvs = getattr(shader, "uvs", None)
+        if shader_uvs is None:
+            mesh_array[nn].shader.uvs = _empty_array_2d_f64()
+        else:
+            uvs_np = _contig_f64_2d(shader_uvs, "uvs")
             uvs_shape = _as_shape_2d(uvs_np)
             uvs_view: cython.double[:, ::1] = uvs_np
-            mesh_array[nn].uvs = _make_array_2d_f64(
+            mesh_array[nn].shader.uvs = _make_array_2d_f64(
                 uvs_view,
                 uvs_shape[0],
                 uvs_shape[1],
             )
             keepalive.append(uvs_np)
 
-        texture_channels = 0
-        if shader_tag == int(ShaderType.tex):
-            texture_channels = 1
-        elif shader_tag == int(ShaderType.tex_rgb):
-            texture_channels = 3
-
-        if mesh.texture is None:
-            mesh_array[nn].tex = _empty_array_3d_f64()
-            mesh_array[nn].tex_u8 = _empty_array_3d_u8()
-            mesh_array[nn].tex_u16 = _empty_array_3d_u16()
+        shader_texture = getattr(shader, "texture", None)
+        if shader_texture is None:
+            mesh_array[nn].shader.tex = _empty_array_3d_f64()
+            mesh_array[nn].shader.tex_u8 = _empty_array_3d_u8()
+            mesh_array[nn].shader.tex_u16 = _empty_array_3d_u16()
         else:
-            if texture_channels == 0:
-                raise ValueError("texture provided for non-texture shader")
             texture_np = _contig_texture(
-                mesh.texture,
+                shader_texture,
                 texture_channels,
                 texture_storage,
             )
             texture_shape = _as_shape_3d(texture_np)
-            mesh_array[nn].tex = _empty_array_3d_f64()
-            mesh_array[nn].tex_u8 = _empty_array_3d_u8()
-            mesh_array[nn].tex_u16 = _empty_array_3d_u16()
+            mesh_array[nn].shader.tex = _empty_array_3d_f64()
+            mesh_array[nn].shader.tex_u8 = _empty_array_3d_u8()
+            mesh_array[nn].shader.tex_u16 = _empty_array_3d_u16()
             if texture_storage == int(TextureStorage.u8):
                 texture_view_u8: cython.uchar[:, :, ::1] = texture_np
-                mesh_array[nn].tex_u8 = _make_array_3d_u8(
+                mesh_array[nn].shader.tex_u8 = _make_array_3d_u8(
                     texture_view_u8,
                     texture_shape[0], texture_shape[1], texture_shape[2],
                 )
             elif texture_storage == int(TextureStorage.u16):
                 texture_view_u16: cython.ushort[:, :, ::1] = texture_np
-                mesh_array[nn].tex_u16 = _make_array_3d_u16(
+                mesh_array[nn].shader.tex_u16 = _make_array_3d_u16(
                     texture_view_u16,
                     texture_shape[0], texture_shape[1], texture_shape[2],
                 )
             else:
                 texture_view_f: cython.double[:, :, ::1] = texture_np
-                mesh_array[nn].tex = _make_array_3d_f64(
+                mesh_array[nn].shader.tex = _make_array_3d_f64(
                     texture_view_f,
                     texture_shape[0], texture_shape[1], texture_shape[2],
                 )
             keepalive.append(texture_np)
 
-        if mesh.nodal_field is None:
-            mesh_array[nn].nodal_field = _empty_array_3d_f64()
+        shader_field = getattr(shader, "field", None)
+        if shader_field is None:
+            mesh_array[nn].shader.nodal_field = _empty_array_3d_f64()
         else:
-            nodal_field_np = _contig_f64_3d(mesh.nodal_field, "nodal_field")
+            nodal_field_np = _contig_f64_3d(shader_field, "nodal_field")
             nodal_shape = _as_shape_3d(nodal_field_np)
             if (
                 shader_tag == int(ShaderType.nodal_rgb)
@@ -1181,7 +1242,7 @@ def _fill_mesh_array(
                     "nodal_rgb field must have shape (time, nodes, 3)",
                 )
             nodal_view: cython.double[:, :, ::1] = nodal_field_np
-            mesh_array[nn].nodal_field = _make_array_3d_f64(
+            mesh_array[nn].shader.nodal_field = _make_array_3d_f64(
                 nodal_view,
                 nodal_shape[0],
                 nodal_shape[1],
@@ -1551,7 +1612,6 @@ __all__ = [
     "BufferMode",
     "HullMode",
     "Mesh",
-    "MeshInput",
     "MeshType",
     "NewtonSeedMode",
     "NewtonSeedReuse",
@@ -1564,8 +1624,6 @@ __all__ = [
     "SaveStrategy",
     "ScaleOver",
     "ScaleStrategy",
-    "ShaderType",
-    "TextureStorage",
     "SubPixelCenterMap",
     "FuncShaderBuiltin",
     "FuncCoordMode",

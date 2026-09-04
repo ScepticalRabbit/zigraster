@@ -1,5 +1,5 @@
 # Riley Developer Notes
-This document collects the heavier development workflows for regression testing, gold generation and performance benchmarking. The top-level `README.md` keeps the quick-start path and the min test suite; this file is for the deeper day-to-day developer workflows.
+This document collects the heavier development workflows for regression testing, gold generation and performance benchmarking. The top-level `README.md` keeps the quick-start path and the min test suite; this file is for the deeper day to day developer workflows.
 
 ## Extended Regression Test Suites
 Once the min suite passes, the next two regression suites are:

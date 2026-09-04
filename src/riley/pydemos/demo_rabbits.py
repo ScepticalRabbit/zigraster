@@ -9,12 +9,12 @@
 from __future__ import annotations
 
 from pathlib import Path
+import shutil
 from time import perf_counter
 
 import numpy as np
 import riley
 
-from riley.pydemos.common import make_demo_out_dir
 from riley.python import sceneops
 
 
@@ -24,7 +24,7 @@ BACKGROUND_VALUE = 127.5
 
 def build_uv_grey_field(uvs: np.ndarray) -> np.ndarray:
     uv_scalar = 0.5 * (uvs[:, 0] + uvs[:, 1])
-    return np.ascontiguousarray(uv_scalar.reshape(1, -1, 1), dtype=np.float64)
+    return np.ascontiguousarray(uv_scalar[:, None], dtype=np.float64)
 
 
 def mesh_data_name(mesh_type: riley.MeshType) -> str:
@@ -38,22 +38,13 @@ def build_rabbit_dir(rabbit_name: str, mesh_type: riley.MeshType) -> Path:
 
 
 def load_static_mesh(data_dir: Path) -> tuple[np.ndarray, np.ndarray]:
-    coords = np.loadtxt(
-        data_dir / "coords.csv",
-        delimiter=",",
-        dtype=np.float64,
-    )
-    connect_float = np.loadtxt(
-        data_dir / "connectivity.csv",
-        delimiter=",",
-        dtype=np.float64,
-    )
-    connect = np.ascontiguousarray(connect_float, dtype=np.uintp)
-    return np.ascontiguousarray(coords, dtype=np.float64), connect
+    coords = riley.load_csv(data_dir / "coords.csv")
+    connect = riley.load_csv(data_dir / "connectivity.csv", dtype=np.int64)
+    return coords, connect
 
 
 def load_uvs(data_dir: Path) -> np.ndarray:
-    return np.loadtxt(data_dir / "uvs.csv", delimiter=",", dtype=np.float64)
+    return riley.load_csv(data_dir / "uvs.csv")
 
 
 def make_grey_mesh_input(
@@ -65,57 +56,48 @@ def make_grey_mesh_input(
     texture: np.ndarray,
 ) -> riley.Mesh:
     shader_idx = mesh_idx % 3
-    mesh_kwargs = {
-        "mesh_type": mesh_type,
-        "coords": np.ascontiguousarray(
-            np.array(coords, copy=True),
-            dtype=np.float64,
-        ),
-        "connect": connect,
-        "bits": 8,
-        "normal_type": riley.NormalType.none,
-    }
+    elem_type = {
+        riley.MeshType.tri3: riley.EElementType.TRI3,
+        riley.MeshType.tri6: riley.EElementType.TRI6,
+        riley.MeshType.quad4newton: riley.EElementType.QUAD4,
+        riley.MeshType.quad8: riley.EElementType.QUAD8,
+        riley.MeshType.quad9: riley.EElementType.QUAD9,
+    }[mesh_type]
+    convention = riley.ConnectConvention(
+        elem_type, riley.EConnectAxis.ROW, 0
+    )
 
     if shader_idx == 0:
-        return riley.Mesh(
-            shader_type=riley.ShaderType.tex,
-            uvs=uvs,
-            texture=texture,
-            sample=riley.TextureSample.cubic_catmull_rom,
-            sample_mode=riley.TextureSampleMode.lut_lerp,
-            scaling_type=riley.ScaleStrategy.none,
-            **mesh_kwargs,
-        )
-
-    if shader_idx == 1:
-        return riley.Mesh(
-            shader_type=riley.ShaderType.nodal,
-            nodal_field=build_uv_grey_field(uvs),
+        shader = riley.TextureShader(uvs=uvs, texture=texture)
+    elif shader_idx == 1:
+        shader = riley.NodalShader(
+            field=build_uv_grey_field(uvs),
             scaling_type=riley.ScaleStrategy.auto,
-            scale_over=riley.ScaleOver.over_frames,
-            **mesh_kwargs,
         )
-
-    return riley.Mesh(
-        shader_type=riley.ShaderType.func,
-        uvs=uvs,
-        func_shader_coord_mode=riley.FuncCoordMode.uv,
-        func_shader_builtin=riley.FuncShaderBuiltin.checker,
-        func_shader_params=riley.FuncShaderParams(
-            coord_scale=(CHECKER_SQUARES_PER_AXIS, CHECKER_SQUARES_PER_AXIS),
-        ),
-        scaling_type=riley.ScaleStrategy.auto,
-        **mesh_kwargs,
+    else:
+        shader = riley.FunctionShader(
+            builtin=riley.FuncShaderBuiltin.checker,
+            coord_mode=riley.FuncCoordMode.uv,
+            params=riley.FuncShaderParams(
+                coord_scale=(CHECKER_SQUARES_PER_AXIS,) * 2,
+            ),
+            uvs=uvs,
+            scaling_type=riley.ScaleStrategy.auto,
+        )
+    return riley.create_mesh(
+        convention, mesh_type, np.array(coords, copy=True), connect,
+        shader=shader,
     )
 
 
 def main() -> None:
     pixels_num = (1600, 800)
     fov_scale = 1.01
-    out_dir = make_demo_out_dir("demo-rabbits")
+    out_dir = Path.cwd() / "out-riley-py" / "demo-rabbits"
+    shutil.rmtree(out_dir, ignore_errors=True)
+    out_dir.mkdir(parents=True)
     default_pixel_size = (5.3e-6, 5.3e-6)
     default_focal_length = 50.0e-3
-    # Canonical rabbit winding exposes the opposite side from the legacy data.
     rot_world = (0.0, 0.0, 0.0)
     texture_path = riley.data.speckle_texture_path()
     rabbit_mesh_types = [
@@ -126,7 +108,7 @@ def main() -> None:
         riley.MeshType.quad9,
     ]
 
-    texture = riley.load_texture_u8(texture_path)
+    texture = riley.load_texture_mono_u8(texture_path)
     mesh_inputs: list[riley.Mesh] = []
     group_list: list[sceneops.MeshGroup] = []
 

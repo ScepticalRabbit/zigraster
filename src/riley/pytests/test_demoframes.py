@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from riley.pydemos.common import (
+from riley.pydemos.demoframes import (
     evenly_spaced_frame_indices,
     first_last_frame_indices,
     select_frames,
