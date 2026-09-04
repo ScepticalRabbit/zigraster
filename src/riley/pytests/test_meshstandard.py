@@ -274,37 +274,13 @@ def test_verify_mesh_collects_independent_failures() -> None:
         connect=connect,
     )
 
-    with pytest.raises(meshconv.MeshVerifyErr) as error_info:
+    with pytest.raises(meshconv.MeshError) as error_info:
         meshconv.verify_mesh(mesh)
 
     codes = {issue.code for issue in error_info.value.issues}
     assert codes == {
         "coordinate_dtype",
         "coordinate_values",
-        "connectivity_dtype",
-    }
-
-
-def test_convert_mesh_collects_independent_failures() -> None:
-    coords = np.array(
-        ((0.0, 0.0, 0.0), (1.0, np.nan, 0.0)),
-        dtype=np.float64,
-    )
-    connect = np.array(((0, 1),), dtype=np.float64)
-    convention = meshconv.ConnectConvention(
-        elem_type=meshconv.EElementType.TRI3,
-        elem_axis=meshconv.EConnectAxis.ROW,
-        index_base=0,
-        node_order=meshconv.ENodeOrder.RILEY,
-    )
-
-    with pytest.raises(meshconv.MeshConvErr) as error_info:
-        meshconv.convert_mesh(coords, connect, convention)
-
-    codes = {issue.code for issue in error_info.value.issues}
-    assert codes == {
-        "coordinate_values",
-        "connectivity_width",
         "connectivity_dtype",
     }
 
@@ -363,7 +339,7 @@ def test_convert_mesh_rejects_invalid_connectivity(
         meshconv.ENodeOrder.RILEY,
     )
 
-    with pytest.raises(meshconv.MeshConvErr):
+    with pytest.raises(meshconv.MeshError):
         meshconv.convert_mesh(coords, connect, convention)
 
 

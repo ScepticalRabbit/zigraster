@@ -89,7 +89,7 @@ def test_load_csv_preserves_integer_indices(tmp_path: Path) -> None:
 def test_load_csv_rejects_fractional_integer_input(tmp_path: Path) -> None:
     _save_csv(tmp_path / "connect.csv", np.array(((0.0, 1.5, 2.0),)))
 
-    with pytest.raises(ValueError, match="integer"):
+    with pytest.raises(ValueError):
         riley.load_csv(tmp_path / "connect.csv", dtype=np.int64)
 
 

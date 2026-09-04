@@ -59,15 +59,21 @@ def test_create_mesh_identity_representations(
         (riley.EElementType.TRI7, riley.MeshType.tri6),
         (riley.EElementType.TRI7, riley.MeshType.tri3),
         (riley.EElementType.TRI6, riley.MeshType.tri3),
+        (riley.EElementType.QUAD4, riley.MeshType.tri3),
+        (riley.EElementType.QUAD8, riley.MeshType.tri3),
+        (riley.EElementType.QUAD9, riley.MeshType.tri3),
         (riley.EElementType.QUAD9, riley.MeshType.quad8),
         (riley.EElementType.QUAD9, riley.MeshType.quad4newton),
         (riley.EElementType.QUAD8, riley.MeshType.quad4ibi),
         (riley.EElementType.TET4, riley.MeshType.tri3),
         (riley.EElementType.TET10, riley.MeshType.tri6),
         (riley.EElementType.TET10, riley.MeshType.tri3),
+        (riley.EElementType.HEX8, riley.MeshType.tri3),
         (riley.EElementType.HEX8, riley.MeshType.quad4newton),
+        (riley.EElementType.HEX20, riley.MeshType.tri3),
         (riley.EElementType.HEX20, riley.MeshType.quad8),
         (riley.EElementType.HEX20, riley.MeshType.quad4ibi),
+        (riley.EElementType.HEX27, riley.MeshType.tri3),
         (riley.EElementType.HEX27, riley.MeshType.quad9),
         (riley.EElementType.HEX27, riley.MeshType.quad8),
         (riley.EElementType.HEX27, riley.MeshType.quad4newton),
@@ -86,11 +92,47 @@ def test_create_mesh_supported_topology_transitions(source, target) -> None:
 
 
 @pytest.mark.parametrize(
+    ("source", "expected_tri_count"),
+    (
+        (riley.EElementType.TRI3, 1),
+        (riley.EElementType.TRI6, 4),
+        (riley.EElementType.TRI7, 6),
+        (riley.EElementType.QUAD4, 2),
+        (riley.EElementType.QUAD8, 6),
+        (riley.EElementType.QUAD9, 8),
+        (riley.EElementType.TET4, 4),
+        (riley.EElementType.TET10, 16),
+        (riley.EElementType.HEX8, 12),
+        (riley.EElementType.HEX20, 36),
+        (riley.EElementType.HEX27, 48),
+    ),
+)
+def test_create_mesh_triangulation_element_counts(
+    source: riley.EElementType,
+    expected_tri_count: int,
+) -> None:
+    coords = _coords_3d(source)
+    connect = np.arange(coords.shape[0], dtype=np.int64)[None, :]
+    mesh = riley.create_mesh(
+        riley.ConnectConvention(
+            source, riley.EConnectAxis.ROW, 0, riley.ENodeOrder.RILEY
+        ),
+        riley.MeshType.tri3, coords, connect, shader=_function_shader(),
+    )
+    assert mesh.mesh_type is riley.MeshType.tri3
+    assert mesh.connect.shape == (expected_tri_count, 3)
+    is_hex27 = source is riley.EElementType.HEX27
+    expected_nodes = 26 if is_hex27 else coords.shape[0]
+    assert mesh.coords.shape[0] == expected_nodes
+
+
+@pytest.mark.parametrize(
     ("source", "target"),
     (
         (riley.EElementType.TRI3, riley.MeshType.tri6),
         (riley.EElementType.TRI6, riley.MeshType.quad4ibi),
-        (riley.EElementType.QUAD8, riley.MeshType.tri3),
+        (riley.EElementType.QUAD4, riley.MeshType.tri6),
+        (riley.EElementType.QUAD8, riley.MeshType.tri6),
         (riley.EElementType.TET10, riley.MeshType.quad8),
         (riley.EElementType.HEX20, riley.MeshType.tri6),
     ),
@@ -101,7 +143,7 @@ def test_create_mesh_rejects_unsupported_topology_transitions(
 ) -> None:
     coords = _coords_3d(source)
     connect = np.arange(coords.shape[0], dtype=np.int64)[None, :]
-    with pytest.raises(riley.MeshConvErr):
+    with pytest.raises(riley.MeshError):
         riley.create_mesh(
             riley.ConnectConvention(
                 source, riley.EConnectAxis.ROW, 0, riley.ENodeOrder.RILEY

@@ -252,3 +252,44 @@ ELEMENT_NODE_COUNTS = {
     EElementType.QUAD8: 8,
     EElementType.QUAD9: 9,
 }
+RILEY_TRI_STENCIL: dict[EElementType, tuple[tuple[int, int, int], ...]] = {
+    EElementType.TRI3: (
+        (0, 1, 2),
+    ),
+    EElementType.TRI6: (
+        (0, 3, 5),
+        (3, 1, 4),
+        (5, 4, 2),
+        (3, 4, 5),
+    ),
+    EElementType.TRI7: (
+        (0, 3, 6),
+        (3, 1, 6),
+        (1, 4, 6),
+        (4, 2, 6),
+        (2, 5, 6),
+        (5, 0, 6),
+    ),
+    EElementType.QUAD4: (
+        (0, 1, 2),
+        (0, 2, 3),
+    ),
+    EElementType.QUAD8: (
+        (0, 4, 7),
+        (4, 1, 5),
+        (5, 2, 6),
+        (6, 3, 7),
+        (4, 5, 7),
+        (5, 6, 7),
+    ),
+    EElementType.QUAD9: (
+        (0, 4, 8),
+        (4, 1, 8),
+        (1, 5, 8),
+        (5, 2, 8),
+        (2, 6, 8),
+        (6, 3, 8),
+        (3, 7, 8),
+        (7, 0, 8),
+    ),
+}

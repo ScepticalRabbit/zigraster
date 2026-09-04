@@ -25,22 +25,6 @@ from riley.python.meshconstants import (
 )
 
 
-class MeshConvErr(ValueError):
-    """Raised when an explicit mesh conversion cannot be completed."""
-
-    def __init__(
-        self,
-        message: str,
-        issues: (
-            list[MeshVerifyIssue] | tuple[MeshVerifyIssue, ...] | None
-        ) = None,
-    ) -> None:
-        self.issues: tuple[MeshVerifyIssue, ...] = (
-            tuple(issues) if issues is not None else ()
-        )
-        super().__init__(message)
-
-
 class EConnectAxis(Enum):
     """Axis containing elements in a source connectivity array."""
 
@@ -145,18 +129,31 @@ class MeshVerifyIssue:
     elem_idx: int | None = None
 
 
-class MeshVerifyErr(ValueError):
-    """Collect all mesh verification failures found in one pass."""
+class MeshError(ValueError):
+    """Raised when mesh verification or conversion fails."""
 
-    def __init__(self, issues: list[MeshVerifyIssue]) -> None:
-        self.issues = tuple(issues)
-        lines = [f"Mesh verification failed with {len(issues)} issue(s):"]
-        for issue in issues:
-            location = ""
-            if issue.elem_idx is not None:
-                location = f" element {issue.elem_idx}:"
-            lines.append(f"- [{issue.code}]{location} {issue.message}")
-        super().__init__("\n".join(lines))
+    def __init__(
+        self,
+        message: str | None = None,
+        issues: (
+            list[MeshVerifyIssue] | tuple[MeshVerifyIssue, ...] | None
+        ) = None,
+    ) -> None:
+        self.issues: tuple[MeshVerifyIssue, ...] = (
+            tuple(issues) if issues is not None else ()
+        )
+        if message is not None:
+            super().__init__(message)
+        else:
+            lines = [
+                f"Mesh verification failed with {len(self.issues)} issue(s):"
+            ]
+            for issue in self.issues:
+                location = ""
+                if issue.elem_idx is not None:
+                    location = f" element {issue.elem_idx}:"
+                lines.append(f"- [{issue.code}]{location} {issue.message}")
+            super().__init__("\n".join(lines))
 
 
 def _get_user_topology_perm(
@@ -168,7 +165,7 @@ def _get_user_topology_perm(
     node_count = spec.node_count
     corner_count = len(spec.corner_slots)
     if len(topology.corner_slots) != corner_count:
-        raise MeshConvErr(
+        raise MeshError(
             f"{elem_type.value} requires {corner_count} corner slots."
         )
 
@@ -200,7 +197,7 @@ def _get_user_topology_perm(
             topology.corner_slots[end],
         ))
         if source_edge not in edge_lookup:
-            raise MeshConvErr(
+            raise MeshError(
                 f"{elem_type.value} topology is missing edge "
                 f"{tuple(sorted(source_edge))}."
             )
@@ -220,7 +217,7 @@ def _get_user_topology_perm(
             source_face_slots.append(topology.corner_slots[idx])
         source_face = frozenset(source_face_slots)
         if source_face not in face_lookup:
-            raise MeshConvErr(
+            raise MeshError(
                 f"{elem_type.value} topology is missing face "
                 f"{tuple(sorted(source_face))}."
             )
@@ -229,14 +226,14 @@ def _get_user_topology_perm(
     centre_slot = spec.centre_slot
     if centre_slot is not None:
         if topology.centre_slot is None:
-            raise MeshConvErr(
+            raise MeshError(
                 f"{elem_type.value} topology requires a centre slot."
             )
         perm[centre_slot] = topology.centre_slot
 
     expected_slots = set(range(node_count))
     if set(perm) != expected_slots:
-        raise MeshConvErr(
+        raise MeshError(
             f"{elem_type.value} topology must use every source slot exactly "
             "once."
         )
@@ -254,147 +251,7 @@ def _get_source_perm(convention: ConnectConvention) -> tuple[int, ...]:
         return VTK_TO_RILEY[convention.elem_type]
     if convention.node_order is ENodeOrder.EXODUS:
         return EXODUS_TO_RILEY[convention.elem_type]
-    raise MeshConvErr(f"Unsupported node ordering: {convention.node_order}.")
-
-def _verify_mesh_core(
-    coords: np.ndarray,
-    connect: np.ndarray,
-    elem_type: EElementType,
-    *,
-    strict_std_types: bool = False,
-    check_c_contiguous: bool = False,
-) -> list[MeshVerifyIssue]:
-    """Perform core structural checks on coordinates and connectivity.
-
-    Parameters
-    ----------
-    coords : np.ndarray
-        Coordinate array candidate.
-    connect : np.ndarray
-        Connectivity array candidate (already index-base shifted).
-    elem_type : EElementType
-        Target or source element type.
-    strict_std_types : bool, default=False
-        If True, require float64 coords and uintp connect. If False, accept
-        any floating dtype for coords and any integer dtype for connect.
-    check_c_contiguous : bool, default=False
-        If True, verify both arrays are C-contiguous in memory.
-
-    Returns
-    -------
-    list[MeshVerifyIssue]
-        Independent validation issues discovered during inspection.
-    """
-    issues: list[MeshVerifyIssue] = []
-    if not isinstance(elem_type, EElementType):
-        issues.append(MeshVerifyIssue(
-            "element_type", "elem_type must be an EElementType member."
-        ))
-        return issues
-
-    spec = RILEY_ELEMENT_SPECS[elem_type]
-    coords_arr = np.asarray(coords)
-    connect_arr = np.asarray(connect)
-
-    coords_safe = coords_arr.ndim == 2 and coords_arr.shape[1:] == (3,)
-    connect_safe = connect_arr.ndim == 2
-    connect_values_safe = connect_safe
-
-    if not coords_safe:
-        issues.append(MeshVerifyIssue(
-            "coordinate_shape", "coords must have shape (nodes, 3)."
-        ))
-    else:
-        if coords_arr.shape[0] == 0:
-            issues.append(MeshVerifyIssue(
-                "empty_coordinates", "coords must contain at least one node."
-            ))
-        if strict_std_types:
-            if coords_arr.dtype != np.float64:
-                issues.append(MeshVerifyIssue(
-                    "coordinate_dtype", "coords must have dtype float64."
-                ))
-        else:
-            if not np.issubdtype(coords_arr.dtype, np.floating):
-                issues.append(MeshVerifyIssue(
-                    "coordinate_dtype",
-                    "coords must have a floating-point dtype.",
-                ))
-        if check_c_contiguous and not coords_arr.flags.c_contiguous:
-            issues.append(MeshVerifyIssue(
-                "coordinate_layout", "coords must be C-contiguous."
-            ))
-        if not np.all(np.isfinite(coords_arr)):
-            issues.append(MeshVerifyIssue(
-                "coordinate_values", "coords must contain only finite values."
-            ))
-
-    if not connect_safe:
-        issues.append(MeshVerifyIssue(
-            "connectivity_shape", "connect must be two-dimensional."
-        ))
-    else:
-        if connect_arr.shape[0] == 0 or connect_arr.size == 0:
-            issues.append(MeshVerifyIssue(
-                "empty_connectivity", "connect must contain an element."
-            ))
-        if connect_arr.shape[1] != spec.node_count:
-            issues.append(MeshVerifyIssue(
-                "connectivity_width",
-                f"{elem_type.value} requires {spec.node_count} "
-                "nodes per element.",
-            ))
-            connect_safe = False
-        if strict_std_types:
-            if connect_arr.dtype != np.uintp:
-                issues.append(MeshVerifyIssue(
-                    "connectivity_dtype", "connect must have dtype uintp."
-                ))
-            if np.issubdtype(connect_arr.dtype, np.bool_) or not np.issubdtype(
-                connect_arr.dtype,
-                np.integer,
-            ):
-                connect_values_safe = False
-        else:
-            if np.issubdtype(connect_arr.dtype, np.bool_) or not np.issubdtype(
-                connect_arr.dtype,
-                np.integer,
-            ):
-                issues.append(MeshVerifyIssue(
-                    "connectivity_dtype",
-                    "connect must have an integer dtype.",
-                ))
-                connect_values_safe = False
-        if check_c_contiguous and not connect_arr.flags.c_contiguous:
-            issues.append(MeshVerifyIssue(
-                "connectivity_layout", "connect must be C-contiguous."
-            ))
-
-    arrays_safe = coords_safe and connect_safe and connect_values_safe
-    if arrays_safe and connect_arr.size and coords_arr.shape[0] > 0:
-        if not strict_std_types and np.issubdtype(
-            connect_arr.dtype,
-            np.unsignedinteger,
-        ):
-            max_int64 = np.iinfo(np.int64).max
-            if int(np.max(connect_arr)) > max_int64:
-                issues.append(MeshVerifyIssue(
-                    "connectivity_indices",
-                    "connect contains an index outside int64 range.",
-                ))
-                return issues
-        valid_idxs = np.logical_and(
-            connect_arr >= 0,
-            connect_arr < coords_arr.shape[0],
-        )
-        if not np.all(valid_idxs):
-            issues.append(MeshVerifyIssue(
-                "connectivity_indices",
-                "connect contains indices outside the coordinate array.",
-            ))
-
-    return issues
-
+    raise MeshError(f"Unsupported node ordering: {convention.node_order}.")
 
 def convert_mesh(
     coords: np.ndarray,
@@ -430,51 +287,28 @@ def convert_mesh(
     if convention.elem_axis is EConnectAxis.COLUMN and connect_in.ndim == 2:
         connect_in = connect_in.T
 
+    source_perm = np.asarray(_get_source_perm(convention), dtype=np.uintp)
     if (
         connect_in.ndim == 2
+        and connect_in.shape[1] == source_perm.shape[0]
         and np.issubdtype(connect_in.dtype, np.integer)
         and not np.issubdtype(connect_in.dtype, np.bool_)
     ):
-        if np.issubdtype(connect_in.dtype, np.unsignedinteger):
-            max_int64 = np.iinfo(np.int64).max
-            if connect_in.size and int(np.max(connect_in)) > max_int64:
-                connect_shifted = connect_in
-            else:
-                connect_shifted = (
-                    connect_in.astype(np.int64) - convention.index_base
-                )
-        else:
-            connect_shifted = (
-                connect_in.astype(np.int64) - convention.index_base
-            )
+        connect_shifted = (
+            np.ascontiguousarray(connect_in, dtype=np.int64)
+            - convention.index_base
+        )
+        connect_std = np.ascontiguousarray(
+            connect_shifted[:, source_perm],
+            dtype=np.uintp,
+        )
     else:
-        connect_shifted = connect_in
+        connect_std = connect_in
 
-    issues = _verify_mesh_core(
-        coords=coords_in,
-        connect=connect_shifted,
-        elem_type=convention.elem_type,
-        strict_std_types=False,
-        check_c_contiguous=False,
-    )
-    if issues:
-        lines = [
-            f"Mesh conversion failed with {len(issues)} validation issue(s):"
-        ]
-        for issue in issues:
-            location = ""
-            if issue.elem_idx is not None:
-                location = f" element {issue.elem_idx}:"
-            lines.append(f"- [{issue.code}]{location} {issue.message}")
-        raise MeshConvErr("\n".join(lines), issues=issues)
-
-    connect_std = np.ascontiguousarray(connect_shifted, dtype=np.int64)
-    source_perm = np.asarray(_get_source_perm(convention), dtype=np.uintp)
-    connect_std = np.ascontiguousarray(
-        connect_std[:, source_perm],
-        dtype=np.uintp,
-    )
-    coords_std = np.ascontiguousarray(coords_in, dtype=np.float64)
+    if np.issubdtype(coords_in.dtype, np.floating):
+        coords_std = np.ascontiguousarray(coords_in, dtype=np.float64)
+    else:
+        coords_std = coords_in
 
     mesh_out = MeshGeometry(
         elem_type=convention.elem_type,
@@ -489,43 +323,88 @@ def verify_mesh(mesh: MeshGeometry) -> None:
     """Verify Riley's standard mesh convention and report all found issues.
 
     Independent structural and per-element failures are collected into one
-    ``MeshVerifyErr`` so a user can correct several input problems at once.
+    ``MeshError`` so a user can correct several input problems at once.
     Checks that depend on unsafe or malformed arrays are skipped.
     """
     if not isinstance(mesh, MeshGeometry):
         raise TypeError("mesh must be an instance of MeshGeometry.")
 
-    issues = _verify_mesh_core(
-        coords=mesh.coords,
-        connect=mesh.connect,
-        elem_type=mesh.elem_type,
-        strict_std_types=True,
-        check_c_contiguous=True,
-    )
+    issues: list[MeshVerifyIssue] = []
     if not isinstance(mesh.elem_type, EElementType):
-        raise MeshVerifyErr(issues)
+        issues.append(MeshVerifyIssue(
+            "element_type", "elem_type must be an EElementType member."
+        ))
+        raise MeshError(issues=issues)
 
+    spec = RILEY_ELEMENT_SPECS[mesh.elem_type]
     coords = np.asarray(mesh.coords)
     connect = np.asarray(mesh.connect)
 
-    coords_safe = (
-        coords.ndim == 2
-        and coords.shape[1:] == (3,)
-        and coords.shape[0] > 0
-        and np.all(np.isfinite(coords))
-    )
-    spec = RILEY_ELEMENT_SPECS[mesh.elem_type]
-    connect_safe = (
-        connect.ndim == 2
-        and connect.shape[0] > 0
-        and connect.shape[1] == spec.node_count
-        and np.issubdtype(connect.dtype, np.integer)
-        and not np.issubdtype(connect.dtype, np.bool_)
-    )
+    coords_safe = coords.ndim == 2 and coords.shape[1:] == (3,)
+    connect_safe = connect.ndim == 2
+    connect_values_safe = connect_safe
 
-    if coords_safe and connect_safe and connect.size:
+    if not coords_safe:
+        issues.append(MeshVerifyIssue(
+            "coordinate_shape", "coords must have shape (nodes, 3)."
+        ))
+    else:
+        if coords.shape[0] == 0:
+            issues.append(MeshVerifyIssue(
+                "empty_coordinates", "coords must contain at least one node."
+            ))
+        if coords.dtype != np.float64:
+            issues.append(MeshVerifyIssue(
+                "coordinate_dtype", "coords must have dtype float64."
+            ))
+        if not coords.flags.c_contiguous:
+            issues.append(MeshVerifyIssue(
+                "coordinate_layout", "coords must be C-contiguous."
+            ))
+        if not np.all(np.isfinite(coords)):
+            issues.append(MeshVerifyIssue(
+                "coordinate_values", "coords must contain only finite values."
+            ))
+
+    if not connect_safe:
+        issues.append(MeshVerifyIssue(
+            "connectivity_shape", "connect must be two-dimensional."
+        ))
+    else:
+        if connect.shape[0] == 0 or connect.size == 0:
+            issues.append(MeshVerifyIssue(
+                "empty_connectivity", "connect must contain an element."
+            ))
+        if connect.shape[1] != spec.node_count:
+            issues.append(MeshVerifyIssue(
+                "connectivity_width",
+                f"{mesh.elem_type.value} requires {spec.node_count} "
+                "nodes per element.",
+            ))
+            connect_safe = False
+        if connect.dtype != np.uintp:
+            issues.append(MeshVerifyIssue(
+                "connectivity_dtype", "connect must have dtype uintp."
+            ))
+        if np.issubdtype(connect.dtype, np.bool_) or not np.issubdtype(
+            connect.dtype,
+            np.integer,
+        ):
+            connect_values_safe = False
+        if not connect.flags.c_contiguous:
+            issues.append(MeshVerifyIssue(
+                "connectivity_layout", "connect must be C-contiguous."
+            ))
+
+    arrays_safe = coords_safe and connect_safe and connect_values_safe
+    if arrays_safe and connect.size and coords.shape[0] > 0:
         valid_idxs = np.logical_and(connect >= 0, connect < coords.shape[0])
-        if np.all(valid_idxs):
+        if not np.all(valid_idxs):
+            issues.append(MeshVerifyIssue(
+                "connectivity_indices",
+                "connect contains indices outside the coordinate array.",
+            ))
+        else:
             for ee, row in enumerate(connect):
                 if np.unique(row).shape[0] != row.shape[0]:
                     issues.append(MeshVerifyIssue(
@@ -535,16 +414,18 @@ def verify_mesh(mesh: MeshGeometry) -> None:
                     ))
 
     if issues:
-        raise MeshVerifyErr(issues)
+        raise MeshError(issues=issues)
 
 
 def _extract_surface_with_node_idxs(
     mesh: MeshGeometry,
 ) -> tuple[MeshGeometry, np.ndarray]:
     """Extract a surface and return its original global node indices."""
+
     verify_mesh(mesh)
+
     if mesh.elem_type not in RILEY_VOLUME_SURFACE_TYPES:
-        raise MeshConvErr("extract_surface requires a volume mesh.")
+        raise MeshError("extract_surface requires a volume mesh.")
 
     spec = RILEY_ELEMENT_SPECS[mesh.elem_type]
     surf_type = RILEY_VOLUME_SURFACE_TYPES[mesh.elem_type]
@@ -562,7 +443,7 @@ def _extract_surface_with_node_idxs(
     surf_faces = []
     for face_key, uses in face_uses.items():
         if len(uses) > 2:
-            raise MeshConvErr(
+            raise MeshError(
                 f"Non-manifold volume face {face_key} has {len(uses)} "
                 "incident elements."
             )
@@ -570,7 +451,7 @@ def _extract_surface_with_node_idxs(
             surf_faces.append(uses[0])
 
     if not surf_faces:
-        raise MeshConvErr("Volume mesh has no boundary faces.")
+        raise MeshError("Volume mesh has no boundary faces.")
 
     surf_connect_glob = np.ascontiguousarray(
         np.vstack(surf_faces), dtype=np.uintp
@@ -589,12 +470,14 @@ def _extract_surface_with_node_idxs(
             node_remap[surf_connect_glob], dtype=np.uintp
         ),
     )
+
     verify_mesh(mesh_out)
+
     return mesh_out, surf_node_idxs
 
 
 def extract_surface(mesh: MeshGeometry) -> MeshGeometry:
-    """Extract a compact Riley-standard surface from a volume mesh."""
+    """Extract a compact Riley standard surface from a volume mesh."""
     mesh_out, _ = _extract_surface_with_node_idxs(mesh)
     return mesh_out
 
@@ -606,9 +489,8 @@ __all__ = [
     "ENodeOrder",
     "EdgeNode",
     "FaceNode",
-    "MeshConvErr",
+    "MeshError",
     "MeshGeometry",
-    "MeshVerifyErr",
     "MeshVerifyIssue",
     "UserTopology",
     "convert_mesh",
