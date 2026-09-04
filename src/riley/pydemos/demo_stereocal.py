@@ -8,19 +8,17 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
-from dataclasses import replace
-from pathlib import Path
 from time import perf_counter
 
 import numpy as np
-import riley
 
+import riley
 from riley.pydemos.common import (
     evenly_spaced_frame_indices,
+    load_demo_arrays,
     make_demo_out_dir,
     select_frames,
 )
-
 
 FRAMES_MAX = 8
 
@@ -85,7 +83,11 @@ def main() -> None:
     out_dir = make_demo_out_dir("demo-stereocal")
     total_threads = 8
 
-    coords, connect, uvs, disp = riley.load_sim_csvs(data_dir)
+    coords, connect, uvs, disp = load_demo_arrays(
+        data_dir, riley.EElementType.TRI3
+    )
+    if disp is None:
+        raise ValueError("The stereo calibration demo requires displacement.")
     frame_indices = evenly_spaced_frame_indices(disp.shape[0], FRAMES_MAX)
     disp = select_frames(disp, frame_indices)
     texture = riley.load_texture_u8(texture_path)

@@ -34,7 +34,7 @@ ZIG_CMD = [
 EXACT_8BIT_COMPARE = True
 FLOAT_FALLBACK_ABS_TOL = 0.5
 
-DEMO_CASES = (
+STANDARD_DEMO_CASES = (
     (
         "sphere200",
         [str(PYTHON_EXE), "-m", "riley", "demo_sphere200"],
@@ -64,13 +64,6 @@ DEMO_CASES = (
         2,
     ),
     (
-        "dic_from_exodus",
-        [str(PYTHON_EXE), "-m", "riley", "demo_dic_from_exodus"],
-        "out/demo-dicuq",
-        "out-riley-py/demo-dicuq-from-exodus",
-        2,
-    ),
-    (
         "stereocal",
         [str(PYTHON_EXE), "-m", "riley", "demo_stereocal"],
         "out/demo-stereocal",
@@ -78,6 +71,17 @@ DEMO_CASES = (
         8,
     ),
 )
+
+EXODUS_DEMO_CASE = (
+    "dic_from_exodus",
+    [str(PYTHON_EXE), "-m", "riley", "demo_dic_from_exodus"],
+    "out/demo-dicuq",
+    "out-riley-py/demo-dicuq-from-exodus",
+    2,
+)
+
+ALL_DEMO_CASES = (*STANDARD_DEMO_CASES, EXODUS_DEMO_CASE)
+DEMO_CASES = ALL_DEMO_CASES
 
 
 def test_raster_config_exposes_global_subpixel_sizing() -> None:
@@ -231,24 +235,12 @@ def ensure_zig_demo_renders() -> None:
         print("Reusing cached Zig demo renders.")
 
 
-@pytest.mark.parametrize(
-    ("case_name", "python_cmd", "zig_dir", "py_dir", "frames_num"),
-    DEMO_CASES,
-    ids=[case[0] for case in DEMO_CASES],
-)
-def test_demo_parity(
+def _run_demo_case(
     case_name: str,
     python_cmd: list[str],
     zig_dir: str,
     py_dir: str,
-    frames_num: int | None,
 ) -> None:
-    del frames_num
-    if case_name == "dic_from_exodus" and find_spec("pyvale") is None:
-        pytest.skip(
-            "pyvale is required for the exodus Python demo parity test."
-        )
-
     silent_env = dict(os.environ)
     silent_env["RILEY_DEMO_SILENT"] = "1"
 
@@ -258,3 +250,28 @@ def test_demo_parity(
     print(f"Testing demo case: {case_name}")
     _run_command(f"python render {case_name}", python_cmd, silent_env)
     _compare_render_dirs(PROJECT_ROOT / zig_dir, py_dir_path)
+
+
+@pytest.mark.parametrize(
+    ("case_name", "python_cmd", "zig_dir", "py_dir", "frames_num"),
+    STANDARD_DEMO_CASES,
+    ids=[case[0] for case in STANDARD_DEMO_CASES],
+)
+def test_demo_parity(
+    case_name: str,
+    python_cmd: list[str],
+    zig_dir: str,
+    py_dir: str,
+    frames_num: int | None,
+) -> None:
+    del frames_num
+    _run_demo_case(case_name, python_cmd, zig_dir, py_dir)
+
+
+@pytest.mark.skipif(
+    find_spec("netCDF4") is None,
+    reason="netCDF4 is required for the exodus Python demo parity test.",
+)
+def test_demo_dic_from_exodus_parity() -> None:
+    case_name, python_cmd, zig_dir, py_dir, _ = EXODUS_DEMO_CASE
+    _run_demo_case(case_name, python_cmd, zig_dir, py_dir)

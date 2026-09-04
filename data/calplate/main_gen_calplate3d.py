@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+from riley.python import meshconv
 
 import main_gen_calplate as base
 
@@ -187,8 +188,23 @@ def mesh_cases() -> dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]]:
 
 def main() -> None:
     states = base.selected_motion_states()
+    element_types = {
+        "tri3_calplate3d": meshconv.EElementType.TRI3,
+        "tri6_calplate3d": meshconv.EElementType.TRI6,
+        "quad4_calplate3d": meshconv.EElementType.QUAD4,
+        "quad8_calplate3d": meshconv.EElementType.QUAD8,
+        "quad9_calplate3d": meshconv.EElementType.QUAD9,
+    }
     for case_name, (coords, connect, uvs) in mesh_cases().items():
-        base.write_case(case_name, coords, connect, uvs, states)
+        base.write_case(
+            case_name,
+            element_types[case_name],
+            coords,
+            connect,
+            uvs,
+            states,
+            None,
+        )
 
     print(f"Generated 3D calplate mesh cases in {BASE_DIR}")
     print(f"Thickness: {THICKNESS:.10f} m")

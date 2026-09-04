@@ -12,10 +12,11 @@ from dataclasses import replace
 from time import perf_counter
 
 import numpy as np
-import riley
 
+import riley
 from riley.pydemos.common import (
     first_last_frame_indices,
+    load_demo_arrays,
     make_demo_out_dir,
     select_frames,
 )
@@ -41,7 +42,11 @@ def main() -> None:
         "distortion_p2": -0.0001,
     }
 
-    coords, connect, uvs, disp = riley.load_sim_csvs(data_dir)
+    coords, connect, uvs, disp = load_demo_arrays(
+        data_dir, riley.EElementType.QUAD8
+    )
+    if disp is None:
+        raise ValueError("The DIC UQ demo requires displacement.")
     frame_indices = first_last_frame_indices(disp.shape[0])
     disp = select_frames(disp, frame_indices)
     texture = riley.load_texture_u8(texture_path)

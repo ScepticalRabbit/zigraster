@@ -13,6 +13,53 @@ from pathlib import Path
 
 import numpy as np
 
+from riley.python.meshconv import (
+    ConnectConvention,
+    EConnectAxis,
+    EElementType,
+    convert_mesh,
+)
+from riley.python.meshio import (
+    load_connect_csv,
+    load_coord_csv,
+    load_field_csv,
+)
+
+
+def load_demo_arrays(
+    data_dir: Path,
+    elem_type: EElementType,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
+    """Load Riley's node-major demonstration files for the renderer."""
+    coords = load_coord_csv(data_dir / "coords.csv")
+    connect_raw = load_connect_csv(data_dir / "connect.csv")
+    convention = ConnectConvention(elem_type, EConnectAxis.ROW, 0)
+    mesh = convert_mesh(coords, connect_raw, convention)
+
+    uvs = None
+    uvs_path = data_dir / "uvs.csv"
+    if uvs_path.is_file():
+        uvs = load_coord_csv(uvs_path)
+
+    component_arrays = []
+    for axis_name in ("x", "y", "z"):
+        field_path = data_dir / f"field_disp_{axis_name}.csv"
+        if field_path.is_file():
+            component_arrays.append(load_field_csv(field_path).T)
+    disp = None
+    if component_arrays:
+        reference_shape = component_arrays[0].shape
+        for component in component_arrays:
+            if component.shape != reference_shape:
+                raise ValueError(
+                    "Demo displacement components must have equal shapes."
+                )
+        while len(component_arrays) < 3:
+            component_arrays.append(np.zeros(reference_shape))
+        disp = np.ascontiguousarray(np.stack(component_arrays, axis=2))
+
+    return mesh.coords, mesh.connect, uvs, disp
+
 
 def first_last_frame_indices(frames_num: int) -> np.ndarray:
     """Return the first and last frame indices without duplicating one frame."""

@@ -7,13 +7,29 @@ from riley.python import meshconv
 # Coordinate System: Right-handed Cartesian (X right, Y up, Z towards viewer).
 # Vertex Winding: All elements MUST follow Counter-Clockwise (CCW) winding.
 
-def save_case(base_dir, name, coords, connect, disp_x, disp_y, disp_z):
-    mesh = meshconv.MeshData(
-        coords=np.ascontiguousarray(coords, dtype=np.float64),
-        connect={"connect1": np.ascontiguousarray(connect, dtype=np.int64)},
-        mesh_type="surface",
+def save_case(
+    base_dir,
+    name,
+    elem_type,
+    coords,
+    connect,
+    disp_x,
+    disp_y,
+    disp_z,
+):
+    mesh = meshconv.convert_mesh(
+        coords,
+        connect,
+        meshconv.ConnectConvention(
+            elem_type,
+            meshconv.EConnectAxis.ROW,
+            0,
+            node_order=meshconv.ENodeOrder.RILEY,
+            material_normal_hint=(0.0, 0.0, 1.0),
+        ),
     )
-    connect = meshconv.enforce_mesh_convention(mesh).connect["connect1"]
+    meshconv.verify_mesh(mesh)
+    connect = mesh.connect
     out_dir = Path(base_dir) / name
     out_dir.mkdir(parents=True, exist_ok=True)
     np.savetxt(out_dir / "coords.csv", coords, delimiter=",")
@@ -86,7 +102,16 @@ def generate_tri6(base_dir, L, H, D, rot_angle, f0, f1, ur, vr):
         m20 = move_midside(v_tri[2], v_tri[0], centroid, offset)
         coords = rotate_points(np.vstack([v_tri, [m01, m12, m20]]), rot_angle, centroid)
         dx, dy, dz = compute_disps(coords, f0, f1)
-        save_case(base_dir, name, coords, np.array([[0, 1, 2, 3, 4, 5]]), dx, dy, dz)
+        save_case(
+            base_dir,
+            name,
+            meshconv.EElementType.TRI6,
+            coords,
+            np.array([[0, 1, 2, 3, 4, 5]]),
+            dx,
+            dy,
+            dz,
+        )
         save_uvs(base_dir, name, compute_uvs(coords, ur, vr))
 
 def generate_quad(base_dir, N, L, D, rot_angle, f0, f1, ur, vr):
@@ -106,7 +131,21 @@ def generate_quad(base_dir, N, L, D, rot_angle, f0, f1, ur, vr):
         
         coords = rotate_points(np.array(nodes), rot_angle, centroid)
         dx, dy, dz = compute_disps(coords, f0, f1)
-        save_case(base_dir, name, coords, np.array([list(range(N))]), dx, dy, dz)
+        elem_type = (
+            meshconv.EElementType.QUAD9
+            if N == 9
+            else meshconv.EElementType.QUAD8
+        )
+        save_case(
+            base_dir,
+            name,
+            elem_type,
+            coords,
+            np.array([list(range(N))]),
+            dx,
+            dy,
+            dz,
+        )
         save_uvs(base_dir, name, compute_uvs(coords, ur, vr))
 
 def generate_quad_vertbulge(base_dir, N, L, f0, f1, ur, vr):
@@ -131,7 +170,21 @@ def generate_quad_vertbulge(base_dir, N, L, f0, f1, ur, vr):
     name = f"quad{N}_vertbulge"
     coords = np.array(nodes)
     dx, dy, dz = compute_disps(coords, f0, f1)
-    save_case(base_dir, name, coords, np.array([list(range(N))]), dx, dy, dz)
+    elem_type = (
+        meshconv.EElementType.QUAD9
+        if N == 9
+        else meshconv.EElementType.QUAD8
+    )
+    save_case(
+        base_dir,
+        name,
+        elem_type,
+        coords,
+        np.array([list(range(N))]),
+        dx,
+        dy,
+        dz,
+    )
     save_uvs(base_dir, name, compute_uvs(coords, ur, vr))
 
 def main():

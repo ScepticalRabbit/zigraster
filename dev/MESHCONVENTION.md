@@ -11,9 +11,6 @@ Riley distinguishes between:
 - Python mesh-processing elements: all renderable types plus TRI7, TET4,
   TET10, HEX8, HEX20 and HEX27.
 
-TRI7 and the volume types are supported for mesh conversion, verification and
-surface extraction. They are not accepted directly by the Zig renderer.
-
 ## Mesh representation
 
 A Riley standard mesh contains one element type and one connectivity table.
@@ -94,10 +91,10 @@ TET10 edge nodes are:
 The outward surface faces extracted from a standard TET are:
 
 ```text
-(0, 1, 2)
-(0, 3, 1)
-(0, 2, 3)
-(1, 3, 2)
+(0, 1, 3)
+(1, 2, 3)
+(2, 0, 3)
+(0, 2, 1)
 ```
 
 For TET10 the corresponding edge nodes follow the three face corners.
@@ -129,10 +126,10 @@ HEX27 face and cell nodes are:
 
 | Slot | Role |
 | --- | --- |
-| 20 | face `(0, 1, 5, 4)` |
+| 20 | face `(0, 4, 7, 3)` |
 | 21 | face `(1, 2, 6, 5)` |
-| 22 | face `(2, 3, 7, 6)` |
-| 23 | face `(3, 0, 4, 7)` |
+| 22 | face `(0, 1, 5, 4)` |
+| 23 | face `(3, 7, 6, 2)` |
 | 24 | face `(0, 1, 2, 3)` |
 | 25 | face `(4, 5, 6, 7)` |
 | 26 | cell centre |
@@ -140,12 +137,12 @@ HEX27 face and cell nodes are:
 The outward surface faces extracted from a standard HEX are:
 
 ```text
-(0, 1, 2, 3)  bottom
-(0, 3, 7, 4)  left
-(4, 7, 6, 5)  top
-(1, 5, 6, 2)  right
-(0, 4, 5, 1)  front
-(2, 6, 7, 3)  back
+(0, 4, 7, 3)  left
+(1, 2, 6, 5)  right
+(0, 1, 5, 4)  front
+(3, 7, 6, 2)  back
+(0, 3, 2, 1)  bottom
+(4, 5, 6, 7)  top
 ```
 
 Higher-order face connectivity appends the edge nodes in boundary order and,
@@ -191,7 +188,13 @@ structural, index, topology, orientation and geometry failures and
 raises one `MeshVerifyErr` containing the complete report. Checks that would
 be unsafe after a structural failure are skipped.
 
-Degenerate elements are input errors. Verification never repairs a mesh.
+Degenerate volume elements are input errors. Surface elements may collapse
+geometrically at deliberate parameterisation singularities such as the pole
+of a UV sphere. Geometrically coincident surface elements are also permitted
+so that distinct node IDs can carry different field or UV values across a
+seam. Connectivity within each element must still use distinct node IDs.
+
+Verification never repairs a mesh.
 
 ## Surface extraction
 
@@ -216,10 +219,14 @@ HEX27 details are in
 [vtkTriQuadraticHexahedron](https://vtk.org/doc/nightly/html/classvtkTriQuadraticHexahedron.html).
 
 Riley's supported local Lagrange node roles follow VTK ordering for TRI3,
-TRI6, TRI7, QUAD4, QUAD8, QUAD9, TET4, TET10, HEX8, HEX20 and HEX27. This
-includes HEX27 face centres `20..25`: front, right, back, left, bottom and
-top. The VTK adapter remains explicit so the source convention is recorded
-and tested rather than assumed.
+TRI6, TRI7, QUAD4, QUAD8, QUAD9, TET4, TET10, HEX8, HEX20 and HEX27. HEX27
+face centres `20..25` are left, right, front, back, bottom and top. The VTK
+adapter remains explicit so the source convention is recorded and tested
+rather than assumed.
+
+Riley uses VTK's face-ID sequence and the same outward local-node sequence
+within every face of its supported three-dimensional elements. Riley does
+not accept or preserve source-package face IDs or side sets.
 
 The mesh representations and acceptance rules differ:
 
@@ -232,13 +239,6 @@ The mesh representations and acceptance rules differ:
   not support.
 - Riley requires surface winding to represent the material-facing side and
   applies explicit exterior/cavity rules to closed shells.
-- Riley performs stricter topology and geometry verification for its supported
-  raster and surface-extraction paths.
 - Riley's Zig renderer directly accepts only TRI3, TRI6, QUAD4, QUAD8 and
   QUAD9. Riley volume types are converted and verified in Python before their
   surfaces are extracted.
-
-Exodus must not be treated as VTK ordering merely because an Exodus reader can
-produce a VTK grid. In particular, common Exodus HEX20 connectivity groups
-vertical and top edge nodes differently. The Exodus adapter performs that
-explicit conversion.

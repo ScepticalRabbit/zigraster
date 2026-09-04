@@ -46,13 +46,20 @@ def generate_stress_data():
     
     nodes = [v0, v1, v2, v3, m01_new, m12_new, m20_new, m13_new, m30_new]
     coords = np.asarray(nodes, dtype=np.float64)
-    connect = meshconv.enforce_mesh_convention(
-        meshconv.MeshData(
-            coords=coords,
-            connect={"connect1": np.array([[0, 1, 2, 4, 5, 6], [1, 0, 3, 4, 8, 7]], dtype=np.int64)},
-            mesh_type="surface",
-        )
-    ).connect["connect1"]
+    connect_raw = np.array(
+        [[0, 1, 2, 4, 5, 6], [1, 0, 3, 4, 8, 7]],
+        dtype=np.int64,
+    )
+    convention = meshconv.ConnectConvention(
+        meshconv.EElementType.TRI6,
+        meshconv.EConnectAxis.ROW,
+        0,
+        node_order=meshconv.ENodeOrder.RILEY,
+        material_normal_hint=(0.0, 0.0, 1.0),
+    )
+    mesh = meshconv.convert_mesh(coords, connect_raw, convention)
+    meshconv.verify_mesh(mesh)
+    connect = mesh.connect
     
     # coords.csv
     with open(f"{path}/coords.csv", "w") as f:

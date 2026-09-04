@@ -7,6 +7,7 @@ import gmsh
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.collections import PolyCollection
+from riley.python import meshconv
 from svgpathtools import svg2paths
 
 
@@ -41,6 +42,14 @@ class BunnyName(Enum):
 SVG_NAMES = {
     BunnyName.FEEBS: "Feebs_ToMesh.svg",
     BunnyName.RILEY: "Riley_ToMesh.svg",
+}
+
+RILEY_ELEMENT_TYPES = {
+    ElemType.TRI3: meshconv.EElementType.TRI3,
+    ElemType.TRI6: meshconv.EElementType.TRI6,
+    ElemType.QUAD4: meshconv.EElementType.QUAD4,
+    ElemType.QUAD8: meshconv.EElementType.QUAD8,
+    ElemType.QUAD9: meshconv.EElementType.QUAD9,
 }
 
 
@@ -219,10 +228,24 @@ def export_mesh_data(out_dir, bunny_name, elem_type):
         coords_by_tag[node_tag] = coords
 
     final_coords = np.array([coords_by_tag[node_tag] for node_tag in sorted_node_tags])
-    final_connectivity = [
+    source_connectivity = np.asarray([
         [node_map[node_tag] for node_tag in element_node_tags_row]
         for element_node_tags_row in all_connectivity
-    ]
+    ], dtype=np.int64)
+    convention = meshconv.ConnectConvention(
+        RILEY_ELEMENT_TYPES[elem_type],
+        meshconv.EConnectAxis.ROW,
+        0,
+        node_order=meshconv.ENodeOrder.VTK,
+        material_normal_hint=(0.0, 0.0, 1.0),
+    )
+    mesh = meshconv.convert_mesh(
+        final_coords,
+        source_connectivity,
+        convention,
+    )
+    meshconv.verify_mesh(mesh)
+    final_connectivity = mesh.connect
 
     write_coords(out_dir, final_coords)
     write_connectivity(out_dir, final_connectivity)

@@ -11,8 +11,7 @@ from __future__ import annotations
 from time import perf_counter
 
 import riley
-
-from riley.pydemos.common import make_demo_out_dir
+from riley.pydemos.common import load_demo_arrays, make_demo_out_dir
 
 
 def main() -> None:
@@ -25,7 +24,9 @@ def main() -> None:
     rot_world = (0.0, 0.0, 0.0)
     frame_fill = 1.0
 
-    coords, connect, uvs, _ = riley.load_sim_csvs(data_dir)
+    coords, connect, uvs, _ = load_demo_arrays(
+        data_dir, riley.EElementType.TRI6
+    )
     texture = riley.load_texture_u8(texture_path)
 
     roi_cent_world = riley.roi_cent_from_coords(coords)

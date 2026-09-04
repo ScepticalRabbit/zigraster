@@ -22,13 +22,20 @@ def generate_vertbulge_data():
     
     nodes = [v0, v1, v2, m01, m12, m20]
     coords = np.asarray(nodes, dtype=np.float64)
-    connect = meshconv.enforce_mesh_convention(
-        meshconv.MeshData(
-            coords=coords,
-            connect={"connect1": np.array([[0, 1, 2, 3, 4, 5]], dtype=np.int64)},
-            mesh_type="surface",
-        )
-    ).connect["connect1"]
+    convention = meshconv.ConnectConvention(
+        meshconv.EElementType.TRI6,
+        meshconv.EConnectAxis.ROW,
+        0,
+        node_order=meshconv.ENodeOrder.RILEY,
+        material_normal_hint=(0.0, 0.0, 1.0),
+    )
+    mesh = meshconv.convert_mesh(
+        coords,
+        np.array([[0, 1, 2, 3, 4, 5]], dtype=np.int64),
+        convention,
+    )
+    meshconv.verify_mesh(mesh)
+    connect = mesh.connect
     
     # coords.csv
     with open(f"{path}/coords.csv", "w") as f:

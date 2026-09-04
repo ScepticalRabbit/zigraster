@@ -3,33 +3,74 @@ import os
 
 from riley.python import meshconv
 
+
+ELEMENT_TYPES = {
+    "tri3": meshconv.EElementType.TRI3,
+    "tri6": meshconv.EElementType.TRI6,
+    "quad4ibi": meshconv.EElementType.QUAD4,
+    "quad4newton": meshconv.EElementType.QUAD4,
+    "quad8": meshconv.EElementType.QUAD8,
+    "quad9": meshconv.EElementType.QUAD9,
+}
+
 def save_csv(path, data):
     os.makedirs(os.path.dirname(path), exist_ok=True)
     np.savetxt(path, data, delimiter=',', fmt='%.10f' if data.dtype == np.float64 else '%d')
 
-def save_surface_mesh(out_dir, coords, connect):
-    connect = meshconv.enforce_mesh_convention(
-        meshconv.MeshData(
-            coords=np.ascontiguousarray(coords, dtype=np.float64),
-            connect={"connect1": np.ascontiguousarray(connect, dtype=np.int64)},
-            mesh_type="surface",
-        )
-    ).connect["connect1"]
-    save_csv(f"{out_dir}/coords.csv", coords)
-    save_csv(f"{out_dir}/connect.csv", connect)
-
-def get_nodes_for_elem(etype):
-    return {
-        "tri3": 3,
-        "tri6": 6,
-        "quad4ibi": 4,
-        "quad4newton": 4,
-        "quad8": 8,
-        "quad9": 9,
-    }[etype]
+def save_surface_mesh(
+    out_dir,
+    elem_type,
+    coords,
+    connect,
+    material_normal_hint=(0.0, 0.0, 1.0),
+):
+    convention = meshconv.ConnectConvention(
+        elem_type,
+        meshconv.EConnectAxis.ROW,
+        0,
+        node_order=meshconv.ENodeOrder.RILEY,
+        material_normal_hint=material_normal_hint,
+    )
+    mesh = meshconv.convert_mesh(coords, connect, convention)
+    meshconv.verify_mesh(mesh)
+    save_csv(f"{out_dir}/coords.csv", mesh.coords)
+    save_csv(f"{out_dir}/connect.csv", mesh.connect)
 
 WIDTH = 16.0
 HEIGHT = 10.0
+SPHERE_CENTER = np.array((0.0, 0.0, 5.0), dtype=np.float64)
+SPHERE_ORIENT_TOL = 1.0e-12
+
+
+def verify_sphere_orientation(
+    coords: np.ndarray,
+    connect: np.ndarray,
+    elem_type: meshconv.EElementType,
+) -> None:
+    """Verify that every non-collapsed sphere element faces outwards."""
+    corner_count = 3 if elem_type in (
+        meshconv.EElementType.TRI3,
+        meshconv.EElementType.TRI6,
+    ) else 4
+    corners = coords[connect[:, :corner_count]]
+    edge_a = corners[:, 1] - corners[:, 0]
+    edge_b = corners[:, 2] - corners[:, 0]
+    face_normals = np.cross(edge_a, edge_b)
+    face_centres = np.mean(corners, axis=1)
+    radial_vectors = face_centres - SPHERE_CENTER
+    orient_metrics = np.einsum(
+        "ij,ij->i",
+        face_normals,
+        radial_vectors,
+    )
+    noncollapsed = np.linalg.norm(face_normals, axis=1) > SPHERE_ORIENT_TOL
+    inward = noncollapsed & (orient_metrics <= SPHERE_ORIENT_TOL)
+    if np.any(inward):
+        elem_idxs = np.flatnonzero(inward)
+        raise ValueError(
+            "Sphere contains inward-facing elements at rows "
+            f"{elem_idxs.tolist()}."
+        )
 
 def compute_uvs(coords, u_range=(0.4, 0.6), v_range=(0.4, 0.6)):
     xmin, ymin, _ = np.min(coords, axis=0)
@@ -81,7 +122,7 @@ def generate_fullscreen(etype, out_dir):
             else: connect = np.array([[0, 1, 2, 3, 4, 5, 6, 7, 8]])
         else:
             connect = np.array([[0, 1, 2, 3]])
-    save_surface_mesh(out_dir, coords, connect)
+    save_surface_mesh(out_dir, ELEMENT_TYPES[etype], coords, connect)
     save_csv(f"{out_dir}/field.csv", compute_rgb_fields(coords))
     save_csv(f"{out_dir}/uvs.csv", compute_uvs(coords))
 
@@ -114,7 +155,12 @@ def generate_grid(etype, out_dir, N=320):
                 q8 = [i0, i1, i2, i3, m01, m12, m23, m30]
                 if etype == "quad9": q8.append(i0+(xn+1)+1)
                 conn.append(q8)
-    save_surface_mesh(out_dir, coords, np.array(conn))
+    save_surface_mesh(
+        out_dir,
+        ELEMENT_TYPES[etype],
+        coords,
+        np.array(conn),
+    )
     save_csv(f"{out_dir}/field.csv", compute_rgb_fields(coords))
     save_csv(f"{out_dir}/uvs.csv", compute_uvs(coords))
 
@@ -170,22 +216,8 @@ def generate_sphere(etype, out_dir, N_target):
                 conn.append([i0, i3, i2])
                 conn.append([i0, i2, i1])
             elif etype in ["quad4ibi", "quad4newton"]:
-                conn.append([i0, i1, i2, i3])
+                conn.append([i0, i3, i2, i1])
             elif etype == "tri6":
-                # Tri 1: corners (i0, i3, i2)
-                # Mid-nodes: m03, m32, m20
-                m03 = (r + 1) * cols + c
-                m32 = (r + 2) * cols + (c + 1)
-                m20 = (r + 1) * cols + (c + 2) # This is wrong for a structured grid
-                # Let's use more standard structured grid mapping:
-                # Tri 1: (r,c), (r+2,c), (r+2,c+2)
-                # Midnodes: (r+1,c), (r+2,c+1), (r+1,c+1)
-                v0, v1, v2 = i0, i3, i2
-                m01, m12, m20 = (r + 1) * cols + c, (r + 2) * cols + (c + 1), (r + 1) * cols + (c + 1)
-                conn.append([v0, v1, v2, m01, m12, m20])
-                # Tri 2: (r,c), (r+2,c+2), (r,c+2)
-                # Midnodes: (r+1,c+1), (r,c+1), (r+1,c) --- wait, m20 above
-                # Let's be careful. Tri 1: i0, i3, i2. Tri 2: i0, i2, i1.
                 # Tri 1 (i0, i3, i2): m03, m32, m20(diag)
                 v0, v1, v2 = i0, i3, i2
                 m01 = (r + 1) * cols + c
@@ -199,18 +231,27 @@ def generate_sphere(etype, out_dir, N_target):
                 m20 = r * cols + (c + 1)
                 conn.append([v0, v1, v2, m01, m12, m20])
             elif etype in ["quad8", "quad9"]:
-                # Corners: i0, i1, i2, i3
-                # Mid-edges: m01, m12, m23, m30
+                # Source grid edges in increasing parameter directions.
                 m01 = r * cols + (c + 1)
                 m12 = (r + 1) * cols + (c + 2)
                 m23 = (r + 2) * cols + (c + 1)
                 m30 = (r + 1) * cols + c
-                q = [i0, i1, i2, i3, m01, m12, m23, m30]
+                # Riley corners wind outwards. Midsides follow those edges.
+                q = [i0, i3, i2, i1, m30, m23, m12, m01]
                 if etype == "quad9":
                     q.append((r + 1) * cols + (c + 1))
                 conn.append(q)
                 
-    save_surface_mesh(out_dir, coords, np.array(conn))
+    connect = np.asarray(conn, dtype=np.int64)
+    elem_type = ELEMENT_TYPES[etype]
+    verify_sphere_orientation(coords, connect, elem_type)
+    save_surface_mesh(
+        out_dir,
+        elem_type,
+        coords,
+        connect,
+        material_normal_hint=None,
+    )
     save_csv(f"{out_dir}/uvs.csv", uvs)
     save_csv(f"{out_dir}/field.csv", fields)
 

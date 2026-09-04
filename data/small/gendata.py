@@ -9,13 +9,29 @@ from riley.python import meshconv
 # This ensures positive signed area calculation in the rasterizer, which is 
 # critical for correct shape function interpolation and weight distribution.
 
-def save_case(base_dir, name, coords, connect, disp_x, disp_y, disp_z):
-    mesh = meshconv.MeshData(
-        coords=np.ascontiguousarray(coords, dtype=np.float64),
-        connect={"connect1": np.ascontiguousarray(connect, dtype=np.int64)},
-        mesh_type="surface",
+def save_case(
+    base_dir,
+    name,
+    elem_type,
+    coords,
+    connect,
+    disp_x,
+    disp_y,
+    disp_z,
+):
+    mesh = meshconv.convert_mesh(
+        coords,
+        connect,
+        meshconv.ConnectConvention(
+            elem_type,
+            meshconv.EConnectAxis.ROW,
+            0,
+            node_order=meshconv.ENodeOrder.RILEY,
+            material_normal_hint=(0.0, 0.0, 1.0),
+        ),
     )
-    connect = meshconv.enforce_mesh_convention(mesh).connect["connect1"]
+    meshconv.verify_mesh(mesh)
+    connect = mesh.connect
     out_dir = Path(base_dir) / name
     out_dir.mkdir(parents=True, exist_ok=True)
     np.savetxt(out_dir / "coords.csv", coords, delimiter=",")

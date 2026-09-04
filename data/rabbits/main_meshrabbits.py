@@ -3,6 +3,7 @@ import gmsh
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection
+from riley.python import meshconv
 from svgpathtools import svg2paths
 from enum import Enum
 import argparse
@@ -21,6 +22,15 @@ class ElemType(Enum):
     QUAD4 = "quad4"
     QUAD8 = "quad8"
     QUAD9 = "quad9"
+
+
+RILEY_ELEMENT_TYPES = {
+    ElemType.TRI3: meshconv.EElementType.TRI3,
+    ElemType.TRI6: meshconv.EElementType.TRI6,
+    ElemType.QUAD4: meshconv.EElementType.QUAD4,
+    ElemType.QUAD8: meshconv.EElementType.QUAD8,
+    ElemType.QUAD9: meshconv.EElementType.QUAD9,
+}
 
 def mesh_rabbit_smooth(target_length=TARGET_LENGTH, edge_fraction=EDGE_FRACTION, elem_type=ElemType.TRI3):
     gmsh.initialize()
@@ -160,7 +170,20 @@ def export_mesh_data(elem_type):
         coords_dict[tag] = coord
 
     final_nodes = np.array([coords_dict[tag] for tag in sorted_used_tags])
-    final_connect = [[node_map[tag] for tag in en] for en in all_connect_tags]
+    source_connect = np.asarray(
+        [[node_map[tag] for tag in en] for en in all_connect_tags],
+        dtype=np.int64,
+    )
+    convention = meshconv.ConnectConvention(
+        RILEY_ELEMENT_TYPES[elem_type],
+        meshconv.EConnectAxis.ROW,
+        0,
+        node_order=meshconv.ENodeOrder.VTK,
+        material_normal_hint=(0.0, 0.0, 1.0),
+    )
+    mesh = meshconv.convert_mesh(final_nodes, source_connect, convention)
+    meshconv.verify_mesh(mesh)
+    final_connect = mesh.connect
 
     out_dir = f"rabbit_{elem_type.value}"
     os.makedirs(out_dir, exist_ok=True)

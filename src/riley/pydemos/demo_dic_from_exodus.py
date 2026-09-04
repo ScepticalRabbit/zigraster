@@ -12,11 +12,10 @@ from dataclasses import replace
 from pathlib import Path
 from time import perf_counter
 
+import netCDF4
 import numpy as np
-from pyvale.mooseherder import ExodusLoader
-from pyvale.sensorsim import extract_surf_mesh
-import riley
 
+import riley
 from riley.pydemos.common import (
     first_last_frame_indices,
     make_demo_out_dir,
@@ -27,30 +26,55 @@ from riley.pydemos.common import (
 def load_surface_sim(
     exodus_path: Path,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    loader = ExodusLoader(exodus_path, enforce_convention=True)
-    sim_data = loader.load_all_sim_data()
-    surface_data = extract_surf_mesh(sim_data, enforce_convention=True)
-
-    connect_keys = sorted(surface_data.connect.keys())
-    if len(connect_keys) != 1:
-        raise ValueError(
-            f"{exodus_path} extracted {len(connect_keys)} connectivity tables; "
-            "Riley expects one surface connectivity table here.",
-        )
-
-    coords = np.ascontiguousarray(surface_data.coords, dtype=np.float64)
-    connect = np.ascontiguousarray(
-        surface_data.connect[connect_keys[0]],
-        dtype=np.uintp,
+    dataset = netCDF4.Dataset(str(exodus_path))
+    coords_raw = np.column_stack((
+        dataset.variables["coordx"][:],
+        dataset.variables["coordy"][:],
+        dataset.variables["coordz"][:],
+    ))
+    connect_raw = np.asarray(
+        dataset.variables["connect1"][:],
+        dtype=np.int64,
     )
-    disp_x = np.asarray(surface_data.node_vars["disp_x"], dtype=np.float64)
-    disp_y = np.asarray(surface_data.node_vars["disp_y"], dtype=np.float64)
-    disp_z = np.asarray(surface_data.node_vars["disp_z"], dtype=np.float64)
-    disp = np.zeros((disp_x.shape[1], disp_x.shape[0], 3), dtype=np.float64)
-    disp[:, :, 0] = disp_x.T
-    disp[:, :, 1] = disp_y.T
-    disp[:, :, 2] = disp_z.T
-    return coords, connect, disp
+
+    convention = riley.ConnectConvention(
+        elem_type=riley.EElementType.HEX20,
+        elem_axis=riley.EConnectAxis.ROW,
+        index_base=1,
+        node_order=riley.ENodeOrder.EXODUS,
+    )
+    mesh_vol = riley.convert_mesh(coords_raw, connect_raw, convention)
+    mesh_surf = riley.extract_surface(mesh_vol)
+
+    coord_to_idx = {
+        tuple(coord): idx for idx, coord in enumerate(mesh_vol.coords)
+    }
+    surf_node_idxs = np.array(
+        [coord_to_idx[tuple(coord)] for coord in mesh_surf.coords],
+        dtype=np.int64,
+    )
+
+    disp_x = np.asarray(
+        dataset.variables["vals_nod_var1"][:],
+        dtype=np.float64,
+    )
+    disp_y = np.asarray(
+        dataset.variables["vals_nod_var2"][:],
+        dtype=np.float64,
+    )
+    disp_z = np.asarray(
+        dataset.variables["vals_nod_var3"][:],
+        dtype=np.float64,
+    )
+
+    disp = np.zeros(
+        (disp_x.shape[0], surf_node_idxs.shape[0], 3),
+        dtype=np.float64,
+    )
+    disp[:, :, 0] = disp_x[:, surf_node_idxs]
+    disp[:, :, 1] = disp_y[:, surf_node_idxs]
+    disp[:, :, 2] = disp_z[:, surf_node_idxs]
+    return mesh_surf.coords, mesh_surf.connect, disp
 
 
 def main() -> None:
