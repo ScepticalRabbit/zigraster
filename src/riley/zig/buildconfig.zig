@@ -168,7 +168,7 @@ fn parsePrecision(comptime precision: []const u8) type {
 
 fn buildOptionsSpeckleShape() []const u8 {
     if (@hasDecl(build_options, "speckle_shape")) return build_options.speckle_shape;
-    return "gaussian";
+    return "disk";
 }
 
 fn parseSpeckleShape(comptime shape: []const u8) SpeckleShape {
@@ -182,7 +182,7 @@ fn buildOptionsSpeckleEvaluator() []const u8 {
     if (@hasDecl(build_options, "speckle_evaluator")) {
         return build_options.speckle_evaluator;
     }
-    return "cell-hash";
+    return "mask-1bit";
 }
 
 fn parseSpeckleEvaluator(comptime evaluator: []const u8) SpeckleEvaluator {

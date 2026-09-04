@@ -48,12 +48,12 @@ pub fn build(b: *std.Build) void {
         []const u8,
         "speckle-evaluator",
         "Procedural speckle evaluator: cell-hash, list-naive, list-indexed, mask-1bit, or mask-u8",
-    ) orelse "cell-hash";
+    ) orelse "mask-1bit";
     const speckle_shape = b.option(
         []const u8,
         "speckle-shape",
         "Procedural speckle shape: disk, gaussian, or perlin",
-    ) orelse "gaussian";
+    ) orelse "disk";
     const speckle_mask_samples_per_cell = b.option(
         u8,
         "speckle-mask-samples-per-cell",

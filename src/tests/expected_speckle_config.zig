@@ -1,2 +1,2 @@
-pub const evaluator = "cell-hash";
-pub const shape = "gaussian";
+pub const evaluator = "mask-1bit";
+pub const shape = "disk";
