@@ -58,7 +58,7 @@ pub fn main(init: std.process.Init) !void {
     const io = threaded_io.io();
 
     std.debug.print("Procedural rabbit demo\n", .{});
-    printProceduralConfig(args.params);
+    printProceduralConfig(args.params, args.pixels_num);
 
     const sim_data = try meshio.loadSimData(
         allocator,
@@ -89,7 +89,7 @@ pub fn main(init: std.process.Init) !void {
     const roi_pos = sceneops.boundsCenter(&sim_data.coords);
     const cam_pos = cameraops.posFillFrameFromRot(
         &sim_data.coords,
-        pixel_num,
+        args.pixels_num,
         pixel_size,
         focal_leng,
         rot,
@@ -98,7 +98,7 @@ pub fn main(init: std.process.Init) !void {
     const camera_prep = try camera.CameraPrepared.init(
         allocator,
         .{
-            .pixels_num = pixel_num,
+            .pixels_num = args.pixels_num,
             .pixels_size = pixel_size,
             .pos_world = cam_pos,
             .rot_world = rot,
@@ -145,9 +145,10 @@ pub fn main(init: std.process.Init) !void {
 const DemoArgs = struct {
     params: shaderops.Speckle2DParams = .{},
     out_dir: []const u8 = out_dir_def,
+    pixels_num: [2]u32 = pixel_num,
 };
 
-fn printProceduralConfig(params: shaderops.Speckle2DParams) void {
+fn printProceduralConfig(params: shaderops.Speckle2DParams, pixels_num: [2]u32) void {
     const evaluator_name = switch (comptime buildconfig.speckle_evaluator) {
         .cell_hash => "cell-hash",
         .list_naive => "list-naive",
@@ -165,6 +166,7 @@ fn printProceduralConfig(params: shaderops.Speckle2DParams) void {
     else
         0.0;
 
+    std.debug.print("  image dimensions: {d} x {d} pixels\n", .{ pixels_num[0], pixels_num[1] });
     std.debug.print("  evaluator (compile-time): {s}\n", .{evaluator_name});
     std.debug.print("  shape (compile-time): {s}\n", .{@tagName(buildconfig.speckle_shape)});
     std.debug.print(
@@ -253,6 +255,10 @@ fn parseDemoArgs(raw_args: anytype) !?DemoArgs {
             args.params.perlin_coverage_transition_width = try std.fmt.parseFloat(F, value);
         } else if (std.mem.eql(u8, arg, "--seed")) {
             args.params.seed = try std.fmt.parseInt(u32, value, 0);
+        } else if (std.mem.eql(u8, arg, "--width")) {
+            args.pixels_num[0] = try parsePositiveU32(value);
+        } else if (std.mem.eql(u8, arg, "--height")) {
+            args.pixels_num[1] = try parsePositiveU32(value);
         } else if (std.mem.eql(u8, arg, "--output")) {
             args.out_dir = value;
         } else {
@@ -263,6 +269,12 @@ fn parseDemoArgs(raw_args: anytype) !?DemoArgs {
         arg_idx += 2;
     }
     return args;
+}
+
+fn parsePositiveU32(value: []const u8) !u32 {
+    const parsed = try std.fmt.parseInt(u32, value, 10);
+    if (parsed == 0) return error.InvalidPixelDimension;
+    return parsed;
 }
 
 fn printUsage() void {
@@ -280,6 +292,8 @@ fn printUsage() void {
         \\  --threshold <value>   Coverage threshold (Perlin only)
         \\  --transition <value>  Coverage transition width (Perlin only)
         \\  --seed <integer>      Deterministic unsigned 32-bit seed
+        \\  --width <integer>     Image width in pixels (default: 800)
+        \\  --height <integer>    Image height in pixels (default: 500)
         \\  --output <path>       Output directory
         \\  --help                Show this help
         \\
