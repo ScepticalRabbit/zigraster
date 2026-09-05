@@ -21,7 +21,7 @@ from riley.cython.riley import (
     NodalShader,
     TextureShader,
 )
-from riley.python import meshconv, meshio
+from riley.python import exodusio, meshconv, meshio
 from riley.python.meshconv import (
     ConnectConvention,
     EConnectAxis,
@@ -1030,3 +1030,79 @@ def test_prepare_shader_rejects_unsupported_shader_type() -> None:
             3,
             np.arange(3, dtype=np.uintp),
         )
+
+
+# ==========================================================================
+# 11. Exodus Reader and Parser Errors
+# ==========================================================================
+
+
+def test_parse_exodus_elem_type_rejects_non_positive_node_count() -> None:
+    with pytest.raises(ValueError, match="Invalid node count"):
+        exodusio.parse_exodus_elem_type("HEX8", 0)
+    with pytest.raises(ValueError, match="Invalid node count"):
+        exodusio.parse_exodus_elem_type("HEX8", -5)
+
+
+def test_parse_exodus_elem_type_rejects_unknown_elem_string() -> None:
+    with pytest.raises(
+        MeshError, match="Cannot determine EElemType for Exodus element"
+    ):
+        exodusio.parse_exodus_elem_type("UNKNOWN_ELEM", 8)
+
+
+def test_parse_exodus_elem_type_rejects_node_count_mismatch() -> None:
+    with pytest.raises(
+        MeshError, match="Cannot determine EElemType for Exodus element"
+    ):
+        exodusio.parse_exodus_elem_type("HEX20", 8)
+
+
+def test_parse_exodus_elem_type_rejects_ambiguous_none_string() -> None:
+    with pytest.raises(
+        MeshError, match="Cannot determine EElemType for Exodus element"
+    ):
+        exodusio.parse_exodus_elem_type(None, 8)
+    with pytest.raises(
+        MeshError, match="Cannot determine EElemType for Exodus element"
+    ):
+        exodusio.parse_exodus_elem_type(None, 4)
+
+
+def test_load_exodus_rejects_missing_file() -> None:
+    with pytest.raises(FileNotFoundError, match="Exodus file not found"):
+        exodusio.load_exodus("non_existent_file.e")
+
+
+def test_load_exodus_rejects_missing_connectivity_key() -> None:
+    path = riley.data.platehole_exodus_path()
+    with pytest.raises(
+        KeyError, match="Connectivity table 'connect99' not found"
+    ):
+        exodusio.load_exodus(path, connect_keys=("connect99",))
+
+
+def test_load_exodus_rejects_missing_nodal_key() -> None:
+    path = riley.data.platehole_exodus_path()
+    with pytest.raises(
+        KeyError, match="Nodal variable 'unknown_var' not found"
+    ):
+        exodusio.load_exodus(path, nodal_keys=("unknown_var",))
+
+
+def test_load_exodus_rejects_invalid_disp_keys_length() -> None:
+    path = riley.data.platehole_exodus_path()
+    with pytest.raises(ValueError, match="disp_keys must contain 2 or 3 keys"):
+        exodusio.load_exodus(path, disp_keys=("disp_x",))
+    with pytest.raises(ValueError, match="disp_keys must contain 2 or 3 keys"):
+        exodusio.load_exodus(
+            path, disp_keys=("disp_x", "disp_y", "disp_z", "disp_w")
+        )
+
+
+def test_load_exodus_rejects_missing_custom_disp_keys() -> None:
+    path = riley.data.platehole_exodus_path()
+    with pytest.raises(KeyError, match="Displacement variable.*not found"):
+        exodusio.load_exodus(path, disp_keys=("u_x", "u_y", "u_z"))
+
+

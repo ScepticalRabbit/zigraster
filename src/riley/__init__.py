@@ -98,6 +98,11 @@ from riley.python.meshconv import (
     extract_surface,
     verify_mesh,
 )
+from riley.python.exodusio import (
+    ExodusSim,
+    load_exodus,
+    parse_exodus_elem_type,
+)
 from riley.python.meshio import create_mesh, load_csv
 from riley.python.uvtools import (
     EPlanarProjMode,
@@ -120,6 +125,7 @@ __all__ = [
     "EPlanarProjMode",
     "EProjPlane",
     "EdgeNode",
+    "ExodusSim",
     "FaceNode",
     "FrameFitMode",
     "FuncCoordMode",
@@ -163,6 +169,8 @@ __all__ = [
     "fov_scale_to_coverage",
     "load_camera",
     "load_csv",
+    "load_exodus",
+    "parse_exodus_elem_type",
     "load_stereo_pair",
     "load_texture_mono_u8",
     "load_texture_mono_u16",

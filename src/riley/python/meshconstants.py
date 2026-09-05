@@ -243,6 +243,48 @@ EXODUS_TO_RILEY_MAP = {
     ),
 }
 
+# Mapping of Exodus element type name strings to Riley EElemType
+EXODUS_ELEM_TYPE_STR_MAP = {
+    "TRI": EElemType.TRI3,
+    "TRI3": EElemType.TRI3,
+    "TRIANGLE": EElemType.TRI3,
+    "TRI6": EElemType.TRI6,
+    "TRI7": EElemType.TRI7,
+    "QUAD": EElemType.QUAD4,
+    "QUAD4": EElemType.QUAD4,
+    "QUAD8": EElemType.QUAD8,
+    "QUAD9": EElemType.QUAD9,
+    "TET": EElemType.TET4,
+    "TET4": EElemType.TET4,
+    "TETRA": EElemType.TET4,
+    "TETRA4": EElemType.TET4,
+    "TET10": EElemType.TET10,
+    "TETRA10": EElemType.TET10,
+    "HEX": EElemType.HEX8,
+    "HEX8": EElemType.HEX8,
+    "HEX20": EElemType.HEX20,
+    "HEX27": EElemType.HEX27,
+}
+
+EXODUS_AMBIGUOUS_TYPE_MAP = {
+    ("HEX", 8): EElemType.HEX8,
+    ("HEX", 20): EElemType.HEX20,
+    ("HEX", 27): EElemType.HEX27,
+    ("TETRA", 4): EElemType.TET4,
+    ("TETRA", 10): EElemType.TET10,
+    ("TET", 4): EElemType.TET4,
+    ("TET", 10): EElemType.TET10,
+    ("QUAD", 4): EElemType.QUAD4,
+    ("QUAD", 8): EElemType.QUAD8,
+    ("QUAD", 9): EElemType.QUAD9,
+    ("TRI", 3): EElemType.TRI3,
+    ("TRI", 6): EElemType.TRI6,
+    ("TRI", 7): EElemType.TRI7,
+    ("TRIANGLE", 3): EElemType.TRI3,
+    ("TRIANGLE", 6): EElemType.TRI6,
+    ("TRIANGLE", 7): EElemType.TRI7,
+}
+
 # Elem classification and conversion lookups
 RILEY_VOL_SURF_TYPE_MAP = {
     EElemType.TET4: EElemType.TRI3,

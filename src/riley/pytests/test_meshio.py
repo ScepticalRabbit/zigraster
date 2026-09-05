@@ -98,3 +98,153 @@ def test_load_csv_rejects_non_finite_values(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="non-finite"):
         riley.load_csv(tmp_path / "coords.csv")
+
+
+def test_load_exodus_platehole() -> None:
+    path = riley.data.platehole_exodus_path()
+    sim = riley.load_exodus(
+        path,
+        connect_keys=("connect1",),
+        nodal_keys=("stress_yy", "vonmises_stress"),
+    )
+
+    assert sim.coords.shape == (4032, 3)
+    assert sim.coords.dtype == np.float64
+    assert sim.coords.flags.c_contiguous
+
+    assert "connect1" in sim.connect
+    assert sim.connect["connect1"].shape == (672, 20)
+    assert sim.connect["connect1"].dtype == np.int64
+    assert sim.elem_types["connect1"] is riley.EElemType.HEX20
+
+    assert sim.disp is not None
+    assert len(sim.disp) == 3
+    for component in sim.disp:
+        assert component.shape == (4032, 64)
+        assert component.dtype == np.float64
+
+    assert sim.time is not None
+    assert sim.time.shape == (64,)
+
+    assert "stress_yy" in sim.nodal_vars
+    assert "vonmises_stress" in sim.nodal_vars
+    assert sim.nodal_vars["stress_yy"].shape == (4032, 64)
+    assert sim.nodal_vars["vonmises_stress"].shape == (4032, 64)
+
+
+def test_load_exodus_platehole_nodal_keys_all() -> None:
+    path = riley.data.platehole_exodus_path()
+    sim = riley.load_exodus(path, nodal_keys="all")
+    expected_keys = {
+        "disp_x", "disp_y", "disp_z", "stress_yy", "vonmises_stress",
+    }
+    assert expected_keys.issubset(set(sim.nodal_vars.keys()))
+
+
+@pytest.mark.parametrize(
+    ("case_name", "expected_elem_type", "expected_node_count"),
+    (
+        ("tet4", riley.EElemType.TET4, 4),
+        ("tet10", riley.EElemType.TET10, 10),
+        ("hex8", riley.EElemType.HEX8, 8),
+        ("hex20", riley.EElemType.HEX20, 20),
+        ("hex27", riley.EElemType.HEX27, 27),
+    ),
+)
+def test_load_exodus_cube_fixtures(
+    case_name: str,
+    expected_elem_type: riley.EElemType,
+    expected_node_count: int,
+) -> None:
+    exo_path = riley.data.cube_exodus_path(case_name)
+    csv_path = riley.data.cube_case_path(case_name)
+
+    sim = riley.load_exodus(
+        exo_path,
+        nodal_keys=("temperature", "strain_xx", "strain_yy", "strain_zz"),
+    )
+
+    csv_coords = riley.load_csv(csv_path / "coords.csv")
+    csv_connect = riley.load_csv(csv_path / "connectivity.csv", dtype=np.int64)
+
+    converted = riley.convert_mesh(
+        sim.coords,
+        sim.connect["connect1"],
+        riley.ConnectConvention(
+            elem_type=expected_elem_type,
+            elem_axis=riley.EConnectAxis.ROW,
+            index_base=1,
+            node_order=riley.ENodeOrder.EXODUS,
+        ),
+    )
+
+    riley.verify_mesh(converted)
+    np.testing.assert_allclose(converted.coords, csv_coords)
+    if case_name != "hex27":
+        np.testing.assert_array_equal(converted.connect, csv_connect)
+
+    assert sim.elem_types["connect1"] is expected_elem_type
+    assert sim.connect["connect1"].shape[1] == expected_node_count
+
+    assert sim.disp is not None
+    assert len(sim.disp) == 3
+    num_nodes = sim.coords.shape[0]
+    for comp in sim.disp:
+        assert comp.shape == (num_nodes, 21)
+
+    assert sim.time is not None
+    assert sim.time.shape == (21,)
+
+    assert sim.nodal_vars["temperature"].shape == (num_nodes, 21)
+    assert sim.nodal_vars["strain_xx"].shape == (num_nodes, 21)
+    assert sim.nodal_vars["strain_yy"].shape == (num_nodes, 21)
+    assert sim.nodal_vars["strain_zz"].shape == (num_nodes, 21)
+
+
+@pytest.mark.parametrize(
+    ("type_str", "node_count", "expected"),
+    (
+        ("HEX", 8, riley.EElemType.HEX8),
+        ("HEX", 20, riley.EElemType.HEX20),
+        ("HEX", 27, riley.EElemType.HEX27),
+        ("HEX8", 8, riley.EElemType.HEX8),
+        ("HEX20", 20, riley.EElemType.HEX20),
+        ("HEX27", 27, riley.EElemType.HEX27),
+        ("TETRA", 4, riley.EElemType.TET4),
+        ("TETRA", 10, riley.EElemType.TET10),
+        ("TET4", 4, riley.EElemType.TET4),
+        ("TET10", 10, riley.EElemType.TET10),
+        ("TETRA4", 4, riley.EElemType.TET4),
+        ("TETRA10", 10, riley.EElemType.TET10),
+        ("QUAD", 4, riley.EElemType.QUAD4),
+        ("QUAD", 8, riley.EElemType.QUAD8),
+        ("QUAD", 9, riley.EElemType.QUAD9),
+        ("QUAD4", 4, riley.EElemType.QUAD4),
+        ("QUAD8", 8, riley.EElemType.QUAD8),
+        ("QUAD9", 9, riley.EElemType.QUAD9),
+        ("TRI", 3, riley.EElemType.TRI3),
+        ("TRI", 6, riley.EElemType.TRI6),
+        ("TRI", 7, riley.EElemType.TRI7),
+        ("TRIANGLE", 3, riley.EElemType.TRI3),
+        ("TRIANGLE", 6, riley.EElemType.TRI6),
+        ("TRIANGLE", 7, riley.EElemType.TRI7),
+        ("TRI3", 3, riley.EElemType.TRI3),
+        ("TRI6", 6, riley.EElemType.TRI6),
+        ("TRI7", 7, riley.EElemType.TRI7),
+        (None, 20, riley.EElemType.HEX20),
+        (None, 27, riley.EElemType.HEX27),
+        (None, 10, riley.EElemType.TET10),
+        (None, 6, riley.EElemType.TRI6),
+        (None, 7, riley.EElemType.TRI7),
+        (None, 9, riley.EElemType.QUAD9),
+        (None, 3, riley.EElemType.TRI3),
+    ),
+)
+def test_parse_exodus_elem_type_valid(
+    type_str: str | None,
+    node_count: int,
+    expected: riley.EElemType,
+) -> None:
+    result = riley.parse_exodus_elem_type(type_str, node_count)
+    assert result is expected
+

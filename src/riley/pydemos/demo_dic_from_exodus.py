@@ -13,26 +13,10 @@ from pathlib import Path
 import shutil
 from time import perf_counter
 
-import netCDF4
 import numpy as np
 
 import riley
 from riley.pydemos.demoframes import first_last_frame_indices
-
-
-def load_volume_sim(
-    exodus_path: Path,
-) -> tuple[np.ndarray, np.ndarray, tuple[np.ndarray, np.ndarray, np.ndarray]]:
-    with netCDF4.Dataset(str(exodus_path)) as dataset:
-        coords = np.column_stack((dataset.variables["coordx"][:],
-                                  dataset.variables["coordy"][:],
-                                  dataset.variables["coordz"][:]))
-        connect = np.asarray(dataset.variables["connect1"][:], dtype=np.int64)
-        disp = tuple(np.ascontiguousarray(
-            dataset.variables[f"vals_nod_var{idx}"][:].T,
-            dtype=np.float64,
-        ) for idx in (1, 2, 3))
-    return np.ascontiguousarray(coords, dtype=np.float64), connect, disp
 
 
 def main() -> None:
@@ -57,11 +41,12 @@ def main() -> None:
         "distortion_p2": -0.0001,
     }
 
-    coords, connect, disp = load_volume_sim(exodus_path)
-    frame_indices = first_last_frame_indices(disp[0].shape[1])
-    disp = tuple(item[:, frame_indices] for item in disp)
+    sim: riley.ExodusSim = riley.load_exodus(exodus_path)
+    assert sim.disp is not None
+    frame_indices = first_last_frame_indices(sim.disp[0].shape[1])
+    disp = tuple(item[:, frame_indices] for item in sim.disp)
     uvs = riley.project_uvs_planar_centered(
-        coords,
+        sim.coords,
         pixels_num,
         uv_span_max=0.8,
         proj_plane=(
@@ -71,14 +56,16 @@ def main() -> None:
     )
     texture = riley.load_texture_mono_u8(texture_path)
 
-    mesh = riley.create_mesh(
+    mesh: riley.Mesh = riley.create_mesh(
         convention=riley.ConnectConvention(
-            riley.EElemType.HEX20, riley.EConnectAxis.ROW, 1,
-            riley.ENodeOrder.EXODUS,
+            elem_type=sim.elem_types["connect1"],
+            elem_axis=riley.EConnectAxis.ROW,
+            index_base=1,
+            node_order=riley.ENodeOrder.EXODUS,
         ),
         mesh_type=riley.MeshType.quad8,
-        coords=coords,
-        connect=connect,
+        coords=sim.coords,
+        connect=sim.connect["connect1"],
         disp=disp,
         shader=riley.TextureShader(uvs=uvs, texture=texture),
     )

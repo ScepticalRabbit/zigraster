@@ -347,7 +347,7 @@ def create_mesh(
     if ELEM_FAMILY_MAP[source_elem] in ("tet", "hex"):
         mesh, source_idxs = _extract_surface_with_node_idxs(mesh)
 
-    # 3) Tessellate to tri3 or compact order if needed
+    # 3) Tessellate to tri3 or reduce order if needed
     if target_elem is EElemType.TRI3:
         if mesh.elem_type is not EElemType.TRI3:
             mesh, source_idxs = _triangulate(
