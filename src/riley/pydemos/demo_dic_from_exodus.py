@@ -41,7 +41,11 @@ def main() -> None:
         "distortion_p2": -0.0001,
     }
 
-    sim: riley.ExodusSim = riley.load_exodus(exodus_path)
+    sim: riley.ExodusSim = riley.load_exodus(
+        exodus_path,
+        disp_keys=("disp_x", "disp_y", "disp_z"),
+    )
+    block = sim.blocks["connect1"]
     assert sim.disp is not None
     frame_indices = first_last_frame_indices(sim.disp[0].shape[1])
     disp = tuple(item[:, frame_indices] for item in sim.disp)
@@ -58,14 +62,14 @@ def main() -> None:
 
     mesh: riley.Mesh = riley.create_mesh(
         convention=riley.ConnectConvention(
-            elem_type=sim.elem_types["connect1"],
+            elem_type=block.elem_type,
             elem_axis=riley.EConnectAxis.ROW,
             index_base=1,
             node_order=riley.ENodeOrder.EXODUS,
         ),
         mesh_type=riley.MeshType.quad8,
         coords=sim.coords,
-        connect=sim.connect["connect1"],
+        connect=block.connect,
         disp=disp,
         shader=riley.TextureShader(uvs=uvs, texture=texture),
     )

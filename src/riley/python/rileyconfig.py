@@ -6,7 +6,6 @@
 #
 # Authors: scepticalrabbit (Lloyd Fletcher)
 # --------------------------------------------------------------------------
-"""Construct common Riley raster configurations."""
 
 from numbers import Integral
 
@@ -30,23 +29,6 @@ def create_raster_config(
     total_threads: int = 1,
     save_strategy: SaveStrategy = SaveStrategy.both,
 ) -> RasterConfig:
-    """Create an offline raster configuration balanced over frames.
-
-    Parameters
-    ----------
-    num_frames : int
-        Number of frames that will be rendered.
-    total_threads : int, optional
-        Total worker threads available. The default is one.
-    save_strategy : SaveStrategy, optional
-        Destination for rendered images. The default is
-        ``SaveStrategy.both``.
-
-    Returns
-    -------
-    RasterConfig
-        Offline configuration with workers balanced across frame groups.
-    """
     if not isinstance(num_frames, Integral) or isinstance(num_frames, bool):
         raise TypeError("num_frames must be an integer.")
     if not isinstance(total_threads, Integral) or isinstance(

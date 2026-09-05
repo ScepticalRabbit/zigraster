@@ -6,7 +6,6 @@
 #
 # Authors: scepticalrabbit (Lloyd Fletcher)
 # --------------------------------------------------------------------------
-"""Convert, verify and extract meshes in Riley's standard convention."""
 
 from __future__ import annotations
 
@@ -26,14 +25,12 @@ from riley.python.meshconstants import (
 
 
 class EConnectAxis(Enum):
-    """Axis containing elems in a source connectivity array."""
 
     ROW = "row"
     COLUMN = "column"
 
 
 class ENodeOrder(Enum):
-    """Built-in local-node ordering adapters."""
 
     RILEY = "riley"
     VTK = "vtk"
@@ -42,7 +39,6 @@ class ENodeOrder(Enum):
 
 @dataclass(frozen=True, slots=True)
 class EdgeNode:
-    """Identify a source edge-node slot by its source corner slots."""
 
     corners: tuple[int, int]
     node_slot: int
@@ -50,7 +46,6 @@ class EdgeNode:
 
 @dataclass(frozen=True, slots=True)
 class FaceNode:
-    """Identify a source face-node slot by its source corner slots."""
 
     corners: tuple[int, ...]
     node_slot: int
@@ -58,12 +53,6 @@ class FaceNode:
 
 @dataclass(frozen=True, slots=True)
 class UserTopology:
-    """Describe local topology using slots in a source connectivity row.
-
-    ``corner_slots`` must follow a valid source topological ordering. Edge and
-    face nodes are associated with the source corner slots bounding their
-    topological entity. No Riley slot numbers are required.
-    """
 
     corner_slots: tuple[int, ...]
     edge_nodes: tuple[EdgeNode, ...] = ()
@@ -73,23 +62,6 @@ class UserTopology:
 
 @dataclass(frozen=True, slots=True)
 class ConnectConvention:
-    """Describe how to interpret one source connectivity array.
-
-    ``elem_axis`` says whether each elem occupies a row or a column, and
-    ``index_base`` must explicitly be zero or one. ``node_order`` selects a
-    named source adapter or a ``UserTopology``; Riley does not guess it.
-
-    For an open surface, source winding declares the material-facing side.
-    Set ``reverse_open_surface`` to choose its opposite, or provide a
-    non-zero ``material_normal_hint`` to choose the side whose component
-    normal has a positive dot product with that vector. These options do not
-    alter the exterior/cavity orientation of closed shells.
-
-    One convention describes one connectivity table. Reuse the same instance
-    for multiple tables with the same representation, or provide a mapping of
-    table names to conventions in calling code when their representations
-    differ.
-    """
 
     elem_type: EElemType
     elem_axis: EConnectAxis
@@ -99,7 +71,6 @@ class ConnectConvention:
     reverse_open_surface: bool = False
 
     def __post_init__(self) -> None:
-        """Verify convention fields at construction time."""
         if not isinstance(self.elem_type, EElemType):
             raise TypeError("elem_type must be an EElemType member.")
         if not isinstance(self.elem_axis, EConnectAxis):
@@ -113,7 +84,6 @@ class ConnectConvention:
 
 @dataclass(frozen=True, slots=True)
 class MeshGeometry:
-    """A single-topology mesh using Riley's standard convention."""
 
     elem_type: EElemType
     coords: np.ndarray
@@ -122,7 +92,6 @@ class MeshGeometry:
 
 @dataclass(frozen=True, slots=True)
 class MeshVerifyIssue:
-    """One independently detected Riley mesh verification failure."""
 
     code: str
     message: str
@@ -130,7 +99,6 @@ class MeshVerifyIssue:
 
 
 class MeshError(ValueError):
-    """Raised when mesh verification or conversion fails."""
 
     def __init__(
         self,
@@ -160,7 +128,6 @@ def _get_user_topology_perm(
     elem_type: EElemType,
     topology: UserTopology,
 ) -> tuple[int, ...]:
-    """Build a Riley-target-to-source permutation from source topology."""
     spec = RILEY_ELEM_TOP_MAP[elem_type]
     node_count = spec.node_count
     corner_count = len(spec.corner_slots)
@@ -241,7 +208,6 @@ def _get_user_topology_perm(
 
 
 def _get_source_perm(convention: ConnectConvention) -> tuple[int, ...]:
-    """Return the Riley-target-to-source permutation for a convention."""
     if isinstance(convention.node_order, UserTopology):
         return _get_user_topology_perm(
             convention.elem_type,
@@ -258,24 +224,6 @@ def convert_mesh(
     connect: np.ndarray,
     convention: ConnectConvention,
 ) -> MeshGeometry:
-    """Convert NumPy mesh arrays to Riley's standard convention.
-
-    Parameters
-    ----------
-    coords : np.ndarray
-        Source coordinates with shape ``(nodes, 3)``.
-    connect : np.ndarray
-        One connectivity table containing exactly one elem topology.
-    convention : ConnectConvention
-        Explicit source elem type, elem axis, index base and local-node
-        ordering. A built-in adapter or explicit ``UserTopology`` is required.
-
-    Returns
-    -------
-    MeshGeometry
-        A new mesh in Riley's standard convention. Coordinate rows and global
-        node IDs are not compacted or otherwise reordered.
-    """
     if not isinstance(convention, ConnectConvention):
         raise TypeError(
             "convention must be an instance of ConnectConvention."
@@ -320,12 +268,6 @@ def convert_mesh(
 
 
 def verify_mesh(mesh: MeshGeometry) -> None:
-    """Verify Riley's standard mesh convention and report all found issues.
-
-    Independent structural and per-elem failures are collected into one
-    ``MeshError`` so a user can correct several input problems at once.
-    Checks that depend on unsafe or malformed arrays are skipped.
-    """
     if not isinstance(mesh, MeshGeometry):
         raise TypeError("mesh must be an instance of MeshGeometry.")
 
@@ -420,7 +362,6 @@ def verify_mesh(mesh: MeshGeometry) -> None:
 def _extract_surface_with_node_idxs(
     mesh: MeshGeometry,
 ) -> tuple[MeshGeometry, np.ndarray]:
-    """Extract a surface and return its original global node indices."""
 
     verify_mesh(mesh)
 
@@ -477,7 +418,6 @@ def _extract_surface_with_node_idxs(
 
 
 def extract_surface(mesh: MeshGeometry) -> MeshGeometry:
-    """Extract a compact Riley standard surface from a volume mesh."""
     mesh_out, _ = _extract_surface_with_node_idxs(mesh)
     return mesh_out
 

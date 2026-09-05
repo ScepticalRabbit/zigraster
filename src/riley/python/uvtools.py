@@ -6,7 +6,6 @@
 #
 # Authors: scepticalrabbit (Lloyd Fletcher)
 # --------------------------------------------------------------------------
-"""Planar UV projection utilities."""
 
 from __future__ import annotations
 
@@ -19,34 +18,12 @@ from riley.python._verifio import _validate_coords, _validate_finite_f64
 
 
 class EProjPlane(Enum):
-    """Axis-aligned plane used for planar UV projection.
-
-    Attributes
-    ----------
-    XY : str
-        Project using the x and y coordinate axes.
-    YZ : str
-        Project using the y and z coordinate axes.
-    XZ : str
-        Project using the x and z coordinate axes.
-    """
     XY = "xy"
     YZ = "yz"
     XZ = "xz"
 
 
 class EPlanarProjMode(Enum):
-    """Scaling rule for fitting projected coordinates into pixel bounds.
-
-    Attributes
-    ----------
-    BEST : str
-        Use the smaller axis scale so the complete projection fits.
-    FIT_X : str
-        Fit the projected x extent to the horizontal pixel bounds.
-    FIT_Y : str
-        Fit the projected y extent to the vertical pixel bounds.
-    """
     BEST = "best"
     FIT_X = "fit_x"
     FIT_Y = "fit_y"
@@ -54,20 +31,6 @@ class EPlanarProjMode(Enum):
 
 @dataclass(frozen=True, slots=True)
 class ProjPlane:
-    """Arbitrary plane used for planar UV projection.
-
-    Parameters
-    ----------
-    normal : numpy.ndarray
-        Nonzero three-component plane normal.
-    origin : numpy.ndarray
-        Three-component point defining the projection-plane origin.
-
-    Notes
-    -----
-    Riley calculates a deterministic orthonormal basis from ``normal``. The
-    normal does not need to be normalized by the caller.
-    """
     normal: np.ndarray
     origin: np.ndarray
 
@@ -80,7 +43,6 @@ ProjPlaneLike = EProjPlane | ProjPlane | tuple[
 def _validate_texture_size(
     texture_size: tuple[int, int] | tuple[float, float],
 ) -> tuple[float, float]:
-    """Return a validated texture width and height."""
 
     texture = _validate_finite_f64(texture_size, "texture_size", (2,))
 
@@ -93,7 +55,6 @@ def _validate_texture_size(
 def _resolve_proj_axes(
     proj_plane: ProjPlaneLike,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Resolve a projection plane to an origin and orthonormal basis."""
 
     zero = np.zeros(3, dtype=np.float64)
 
@@ -145,7 +106,6 @@ def _project_coords(
     coords: np.ndarray,
     proj_plane: ProjPlaneLike,
 ) -> np.ndarray:
-    """Project coordinates onto a two-dimensional plane."""
 
     if proj_plane is EProjPlane.XY:
         return coords[:, :2]
@@ -165,7 +125,6 @@ def _project_coords(
 def _proj_bounds(
     projected: np.ndarray,
 ) -> tuple[float, float, float, float]:
-    """Return finite projection bounds, rejecting zero-area projections."""
     minimum = np.min(projected, axis=0)
     maximum = np.max(projected, axis=0)
     extent = maximum - minimum
@@ -183,7 +142,6 @@ def _uvs_from_proj(
     px_bbox: tuple[float, float, float, float],
     mode: EPlanarProjMode,
 ) -> np.ndarray:
-    """Map projected coordinates into a pixel bounding box."""
     x_min, x_max, y_min, y_max = _proj_bounds(projected)
     px_bounds = _validate_finite_f64(px_bbox, "px_bbox", (4,))
     px_x_lower, px_y_lower, px_x_upper, px_y_upper = px_bounds
@@ -218,50 +176,6 @@ def project_uvs_planar_bbox(
     proj_plane: ProjPlaneLike,
     mode: EPlanarProjMode = EPlanarProjMode.BEST,
 ) -> np.ndarray:
-    """Project mesh coordinates into a texture-space pixel bounding box.
-
-    Parameters
-    ----------
-    coords : numpy.ndarray
-        Finite mesh coordinates with shape ``(nodes, 3)``.
-    texture_size : tuple[int, int] or tuple[float, float]
-        Texture width and height in pixels. Both dimensions must be at least
-        two pixels.
-    px_bbox : tuple[float, float, float, float]
-        Lower x, lower y, upper x and upper y pixel coordinates. Upper bounds
-        must exceed their corresponding lower bounds.
-    proj_plane : EProjPlane, ProjPlane or tuple[numpy.ndarray, numpy.ndarray]
-        Axis-aligned plane or a custom ``(normal, origin)`` plane.
-    mode : EPlanarProjMode, optional
-        Rule used to fit the projected mesh into ``px_bbox``. The default is
-        :attr:`EPlanarProjMode.BEST`.
-
-    Returns
-    -------
-    numpy.ndarray
-        Contiguous float64 UV coordinates with shape ``(nodes, 2)``.
-
-    Raises
-    ------
-    ValueError
-        If an input has an invalid shape, contains non-finite values, defines
-        a degenerate projection, or specifies invalid pixel bounds.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from riley.python.uvtools import EProjPlane
-    >>> from riley.python.uvtools import project_uvs_planar_bbox
-    >>> coords = np.array(((0., 0., 0.), (2., 0., 0.),
-    ...                    (2., 1., 0.), (0., 1., 0.)))
-    >>> uvs = project_uvs_planar_bbox(
-    ...     coords, (201, 101), (0., 0., 200., 100.), EProjPlane.XY,
-    ... )
-    >>> uvs.shape
-    (4, 2)
-    >>> np.all((uvs >= 0.) & (uvs <= 1.))
-    np.True_
-    """
     coords_in = _validate_coords(coords, contiguous_f64=True)
     texture_size_in = _validate_texture_size(texture_size)
     projected = _project_coords(coords_in, proj_plane)
@@ -274,42 +188,6 @@ def project_uvs_planar_centered(
     uv_span_max: float = 1.0,
     proj_plane: ProjPlaneLike = EProjPlane.XY,
 ) -> np.ndarray:
-    """Project coordinates into a centered, aspect-preserving UV region.
-
-    Parameters
-    ----------
-    coords : numpy.ndarray
-        Finite mesh coordinates with shape ``(nodes, 3)``.
-    texture_size : tuple[int, int] or tuple[float, float]
-        Texture width and height in pixels. Both dimensions must be at least
-        two pixels.
-    uv_span_max : float, optional
-        Maximum normalized span used by either UV axis. Must lie in ``(0, 1]``.
-        The default is ``1.0``.
-    proj_plane : EProjPlane, ProjPlane or tuple of numpy.ndarray, optional
-        Axis-aligned plane or a custom ``(normal, origin)`` plane. The default
-        is :attr:`EProjPlane.XY`.
-
-    Returns
-    -------
-    numpy.ndarray
-        Contiguous float64 UV coordinates with shape ``(nodes, 2)``.
-
-    Raises
-    ------
-    ValueError
-        If an input is invalid or the selected projection has zero area.
-
-    Examples
-    --------
-    >>> import numpy as np
-    >>> from riley.python.uvtools import project_uvs_planar_centered
-    >>> coords = np.array(((0., 0., 0.), (2., 0., 0.),
-    ...                    (2., 1., 0.), (0., 1., 0.)))
-    >>> uvs = project_uvs_planar_centered(coords, (201, 101), 0.8)
-    >>> np.round(np.ptp(uvs, axis=0), 2)
-    array([0.8, 0.8])
-    """
     coords_in = _validate_coords(coords, contiguous_f64=True)
     texture_width, texture_height = _validate_texture_size(texture_size)
     if not np.isfinite(uv_span_max) or not 0.0 < uv_span_max <= 1.0:

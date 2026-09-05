@@ -1,4 +1,3 @@
-"""Load numeric arrays and construct renderer-ready Riley meshes."""
 
 from __future__ import annotations
 
@@ -31,22 +30,6 @@ def load_csv(
     dtype: npt.DTypeLike = np.float64,
     skip_rows: int = 0,
 ) -> np.ndarray:
-    """Load a numeric CSV as a C-contiguous two-dimensional array.
-
-    Parameters
-    ----------
-    path : str | Path
-        CSV file to read.
-    dtype : numpy.typing.DTypeLike, optional
-        Required output dtype. The default is ``np.float64``.
-    skip_rows : int, optional
-        Number of leading rows to skip.
-
-    Returns
-    -------
-    np.ndarray
-        Parsed array. No mesh operation is performed.
-    """
     if skip_rows < 0:
         raise ValueError("skip_rows must be non-negative.")
 
@@ -291,28 +274,6 @@ def create_mesh(
     shader: TextureShader | NodalShader | FunctionShader,
     disp: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
 ) -> Mesh:
-    """Create a renderer-ready mesh from explicit user arrays.
-
-    Parameters
-    ----------
-    convention : ConnectConvention
-        Convention of the supplied connectivity table.
-    mesh_type : MeshType
-        Requested Riley surface renderer and order.
-    coords : np.ndarray
-        Node-major coordinates with shape ``(nodes, 3)``.
-    connect : np.ndarray
-        A single-topology connectivity table.
-    shader : TextureShader | NodalShader | FunctionShader
-        Shader whose nodal arrays use the same source nodes.
-    disp : tuple[np.ndarray, np.ndarray, np.ndarray] | None, optional
-        Node-major x, y and z components shaped ``(nodes, time)``.
-
-    Returns
-    -------
-    Mesh
-        A Riley-standard surface mesh with ABI-ready arrays.
-    """
     if not isinstance(convention, ConnectConvention):
         raise TypeError("convention must be a ConnectConvention.")
 

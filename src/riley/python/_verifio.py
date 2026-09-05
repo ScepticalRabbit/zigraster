@@ -6,7 +6,6 @@
 #
 # Authors: scepticalrabbit (Lloyd Fletcher)
 # --------------------------------------------------------------------------
-"""Shared array verification for Riley's Python IO and geometry tools."""
 
 from __future__ import annotations
 
@@ -22,7 +21,6 @@ def _validate_finite_f64(
     *,
     contiguous: bool = False,
 ) -> np.ndarray:
-    """Convert values to a finite float64 array of an optional shape."""
     if contiguous:
         values_out = np.ascontiguousarray(values, dtype=np.float64)
     else:
@@ -44,7 +42,6 @@ def _validate_coords(
     *,
     contiguous_f64: bool = False,
 ) -> np.ndarray:
-    """Return a finite, non-empty ``(nodes, 3)`` coordinate array."""
     if contiguous_f64:
         coords_out = np.ascontiguousarray(coords, dtype=np.float64)
     else:
@@ -69,5 +66,4 @@ def _validate_vec3(
     values: Sequence[float] | np.ndarray,
     name: str,
 ) -> np.ndarray:
-    """Return a finite float64 vector with three components."""
     return _validate_finite_f64(values, name, (3,))

@@ -32,6 +32,8 @@ from riley.python.meshconv import (
     verify_mesh,
 )
 from riley.python.exodusio import (
+    ExodusBlock,
+    ExodusError,
     ExodusSim,
     load_exodus,
     parse_exodus_elem_type,
@@ -53,6 +55,8 @@ __all__ = [
     "EPlanarProjMode",
     "EProjPlane",
     "EdgeNode",
+    "ExodusBlock",
+    "ExodusError",
     "ExodusSim",
     "FaceNode",
     "MeshError",

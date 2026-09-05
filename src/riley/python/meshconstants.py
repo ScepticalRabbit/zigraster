@@ -1,4 +1,3 @@
-"""Elem topology and ordering constants used by Riley mesh tools."""
 
 from __future__ import annotations
 
@@ -33,7 +32,6 @@ from riley.cython.riley import MeshType
 # --------------------------------------------------------------------------
 
 class EElemType(Enum):
-    """Finite element topologies supported by Riley's mesh tools."""
 
     TRI3 = "tri3"
     TRI6 = "tri6"
@@ -48,13 +46,11 @@ class EElemType(Enum):
     HEX27 = "hex27"
 
     def get_para_coords(self) -> np.ndarray:
-        """Return parametric node coordinates in Riley slot order."""
         return np.asarray(RILEY_PARA_COORD_MAP[self], dtype=np.float64)
 
 
 @dataclass(frozen=True, slots=True)
 class RileyElemTopology:
-    """Store Riley ordering and topology for one elem type."""
 
     node_count: int
     is_surf: bool

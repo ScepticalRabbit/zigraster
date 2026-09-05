@@ -6,7 +6,6 @@
 #
 # Authors: scepticalrabbit (Lloyd Fletcher)
 # --------------------------------------------------------------------------
-"""Operations for positioning groups of meshes in a scene."""
 
 from __future__ import annotations
 
@@ -20,20 +19,17 @@ from riley.python._verifio import _validate_coords, _validate_vec3
 
 
 class EOverlapDirect(Enum):
-    """Direction in which to place an overlapping mesh group."""
     NEGATIVE = "negative"
     CURRENT = "current"
     POSITIVE = "positive"
 
 
 class MeshCoords(Protocol):
-    """Structural type required by scene positioning operations."""
     coords: np.ndarray
 
 
 @dataclass(frozen=True, slots=True)
 class Bounds3D:
-    """Axis-aligned three-dimensional bounds."""
     minimum: np.ndarray
     maximum: np.ndarray
     center: np.ndarray
@@ -42,21 +38,18 @@ class Bounds3D:
 
 @dataclass(frozen=True, slots=True)
 class MeshGroup:
-    """Contiguous range of meshes in a scene."""
     mesh_start: int
     mesh_len: int
 
 
 @dataclass(frozen=True, slots=True)
 class GridSpec:
-    """Spacing and capacity of a three-dimensional group grid."""
     gap: tuple[float, float, float]
     max_divs: tuple[int, int, int]
 
 
 @dataclass(frozen=True, slots=True)
 class BoundsOverlapSpec:
-    """Per-axis settings for overlapping two mesh group bounds."""
     overlap_frac: tuple[float, float, float]
     enabled_axes: tuple[bool, bool, bool] = (True, True, True)
     direct: tuple[
@@ -70,7 +63,6 @@ class BoundsOverlapSpec:
 
 
 def mesh_group_span(mesh_start: int, mesh_len: int) -> MeshGroup:
-    """Create a validated contiguous mesh group."""
 
     if mesh_start < 0:
         raise ValueError("mesh_start must be non-negative.")
@@ -82,12 +74,10 @@ def mesh_group_span(mesh_start: int, mesh_len: int) -> MeshGroup:
 
 
 def mesh_group_single(mesh_idx: int) -> MeshGroup:
-    """Create a group containing one mesh."""
     return mesh_group_span(mesh_idx, 1)
 
 
 def _group_indices(meshes: Sequence[MeshCoords], group: MeshGroup) -> range:
-    """Return validated indices for a mesh group."""
 
     if group.mesh_start < 0 or group.mesh_len <= 0:
         raise ValueError(
@@ -103,7 +93,6 @@ def _group_indices(meshes: Sequence[MeshCoords], group: MeshGroup) -> range:
 
 
 def bounds_for_coords(coords: np.ndarray) -> Bounds3D:
-    """Calculate axis-aligned bounds for coordinates."""
 
     coords_in = _validate_coords(coords, "Mesh coordinates")
     minimum = np.min(coords_in, axis=0)
@@ -121,7 +110,6 @@ def _bounds_for_indices(
     meshes: Sequence[MeshCoords],
     indices: range,
 ) -> Bounds3D:
-    """Reduce bounds over meshes without concatenating their coordinates."""
 
     mesh_bounds = [bounds_for_coords(meshes[index].coords) for index in indices]
     minimum = np.min([bounds.minimum for bounds in mesh_bounds], axis=0)
@@ -136,7 +124,6 @@ def _bounds_for_indices(
 
 
 def bounds_for_meshes(meshes: Sequence[MeshCoords]) -> Bounds3D:
-    """Calculate combined bounds without copying all mesh coordinates."""
     if not meshes:
         raise ValueError("At least one mesh is required.")
 
@@ -147,7 +134,6 @@ def bounds_for_mesh_group(
     meshes: Sequence[MeshCoords],
     group: MeshGroup,
 ) -> Bounds3D:
-    """Calculate combined bounds for a contiguous mesh group."""
     return _bounds_for_indices(meshes, _group_indices(meshes, group))
 
 
@@ -156,7 +142,6 @@ def translate_mesh_group(
     group: MeshGroup,
     translation: tuple[float, float, float] | np.ndarray,
 ) -> None:
-    """Translate a mesh group in place."""
     translation_array = _validate_vec3(translation, "translation")
     for index in _group_indices(meshes, group):
         coords = _validate_coords(meshes[index].coords, "Mesh coordinates")
@@ -170,7 +155,6 @@ def center_mesh_group_at(
     group: MeshGroup,
     target_center: tuple[float, float, float] | np.ndarray,
 ) -> None:
-    """Translate a mesh group so its bounds have the requested center."""
     bounds = bounds_for_mesh_group(meshes, group)
     target = _validate_vec3(target_center, "target_center")
     translate_mesh_group(meshes, group, target - bounds.center)
@@ -180,7 +164,6 @@ def _calc_overlap_sign(
     current_sep: float,
     direct: EOverlapDirect,
 ) -> float:
-    """Resolve an overlap direction to a signed separation."""
 
     if direct is EOverlapDirect.NEGATIVE:
         return -1.0
@@ -200,7 +183,6 @@ def overlap_mesh_group_bounds(
     moving_group: MeshGroup,
     spec: BoundsOverlapSpec,
 ) -> None:
-    """Translate one group to achieve the requested bounds overlap."""
 
     overlap = _validate_vec3(spec.overlap_frac, "overlap_frac")
     if np.any((overlap < 0.0) | (overlap > 1.0)):
@@ -248,7 +230,6 @@ def arrange_mesh_groups_grid(
     groups: Sequence[MeshGroup],
     spec: GridSpec,
 ) -> None:
-    """Center mesh groups on a bounded three-dimensional grid."""
 
     if not groups:
         return

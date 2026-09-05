@@ -6,7 +6,6 @@
 #
 # Authors: scepticalrabbit (Lloyd Fletcher)
 # --------------------------------------------------------------------------
-"""Load textures in the exact channel-first formats used by Riley."""
 
 from enum import Flag, auto
 from pathlib import Path
@@ -16,16 +15,6 @@ from PIL import Image
 
 
 class ETextureCoercion(Flag):
-    """Authorize specific texture conversions during loading.
-
-    RGB-to-mono conversion uses rounded ITU-R BT.601 luminance weights
-    ``(0.299, 0.587, 0.114)``. Mono-to-RGB repeats the mono samples in each
-    channel. Eight-to-sixteen-bit conversion multiplies by 257; the inverse
-    conversion rounds to the nearest corresponding eight-bit sample.
-
-    Flags can be combined with ``|`` when both channel and bit-depth coercion
-    are required. No coercion is permitted by default.
-    """
 
     NONE = 0
     RGB_TO_MONO = auto()
@@ -35,7 +24,6 @@ class ETextureCoercion(Flag):
 
 
 def _load_texture_array(texture_path: str | Path) -> np.ndarray:
-    """Decode a texture without requesting a Pillow mode conversion."""
     with Image.open(Path(texture_path)) as image_in:
         texture = np.asarray(image_in)
     if texture.ndim not in (2, 3):
@@ -65,7 +53,6 @@ def _coerce_channels(
     channels: int,
     coercion: ETextureCoercion,
 ) -> np.ndarray:
-    """Apply an explicitly authorized channel conversion."""
     source_channels = 1 if texture.ndim == 2 else texture.shape[2]
     if source_channels == channels:
         return texture
@@ -91,7 +78,6 @@ def _coerce_dtype(
     dtype: np.dtype,
     coercion: ETextureCoercion,
 ) -> np.ndarray:
-    """Apply an explicitly authorized integer bit-depth conversion."""
     if texture.dtype == dtype:
         return texture
     if texture.dtype == np.uint8 and dtype == np.dtype(np.uint16):
@@ -116,7 +102,6 @@ def _load_texture(
     dtype: np.dtype,
     coercion: ETextureCoercion,
 ) -> np.ndarray:
-    """Load, verify and arrange one texture for Riley."""
     if not isinstance(coercion, ETextureCoercion):
         raise TypeError("coercion must be an ETextureCoercion member.")
     texture = _load_texture_array(texture_path)
@@ -133,22 +118,6 @@ def load_texture_mono_u8(
     texture_path: str | Path,
     coercion: ETextureCoercion = ETextureCoercion.NONE,
 ) -> np.ndarray:
-    """Load an exact monochrome ``uint8`` Riley texture.
-
-    Parameters
-    ----------
-    texture_path : str | Path
-        Image file to decode.
-    coercion : ETextureCoercion, optional
-        Explicitly authorized conversions. No conversion is allowed by
-        default.
-
-    Returns
-    -------
-    np.ndarray
-        C-contiguous array with shape ``(1, rows, columns)`` and dtype
-        ``uint8``.
-    """
     return _load_texture(texture_path, 1, np.dtype(np.uint8), coercion)
 
 
@@ -156,22 +125,6 @@ def load_texture_rgb_u8(
     texture_path: str | Path,
     coercion: ETextureCoercion = ETextureCoercion.NONE,
 ) -> np.ndarray:
-    """Load an exact RGB ``uint8`` Riley texture.
-
-    Parameters
-    ----------
-    texture_path : str | Path
-        Image file to decode.
-    coercion : ETextureCoercion, optional
-        Explicitly authorized conversions. No conversion is allowed by
-        default.
-
-    Returns
-    -------
-    np.ndarray
-        C-contiguous array with shape ``(3, rows, columns)`` and dtype
-        ``uint8``.
-    """
     return _load_texture(texture_path, 3, np.dtype(np.uint8), coercion)
 
 
@@ -179,22 +132,6 @@ def load_texture_mono_u16(
     texture_path: str | Path,
     coercion: ETextureCoercion = ETextureCoercion.NONE,
 ) -> np.ndarray:
-    """Load an exact monochrome ``uint16`` Riley texture.
-
-    Parameters
-    ----------
-    texture_path : str | Path
-        Image file to decode.
-    coercion : ETextureCoercion, optional
-        Explicitly authorized conversions. No conversion is allowed by
-        default.
-
-    Returns
-    -------
-    np.ndarray
-        C-contiguous array with shape ``(1, rows, columns)`` and dtype
-        ``uint16``.
-    """
     return _load_texture(texture_path, 1, np.dtype(np.uint16), coercion)
 
 
@@ -202,22 +139,6 @@ def load_texture_rgb_u16(
     texture_path: str | Path,
     coercion: ETextureCoercion = ETextureCoercion.NONE,
 ) -> np.ndarray:
-    """Load an exact RGB ``uint16`` Riley texture.
-
-    Parameters
-    ----------
-    texture_path : str | Path
-        Image file to decode. The decoder must preserve 16-bit RGB samples.
-    coercion : ETextureCoercion, optional
-        Explicitly authorized conversions. No conversion is allowed by
-        default.
-
-    Returns
-    -------
-    np.ndarray
-        C-contiguous array with shape ``(3, rows, columns)`` and dtype
-        ``uint16``.
-    """
     return _load_texture(texture_path, 3, np.dtype(np.uint16), coercion)
 
 
