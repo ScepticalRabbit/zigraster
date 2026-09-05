@@ -57,11 +57,11 @@ def make_grey_mesh_input(
 ) -> riley.Mesh:
     shader_idx = mesh_idx % 3
     elem_type = {
-        riley.MeshType.tri3: riley.EElementType.TRI3,
-        riley.MeshType.tri6: riley.EElementType.TRI6,
-        riley.MeshType.quad4newton: riley.EElementType.QUAD4,
-        riley.MeshType.quad8: riley.EElementType.QUAD8,
-        riley.MeshType.quad9: riley.EElementType.QUAD9,
+        riley.MeshType.tri3: riley.EElemType.TRI3,
+        riley.MeshType.tri6: riley.EElemType.TRI6,
+        riley.MeshType.quad4newton: riley.EElemType.QUAD4,
+        riley.MeshType.quad8: riley.EElemType.QUAD8,
+        riley.MeshType.quad9: riley.EElemType.QUAD9,
     }[mesh_type]
     convention = riley.ConnectConvention(
         elem_type, riley.EConnectAxis.ROW, 0, riley.ENodeOrder.RILEY,

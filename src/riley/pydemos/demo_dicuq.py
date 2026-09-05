@@ -52,7 +52,7 @@ def main() -> None:
     disp_components = tuple(item[:, frame_indices] for item in disp_components)
     texture = riley.load_texture_mono_u8(texture_path)
     convention = riley.ConnectConvention(
-        riley.EElementType.QUAD8, riley.EConnectAxis.ROW, 0,
+        riley.EElemType.QUAD8, riley.EConnectAxis.ROW, 0,
         riley.ENodeOrder.RILEY,
     )
 

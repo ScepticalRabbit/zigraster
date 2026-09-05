@@ -17,16 +17,16 @@ from typing import Literal
 import numpy as np
 
 from riley.python.meshconstants import (
-    EXODUS_TO_RILEY,
-    RILEY_ELEMENT_SPECS,
-    RILEY_VOLUME_SURFACE_TYPES,
-    VTK_TO_RILEY,
-    EElementType,
+    EXODUS_TO_RILEY_MAP,
+    RILEY_ELEM_TOP_MAP,
+    RILEY_VOL_SURF_TYPE_MAP,
+    VTK_TO_RILEY_MAP,
+    EElemType,
 )
 
 
 class EConnectAxis(Enum):
-    """Axis containing elements in a source connectivity array."""
+    """Axis containing elems in a source connectivity array."""
 
     ROW = "row"
     COLUMN = "column"
@@ -75,7 +75,7 @@ class UserTopology:
 class ConnectConvention:
     """Describe how to interpret one source connectivity array.
 
-    ``elem_axis`` says whether each element occupies a row or a column, and
+    ``elem_axis`` says whether each elem occupies a row or a column, and
     ``index_base`` must explicitly be zero or one. ``node_order`` selects a
     named source adapter or a ``UserTopology``; Riley does not guess it.
 
@@ -91,7 +91,7 @@ class ConnectConvention:
     differ.
     """
 
-    elem_type: EElementType
+    elem_type: EElemType
     elem_axis: EConnectAxis
     index_base: Literal[0, 1]
     node_order: ENodeOrder | UserTopology
@@ -100,8 +100,8 @@ class ConnectConvention:
 
     def __post_init__(self) -> None:
         """Verify convention fields at construction time."""
-        if not isinstance(self.elem_type, EElementType):
-            raise TypeError("elem_type must be an EElementType member.")
+        if not isinstance(self.elem_type, EElemType):
+            raise TypeError("elem_type must be an EElemType member.")
         if not isinstance(self.elem_axis, EConnectAxis):
             raise TypeError("elem_axis must be an EConnectAxis member.")
         if isinstance(self.index_base, bool) or self.index_base not in (0, 1):
@@ -115,7 +115,7 @@ class ConnectConvention:
 class MeshGeometry:
     """A single-topology mesh using Riley's standard convention."""
 
-    elem_type: EElementType
+    elem_type: EElemType
     coords: np.ndarray
     connect: np.ndarray
 
@@ -151,17 +151,17 @@ class MeshError(ValueError):
             for issue in self.issues:
                 location = ""
                 if issue.elem_idx is not None:
-                    location = f" element {issue.elem_idx}:"
+                    location = f" elem {issue.elem_idx}:"
                 lines.append(f"- [{issue.code}]{location} {issue.message}")
             super().__init__("\n".join(lines))
 
 
 def _get_user_topology_perm(
-    elem_type: EElementType,
+    elem_type: EElemType,
     topology: UserTopology,
 ) -> tuple[int, ...]:
     """Build a Riley-target-to-source permutation from source topology."""
-    spec = RILEY_ELEMENT_SPECS[elem_type]
+    spec = RILEY_ELEM_TOP_MAP[elem_type]
     node_count = spec.node_count
     corner_count = len(spec.corner_slots)
     if len(topology.corner_slots) != corner_count:
@@ -248,9 +248,9 @@ def _get_source_perm(convention: ConnectConvention) -> tuple[int, ...]:
             convention.node_order,
         )
     if convention.node_order in (ENodeOrder.RILEY, ENodeOrder.VTK):
-        return VTK_TO_RILEY[convention.elem_type]
+        return VTK_TO_RILEY_MAP[convention.elem_type]
     if convention.node_order is ENodeOrder.EXODUS:
-        return EXODUS_TO_RILEY[convention.elem_type]
+        return EXODUS_TO_RILEY_MAP[convention.elem_type]
     raise MeshError(f"Unsupported node ordering: {convention.node_order}.")
 
 def convert_mesh(
@@ -265,9 +265,9 @@ def convert_mesh(
     coords : np.ndarray
         Source coordinates with shape ``(nodes, 3)``.
     connect : np.ndarray
-        One connectivity table containing exactly one element topology.
+        One connectivity table containing exactly one elem topology.
     convention : ConnectConvention
-        Explicit source element type, element axis, index base and local-node
+        Explicit source elem type, elem axis, index base and local-node
         ordering. A built-in adapter or explicit ``UserTopology`` is required.
 
     Returns
@@ -322,7 +322,7 @@ def convert_mesh(
 def verify_mesh(mesh: MeshGeometry) -> None:
     """Verify Riley's standard mesh convention and report all found issues.
 
-    Independent structural and per-element failures are collected into one
+    Independent structural and per-elem failures are collected into one
     ``MeshError`` so a user can correct several input problems at once.
     Checks that depend on unsafe or malformed arrays are skipped.
     """
@@ -330,13 +330,13 @@ def verify_mesh(mesh: MeshGeometry) -> None:
         raise TypeError("mesh must be an instance of MeshGeometry.")
 
     issues: list[MeshVerifyIssue] = []
-    if not isinstance(mesh.elem_type, EElementType):
+    if not isinstance(mesh.elem_type, EElemType):
         issues.append(MeshVerifyIssue(
-            "element_type", "elem_type must be an EElementType member."
+            "elem_type", "elem_type must be an EElemType member."
         ))
         raise MeshError(issues=issues)
 
-    spec = RILEY_ELEMENT_SPECS[mesh.elem_type]
+    spec = RILEY_ELEM_TOP_MAP[mesh.elem_type]
     coords = np.asarray(mesh.coords)
     connect = np.asarray(mesh.connect)
 
@@ -373,13 +373,13 @@ def verify_mesh(mesh: MeshGeometry) -> None:
     else:
         if connect.shape[0] == 0 or connect.size == 0:
             issues.append(MeshVerifyIssue(
-                "empty_connectivity", "connect must contain an element."
+                "empty_connectivity", "connect must contain an elem."
             ))
         if connect.shape[1] != spec.node_count:
             issues.append(MeshVerifyIssue(
                 "connectivity_width",
                 f"{mesh.elem_type.value} requires {spec.node_count} "
-                "nodes per element.",
+                "nodes per elem.",
             ))
             connect_safe = False
         if connect.dtype != np.uintp:
@@ -424,17 +424,17 @@ def _extract_surface_with_node_idxs(
 
     verify_mesh(mesh)
 
-    if mesh.elem_type not in RILEY_VOLUME_SURFACE_TYPES:
+    if mesh.elem_type not in RILEY_VOL_SURF_TYPE_MAP:
         raise MeshError("extract_surface requires a volume mesh.")
 
-    spec = RILEY_ELEMENT_SPECS[mesh.elem_type]
-    surf_type = RILEY_VOLUME_SURFACE_TYPES[mesh.elem_type]
-    surf_spec = RILEY_ELEMENT_SPECS[surf_type]
+    spec = RILEY_ELEM_TOP_MAP[mesh.elem_type]
+    surf_type = RILEY_VOL_SURF_TYPE_MAP[mesh.elem_type]
+    surf_spec = RILEY_ELEM_TOP_MAP[surf_type]
     face_uses: dict[tuple[int, ...], list[np.ndarray]] = {}
     corner_count = len(surf_spec.corner_slots)
 
     for elem_row in mesh.connect:
-        for face_slots in spec.surface_faces:
+        for face_slots in spec.surf_faces:
             face = elem_row[np.asarray(face_slots, dtype=np.uintp)]
             face_nodes = [int(node) for node in face[:corner_count]]
             face_key = tuple(sorted(face_nodes))
@@ -445,7 +445,7 @@ def _extract_surface_with_node_idxs(
         if len(uses) > 2:
             raise MeshError(
                 f"Non-manifold volume face {face_key} has {len(uses)} "
-                "incident elements."
+                "incident elems."
             )
         if len(uses) == 1:
             surf_faces.append(uses[0])
@@ -485,7 +485,7 @@ def extract_surface(mesh: MeshGeometry) -> MeshGeometry:
 __all__ = [
     "ConnectConvention",
     "EConnectAxis",
-    "EElementType",
+    "EElemType",
     "ENodeOrder",
     "EdgeNode",
     "FaceNode",

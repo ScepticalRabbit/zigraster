@@ -18,35 +18,35 @@ from riley import data
 from riley.python import meshconv, meshio
 
 _CUBE_TYPES = {
-    "tet4": meshconv.EElementType.TET4,
-    "tet10": meshconv.EElementType.TET10,
-    "hex8": meshconv.EElementType.HEX8,
-    "hex20": meshconv.EElementType.HEX20,
-    "hex27": meshconv.EElementType.HEX27,
+    "tet4": meshconv.EElemType.TET4,
+    "tet10": meshconv.EElemType.TET10,
+    "hex8": meshconv.EElemType.HEX8,
+    "hex20": meshconv.EElemType.HEX20,
+    "hex27": meshconv.EElemType.HEX27,
 }
 
 _SPHERE_TYPES = {
-    "tri3_sphere200": meshconv.EElementType.TRI3,
-    "tri6_sphere200": meshconv.EElementType.TRI6,
-    "quad4newton_sphere200": meshconv.EElementType.QUAD4,
-    "quad8_sphere200": meshconv.EElementType.QUAD8,
-    "quad9_sphere200": meshconv.EElementType.QUAD9,
+    "tri3_sphere200": meshconv.EElemType.TRI3,
+    "tri6_sphere200": meshconv.EElemType.TRI6,
+    "quad4newton_sphere200": meshconv.EElemType.QUAD4,
+    "quad8_sphere200": meshconv.EElemType.QUAD8,
+    "quad9_sphere200": meshconv.EElemType.QUAD9,
 }
 
 _VTK_VOLUME_FACES = {
-    meshconv.EElementType.TET4: (
+    meshconv.EElemType.TET4: (
         (0, 1, 3),
         (1, 2, 3),
         (2, 0, 3),
         (0, 2, 1),
     ),
-    meshconv.EElementType.TET10: (
+    meshconv.EElemType.TET10: (
         (0, 1, 3, 4, 8, 7),
         (1, 2, 3, 5, 9, 8),
         (2, 0, 3, 6, 7, 9),
         (0, 2, 1, 6, 5, 4),
     ),
-    meshconv.EElementType.HEX8: (
+    meshconv.EElemType.HEX8: (
         (0, 4, 7, 3),
         (1, 2, 6, 5),
         (0, 1, 5, 4),
@@ -54,7 +54,7 @@ _VTK_VOLUME_FACES = {
         (0, 3, 2, 1),
         (4, 5, 6, 7),
     ),
-    meshconv.EElementType.HEX20: (
+    meshconv.EElemType.HEX20: (
         (0, 4, 7, 3, 16, 15, 19, 11),
         (1, 2, 6, 5, 9, 18, 13, 17),
         (0, 1, 5, 4, 8, 17, 12, 16),
@@ -65,15 +65,15 @@ _VTK_VOLUME_FACES = {
 }
 
 
-@pytest.mark.parametrize("elem_type", tuple(meshconv.EElementType))
+@pytest.mark.parametrize("elem_type", tuple(meshconv.EElemType))
 @pytest.mark.parametrize("elem_axis", tuple(meshconv.EConnectAxis))
 @pytest.mark.parametrize("index_base", (0, 1))
 def test_vtk_adapter_handles_every_array_representation(
-    elem_type: meshconv.EElementType,
+    elem_type: meshconv.EElemType,
     elem_axis: meshconv.EConnectAxis,
     index_base: int,
 ) -> None:
-    coords = elem_type.calc_ref_coords()
+    coords = elem_type.get_para_coords()
     if coords.shape[1] == 2:
         coords = np.column_stack((coords, np.zeros(coords.shape[0])))
     connect_std = np.arange(coords.shape[0], dtype=np.int64)[None, :]
@@ -97,8 +97,8 @@ def test_vtk_adapter_handles_every_array_representation(
 
 
 def test_exodus_hex20_adapter_reorders_edge_groups() -> None:
-    elem_type = meshconv.EElementType.HEX20
-    coords = elem_type.calc_ref_coords()
+    elem_type = meshconv.EElemType.HEX20
+    coords = elem_type.get_para_coords()
     connect_std = np.arange(20, dtype=np.int64)[None, :]
     riley_from_exodus = np.array((
         0, 1, 2, 3, 4, 5, 6, 7,
@@ -119,8 +119,8 @@ def test_exodus_hex20_adapter_reorders_edge_groups() -> None:
 
 
 def test_exodus_hex27_adapter_reorders_edges_faces_and_centre() -> None:
-    elem_type = meshconv.EElementType.HEX27
-    coords = elem_type.calc_ref_coords()
+    elem_type = meshconv.EElemType.HEX27
+    coords = elem_type.get_para_coords()
     connect_std = np.arange(27, dtype=np.int64)[None, :]
     riley_from_exodus = np.array((
         0, 1, 2, 3, 4, 5, 6, 7,
@@ -144,7 +144,7 @@ def test_exodus_hex27_adapter_reorders_edges_faces_and_centre() -> None:
 @pytest.mark.parametrize(("case_name", "elem_type"), _CUBE_TYPES.items())
 def test_moose_exodus_cube_converts_verifies_and_extracts(
     case_name: str,
-    elem_type: meshconv.EElementType,
+    elem_type: meshconv.EElemType,
 ) -> None:
     with netCDF4.Dataset(data.cube_exodus_path(case_name)) as dataset:
         coords = np.column_stack((
@@ -198,7 +198,7 @@ def test_moose_exodus_high_order_nodes_have_standard_roles(
         node_order=meshconv.ENodeOrder.EXODUS,
     )
     volume = meshconv.convert_mesh(coords, connect, convention)
-    if elem_type is meshconv.EElementType.TET10:
+    if elem_type is meshconv.EElemType.TET10:
         edges = (
             (0, 1), (1, 2), (2, 0),
             (0, 3), (1, 3), (2, 3),
@@ -218,7 +218,7 @@ def test_moose_exodus_high_order_nodes_have_standard_roles(
             expected = np.mean(elem_coords[list(edge_corners)], axis=0)
             np.testing.assert_allclose(elem_coords[edge_slot], expected)
 
-        if elem_type is meshconv.EElementType.HEX27:
+        if elem_type is meshconv.EElemType.HEX27:
             faces = (
                 (0, 4, 7, 3), (1, 2, 6, 5),
                 (0, 1, 5, 4), (3, 7, 6, 2),
@@ -234,8 +234,8 @@ def test_moose_exodus_high_order_nodes_have_standard_roles(
 
 
 def test_user_topology_describes_source_relationships() -> None:
-    elem_type = meshconv.EElementType.QUAD8
-    coords = elem_type.calc_ref_coords()
+    elem_type = meshconv.EElemType.QUAD8
+    coords = elem_type.get_para_coords()
     coords = np.column_stack((coords, np.zeros(coords.shape[0])))
     topology = meshconv.UserTopology(
         corner_slots=(2, 3, 0, 1),
@@ -269,7 +269,7 @@ def test_verify_mesh_collects_independent_failures() -> None:
     )
     connect = np.array(((0, 1, 2),), dtype=np.int32)
     mesh = meshconv.MeshGeometry(
-        elem_type=meshconv.EElementType.TRI3,
+        elem_type=meshconv.EElemType.TRI3,
         coords=coords,
         connect=connect,
     )
@@ -294,7 +294,7 @@ def test_verify_mesh_accepts_collapsed_surface_face() -> None:
         )
     )
     mesh = meshconv.MeshGeometry(
-        meshconv.EElementType.TRI3,
+        meshconv.EElemType.TRI3,
         coords,
         np.array(((0, 1, 2),), dtype=np.uintp),
     )
@@ -314,7 +314,7 @@ def test_verify_mesh_accepts_coincident_uv_seam_faces() -> None:
         )
     )
     mesh = meshconv.MeshGeometry(
-        meshconv.EElementType.TRI3,
+        meshconv.EElemType.TRI3,
         coords,
         np.array(((0, 1, 2), (3, 4, 5)), dtype=np.uintp),
     )
@@ -335,7 +335,7 @@ def test_convert_mesh_rejects_invalid_connectivity(
 ) -> None:
     coords = np.eye(3, dtype=np.float64)
     convention = meshconv.ConnectConvention(
-        meshconv.EElementType.TRI3, meshconv.EConnectAxis.ROW, 0,
+        meshconv.EElemType.TRI3, meshconv.EConnectAxis.ROW, 0,
         meshconv.ENodeOrder.RILEY,
     )
 
@@ -344,8 +344,8 @@ def test_convert_mesh_rejects_invalid_connectivity(
 
 
 def test_extract_surface_returns_standard_compact_hex27_surface() -> None:
-    elem_type = meshconv.EElementType.HEX27
-    coords = elem_type.calc_ref_coords()
+    elem_type = meshconv.EElemType.HEX27
+    coords = elem_type.get_para_coords()
     convention = meshconv.ConnectConvention(
         elem_type=elem_type,
         elem_axis=meshconv.EConnectAxis.ROW,
@@ -360,7 +360,7 @@ def test_extract_surface_returns_standard_compact_hex27_surface() -> None:
 
     surface = meshconv.extract_surface(volume)
 
-    assert surface.elem_type is meshconv.EElementType.QUAD9
+    assert surface.elem_type is meshconv.EElemType.QUAD9
     assert surface.coords.shape == (26, 3)
     assert surface.connect.shape == (6, 9)
     assert np.array_equal(
@@ -396,10 +396,10 @@ def test_extract_surface_returns_standard_compact_hex27_surface() -> None:
     _VTK_VOLUME_FACES.items(),
 )
 def test_extract_surface_uses_vtk_face_order(
-    elem_type: meshconv.EElementType,
+    elem_type: meshconv.EElemType,
     expected_faces: tuple[tuple[int, ...], ...],
 ) -> None:
-    coords = elem_type.calc_ref_coords()
+    coords = elem_type.get_para_coords()
     volume = meshconv.MeshGeometry(
         elem_type,
         coords,
@@ -414,7 +414,7 @@ def test_extract_surface_uses_vtk_face_order(
 @pytest.mark.parametrize(("case_name", "elem_type"), _CUBE_TYPES.items())
 def test_packaged_cube_converts_verifies_and_extracts(
     case_name: str,
-    elem_type: meshconv.EElementType,
+    elem_type: meshconv.EElemType,
 ) -> None:
     case_path = data.cube_case_path(case_name)
     coords = np.loadtxt(case_path / "coords.csv", delimiter=",")
@@ -441,7 +441,7 @@ def test_packaged_cube_converts_verifies_and_extracts(
 @pytest.mark.parametrize(("case_name", "elem_type"), _SPHERE_TYPES.items())
 def test_packaged_sphere_converts_and_verifies(
     case_name: str,
-    elem_type: meshconv.EElementType,
+    elem_type: meshconv.EElemType,
 ) -> None:
     case_path = data.sphere200_case_path(case_name)
     coords = np.loadtxt(case_path / "coords.csv", delimiter=",")
@@ -471,7 +471,7 @@ def test_packaged_square_donut_converts_and_verifies() -> None:
     coords = np.loadtxt(case_path / "coords.csv", delimiter=",")
     connect = meshio.load_csv(case_path / "connect.csv", dtype=np.int64)
     convention = meshconv.ConnectConvention(
-        meshconv.EElementType.QUAD8, meshconv.EConnectAxis.ROW, 0,
+        meshconv.EElemType.QUAD8, meshconv.EConnectAxis.ROW, 0,
         meshconv.ENodeOrder.RILEY,
     )
 

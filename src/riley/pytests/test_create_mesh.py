@@ -6,18 +6,18 @@ import riley
 
 
 _SURF_CASES = (
-    (riley.EElementType.TRI3, riley.MeshType.tri3),
-    (riley.EElementType.TRI3, riley.MeshType.tri3opt),
-    (riley.EElementType.TRI6, riley.MeshType.tri6),
-    (riley.EElementType.QUAD4, riley.MeshType.quad4ibi),
-    (riley.EElementType.QUAD4, riley.MeshType.quad4newton),
-    (riley.EElementType.QUAD8, riley.MeshType.quad8),
-    (riley.EElementType.QUAD9, riley.MeshType.quad9),
+    (riley.EElemType.TRI3, riley.MeshType.tri3),
+    (riley.EElemType.TRI3, riley.MeshType.tri3opt),
+    (riley.EElemType.TRI6, riley.MeshType.tri6),
+    (riley.EElemType.QUAD4, riley.MeshType.quad4ibi),
+    (riley.EElemType.QUAD4, riley.MeshType.quad4newton),
+    (riley.EElemType.QUAD8, riley.MeshType.quad8),
+    (riley.EElemType.QUAD9, riley.MeshType.quad9),
 )
 
 
-def _coords_3d(elem_type: riley.EElementType) -> np.ndarray:
-    coords = elem_type.calc_ref_coords()
+def _coords_3d(elem_type: riley.EElemType) -> np.ndarray:
+    coords = elem_type.get_para_coords()
     if coords.shape[1] == 2:
         coords = np.column_stack((coords, np.zeros(coords.shape[0])))
     return coords
@@ -31,7 +31,7 @@ def _function_shader() -> riley.FunctionShader:
 @pytest.mark.parametrize("axis", tuple(riley.EConnectAxis))
 @pytest.mark.parametrize("index_base", (0, 1))
 def test_create_mesh_identity_representations(
-    elem_type: riley.EElementType,
+    elem_type: riley.EElemType,
     mesh_type: riley.MeshType,
     axis: riley.EConnectAxis,
     index_base: int,
@@ -56,27 +56,27 @@ def test_create_mesh_identity_representations(
 @pytest.mark.parametrize(
     ("source", "target"),
     (
-        (riley.EElementType.TRI7, riley.MeshType.tri6),
-        (riley.EElementType.TRI7, riley.MeshType.tri3),
-        (riley.EElementType.TRI6, riley.MeshType.tri3),
-        (riley.EElementType.QUAD4, riley.MeshType.tri3),
-        (riley.EElementType.QUAD8, riley.MeshType.tri3),
-        (riley.EElementType.QUAD9, riley.MeshType.tri3),
-        (riley.EElementType.QUAD9, riley.MeshType.quad8),
-        (riley.EElementType.QUAD9, riley.MeshType.quad4newton),
-        (riley.EElementType.QUAD8, riley.MeshType.quad4ibi),
-        (riley.EElementType.TET4, riley.MeshType.tri3),
-        (riley.EElementType.TET10, riley.MeshType.tri6),
-        (riley.EElementType.TET10, riley.MeshType.tri3),
-        (riley.EElementType.HEX8, riley.MeshType.tri3),
-        (riley.EElementType.HEX8, riley.MeshType.quad4newton),
-        (riley.EElementType.HEX20, riley.MeshType.tri3),
-        (riley.EElementType.HEX20, riley.MeshType.quad8),
-        (riley.EElementType.HEX20, riley.MeshType.quad4ibi),
-        (riley.EElementType.HEX27, riley.MeshType.tri3),
-        (riley.EElementType.HEX27, riley.MeshType.quad9),
-        (riley.EElementType.HEX27, riley.MeshType.quad8),
-        (riley.EElementType.HEX27, riley.MeshType.quad4newton),
+        (riley.EElemType.TRI7, riley.MeshType.tri6),
+        (riley.EElemType.TRI7, riley.MeshType.tri3),
+        (riley.EElemType.TRI6, riley.MeshType.tri3),
+        (riley.EElemType.QUAD4, riley.MeshType.tri3),
+        (riley.EElemType.QUAD8, riley.MeshType.tri3),
+        (riley.EElemType.QUAD9, riley.MeshType.tri3),
+        (riley.EElemType.QUAD9, riley.MeshType.quad8),
+        (riley.EElemType.QUAD9, riley.MeshType.quad4newton),
+        (riley.EElemType.QUAD8, riley.MeshType.quad4ibi),
+        (riley.EElemType.TET4, riley.MeshType.tri3),
+        (riley.EElemType.TET10, riley.MeshType.tri6),
+        (riley.EElemType.TET10, riley.MeshType.tri3),
+        (riley.EElemType.HEX8, riley.MeshType.tri3),
+        (riley.EElemType.HEX8, riley.MeshType.quad4newton),
+        (riley.EElemType.HEX20, riley.MeshType.tri3),
+        (riley.EElemType.HEX20, riley.MeshType.quad8),
+        (riley.EElemType.HEX20, riley.MeshType.quad4ibi),
+        (riley.EElemType.HEX27, riley.MeshType.tri3),
+        (riley.EElemType.HEX27, riley.MeshType.quad9),
+        (riley.EElemType.HEX27, riley.MeshType.quad8),
+        (riley.EElemType.HEX27, riley.MeshType.quad4newton),
     ),
 )
 def test_create_mesh_supported_topology_transitions(source, target) -> None:
@@ -94,21 +94,21 @@ def test_create_mesh_supported_topology_transitions(source, target) -> None:
 @pytest.mark.parametrize(
     ("source", "expected_tri_count"),
     (
-        (riley.EElementType.TRI3, 1),
-        (riley.EElementType.TRI6, 4),
-        (riley.EElementType.TRI7, 6),
-        (riley.EElementType.QUAD4, 2),
-        (riley.EElementType.QUAD8, 6),
-        (riley.EElementType.QUAD9, 8),
-        (riley.EElementType.TET4, 4),
-        (riley.EElementType.TET10, 16),
-        (riley.EElementType.HEX8, 12),
-        (riley.EElementType.HEX20, 36),
-        (riley.EElementType.HEX27, 48),
+        (riley.EElemType.TRI3, 1),
+        (riley.EElemType.TRI6, 4),
+        (riley.EElemType.TRI7, 6),
+        (riley.EElemType.QUAD4, 2),
+        (riley.EElemType.QUAD8, 6),
+        (riley.EElemType.QUAD9, 8),
+        (riley.EElemType.TET4, 4),
+        (riley.EElemType.TET10, 16),
+        (riley.EElemType.HEX8, 12),
+        (riley.EElemType.HEX20, 36),
+        (riley.EElemType.HEX27, 48),
     ),
 )
-def test_create_mesh_triangulation_element_counts(
-    source: riley.EElementType,
+def test_create_mesh_triangulation_elem_counts(
+    source: riley.EElemType,
     expected_tri_count: int,
 ) -> None:
     coords = _coords_3d(source)
@@ -121,7 +121,7 @@ def test_create_mesh_triangulation_element_counts(
     )
     assert mesh.mesh_type is riley.MeshType.tri3
     assert mesh.connect.shape == (expected_tri_count, 3)
-    is_hex27 = source is riley.EElementType.HEX27
+    is_hex27 = source is riley.EElemType.HEX27
     expected_nodes = 26 if is_hex27 else coords.shape[0]
     assert mesh.coords.shape[0] == expected_nodes
 
@@ -129,12 +129,12 @@ def test_create_mesh_triangulation_element_counts(
 @pytest.mark.parametrize(
     ("source", "target"),
     (
-        (riley.EElementType.TRI3, riley.MeshType.tri6),
-        (riley.EElementType.TRI6, riley.MeshType.quad4ibi),
-        (riley.EElementType.QUAD4, riley.MeshType.tri6),
-        (riley.EElementType.QUAD8, riley.MeshType.tri6),
-        (riley.EElementType.TET10, riley.MeshType.quad8),
-        (riley.EElementType.HEX20, riley.MeshType.tri6),
+        (riley.EElemType.TRI3, riley.MeshType.tri6),
+        (riley.EElemType.TRI6, riley.MeshType.quad4ibi),
+        (riley.EElemType.QUAD4, riley.MeshType.tri6),
+        (riley.EElemType.QUAD8, riley.MeshType.tri6),
+        (riley.EElemType.TET10, riley.MeshType.quad8),
+        (riley.EElemType.HEX20, riley.MeshType.tri6),
     ),
 )
 def test_create_mesh_rejects_unsupported_topology_transitions(
@@ -153,8 +153,8 @@ def test_create_mesh_rejects_unsupported_topology_transitions(
 
 
 def test_create_mesh_remaps_every_nodal_array_by_source_index() -> None:
-    source = riley.EElementType.HEX27
-    coords = source.calc_ref_coords()
+    source = riley.EElemType.HEX27
+    coords = source.get_para_coords()
     ids = np.arange(coords.shape[0], dtype=np.float64)
     uvs = np.column_stack((ids, -ids))
     texture = np.zeros((1, 2, 2), dtype=np.uint8)
@@ -176,11 +176,11 @@ def test_create_mesh_remaps_every_nodal_array_by_source_index() -> None:
 
 @pytest.mark.parametrize("channels", (1, 3))
 def test_create_mesh_prepares_nodal_shader(channels: int) -> None:
-    coords = _coords_3d(riley.EElementType.TRI3)
+    coords = _coords_3d(riley.EElemType.TRI3)
     field = np.ones((3, 2, channels), dtype=np.float32)
     mesh = riley.create_mesh(
         riley.ConnectConvention(
-            riley.EElementType.TRI3, riley.EConnectAxis.ROW, 0,
+            riley.EElemType.TRI3, riley.EConnectAxis.ROW, 0,
             riley.ENodeOrder.RILEY,
         ),
         riley.MeshType.tri3,
@@ -193,10 +193,10 @@ def test_create_mesh_prepares_nodal_shader(channels: int) -> None:
 
 
 def test_create_mesh_result_crosses_cython_mesh_boundary() -> None:
-    coords = _coords_3d(riley.EElementType.TRI3)
+    coords = _coords_3d(riley.EElemType.TRI3)
     mesh = riley.create_mesh(
         riley.ConnectConvention(
-            riley.EElementType.TRI3, riley.EConnectAxis.ROW, 0,
+            riley.EElemType.TRI3, riley.EConnectAxis.ROW, 0,
             riley.ENodeOrder.RILEY,
         ),
         riley.MeshType.tri3,
@@ -211,16 +211,16 @@ def test_create_mesh_result_crosses_cython_mesh_boundary() -> None:
 @pytest.mark.parametrize(
     ("case_name", "elem_type", "mesh_type"),
     (
-        ("tet4", riley.EElementType.TET4, riley.MeshType.tri3),
-        ("tet10", riley.EElementType.TET10, riley.MeshType.tri6),
-        ("hex8", riley.EElementType.HEX8, riley.MeshType.quad4newton),
-        ("hex20", riley.EElementType.HEX20, riley.MeshType.quad8),
-        ("hex27", riley.EElementType.HEX27, riley.MeshType.quad9),
+        ("tet4", riley.EElemType.TET4, riley.MeshType.tri3),
+        ("tet10", riley.EElemType.TET10, riley.MeshType.tri6),
+        ("hex8", riley.EElemType.HEX8, riley.MeshType.quad4newton),
+        ("hex20", riley.EElemType.HEX20, riley.MeshType.quad8),
+        ("hex27", riley.EElemType.HEX27, riley.MeshType.quad9),
     ),
 )
 def test_create_mesh_reuses_packaged_cube_fixtures(
     case_name: str,
-    elem_type: riley.EElementType,
+    elem_type: riley.EElemType,
     mesh_type: riley.MeshType,
 ) -> None:
     case_path = riley.data.cube_case_path(case_name)
@@ -243,12 +243,12 @@ def test_create_mesh_supports_all_texture_storage_types(
     channels: int,
     dtype: type,
 ) -> None:
-    coords = _coords_3d(riley.EElementType.TRI3)
+    coords = _coords_3d(riley.EElemType.TRI3)
     texture = np.ones((channels, 2, 2), dtype=dtype)
     shader = riley.TextureShader(coords[:, :2], texture)
     mesh = riley.create_mesh(
         riley.ConnectConvention(
-            riley.EElementType.TRI3, riley.EConnectAxis.ROW, 0,
+            riley.EElemType.TRI3, riley.EConnectAxis.ROW, 0,
             riley.ENodeOrder.RILEY,
         ),
         riley.MeshType.tri3,
@@ -262,10 +262,10 @@ def test_create_mesh_supports_all_texture_storage_types(
 @pytest.mark.parametrize("builtin", tuple(riley.FuncShaderBuiltin))
 @pytest.mark.parametrize("channels", (1, 3))
 def test_create_mesh_supports_every_function_shader(builtin, channels) -> None:
-    coords = _coords_3d(riley.EElementType.TRI3)
+    coords = _coords_3d(riley.EElemType.TRI3)
     mesh = riley.create_mesh(
         riley.ConnectConvention(
-            riley.EElementType.TRI3, riley.EConnectAxis.ROW, 0,
+            riley.EElemType.TRI3, riley.EConnectAxis.ROW, 0,
             riley.ENodeOrder.RILEY,
         ),
         riley.MeshType.tri3,

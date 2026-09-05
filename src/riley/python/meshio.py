@@ -14,14 +14,15 @@ from riley.cython.riley import (
     TextureShader,
 )
 from riley.python.meshconstants import (
-    ELEMENT_FAMILIES,
-    ELEMENT_NODE_COUNTS,
-    ELEMENT_ORDERS,
-    RILEY_MESH_ELEMENT_TYPES,
-    RILEY_TRI_STENCIL,
+    ELEM_FAMILY_MAP,
+    ELEM_NODE_COUNT_MAP,
+    ELEM_ORDER_MAP,
+    RILEY_MESH_ELEM_TYPE_MAP,
+    RILEY_TRI_STENCIL_MAP,
+    RILEY_VOL_SURF_TYPE_MAP,
 )
 from riley.python.meshconv import (
-    ConnectConvention, EElementType, MeshError, MeshGeometry,
+    ConnectConvention, EElemType, MeshError, MeshGeometry,
     _extract_surface_with_node_idxs, convert_mesh, verify_mesh,
 )
 
@@ -78,13 +79,13 @@ def load_csv(
     return np.ascontiguousarray(array)
 
 
-def _compact(
+def _reduce_elem_order(
     mesh: MeshGeometry,
     source_idxs: np.ndarray,
-    target: EElementType,
+    target: EElemType,
 ) -> tuple[MeshGeometry, np.ndarray]:
 
-    connect = mesh.connect[:, :ELEMENT_NODE_COUNTS[target]]
+    connect = mesh.connect[:, :ELEM_NODE_COUNT_MAP[target]]
     retained = np.unique(connect)
     remap = np.full(mesh.coords.shape[0], -1, dtype=np.int64)
     remap[retained] = np.arange(retained.size, dtype=np.int64)
@@ -103,64 +104,21 @@ def _compact(
 def _triangulate(
     mesh: MeshGeometry,
     source_idxs: np.ndarray,
-    source: EElementType,
+    source: EElemType,
 ) -> tuple[MeshGeometry, np.ndarray]:
-    stencil = np.asarray(RILEY_TRI_STENCIL[source], dtype=np.uintp)
+    stencil = np.asarray(RILEY_TRI_STENCIL_MAP[source], dtype=np.uintp)
     tri_connect = mesh.connect[:, stencil].reshape(-1, 3)
     retained = np.unique(tri_connect)
     remap = np.full(mesh.coords.shape[0], -1, dtype=np.int64)
     remap[retained] = np.arange(retained.size, dtype=np.int64)
 
     result = MeshGeometry(
-        EElementType.TRI3,
+        EElemType.TRI3,
         np.ascontiguousarray(mesh.coords[retained]),
         np.ascontiguousarray(remap[tri_connect], dtype=np.uintp),
     )
     verify_mesh(result)
     return result, np.ascontiguousarray(source_idxs[retained])
-
-
-def _prepare_geometry(
-    convention: ConnectConvention,
-    mesh_type: MeshType,
-    coords: np.ndarray,
-    connect: np.ndarray,
-) -> tuple[MeshGeometry, np.ndarray]:
-
-    mesh = convert_mesh(coords, connect, convention)
-
-    source_idxs = np.arange(mesh.coords.shape[0], dtype=np.uintp)
-    target = RILEY_MESH_ELEMENT_TYPES[mesh_type]
-    source = mesh.elem_type
-
-    if ELEMENT_FAMILIES[source] in ("tet", "hex"):
-        if target is EElementType.TRI3:
-            mesh, source_idxs = _extract_surface_with_node_idxs(mesh)
-            source = mesh.elem_type
-        else:
-            required = "tri" if ELEMENT_FAMILIES[source] == "tet" else "quad"
-            if ELEMENT_FAMILIES[target] != required:
-                raise MeshError(
-                    f"Cannot create {target.value} from {source.value}."
-                )
-            mesh, source_idxs = _extract_surface_with_node_idxs(mesh)
-            source = mesh.elem_type
-
-    if target is EElementType.TRI3 and source in RILEY_TRI_STENCIL:
-        if source is EElementType.TRI3:
-            return mesh, source_idxs
-        return _triangulate(mesh, source_idxs, source)
-
-    if ELEMENT_FAMILIES[source] != ELEMENT_FAMILIES[target]:
-        raise MeshError(f"Cannot change {source.value} into {target.value}.")
-
-    if ELEMENT_ORDERS[target] > ELEMENT_ORDERS[source]:
-        raise MeshError(f"Cannot elevate {source.value} to {target.value}.")
-
-    if source is target:
-        return mesh, source_idxs
-
-    return _compact(mesh, source_idxs, target)
 
 
 def _prepare_component(
@@ -169,14 +127,19 @@ def _prepare_component(
     name: str,
 ) -> np.ndarray:
     array = np.asarray(values)
+
     if array.ndim == 1:
         array = array[:, None]
+
     if array.ndim != 2 or array.shape[0] != nodes_num:
         raise ValueError(f"{name} must have shape (nodes, time).")
+
     if not np.issubdtype(array.dtype, np.floating):
         raise TypeError(f"{name} must have a floating-point dtype.")
+
     if not np.all(np.isfinite(array)):
         raise ValueError(f"{name} must contain only finite values.")
+
     return np.ascontiguousarray(array, dtype=np.float64)
 
 
@@ -185,18 +148,25 @@ def _prepare_disp(
     nodes_num: int,
     source_idxs: np.ndarray,
 ) -> np.ndarray | None:
+
     if disp is None:
         return None
+
     if not isinstance(disp, tuple) or len(disp) != 3:
         raise TypeError("disp must be a tuple of (disp_x, disp_y, disp_z).")
+
     components_out = []
     for value, axis in zip(disp, "xyz", strict=True):
         component = _prepare_component(value, nodes_num, f"disp_{axis}")
         components_out.append(component)
+
     components = tuple(components_out)
+
     if any(item.shape != components[0].shape for item in components[1:]):
         raise ValueError("Displacement components must have equal shapes.")
+
     stacked = np.stack(components, axis=2)
+
     return np.ascontiguousarray(stacked[source_idxs].transpose(1, 0, 2))
 
 
@@ -206,12 +176,16 @@ def _prepare_uvs(
     source_idxs: np.ndarray,
 ) -> np.ndarray:
     array = np.asarray(values)
+
     if array.shape != (nodes_num, 2):
         raise ValueError(f"uvs must have shape ({nodes_num}, 2).")
+
     if not np.issubdtype(array.dtype, np.floating):
         raise TypeError("uvs must have a floating-point dtype.")
+
     if not np.all(np.isfinite(array)):
         raise ValueError("uvs must contain only finite values.")
+
     return np.ascontiguousarray(array[source_idxs], dtype=np.float64)
 
 
@@ -348,15 +322,46 @@ def create_mesh(
     if not isinstance(shader, RileyShader):
         raise TypeError("shader must be a Riley supported shader.")
 
+    source_elem = convention.elem_type
+    target_elem = RILEY_MESH_ELEM_TYPE_MAP[mesh_type]
+    effective_surf = RILEY_VOL_SURF_TYPE_MAP.get(source_elem, source_elem)
+
+    if target_elem is not EElemType.TRI3:
+        if ELEM_FAMILY_MAP[effective_surf] != ELEM_FAMILY_MAP[target_elem]:
+            raise MeshError(
+                f"Cannot change {source_elem.value} into {target_elem.value}."
+            )
+        if ELEM_ORDER_MAP[target_elem] > ELEM_ORDER_MAP[effective_surf]:
+            raise MeshError(
+                f"Cannot convert {source_elem.value} to {target_elem.value}."
+            )
+
     coords_array = np.asarray(coords)
     nodes_num = coords_array.shape[0] if coords_array.ndim == 2 else 0
 
-    geometry, source_idxs = _prepare_geometry(
-        convention, mesh_type, coords, connect)
+    # 1) Convert to standard Riley convention
+    mesh = convert_mesh(coords, connect, convention)
+    source_idxs = np.arange(mesh.coords.shape[0], dtype=np.uintp)
+
+    # 2) Extract boundary surface if volume mesh
+    if ELEM_FAMILY_MAP[source_elem] in ("tet", "hex"):
+        mesh, source_idxs = _extract_surface_with_node_idxs(mesh)
+
+    # 3) Tessellate to tri3 or compact order if needed
+    if target_elem is EElemType.TRI3:
+        if mesh.elem_type is not EElemType.TRI3:
+            mesh, source_idxs = _triangulate(
+                mesh, source_idxs, mesh.elem_type
+            )
+    elif mesh.elem_type is not target_elem:
+        mesh, source_idxs = _reduce_elem_order(
+            mesh, source_idxs, target_elem
+        )
 
     return Mesh(
-        mesh_type, geometry.coords,
-        np.ascontiguousarray(geometry.connect, dtype=np.uintp),
+        mesh_type,
+        mesh.coords,
+        np.ascontiguousarray(mesh.connect, dtype=np.uintp),
         _prepare_disp(disp, nodes_num, source_idxs),
         _prepare_shader(shader, nodes_num, source_idxs),
     )

@@ -34,7 +34,7 @@ def main() -> None:
     uvs = riley.load_csv(data_dir / "uvs.csv")
     texture = riley.load_texture_mono_u8(texture_path)
     convention = riley.ConnectConvention(
-        riley.EElementType.TRI6, riley.EConnectAxis.ROW, 0,
+        riley.EElemType.TRI6, riley.EConnectAxis.ROW, 0,
         riley.ENodeOrder.RILEY,
     )
     roi_cent_world = riley.roi_cent_from_coords(coords)

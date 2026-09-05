@@ -73,7 +73,7 @@ def main() -> None:
 
     mesh = riley.create_mesh(
         convention=riley.ConnectConvention(
-            riley.EElementType.HEX20, riley.EConnectAxis.ROW, 1,
+            riley.EElemType.HEX20, riley.EConnectAxis.ROW, 1,
             riley.ENodeOrder.EXODUS,
         ),
         mesh_type=riley.MeshType.quad8,

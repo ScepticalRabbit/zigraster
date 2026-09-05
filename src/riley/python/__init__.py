@@ -20,7 +20,7 @@ from riley.python.meshconv import (
     ConnectConvention,
     EConnectAxis,
     EdgeNode,
-    EElementType,
+    EElemType,
     ENodeOrder,
     FaceNode,
     MeshError,
@@ -43,7 +43,7 @@ from riley.python.uvtools import (
 __all__ = [
     "ConnectConvention",
     "EConnectAxis",
-    "EElementType",
+    "EElemType",
     "ENodeOrder",
     "EPlanarProjMode",
     "EProjPlane",

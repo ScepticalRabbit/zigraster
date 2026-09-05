@@ -33,7 +33,7 @@ def main() -> None:
     uvs = riley.load_csv(data_dir / "uvs.csv")
     texture = riley.load_texture_mono_u8(texture_path)
     convention = riley.ConnectConvention(
-        riley.EElementType.TRI6, riley.EConnectAxis.ROW, 0,
+        riley.EElemType.TRI6, riley.EConnectAxis.ROW, 0,
         riley.ENodeOrder.RILEY,
     )
     shader = riley.TextureShader(uvs=uvs, texture=texture)
