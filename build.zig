@@ -272,6 +272,11 @@ pub fn build(b: *std.Build) void {
             .source_path = "src/demoproceduralsphere200.zig",
         },
         .{
+            .step_name = "demo-procedural-rabbit",
+            .description = "Run the procedural rabbit demo",
+            .source_path = "src/demoproceduralrabbit.zig",
+        },
+        .{
             .step_name = "demo-rabbits",
             .description = "Run the rabbits demo",
             .source_path = "src/demo_rabbits.zig",
