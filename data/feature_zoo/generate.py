@@ -7,6 +7,7 @@ import riley
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT_DIR = ROOT / "data" / "feature_zoo"
+SHAPES_DIR = ROOT / "data" / "shapes"
 
 CASES = (
     ("cube_quad9", "cube", "hex27", riley.EElemType.HEX27,
@@ -38,17 +39,23 @@ def generate_case(
     elem_type: riley.EElemType,
     mesh_type: riley.MeshType,
 ) -> None:
-    coords = riley.load_csv(riley.data.shape_coords_path(shape, source_name))
+    source_dir = SHAPES_DIR / shape
+    source_prefix = source_dir / f"{shape}_{source_name}"
+    coords = riley.load_csv(
+        source_prefix.with_name(f"{source_prefix.name}_coords.csv")
+    )
     connect = riley.load_csv(
-        riley.data.shape_connectivity_path(shape, source_name),
+        source_prefix.with_name(f"{source_prefix.name}_connectivity.csv"),
         dtype=np.int64,
     )
     disp = tuple(
-        riley.load_csv(riley.data.shape_disp_path(shape, source_name, axis))
+        riley.load_csv(
+            source_prefix.with_name(f"{source_prefix.name}_disp_{axis}.csv")
+        )
         for axis in "xyz"
     )
     temperature = riley.load_csv(
-        riley.data.shape_temperature_path(shape, source_name)
+        source_prefix.with_name(f"{source_prefix.name}_temperature.csv")
     )
     convention = riley.ConnectConvention(
         elem_type,

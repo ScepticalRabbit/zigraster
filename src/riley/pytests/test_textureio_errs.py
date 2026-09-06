@@ -17,8 +17,7 @@ import pytest
 import riley
 from riley.python.textureio import ETextureCoercion
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_TEX_DIR = _REPO_ROOT / "texture"
+_TEX_DIR = riley.data.texture_dir_path()
 
 
 def test_rgb_loaded_as_mono_without_coercion_raises() -> None:
@@ -105,4 +104,3 @@ def test_palette_image_raises(tmp_path: Path) -> None:
     im_palette.save(path)
     with pytest.raises(ValueError):
         riley.load_texture_mono_u8(path)
-

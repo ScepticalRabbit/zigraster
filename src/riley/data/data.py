@@ -83,6 +83,10 @@ def cal_target_texture_path() -> Path:
     )
 
 
+def texture_dir_path() -> Path:
+    return _resolve_data_path("textures", "texture")
+
+
 def _normalize_shape_and_prefix(
     shape: str,
     elem_type: str,
@@ -650,4 +654,5 @@ __all__ = [
     "speckle_texture_path",
     "sphere200_case_path",
     "stereocal_case_path",
+    "texture_dir_path",
 ]

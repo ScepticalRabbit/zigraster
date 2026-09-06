@@ -1,10 +1,12 @@
-[[copy]]
-source = "texture/speckle.bmp"
-dest = "textures/speckle.bmp"
+[[copy_tree]]
+source = "texture"
+dest = "textures"
+patterns = ["*.bmp", "*.png", "*.tiff"]
 
-[[copy]]
-source = "texture/cal_target-simple.tiff"
-dest = "textures/cal_target-simple.tiff"
+[[copy_tree]]
+source = "data/shapes"
+dest = "shapes"
+patterns = ["*.csv", "*.e", "*.msh"]
 
 [[copy]]
 source = "data/FE/platehole3d_2mr_63f.e"
@@ -89,66 +91,6 @@ dest = "min/quad9_sphere200/field.csv"
 [[copy]]
 source = "data/min/quad9_sphere200/uvs.csv"
 dest = "min/quad9_sphere200/uvs.csv"
-
-[[copy]]
-source = "data/cubes/tet4/coords.csv"
-dest = "cubes/tet4/coords.csv"
-
-[[copy]]
-source = "data/cubes/tet4/connectivity.csv"
-dest = "cubes/tet4/connectivity.csv"
-
-[[copy]]
-source = "data/cubes/tet4/cube_out.e"
-dest = "cubes/tet4/cube_out.e"
-
-[[copy]]
-source = "data/cubes/tet10/coords.csv"
-dest = "cubes/tet10/coords.csv"
-
-[[copy]]
-source = "data/cubes/tet10/connectivity.csv"
-dest = "cubes/tet10/connectivity.csv"
-
-[[copy]]
-source = "data/cubes/tet10/cube_out.e"
-dest = "cubes/tet10/cube_out.e"
-
-[[copy]]
-source = "data/cubes/hex8/coords.csv"
-dest = "cubes/hex8/coords.csv"
-
-[[copy]]
-source = "data/cubes/hex8/connectivity.csv"
-dest = "cubes/hex8/connectivity.csv"
-
-[[copy]]
-source = "data/cubes/hex8/cube_out.e"
-dest = "cubes/hex8/cube_out.e"
-
-[[copy]]
-source = "data/cubes/hex20/coords.csv"
-dest = "cubes/hex20/coords.csv"
-
-[[copy]]
-source = "data/cubes/hex20/connectivity.csv"
-dest = "cubes/hex20/connectivity.csv"
-
-[[copy]]
-source = "data/cubes/hex20/cube_out.e"
-dest = "cubes/hex20/cube_out.e"
-
-[[copy]]
-source = "data/cubes/hex27/coords.csv"
-dest = "cubes/hex27/coords.csv"
-
-[[copy]]
-source = "data/cubes/hex27/connectivity.csv"
-dest = "cubes/hex27/connectivity.csv"
-
-[[copy]]
-source = "data/cubes/hex27/cube_out.e"
-dest = "cubes/hex27/cube_out.e"
 
 [[copy]]
 source = "data/FE/platehole3d_2mr_63f/connect.csv"

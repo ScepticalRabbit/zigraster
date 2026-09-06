@@ -274,17 +274,17 @@ fn buildCameras(meshes: []MeshInput) [6]camera.CameraInput {
         .supp_rad_px = 2.0,
     } };
     return .{
-        makeCamera(meshes, .{ 512, 512 }, Rotation.init(0, 0, 0), 1, .none, .{ .pixel_box = .{} }),
+        makeCamera(meshes, .{ 1024, 1024 }, Rotation.init(0, 0, 0), 1, .none, .{ .pixel_box = .{} }),
         makeCamera(meshes, .{ 1024, 1024 }, Rotation.init(0, deg(25.0), 0), 4, brown, .{ .pixel_box = .{} }),
-        makeCamera(meshes, .{ 512, 614 }, Rotation.init(0, deg(-28.0), 0), 4, .none, gaussian),
-        makeCamera(meshes, .{ 614, 512 }, Rotation.init(deg(90.0), deg(25.0), 0), 4, brown, gaussian),
-        makeCamera(meshes, .{ 512, 512 }, Rotation.init(deg(18.0), deg(38.0), deg(26.0)), 4, .none, .{ .anisotropic_gaussian = .{
+        makeCamera(meshes, .{ 1024, 1229 }, Rotation.init(0, deg(-28.0), 0), 4, .none, gaussian),
+        makeCamera(meshes, .{ 1229, 1024 }, Rotation.init(deg(90.0), deg(25.0), 0), 4, brown, gaussian),
+        makeCamera(meshes, .{ 1024, 1024 }, Rotation.init(deg(18.0), deg(38.0), deg(26.0)), 4, .none, .{ .anisotropic_gaussian = .{
             .sigma_x_px = 0.55,
             .sigma_y_px = 0.9,
             .theta_rad = deg(25.0),
             .supp_rad_px = 2.5,
         } }),
-        makeCamera(meshes, .{ 614, 512 }, Rotation.init(deg(-90.0), deg(-20.0), deg(5.0)), 4, brown, .{ .pixel_box = .{} }),
+        makeCamera(meshes, .{ 1229, 1024 }, Rotation.init(deg(-90.0), deg(-20.0), deg(5.0)), 4, brown, .{ .pixel_box = .{} }),
     };
 }
 

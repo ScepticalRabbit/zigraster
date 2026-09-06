@@ -18,8 +18,7 @@ import pytest
 import riley
 from riley.python.textureio import ETextureCoercion
 
-_REPO_ROOT = Path(__file__).resolve().parents[3]
-_TEX_DIR = _REPO_ROOT / "texture"
+_TEX_DIR = riley.data.texture_dir_path()
 
 _VALID_TEST_TEXTURES = (
     ("speck128_mono_u8.bmp", 1, np.uint8, riley.load_texture_mono_u8),
@@ -276,4 +275,3 @@ def test_path_string_and_path_object_loading() -> None:
     tex1 = riley.load_texture_mono_u8(path_obj)
     tex2 = riley.load_texture_mono_u8(path_str)
     np.testing.assert_array_equal(tex1, tex2)
-

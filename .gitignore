@@ -52,6 +52,11 @@ refs/
 !data/cubes/
 !data/cubes/**/*.csv
 !data/cubes/*/cube_out.e
+!data/shapes/**/*.csv
+!data/shapes/**/*.msh
+!data/shapes/**/*.e
+!data/feature_zoo/**/*.csv
+!data/feature_zoo/*.fimg
 !gold/min/
 !gold/min/**/*.fimg
 !gold/min/**/*.bmp

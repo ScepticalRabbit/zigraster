@@ -583,8 +583,8 @@ s3 = news; Plane Surface(s3) = {{cl3}};
 cl4 = newcl; Curve Loop(cl4) = {{l4, l5, -c4, -l8}};
 s4 = news; Plane Surface(s4) = {{cl4}};
 
-Transfinite Curve{{l1, l2, l3, l4, c1, c2, c3, c4}} = 3;
-Transfinite Curve{{l5, l6, l7, l8}} = 3;
+Transfinite Curve{{l1, l2, l3, l4, c1, c2, c3, c4}} = 5;
+Transfinite Curve{{l5, l6, l7, l8}} = 5;
 
 Transfinite Surface{{s0}}; Recombine Surface{{s0}};
 Transfinite Surface{{s1}}; Recombine Surface{{s1}};
@@ -593,7 +593,7 @@ Transfinite Surface{{s3}}; Recombine Surface{{s3}};
 Transfinite Surface{{s4}}; Recombine Surface{{s4}};
 
 Extrude{{0, h, 0}}{{
-    Surface{{s0, s1, s2, s3, s4}}; Layers{{3}}; Recombine;
+    Surface{{s0, s1, s2, s3, s4}}; Layers{{6}}; Recombine;
 }}
 
 tol = 1e-4;
@@ -619,7 +619,7 @@ diam = 2 * r;
 h = 1.2 * diam;
 v1 = newv;
 Cylinder(v1) = {{0, 0, 0, 0, h, 0, r, 2*Pi}};
-MeshSize{{ PointsOf{{ Volume{{v1}}; }} }} = 0.004;
+MeshSize{{ PointsOf{{ Volume{{v1}}; }} }} = 0.002;
 tol = 1e-4;
 ps_bot() = Surface In BoundingBox{{-r-tol, -tol, -r-tol, r+tol, tol, r+tol}};
 Physical Surface("bc-bot") = {{ps_bot()}};

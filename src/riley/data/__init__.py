@@ -73,6 +73,7 @@ from riley.data.data import (
     speckle_texture_path,
     sphere200_case_path,
     stereocal_case_path,
+    texture_dir_path,
 )
 
 __all__ = [
@@ -140,4 +141,5 @@ __all__ = [
     "speckle_texture_path",
     "sphere200_case_path",
     "stereocal_case_path",
+    "texture_dir_path",
 ]

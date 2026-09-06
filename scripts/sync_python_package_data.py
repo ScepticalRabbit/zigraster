@@ -31,6 +31,20 @@ def _load_sync_entries() -> list[tuple[str, str]]:
     return sync_entries
 
 
+def _load_tree_sync_entries() -> list[tuple[str, str, tuple[str, ...]]]:
+    with MANIFEST_PATH.open("rb") as manifest_file:
+        manifest = tomllib.load(manifest_file)
+
+    entries = manifest.get("copy_tree", [])
+    sync_entries: list[tuple[str, str, tuple[str, ...]]] = []
+    for entry in entries:
+        src_rel = entry["source"]
+        dst_rel = entry["dest"]
+        patterns = tuple(entry["patterns"])
+        sync_entries.append((src_rel, dst_rel, patterns))
+    return sync_entries
+
+
 def sync_python_package_data() -> None:
     PACKAGE_DATA_ROOT.mkdir(parents=True, exist_ok=True)
     shutil.rmtree(PACKAGE_DATA_ROOT / "__pycache__", ignore_errors=True)
@@ -49,6 +63,21 @@ def sync_python_package_data() -> None:
             )
         dst_path.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src_path, dst_path)
+
+    for src_rel, dst_rel, patterns in _load_tree_sync_entries():
+        src_root = PROJECT_ROOT / src_rel
+        dst_root = PACKAGE_DATA_ROOT / dst_rel
+        if not src_root.is_dir():
+            if dst_root.is_dir():
+                continue
+            raise FileNotFoundError(
+                f"Required package data directory is missing: {src_root}",
+            )
+        for pattern in patterns:
+            for src_path in src_root.rglob(pattern):
+                dst_path = dst_root / src_path.relative_to(src_root)
+                dst_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src_path, dst_path)
 
 
 def main() -> None:
