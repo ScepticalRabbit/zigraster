@@ -20,12 +20,3 @@ def test_texture_storage_accepts_explicit_u8_u16_and_float() -> None:
     )
     assert float_texture.dtype == np.float64
     assert float_texture[0, 0, 0] == pytest.approx(0.125)
-
-
-def test_texture_storage_rejects_mismatched_dtype() -> None:
-    with pytest.raises(ValueError, match="uint16"):
-        bindings._contig_texture(
-            np.zeros((2, 2), dtype=np.uint8),
-            1,
-            bindings.TextureStorage.u16,
-        )

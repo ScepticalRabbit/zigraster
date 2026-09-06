@@ -10,6 +10,7 @@ from riley.cython.riley import (
     Mesh,
     MeshType,
     NodalShader,
+    RileyShader,
     TextureShader,
 )
 from riley.python.meshconstants import (
@@ -64,7 +65,7 @@ def load_csv(
 
 def _reduce_elem_order(
     mesh: MeshGeometry,
-    source_idxs: np.ndarray,
+    source_node_idxs: np.ndarray,
     target: EElemType,
 ) -> tuple[MeshGeometry, np.ndarray]:
 
@@ -81,17 +82,19 @@ def _reduce_elem_order(
 
     verify_mesh(result)
 
-    return result, np.ascontiguousarray(source_idxs[retained])
+    return result, np.ascontiguousarray(source_node_idxs[retained])
 
 
 def _triangulate(
     mesh: MeshGeometry,
-    source_idxs: np.ndarray,
+    source_node_idxs: np.ndarray,
     source: EElemType,
 ) -> tuple[MeshGeometry, np.ndarray]:
+
     stencil = np.asarray(RILEY_TRI_STENCIL_MAP[source], dtype=np.uintp)
     tri_connect = mesh.connect[:, stencil].reshape(-1, 3)
     retained = np.unique(tri_connect)
+
     remap = np.full(mesh.coords.shape[0], -1, dtype=np.int64)
     remap[retained] = np.arange(retained.size, dtype=np.int64)
 
@@ -100,8 +103,10 @@ def _triangulate(
         np.ascontiguousarray(mesh.coords[retained]),
         np.ascontiguousarray(remap[tri_connect], dtype=np.uintp),
     )
+
     verify_mesh(result)
-    return result, np.ascontiguousarray(source_idxs[retained])
+
+    return result, np.ascontiguousarray(source_node_idxs[retained])
 
 
 def _prepare_component(
@@ -129,7 +134,7 @@ def _prepare_component(
 def _prepare_disp(
     disp: tuple[np.ndarray, np.ndarray, np.ndarray] | None,
     nodes_num: int,
-    source_idxs: np.ndarray,
+    source_node_idxs: np.ndarray,
 ) -> np.ndarray | None:
 
     if disp is None:
@@ -150,13 +155,15 @@ def _prepare_disp(
 
     stacked = np.stack(components, axis=2)
 
-    return np.ascontiguousarray(stacked[source_idxs].transpose(1, 0, 2))
+    return np.ascontiguousarray(
+        stacked[source_node_idxs].transpose(1, 0, 2)
+    )
 
 
 def _prepare_uvs(
     values: np.ndarray,
     nodes_num: int,
-    source_idxs: np.ndarray,
+    source_node_idxs: np.ndarray,
 ) -> np.ndarray:
     array = np.asarray(values)
 
@@ -169,14 +176,14 @@ def _prepare_uvs(
     if not np.all(np.isfinite(array)):
         raise ValueError("uvs must contain only finite values.")
 
-    return np.ascontiguousarray(array[source_idxs], dtype=np.float64)
+    return np.ascontiguousarray(array[source_node_idxs], dtype=np.float64)
 
 
 def _prepare_shader(
-    shader: TextureShader | NodalShader | FunctionShader,
+    shader: RileyShader,
     nodes_num: int,
-    source_idxs: np.ndarray,
-) -> TextureShader | NodalShader | FunctionShader:
+    source_node_idxs: np.ndarray,
+) -> RileyShader:
 
     match shader:
         case TextureShader():
@@ -197,7 +204,7 @@ def _prepare_shader(
                     )
                 texture = np.ascontiguousarray(texture, dtype=np.float64)
             return TextureShader(
-                _prepare_uvs(shader.uvs, nodes_num, source_idxs),
+                _prepare_uvs(shader.uvs, nodes_num, source_node_idxs),
                 np.ascontiguousarray(texture), shader.sample,
                 shader.sample_mode, shader.bits, shader.scaling_type,
                 shader.scaling_min, shader.scaling_max, shader.normal_type,
@@ -226,7 +233,7 @@ def _prepare_shader(
                 raise ValueError("nodal field must contain only finite values.")
 
             field_out = np.ascontiguousarray(
-                values[source_idxs].transpose(1, 0, 2), dtype=np.float64,
+                values[source_node_idxs].transpose(1, 0, 2), dtype=np.float64,
             )
 
             return NodalShader(
@@ -246,7 +253,9 @@ def _prepare_shader(
                 )
             uvs_out = None
             if shader.uvs is not None:
-                uvs_out = _prepare_uvs(shader.uvs, nodes_num, source_idxs)
+                uvs_out = _prepare_uvs(
+                    shader.uvs, nodes_num, source_node_idxs
+                )
             return FunctionShader(
                 builtin=shader.builtin,
                 coord_mode=shader.coord_mode,
@@ -264,14 +273,12 @@ def _prepare_shader(
             raise TypeError("shader must be a Riley shader object.")
 
 
-RileyShader = TextureShader | NodalShader | FunctionShader
-
 def create_mesh(
     convention: ConnectConvention,
     mesh_type: MeshType,
     coords: np.ndarray,
     connect: np.ndarray,
-    shader: TextureShader | NodalShader | FunctionShader,
+    shader: RileyShader,
     disp: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
 ) -> Mesh:
     if not isinstance(convention, ConnectConvention):
@@ -285,14 +292,14 @@ def create_mesh(
 
     source_elem = convention.elem_type
     target_elem = RILEY_MESH_ELEM_TYPE_MAP[mesh_type]
-    effective_surf = RILEY_VOL_SURF_TYPE_MAP.get(source_elem, source_elem)
+    surf_elem = RILEY_VOL_SURF_TYPE_MAP.get(source_elem, source_elem)
 
     if target_elem is not EElemType.TRI3:
-        if ELEM_FAMILY_MAP[effective_surf] != ELEM_FAMILY_MAP[target_elem]:
+        if ELEM_FAMILY_MAP[surf_elem] != ELEM_FAMILY_MAP[target_elem]:
             raise MeshError(
                 f"Cannot change {source_elem.value} into {target_elem.value}."
             )
-        if ELEM_ORDER_MAP[target_elem] > ELEM_ORDER_MAP[effective_surf]:
+        if ELEM_ORDER_MAP[target_elem] > ELEM_ORDER_MAP[surf_elem]:
             raise MeshError(
                 f"Cannot convert {source_elem.value} to {target_elem.value}."
             )
@@ -302,29 +309,29 @@ def create_mesh(
 
     # 1) Convert to standard Riley convention
     mesh = convert_mesh(coords, connect, convention)
-    source_idxs = np.arange(mesh.coords.shape[0], dtype=np.uintp)
+    source_node_idxs = np.arange(mesh.coords.shape[0], dtype=np.uintp)
 
     # 2) Extract boundary surface if volume mesh
     if ELEM_FAMILY_MAP[source_elem] in ("tet", "hex"):
-        mesh, source_idxs = _extract_surface_with_node_idxs(mesh)
+        mesh, source_node_idxs = _extract_surface_with_node_idxs(mesh)
 
     # 3) Tessellate to tri3 or reduce order if needed
     if target_elem is EElemType.TRI3:
         if mesh.elem_type is not EElemType.TRI3:
-            mesh, source_idxs = _triangulate(
-                mesh, source_idxs, mesh.elem_type
+            mesh, source_node_idxs = _triangulate(
+                mesh, source_node_idxs, mesh.elem_type
             )
     elif mesh.elem_type is not target_elem:
-        mesh, source_idxs = _reduce_elem_order(
-            mesh, source_idxs, target_elem
+        mesh, source_node_idxs = _reduce_elem_order(
+            mesh, source_node_idxs, target_elem
         )
 
     return Mesh(
         mesh_type,
         mesh.coords,
         np.ascontiguousarray(mesh.connect, dtype=np.uintp),
-        _prepare_disp(disp, nodes_num, source_idxs),
-        _prepare_shader(shader, nodes_num, source_idxs),
+        _prepare_disp(disp, nodes_num, source_node_idxs),
+        _prepare_shader(shader, nodes_num, source_node_idxs),
     )
 
 

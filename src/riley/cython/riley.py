@@ -366,7 +366,8 @@ class FunctionShader:
     normal_type: NormalType = NormalType.none
 
 
-Shader = TextureShader | NodalShader | FunctionShader
+RileyShader = TextureShader | NodalShader | FunctionShader
+Shader = RileyShader
 
 
 @dataclass(slots=True)
@@ -1621,9 +1622,11 @@ __all__ = [
     "RasterConfig",
     "RenderMode",
     "ReportMode",
+    "RileyShader",
     "SaveStrategy",
     "ScaleOver",
     "ScaleStrategy",
+    "Shader",
     "SubPixelCenterMap",
     "FuncShaderBuiltin",
     "FuncCoordMode",

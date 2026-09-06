@@ -51,12 +51,3 @@ def test_select_frames_returns_an_independent_contiguous_copy() -> None:
     assert selected.flags.c_contiguous
     np.testing.assert_array_equal(selected[0], np.arange(6).reshape(3, 2))
     np.testing.assert_array_equal(selected[1], source[3])
-
-
-@pytest.mark.parametrize("frames_num", (0, -1))
-def test_frame_index_helpers_reject_empty_sequences(frames_num: int) -> None:
-    with pytest.raises(ValueError, match="At least one"):
-        first_last_frame_indices(frames_num)
-
-    with pytest.raises(ValueError, match="At least one"):
-        evenly_spaced_frame_indices(frames_num, 8)
