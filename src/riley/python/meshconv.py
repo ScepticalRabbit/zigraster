@@ -16,8 +16,10 @@ from typing import Literal
 import numpy as np
 
 from riley.python.meshconstants import (
+    ELEM_NODE_COUNT_MAP,
     EXODUS_TO_RILEY_MAP,
     RILEY_ELEM_TOP_MAP,
+    RILEY_TRI_STENCIL_MAP,
     RILEY_VOL_SURF_TYPE_MAP,
     VTK_TO_RILEY_MAP,
     EElemType,
@@ -422,6 +424,80 @@ def extract_surface(mesh: MeshGeometry) -> MeshGeometry:
     return mesh_out
 
 
+def _reduce_elem_order_with_node_idxs(
+    mesh: MeshGeometry,
+    source_node_idxs: np.ndarray,
+    target: EElemType,
+) -> tuple[MeshGeometry, np.ndarray]:
+    verify_mesh(mesh)
+    if target not in ELEM_NODE_COUNT_MAP:
+        raise MeshError(f"Unsupported reduction target elem type: {target}.")
+    target_count = ELEM_NODE_COUNT_MAP[target]
+    if mesh.connect.shape[1] < target_count:
+        raise MeshError(
+            f"Cannot reduce {mesh.elem_type.value} to {target.value}: "
+            f"source has {mesh.connect.shape[1]} nodes, target needs "
+            f"{target_count}."
+        )
+
+    connect = mesh.connect[:, :target_count]
+    retained = np.unique(connect)
+    remap = np.full(mesh.coords.shape[0], -1, dtype=np.int64)
+    remap[retained] = np.arange(retained.size, dtype=np.int64)
+
+    result = MeshGeometry(
+        target,
+        np.ascontiguousarray(mesh.coords[retained]),
+        np.ascontiguousarray(remap[connect], dtype=np.uintp),
+    )
+    verify_mesh(result)
+    return result, np.ascontiguousarray(source_node_idxs[retained])
+
+
+def reduce_mesh_order(
+    mesh: MeshGeometry,
+    target: EElemType,
+) -> MeshGeometry:
+    node_idxs = np.arange(mesh.coords.shape[0], dtype=np.uintp)
+    result, _ = _reduce_elem_order_with_node_idxs(mesh, node_idxs, target)
+    return result
+
+
+def _triangulate_with_node_idxs(
+    mesh: MeshGeometry,
+    source_node_idxs: np.ndarray,
+    source: EElemType,
+) -> tuple[MeshGeometry, np.ndarray]:
+    verify_mesh(mesh)
+    if source not in RILEY_TRI_STENCIL_MAP:
+        raise MeshError(
+            f"Cannot triangulate unsupported element type: {source.value}."
+        )
+
+    stencil = np.asarray(RILEY_TRI_STENCIL_MAP[source], dtype=np.uintp)
+    tri_connect = mesh.connect[:, stencil].reshape(-1, 3)
+    retained = np.unique(tri_connect)
+
+    remap = np.full(mesh.coords.shape[0], -1, dtype=np.int64)
+    remap[retained] = np.arange(retained.size, dtype=np.int64)
+
+    result = MeshGeometry(
+        EElemType.TRI3,
+        np.ascontiguousarray(mesh.coords[retained]),
+        np.ascontiguousarray(remap[tri_connect], dtype=np.uintp),
+    )
+    verify_mesh(result)
+    return result, np.ascontiguousarray(source_node_idxs[retained])
+
+
+def triangulate_mesh(mesh: MeshGeometry) -> MeshGeometry:
+    node_idxs = np.arange(mesh.coords.shape[0], dtype=np.uintp)
+    result, _ = _triangulate_with_node_idxs(
+        mesh, node_idxs, mesh.elem_type
+    )
+    return result
+
+
 __all__ = [
     "ConnectConvention",
     "EConnectAxis",
@@ -435,5 +511,7 @@ __all__ = [
     "UserTopology",
     "convert_mesh",
     "extract_surface",
+    "reduce_mesh_order",
+    "triangulate_mesh",
     "verify_mesh",
 ]

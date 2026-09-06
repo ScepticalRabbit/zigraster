@@ -152,40 +152,6 @@ def test_exodus_hex27_adapter_reorders_edges_faces_and_centre() -> None:
     assert np.array_equal(mesh.connect, connect_std)
 
 
-@pytest.mark.parametrize(("case_name", "elem_type"), _CUBE_TYPES.items())
-def test_moose_exodus_cube_converts_verifies_and_extracts(
-    case_name: str,
-    elem_type: meshconv.EElemType,
-) -> None:
-    with netCDF4.Dataset(data.cube_exodus_path(case_name)) as dataset:
-        coords = np.column_stack((
-            dataset.variables["coordx"][:],
-            dataset.variables["coordy"][:],
-            dataset.variables["coordz"][:],
-        ))
-        connect = np.asarray(dataset.variables["connect1"][:])
-        node_count = len(dataset.dimensions["num_nodes"])
-        for variable_idx in (1, 2, 3, 10):
-            assert dataset.variables[
-                f"vals_nod_var{variable_idx}"
-            ].shape == (5, node_count)
-
-    convention = meshconv.ConnectConvention(
-        elem_type=elem_type,
-        elem_axis=meshconv.EConnectAxis.ROW,
-        index_base=1,
-        node_order=meshconv.ENodeOrder.EXODUS,
-    )
-
-    volume = meshconv.convert_mesh(coords, connect, convention)
-    surface = meshconv.extract_surface(volume)
-
-    meshconv.verify_mesh(volume)
-    meshconv.verify_mesh(surface)
-    assert volume.connect.shape == connect.shape
-    assert surface.coords.shape[0] < volume.coords.shape[0]
-
-
 @pytest.mark.parametrize(
     "case_name",
     ("tet10", "hex20", "hex27"),
@@ -399,34 +365,6 @@ def test_extract_surface_uses_vtk_face_order(
     surface = meshconv.extract_surface(volume)
 
     np.testing.assert_array_equal(surface.connect, expected_faces)
-
-
-@pytest.mark.parametrize(("case_name", "elem_type"), _CUBE_TYPES.items())
-def test_packaged_cube_converts_verifies_and_extracts(
-    case_name: str,
-    elem_type: meshconv.EElemType,
-) -> None:
-    coords = np.loadtxt(
-        data.cube_coords_path(case_name), delimiter=","
-    )
-    connect = np.loadtxt(
-        data.cube_connectivity_path(case_name),
-        delimiter=",",
-        dtype=np.int64,
-        ndmin=2,
-    )
-    convention = meshconv.ConnectConvention(
-        elem_type=elem_type,
-        elem_axis=meshconv.EConnectAxis.ROW,
-        index_base=0,
-        node_order=meshconv.ENodeOrder.RILEY,
-    )
-
-    volume = meshconv.convert_mesh(coords, connect, convention)
-    surface = meshconv.extract_surface(volume)
-
-    meshconv.verify_mesh(volume)
-    meshconv.verify_mesh(surface)
 
 
 @pytest.mark.parametrize(("case_name", "elem_type"), _SPHERE_TYPES.items())

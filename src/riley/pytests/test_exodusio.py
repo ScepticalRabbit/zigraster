@@ -94,38 +94,3 @@ def test_load_exodus_accepts_up_to_three_displacement_components(
     assert sim.disp is not None
     assert len(sim.disp) == disp_count
 
-
-@pytest.mark.parametrize(
-    ("case_name", "elem_type", "node_count"),
-    (
-        ("tet4", riley.EElemType.TET4, 4),
-        ("tet10", riley.EElemType.TET10, 10),
-        ("hex8", riley.EElemType.HEX8, 8),
-        ("hex20", riley.EElemType.HEX20, 20),
-        ("hex27", riley.EElemType.HEX27, 27),
-    ),
-)
-def test_load_exodus_cube_and_convert_mesh(
-    case_name: str,
-    elem_type: riley.EElemType,
-    node_count: int,
-) -> None:
-    sim = riley.load_exodus(
-        riley.data.cube_exodus_path(case_name),
-        disp_keys=("disp_x", "disp_y", "disp_z"),
-        nodal_keys=("temperature", "strain_xx", "strain_yy", "strain_zz"),
-    )
-    block = sim.blocks["connect1"]
-    converted = riley.convert_mesh(
-        sim.coords,
-        block.connect,
-        riley.ConnectConvention(
-            elem_type, riley.EConnectAxis.ROW, 1, riley.ENodeOrder.EXODUS
-        ),
-    )
-    riley.verify_mesh(converted)
-    assert block.elem_type is elem_type
-    assert block.connect.shape[1] == node_count
-    assert sim.disp is not None
-    assert all(field.shape[1] == 5 for field in sim.disp)
-    assert all(field.shape[1] == 5 for field in sim.nodal_vars.values())

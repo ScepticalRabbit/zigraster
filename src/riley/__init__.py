@@ -98,6 +98,8 @@ from riley.python.meshconv import (
     UserTopology,
     convert_mesh,
     extract_surface,
+    reduce_mesh_order,
+    triangulate_mesh,
     verify_mesh,
 )
 from riley.python.exodusio import (
@@ -194,9 +196,11 @@ __all__ = [
     "project_uvs_planar_bbox",
     "project_uvs_planar_centered",
     "raster",
+    "reduce_mesh_order",
     "roi_cent_from_coords",
     "roi_cent_over_meshes",
     "save_camera",
     "save_stereo_pair",
+    "triangulate_mesh",
     "verify_mesh",
 ]

@@ -22,8 +22,15 @@ from riley.python.meshconstants import (
     RILEY_VOL_SURF_TYPE_MAP,
 )
 from riley.python.meshconv import (
-    ConnectConvention, EElemType, MeshError, MeshGeometry,
-    _extract_surface_with_node_idxs, convert_mesh, verify_mesh,
+    ConnectConvention,
+    EElemType,
+    MeshError,
+    MeshGeometry,
+    _extract_surface_with_node_idxs,
+    _reduce_elem_order_with_node_idxs,
+    _triangulate_with_node_idxs,
+    convert_mesh,
+    verify_mesh,
 )
 
 def load_csv(
@@ -61,52 +68,6 @@ def load_csv(
         raise ValueError(f"CSV table '{path}' contains non-finite values.")
 
     return np.ascontiguousarray(array)
-
-
-def _reduce_elem_order(
-    mesh: MeshGeometry,
-    source_node_idxs: np.ndarray,
-    target: EElemType,
-) -> tuple[MeshGeometry, np.ndarray]:
-
-    connect = mesh.connect[:, :ELEM_NODE_COUNT_MAP[target]]
-    retained = np.unique(connect)
-    remap = np.full(mesh.coords.shape[0], -1, dtype=np.int64)
-    remap[retained] = np.arange(retained.size, dtype=np.int64)
-
-    result = MeshGeometry(
-        target,
-        np.ascontiguousarray(mesh.coords[retained]),
-        np.ascontiguousarray(remap[connect], dtype=np.uintp),
-    )
-
-    verify_mesh(result)
-
-    return result, np.ascontiguousarray(source_node_idxs[retained])
-
-
-def _triangulate(
-    mesh: MeshGeometry,
-    source_node_idxs: np.ndarray,
-    source: EElemType,
-) -> tuple[MeshGeometry, np.ndarray]:
-
-    stencil = np.asarray(RILEY_TRI_STENCIL_MAP[source], dtype=np.uintp)
-    tri_connect = mesh.connect[:, stencil].reshape(-1, 3)
-    retained = np.unique(tri_connect)
-
-    remap = np.full(mesh.coords.shape[0], -1, dtype=np.int64)
-    remap[retained] = np.arange(retained.size, dtype=np.int64)
-
-    result = MeshGeometry(
-        EElemType.TRI3,
-        np.ascontiguousarray(mesh.coords[retained]),
-        np.ascontiguousarray(remap[tri_connect], dtype=np.uintp),
-    )
-
-    verify_mesh(result)
-
-    return result, np.ascontiguousarray(source_node_idxs[retained])
 
 
 def _prepare_component(
@@ -318,11 +279,11 @@ def create_mesh(
     # 3) Tessellate to tri3 or reduce order if needed
     if target_elem is EElemType.TRI3:
         if mesh.elem_type is not EElemType.TRI3:
-            mesh, source_node_idxs = _triangulate(
+            mesh, source_node_idxs = _triangulate_with_node_idxs(
                 mesh, source_node_idxs, mesh.elem_type
             )
     elif mesh.elem_type is not target_elem:
-        mesh, source_node_idxs = _reduce_elem_order(
+        mesh, source_node_idxs = _reduce_elem_order_with_node_idxs(
             mesh, source_node_idxs, target_elem
         )
 

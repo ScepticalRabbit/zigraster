@@ -10,7 +10,7 @@
 [Variables]
     [temperature]
         family = LAGRANGE
-        order = FIRST
+        order = SECOND
         initial_condition = 20.0
     []
 []
@@ -32,7 +32,7 @@
         incremental = true
         add_variables = true
         material_output_family = MONOMIAL
-        material_output_order = FIRST
+        material_output_order = SECOND
         generate_output = 'vonmises_stress stress_xx stress_yy stress_zz stress_xy stress_yz stress_xz strain_xx strain_yy strain_zz strain_xy strain_yz strain_xz'
     []
 []

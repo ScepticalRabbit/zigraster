@@ -174,6 +174,7 @@ def extract_exodus_csvs(
     out_dir: Path | None = None,
     prefix: str = "",
 ) -> dict[str, Path]:
+    import netCDF4
     import riley
 
     exodus_path = Path(exodus_path).resolve()
@@ -182,48 +183,103 @@ def extract_exodus_csvs(
     else:
         out_dir = Path(out_dir).resolve()
 
-    coords_csv = out_dir / f"{prefix}coords.csv"
-    connect_csv = out_dir / f"{prefix}connectivity.csv"
-    disp_x_csv = out_dir / f"{prefix}disp_x.csv"
-    disp_y_csv = out_dir / f"{prefix}disp_y.csv"
-    disp_z_csv = out_dir / f"{prefix}disp_z.csv"
-    temp_csv = out_dir / f"{prefix}temperature.csv"
+    with netCDF4.Dataset(exodus_path, mode="r") as ds:
+        connect_keys = [
+            k for k in ds.variables if k.startswith("connect")
+        ]
+        nodal_names: list[str] = []
+        if "name_nod_var" in ds.variables:
+            raw = np.ma.filled(ds.variables["name_nod_var"][:], b"")
+            nodal_names = [
+                str(n).strip() for n in netCDF4.chartostring(raw)
+            ]
+
+    disp_k = tuple(
+        k for k in ("disp_x", "disp_y", "disp_z") if k in nodal_names
+    )
+    disp_keys = disp_k if disp_k else None
+
+    nodal_k = tuple(k for k in ("temperature",) if k in nodal_names)
+    nodal_keys = nodal_k if nodal_k else None
 
     sim = riley.load_exodus(
         exodus_path,
-        disp_keys=("disp_x", "disp_y", "disp_z"),
-        nodal_keys=("temperature",),
+        connect_keys=connect_keys,
+        disp_keys=disp_keys,
+        nodal_keys=nodal_keys,
     )
-    block = sim.blocks["connect1"]
-    converted = riley.convert_mesh(
-        sim.coords,
-        block.connect,
-        riley.ConnectConvention(
-            block.elem_type,
-            riley.EConnectAxis.ROW,
-            1,
-            riley.ENodeOrder.EXODUS,
-        ),
-    )
-    riley.verify_mesh(converted)
 
-    np.savetxt(coords_csv, converted.coords, delimiter=",", fmt="%.8f")
-    np.savetxt(connect_csv, converted.connect, delimiter=",", fmt="%d")
+    coords_csv = out_dir / f"{prefix}coords.csv"
+    np.savetxt(coords_csv, sim.coords, delimiter=",", fmt="%.8f")
+    out_paths: dict[str, Path] = {"coords": coords_csv}
 
-    out_paths = {
-        "coords": coords_csv,
-        "connectivity": connect_csv,
-    }
+    if len(sim.blocks) == 1:
+        block = list(sim.blocks.values())[0]
+        converted = riley.convert_mesh(
+            sim.coords,
+            block.connect,
+            riley.ConnectConvention(
+                block.elem_type,
+                riley.EConnectAxis.ROW,
+                1,
+                riley.ENodeOrder.EXODUS,
+            ),
+        )
+        riley.verify_mesh(converted)
+        connect_csv = out_dir / f"{prefix}connectivity.csv"
+        np.savetxt(connect_csv, converted.connect, delimiter=",", fmt="%d")
+        out_paths["connectivity"] = connect_csv
+    else:
+        block_names = ("cube", "cylinder")
+        for idx, (b_key, block) in enumerate(sim.blocks.items()):
+            converted = riley.convert_mesh(
+                sim.coords,
+                block.connect,
+                riley.ConnectConvention(
+                    block.elem_type,
+                    riley.EConnectAxis.ROW,
+                    1,
+                    riley.ENodeOrder.EXODUS,
+                ),
+            )
+            riley.verify_mesh(converted)
+            b_name = (
+                block_names[idx]
+                if idx < len(block_names)
+                else b_key
+            )
+            connect_csv = out_dir / f"{prefix}{b_name}_connectivity.csv"
+            np.savetxt(
+                connect_csv, converted.connect, delimiter=",", fmt="%d"
+            )
+            out_paths[f"{b_name}_connectivity"] = connect_csv
 
-    if sim.disp is not None and len(sim.disp) == 3:
-        np.savetxt(disp_x_csv, sim.disp[0], delimiter=",", fmt="%.8e")
-        np.savetxt(disp_y_csv, sim.disp[1], delimiter=",", fmt="%.8e")
-        np.savetxt(disp_z_csv, sim.disp[2], delimiter=",", fmt="%.8e")
-        out_paths["disp_x"] = disp_x_csv
-        out_paths["disp_y"] = disp_y_csv
-        out_paths["disp_z"] = disp_z_csv
+    if sim.disp is not None:
+        if len(sim.disp) == 3:
+            for axis_idx, axis in enumerate("xyz"):
+                disp_csv = out_dir / f"{prefix}disp_{axis}.csv"
+                np.savetxt(
+                    disp_csv, sim.disp[axis_idx], delimiter=",", fmt="%.8e"
+                )
+                out_paths[f"disp_{axis}"] = disp_csv
+        elif len(sim.disp) == 2:
+            for axis_idx, axis in enumerate("xy"):
+                disp_csv = out_dir / f"{prefix}disp_{axis}.csv"
+                np.savetxt(
+                    disp_csv, sim.disp[axis_idx], delimiter=",", fmt="%.8e"
+                )
+                out_paths[f"disp_{axis}"] = disp_csv
+            disp_z_csv = out_dir / f"{prefix}disp_z.csv"
+            np.savetxt(
+                disp_z_csv,
+                np.zeros_like(sim.disp[0]),
+                delimiter=",",
+                fmt="%.8e",
+            )
+            out_paths["disp_z"] = disp_z_csv
 
     if "temperature" in sim.nodal_vars:
+        temp_csv = out_dir / f"{prefix}temperature.csv"
         np.savetxt(
             temp_csv,
             sim.nodal_vars["temperature"],
@@ -234,8 +290,8 @@ def extract_exodus_csvs(
 
     print(
         f"Saved CSVs for {prefix.rstrip('_')}: "
-        f"coords {converted.coords.shape}, "
-        f"connect {converted.connect.shape}, fields "
+        f"coords {sim.coords.shape}, "
+        f"blocks {len(sim.blocks)}, fields "
         f"{sim.disp[0].shape if sim.disp is not None else 'None'}"
     )
     return out_paths

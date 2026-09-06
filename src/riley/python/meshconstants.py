@@ -318,6 +318,11 @@ ELEM_ORDER_MAP = {
     EElemType.QUAD4: 1,
     EElemType.QUAD8: 2,
     EElemType.QUAD9: 2,
+    EElemType.TET4: 1,
+    EElemType.TET10: 2,
+    EElemType.HEX8: 1,
+    EElemType.HEX20: 2,
+    EElemType.HEX27: 2,
 }
 ELEM_NODE_COUNT_MAP = {
     EElemType.TRI3: 3,
@@ -326,6 +331,11 @@ ELEM_NODE_COUNT_MAP = {
     EElemType.QUAD4: 4,
     EElemType.QUAD8: 8,
     EElemType.QUAD9: 9,
+    EElemType.TET4: 4,
+    EElemType.TET10: 10,
+    EElemType.HEX8: 8,
+    EElemType.HEX20: 20,
+    EElemType.HEX27: 27,
 }
 
 # Triangulation stencils to subdivide 2D elems into TRI3

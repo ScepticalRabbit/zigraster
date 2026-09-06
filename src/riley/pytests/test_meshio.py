@@ -44,6 +44,10 @@ def test_packaged_shape_data_paths_exist(
     disp_z_path = riley.data.shape_disp_path(shape, elem_type, "z")
     temp_path = riley.data.shape_temperature_path(shape, elem_type)
 
+    msh_path = riley.data.shape_msh_path(shape, elem_type)
+    geo_path = riley.data.shape_geo_path(shape, elem_type)
+    moose_path = riley.data.shape_moose_input_path(shape, elem_type)
+
     assert coords_path.is_file()
     assert connect_path.is_file()
     assert exodus_path.is_file()
@@ -51,6 +55,9 @@ def test_packaged_shape_data_paths_exist(
     assert disp_y_path.is_file()
     assert disp_z_path.is_file()
     assert temp_path.is_file()
+    assert msh_path.is_file()
+    assert geo_path.is_file()
+    assert moose_path.is_file()
 
     coords = np.loadtxt(coords_path, delimiter=",")
     disp_x = np.loadtxt(disp_x_path, delimiter=",")
@@ -91,6 +98,98 @@ def test_packaged_pure_cube_data_paths_exist(case_name: str) -> None:
     temp = np.loadtxt(temp_path, delimiter=",")
     num_nodes = coords.shape[0]
     assert disp_x.shape == (num_nodes, 5)
+    assert temp.shape == (num_nodes, 5)
+
+
+@pytest.mark.parametrize(
+    "case_name",
+    (
+        "hex8_tet4",
+        "hex20_tet10",
+        "hex27_tet10",
+        "tet4_hex8",
+        "tet10_hex20",
+        "tet10_hex27",
+    ),
+)
+def test_packaged_multishape_data_paths_exist(case_name: str) -> None:
+    coords_path = riley.data.multishape_coords_path(case_name)
+    cube_connect = riley.data.multishape_connectivity_path(
+        case_name, block="cube"
+    )
+    cyl_connect = riley.data.multishape_connectivity_path(
+        case_name, block="cylinder"
+    )
+    exodus_path = riley.data.multishape_exodus_path(case_name)
+    disp_x_path = riley.data.multishape_disp_path(case_name, "x")
+    disp_y_path = riley.data.multishape_disp_path(case_name, "y")
+    disp_z_path = riley.data.multishape_disp_path(case_name, "z")
+    temp_path = riley.data.multishape_temperature_path(case_name)
+    msh_path = riley.data.multishape_msh_path(case_name)
+    geo_path = riley.data.multishape_geo_path(case_name)
+    moose_path = riley.data.multishape_moose_input_path(case_name)
+
+    assert coords_path.is_file()
+    assert cube_connect.is_file()
+    assert cyl_connect.is_file()
+    assert exodus_path.is_file()
+    assert disp_x_path.is_file()
+    assert disp_y_path.is_file()
+    assert disp_z_path.is_file()
+    assert temp_path.is_file()
+    assert msh_path.is_file()
+    assert geo_path.is_file()
+    assert moose_path.is_file()
+
+    coords = np.loadtxt(coords_path, delimiter=",")
+    disp_x = np.loadtxt(disp_x_path, delimiter=",")
+    temp = np.loadtxt(temp_path, delimiter=",")
+    num_nodes = coords.shape[0]
+    assert disp_x.shape == (num_nodes, 5)
+    assert temp.shape == (num_nodes, 5)
+
+
+@pytest.mark.parametrize(
+    "elem_type",
+    ("quad4", "quad8", "quad9", "tri3", "tri6"),
+)
+def test_packaged_platewithhole2d_data_paths_exist(
+    elem_type: str,
+) -> None:
+    coords_path = riley.data.platewithhole2d_coords_path(elem_type)
+    connect_path = riley.data.platewithhole2d_connectivity_path(elem_type)
+    exodus_path = riley.data.platewithhole2d_exodus_path(elem_type)
+    disp_x_path = riley.data.platewithhole2d_disp_path(elem_type, "x")
+    disp_y_path = riley.data.platewithhole2d_disp_path(elem_type, "y")
+    disp_z_path = riley.data.platewithhole2d_disp_path(elem_type, "z")
+    temp_path = riley.data.platewithhole2d_temperature_path(elem_type)
+
+    msh_path = riley.data.platewithhole2d_msh_path(elem_type)
+    geo_path = riley.data.platewithhole2d_geo_path(elem_type)
+    moose_path = riley.data.platewithhole2d_moose_input_path(elem_type)
+
+    assert coords_path.is_file()
+    assert connect_path.is_file()
+    assert exodus_path.is_file()
+    assert disp_x_path.is_file()
+    assert disp_y_path.is_file()
+    assert disp_z_path.is_file()
+    assert temp_path.is_file()
+    assert msh_path.is_file()
+    assert geo_path.is_file()
+    assert moose_path.is_file()
+
+    coords = np.loadtxt(coords_path, delimiter=",")
+    disp_x = np.loadtxt(disp_x_path, delimiter=",")
+    disp_y = np.loadtxt(disp_y_path, delimiter=",")
+    disp_z = np.loadtxt(disp_z_path, delimiter=",")
+    temp = np.loadtxt(temp_path, delimiter=",")
+
+    num_nodes = coords.shape[0]
+    assert disp_x.shape == (num_nodes, 5)
+    assert disp_y.shape == (num_nodes, 5)
+    assert disp_z.shape == (num_nodes, 5)
+    assert np.all(disp_z == 0.0)
     assert temp.shape == (num_nodes, 5)
 
 

@@ -10,6 +10,7 @@
 from enum import Flag, auto
 from pathlib import Path
 
+import cv2
 import numpy as np
 from PIL import Image
 
@@ -24,8 +25,25 @@ class ETextureCoercion(Flag):
 
 
 def _load_texture_array(texture_path: str | Path) -> np.ndarray:
-    with Image.open(Path(texture_path)) as image_in:
-        texture = np.asarray(image_in)
+    path = Path(texture_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"Texture file not found: {path}")
+
+    texture: np.ndarray | None = None
+    try:
+        raw = cv2.imread(str(path), cv2.IMREAD_UNCHANGED)
+        if raw is not None:
+            if raw.ndim == 3 and raw.shape[2] == 3:
+                texture = raw[:, :, ::-1]
+            else:
+                texture = raw
+    except Exception:
+        texture = None
+
+    if texture is None:
+        with Image.open(path) as image_in:
+            texture = np.asarray(image_in)
+
     if texture.ndim not in (2, 3):
         raise ValueError("Texture must be a monochrome or RGB image.")
     if texture.ndim == 3 and texture.shape[2] != 3:
