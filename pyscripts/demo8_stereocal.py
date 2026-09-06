@@ -6,7 +6,7 @@
 #
 # Authors: scepticalrabbit (Lloyd Fletcher)
 # --------------------------------------------------------------------------
-from riley.pydemos.demo_dic_from_exodus import main
+from riley.pydemos.demo8_stereocal import main
 
 
 if __name__ == "__main__":

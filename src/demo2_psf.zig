@@ -46,7 +46,7 @@ pub fn main(init: std.process.Init) !void {
     const io = threaded_io.io();
 
     const data_dir = "data/min/tri6_sphere200/";
-    const out_dir_root = "./out/demo-psf";
+    const out_dir_root = "./out/demo2_psf";
     const pixel_num = [_]u32{ 800, 500 };
 
     std.debug.print(

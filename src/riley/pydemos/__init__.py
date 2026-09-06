@@ -7,9 +7,12 @@
 # Authors: scepticalrabbit (Lloyd Fletcher)
 # --------------------------------------------------------------------------
 __all__ = [
-    "demo_dic_from_exodus",
-    "demo_dicuq",
-    "demo_rabbits",
-    "demo_sphere200",
-    "demo_stereocal",
+    "demo0_quickstart",
+    "demo1_sphere200",
+    "demo2_psf",
+    "demo3_rabbits",
+    "demo6_dicuq",
+    "demo7_dic_from_exodus",
+    "demo8_stereocal",
+    "demo9_feature_zoo",
 ]

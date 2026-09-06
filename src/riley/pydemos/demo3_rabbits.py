@@ -93,7 +93,7 @@ def make_grey_mesh_input(
 def main() -> None:
     pixels_num = (1600, 800)
     fov_scale = 1.01
-    out_dir = Path.cwd() / "out-riley-py" / "demo-rabbits"
+    out_dir = Path.cwd() / "out_riley_py" / "demo3_rabbits"
     shutil.rmtree(out_dir, ignore_errors=True)
     out_dir.mkdir(parents=True)
     default_pixel_size = (5.3e-6, 5.3e-6)

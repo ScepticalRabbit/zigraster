@@ -39,7 +39,7 @@ const rabbit_mesh_types = [_]gk.MeshType{
     .quad9,
 };
 
-const out_dir_root = "./out/demo-rabbits-multifield";
+const out_dir_root = "./out/demo4_rabbits_rgb";
 const pixel_num = [_]u32{ 1600, 800 };
 const fov_scale: F = @floatCast(1.01);
 const overlap_frac_xy = [2]F{ 0.85, 0.8 };
@@ -128,7 +128,7 @@ fn buildUvRgbField(
     return field;
 }
 
-fn makeFieldMeshInput(
+fn makeRgbMeshInput(
     allocator: std.mem.Allocator,
     io: std.Io,
     rabbit_name: []const u8,
@@ -196,7 +196,7 @@ fn buildRabbitPairScene(
         const pair_start = mesh_list.items.len;
         const front_mode = shaderModeForMeshIndex(pair_start);
         const back_mode = shaderModeForMeshIndex(pair_start + 1);
-        try mesh_list.append(allocator, try makeFieldMeshInput(
+        try mesh_list.append(allocator, try makeRgbMeshInput(
             allocator,
             io,
             "riley",
@@ -204,7 +204,7 @@ fn buildRabbitPairScene(
             front_mode,
             texture,
         ));
-        try mesh_list.append(allocator, try makeFieldMeshInput(
+        try mesh_list.append(allocator, try makeRgbMeshInput(
             allocator,
             io,
             "feebs",
@@ -296,7 +296,7 @@ pub fn main(init: std.process.Init) !void {
     };
     const config = rastcfg.RasterConfig{
         .save_strategy = .disk,
-        .image_save_mode = .multifield,
+        .image_save_mode = .rgb,
         .background_value = background_value,
         .image_save_opts = &[_]iio.ImageSaveOpts{
             .{ .format = .bmp, .bits = 8, .scaling = .none },

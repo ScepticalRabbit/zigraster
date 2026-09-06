@@ -34,7 +34,7 @@ const F = buildconfig.F;
 
 const DATA_DIR = "data/FE/platehole3d_2mr_63f/";
 const TEXTURE_PATH = "texture/speckle.bmp";
-const OUT_DIR_ROOT = "./out/demo-dicuq";
+const OUT_DIR_ROOT = "./out/demo6_dicuq";
 
 const PIXELS_NUM = [2]u32{ 2464, 2056 };
 const PIXELS_SIZE = [2]F{

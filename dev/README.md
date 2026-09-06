@@ -222,15 +222,17 @@ python ./pyscripts/test_riley.py --force-zig-render
 Run a packaged Python demo directly with:
 
 ```shell
-python -m riley demo_sphere200
-python -m riley demo_psf
-python -m riley demo_rabbits
-python -m riley demo_dicuq
-python -m riley demo_dic_from_exodus
-python -m riley demo_stereocal
+python -m riley demo0_quickstart
+python -m riley demo1_sphere200
+python -m riley demo2_psf
+python -m riley demo3_rabbits
+python -m riley demo6_dicuq
+python -m riley demo7_dic_from_exodus
+python -m riley demo8_stereocal
+python -m riley demo9_feature_zoo
 ```
 
-Python demo output is written to `Path.cwd() / "out-riley-py" / "<demo-name>"`.
+Python demo output is written to `Path.cwd() / "out_riley_py" / "<demo-name>"`.
 
 ## Notes
 - Plain `zig run` and `zig test` under `./src/` still use the default Riley path of `f64` with SIMD enabled.

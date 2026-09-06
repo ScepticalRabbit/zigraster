@@ -8,6 +8,8 @@ file-out/
 .zig-cache/
 zig-out/
 out/
+out_riley_py/
+out-riley-py/
 bin/
 .*
 !.gitignore

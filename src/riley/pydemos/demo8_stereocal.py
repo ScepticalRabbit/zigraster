@@ -79,7 +79,7 @@ def create_stereo_cameras(
 def main() -> None:
     data_dir = riley.data.stereocal_case_path()
     texture_path = riley.data.cal_target_texture_path()
-    out_dir = Path.cwd() / "out-riley-py" / "demo-stereocal"
+    out_dir = Path.cwd() / "out_riley_py" / "demo8_stereocal"
     shutil.rmtree(out_dir, ignore_errors=True)
     out_dir.mkdir(parents=True)
     total_threads = 8

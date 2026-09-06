@@ -36,47 +36,61 @@ FLOAT_FALLBACK_ABS_TOL = 0.5
 
 STANDARD_DEMO_CASES = (
     (
+        "quickstart",
+        [str(PYTHON_EXE), "-m", "riley", "demo0_quickstart"],
+        "out/demo0_quickstart",
+        "out_riley_py/demo0_quickstart",
+        None,
+    ),
+    (
         "sphere200",
-        [str(PYTHON_EXE), "-m", "riley", "demo_sphere200"],
-        "out/demo-sphere200",
-        "out-riley-py/demo-sphere200",
+        [str(PYTHON_EXE), "-m", "riley", "demo1_sphere200"],
+        "out/demo1_sphere200",
+        "out_riley_py/demo1_sphere200",
         None,
     ),
     (
         "psf",
-        [str(PYTHON_EXE), "-m", "riley", "demo_psf"],
-        "out/demo-psf",
-        "out-riley-py/demo-psf",
+        [str(PYTHON_EXE), "-m", "riley", "demo2_psf"],
+        "out/demo2_psf",
+        "out_riley_py/demo2_psf",
         None,
     ),
     (
         "rabbits",
-        [str(PYTHON_EXE), "-m", "riley", "demo_rabbits"],
-        "out/demo-rabbits",
-        "out-riley-py/demo-rabbits",
+        [str(PYTHON_EXE), "-m", "riley", "demo3_rabbits"],
+        "out/demo3_rabbits",
+        "out_riley_py/demo3_rabbits",
         None,
     ),
     (
         "dicuq",
-        [str(PYTHON_EXE), "-m", "riley", "demo_dicuq"],
-        "out/demo-dicuq",
-        "out-riley-py/demo-dicuq",
+        [str(PYTHON_EXE), "-m", "riley", "demo6_dicuq"],
+        "out/demo6_dicuq",
+        "out_riley_py/demo6_dicuq",
         2,
     ),
     (
         "stereocal",
-        [str(PYTHON_EXE), "-m", "riley", "demo_stereocal"],
-        "out/demo-stereocal",
-        "out-riley-py/demo-stereocal",
+        [str(PYTHON_EXE), "-m", "riley", "demo8_stereocal"],
+        "out/demo8_stereocal",
+        "out_riley_py/demo8_stereocal",
         8,
+    ),
+    (
+        "feature_zoo",
+        [str(PYTHON_EXE), "-m", "riley", "demo9_feature_zoo"],
+        "out/demo9_feature_zoo",
+        "out_riley_py/demo9_feature_zoo",
+        None,
     ),
 )
 
 EXODUS_DEMO_CASE = (
     "dic_from_exodus",
-    [str(PYTHON_EXE), "-m", "riley", "demo_dic_from_exodus"],
-    "out/demo-dicuq",
-    "out-riley-py/demo-dicuq-from-exodus",
+    [str(PYTHON_EXE), "-m", "riley", "demo7_dic_from_exodus"],
+    "out/demo6_dicuq",
+    "out_riley_py/demo7_dic_from_exodus",
     2,
 )
 
@@ -111,8 +125,16 @@ def _repo_assets_available() -> bool:
     return all(path.exists() for path in required_paths)
 
 
-def _has_bmp_renders(dir_path: Path) -> bool:
-    return dir_path.is_dir() and any(dir_path.rglob("*.bmp"))
+def _render_paths(dir_path: Path) -> list[Path]:
+    return sorted(
+        path
+        for path in dir_path.rglob("*")
+        if path.suffix.lower() in (".bmp", ".tif", ".tiff")
+    )
+
+
+def _has_renders(dir_path: Path) -> bool:
+    return dir_path.is_dir() and bool(_render_paths(dir_path))
 
 
 def _has_expected_demo_renders(
@@ -120,7 +142,7 @@ def _has_expected_demo_renders(
     frames_num: int | None,
 ) -> bool:
     if frames_num is None:
-        return _has_bmp_renders(dir_path)
+        return _has_renders(dir_path)
     expected = {
         Path(f"cam{camera}_frame{frame}_field0.bmp")
         for camera in range(2)
@@ -128,7 +150,7 @@ def _has_expected_demo_renders(
     }
     actual = {
         path.relative_to(dir_path)
-        for path in dir_path.rglob("*.bmp")
+        for path in _render_paths(dir_path)
     } if dir_path.is_dir() else set()
     return actual == expected
 
@@ -186,10 +208,10 @@ def _compare_renders(path_a: Path, path_b: Path) -> None:
 
 def _compare_render_dirs(dir_a: Path, dir_b: Path) -> None:
     files_a = sorted(
-        path_a.relative_to(dir_a) for path_a in dir_a.rglob("*.bmp")
+        path_a.relative_to(dir_a) for path_a in _render_paths(dir_a)
     )
     files_b = sorted(
-        path_b.relative_to(dir_b) for path_b in dir_b.rglob("*.bmp")
+        path_b.relative_to(dir_b) for path_b in _render_paths(dir_b)
     )
     if files_a != files_b:
         raise AssertionError(
@@ -202,6 +224,25 @@ def _compare_render_dirs(dir_a: Path, dir_b: Path) -> None:
         _compare_renders(dir_a / rel_path, dir_b / rel_path)
     elapsed_time = perf_counter() - start_time
     print(f"Compare completed in {elapsed_time:.3f}s.")
+
+
+def _verify_feature_zoo_coverage(dir_path: Path) -> None:
+    for image_path in _render_paths(dir_path):
+        image = np.asarray(Image.open(image_path))
+        background = 128 if image.dtype == np.uint8 else 32768
+        if image.ndim == 3:
+            foreground = np.any(image != background, axis=2)
+        else:
+            foreground = image != background
+        coverage = np.count_nonzero(foreground) / foreground.size
+        assert coverage > 0.5, (
+            f"feature-zoo foreground coverage for {image_path} is "
+            f"{coverage:.2%}; expected more than 50%"
+        )
+        assert not np.any(foreground[0])
+        assert not np.any(foreground[-1])
+        assert not np.any(foreground[:, 0])
+        assert not np.any(foreground[:, -1])
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -250,6 +291,9 @@ def _run_demo_case(
     print(f"Testing demo case: {case_name}")
     _run_command(f"python render {case_name}", python_cmd, silent_env)
     _compare_render_dirs(PROJECT_ROOT / zig_dir, py_dir_path)
+    if case_name == "feature_zoo":
+        _verify_feature_zoo_coverage(PROJECT_ROOT / zig_dir)
+        _verify_feature_zoo_coverage(py_dir_path)
 
 
 @pytest.mark.parametrize(
@@ -272,6 +316,6 @@ def test_demo_parity(
     find_spec("netCDF4") is None,
     reason="netCDF4 is required for the exodus Python demo parity test.",
 )
-def test_demo_dic_from_exodus_parity() -> None:
+def test_demo7_dic_from_exodus_parity() -> None:
     case_name, python_cmd, zig_dir, py_dir, _ = EXODUS_DEMO_CASE
     _run_demo_case(case_name, python_cmd, zig_dir, py_dir)

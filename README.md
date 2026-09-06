@@ -86,49 +86,56 @@ We include several demonstration scripts in `./src/` and Python equivalents in `
 In Zig:
 
 ```shell
-zig run -O ReleaseFast ./src/demo_<CASE>.zig
+zig run -O ReleaseFast ./src/demoN_<CASE>.zig
 ```
 
 or with the build system:
 
 ```shell
-zig build demo-<CASE> -Doptimize=ReleaseFast
+zig build demoN-<CASE> -Doptimize=ReleaseFast
 ```
 
-where `CASE` is one of `sphere200`, `psf`, `rabbits`, `dicuq`, or `stereocal`. Zig demo output is written to `./out/demo-CASE/`.
+Use one of the numbered demo names listed below. Zig output is written to
+`./out/demoN_CASE/`.
 The `psf` demo writes separate `global_subpx_full` and `global_subpx_stripe` subdirectories.
 
 Zig demo source on GitHub:
 
-- [`demo_sphere200.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo_sphere200.zig)
-- [`demo_psf.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo_psf.zig)
-- [`demo_rabbits.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo_rabbits.zig)
-- [`demo_dicuq.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo_dicuq.zig)
-- [`demo_stereocal.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo_stereocal.zig)
+- [`demo0_quickstart.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo0_quickstart.zig)
+- [`demo1_sphere200.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo1_sphere200.zig)
+- [`demo2_psf.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo2_psf.zig)
+- [`demo3_rabbits.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo3_rabbits.zig)
+- [`demo4_rabbits_rgb.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo4_rabbits_rgb.zig)
+- [`demo5_rabbits_fields.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo5_rabbits_fields.zig)
+- [`demo6_dicuq.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo6_dicuq.zig)
+- [`demo8_stereocal.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo8_stereocal.zig)
+- [`demo9_feature_zoo.zig`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/demo9_feature_zoo.zig)
 
 In Python:
 
 ```shell
-python -m riley demo_<CASE>
+python -m riley demoN_<CASE>
 ```
 
-Python demo output is written to `Path.cwd() / "out-riley-py" / "demo-CASE"`.
+Python demo output is written to `Path.cwd() / "out_riley_py" / "demoN_CASE"`.
 
 Python demo source on GitHub:
 
-- [`demo_sphere200.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo_sphere200.py)
-- [`demo_psf.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo_psf.py)
-- [`demo_rabbits.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo_rabbits.py)
-- [`demo_dicuq.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo_dicuq.py)
-- [`demo_dic_from_exodus.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo_dic_from_exodus.py)
-- [`demo_stereocal.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo_stereocal.py)
+- [`demo0_quickstart.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo0_quickstart.py)
+- [`demo1_sphere200.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo1_sphere200.py)
+- [`demo2_psf.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo2_psf.py)
+- [`demo3_rabbits.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo3_rabbits.py)
+- [`demo6_dicuq.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo6_dicuq.py)
+- [`demo7_dic_from_exodus.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo7_dic_from_exodus.py)
+- [`demo8_stereocal.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo8_stereocal.py)
+- [`demo9_feature_zoo.py`](https://github.com/Computer-Aided-Validation-Laboratory/riley-raster/blob/main/src/riley/pydemos/demo9_feature_zoo.py)
 
 ### Demo 1: Speckle Sphere
 For this demonstration we import a sphere mesh and apply a speckle pattern texture shader. This is a representative single-mesh, single-shader case.
 
 ![fig_sphere](https://raw.githubusercontent.com/Computer-Aided-Validation-Laboratory/riley-raster/main/images/demo_sphere200.bmp)
 
-### Demo 2: Rendering Rabbits
+### Demo 3: Rendering Rabbits
 This demonstration renders rabbit meshes composed of all supported element types: `tri3`, `tri6`, `quad4`, `quad8` and `quad9`. It also exercises the main shader families in one scene.
 
 ![fig_rabbit_render](https://raw.githubusercontent.com/Computer-Aided-Validation-Laboratory/riley-raster/main/images/demo_rabbitrender.bmp)
@@ -160,7 +167,7 @@ Useful top-level locations:
 - `scripts/`: benchmark and performance orchestration scripts
 - `gold/`: gold reference renders
 - `out/`: Zig render and benchmark output
-- `out-riley-py/`: Python render output
+- `out_riley_py/`: Python render output
 - `dev/README.md`: detailed developer testing and benchmark notes
 
 For a mathematical and architectural overview, see the engrXiv preprint: [Riley: A computational framework for higher-order finite element image synthesis applied to digital image correlation uncertainty quantification](https://engrxiv.org/preprint/view/7300/version/9460).

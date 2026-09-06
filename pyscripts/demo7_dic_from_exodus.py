@@ -6,7 +6,7 @@
 #
 # Authors: scepticalrabbit (Lloyd Fletcher)
 # --------------------------------------------------------------------------
-from riley.pydemos.demo_sphere200 import main
+from riley.pydemos.demo7_dic_from_exodus import main
 
 
 if __name__ == "__main__":

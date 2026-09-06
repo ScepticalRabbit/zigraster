@@ -6,7 +6,7 @@
 #
 # Authors: scepticalrabbit (Lloyd Fletcher)
 # --------------------------------------------------------------------------
-from riley.pydemos.demo_dicuq import main
+from riley.pydemos.demo1_sphere200 import main
 
 
 if __name__ == "__main__":

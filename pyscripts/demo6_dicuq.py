@@ -6,7 +6,7 @@
 #
 # Authors: scepticalrabbit (Lloyd Fletcher)
 # --------------------------------------------------------------------------
-from riley.pydemos.demo_rabbits import main
+from riley.pydemos.demo6_dicuq import main
 
 
 if __name__ == "__main__":

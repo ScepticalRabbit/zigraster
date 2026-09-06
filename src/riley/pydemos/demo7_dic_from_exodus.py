@@ -20,9 +20,9 @@ from riley.pydemos.demoframes import first_last_frame_indices
 
 
 def main() -> None:
-    data_dir = riley.data.platehole_csv_case_path()
+    exodus_path = riley.data.platehole_exodus_path()
     texture_path = riley.data.speckle_texture_path()
-    out_dir = Path.cwd() / "out-riley-py" / "demo-dicuq"
+    out_dir = Path.cwd() / "out_riley_py" / "demo7_dic_from_exodus"
     shutil.rmtree(out_dir, ignore_errors=True)
     out_dir.mkdir(parents=True)
     pixels_num = (2464, 2056)
@@ -41,29 +41,39 @@ def main() -> None:
         "distortion_p2": -0.0001,
     }
 
-    coords = riley.load_csv(data_dir / "coords.csv")
-    connect = riley.load_csv(data_dir / "connect.csv", dtype=np.int64)
-    uvs = riley.load_csv(data_dir / "uvs.csv")
-    disp_components = tuple(
-        riley.load_csv(data_dir / f"field_disp_{axis}.csv")
-        for axis in "xyz"
+    sim: riley.ExodusSim = riley.load_exodus(
+        exodus_path,
+        disp_keys=("disp_x", "disp_y", "disp_z"),
     )
-    frame_indices = first_last_frame_indices(disp_components[0].shape[1])
-    disp_components = tuple(item[:, frame_indices] for item in disp_components)
+    block = sim.blocks["connect1"]
+    assert sim.disp is not None
+    frame_indices = first_last_frame_indices(sim.disp[0].shape[1])
+    disp = tuple(item[:, frame_indices] for item in sim.disp)
+    uvs = riley.project_uvs_planar_centered(
+        sim.coords,
+        pixels_num,
+        uv_span_max=0.8,
+        proj_plane=(
+            np.array((0.0, 0.0, -1.0), dtype=np.float64),
+            np.array((0.0, 0.0, 0.0), dtype=np.float64),
+        ),
+    )
     texture = riley.load_texture_mono_u8(texture_path)
-    convention = riley.ConnectConvention(
-        riley.EElemType.QUAD8, riley.EConnectAxis.ROW, 0,
-        riley.ENodeOrder.RILEY,
-    )
 
-    mesh = riley.create_mesh(
-        convention=convention,
+    mesh: riley.Mesh = riley.create_mesh(
+        convention=riley.ConnectConvention(
+            elem_type=block.elem_type,
+            elem_axis=riley.EConnectAxis.ROW,
+            index_base=1,
+            node_order=riley.ENodeOrder.EXODUS,
+        ),
         mesh_type=riley.MeshType.quad8,
-        coords=coords,
-        connect=connect,
-        disp=disp_components,
+        coords=sim.coords,
+        connect=block.connect,
+        disp=disp,
         shader=riley.TextureShader(uvs=uvs, texture=texture),
     )
+    coords = mesh.coords
 
     roi_pos = riley.roi_cent_from_coords(coords)
     camera_0_pos = riley.pos_frame_coords(
@@ -130,7 +140,7 @@ def main() -> None:
         replace(camera_0, coord_sys=riley.CameraCoordSys.opencv),
         replace(camera_1, coord_sys=riley.CameraCoordSys.opencv),
     )
-    print(f"rendered dicuq to {out_dir}")
+    print(f"rendered dicuq from exodus to {out_dir}")
 
 
 if __name__ == "__main__":

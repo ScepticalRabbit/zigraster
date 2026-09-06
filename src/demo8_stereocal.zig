@@ -31,7 +31,7 @@ const F = buildconfig.F;
 
 const DATA_DIR = "data/calplate/tri3_calplate3d/";
 const TEXTURE_PATH = "texture/cal_target-simple.tiff";
-const OUT_DIR_ROOT = "./out/demo-stereocal";
+const OUT_DIR_ROOT = "./out/demo8_stereocal";
 const PIXELS_NUM = [2]u32{ 2464, 2056 };
 const PIXELS_SIZE = [2]F{
     @floatCast(3.45e-6),

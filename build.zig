@@ -91,39 +91,49 @@ pub fn build(b: *std.Build) void {
 
     const demos = [_]RunEntry{
         .{
-            .step_name = "demo-sphere200",
+            .step_name = "demo0-quickstart",
+            .description = "Run the triangle quickstart demo",
+            .source_path = "src/demo0_quickstart.zig",
+        },
+        .{
+            .step_name = "demo1-sphere200",
             .description = "Run the sphere200 demo",
-            .source_path = "src/demo_sphere200.zig",
+            .source_path = "src/demo1_sphere200.zig",
         },
         .{
-            .step_name = "demo-psf",
+            .step_name = "demo2-psf",
             .description = "Run the Gaussian PSF demo",
-            .source_path = "src/demo_psf.zig",
+            .source_path = "src/demo2_psf.zig",
         },
         .{
-            .step_name = "demo-rabbits",
+            .step_name = "demo3-rabbits",
             .description = "Run the rabbits demo",
-            .source_path = "src/demo_rabbits.zig",
+            .source_path = "src/demo3_rabbits.zig",
         },
         .{
-            .step_name = "demo-rabbits-rgb",
+            .step_name = "demo4-rabbits-rgb",
             .description = "Run the rabbits RGB demo",
-            .source_path = "src/demo_rabbits_rgb.zig",
+            .source_path = "src/demo4_rabbits_rgb.zig",
         },
         .{
-            .step_name = "demo-rabbits-fields",
+            .step_name = "demo5-rabbits-fields",
             .description = "Run the rabbits fields demo",
-            .source_path = "src/demo_rabbits_fields.zig",
+            .source_path = "src/demo5_rabbits_fields.zig",
         },
         .{
-            .step_name = "demo-dicuq",
+            .step_name = "demo6-dicuq",
             .description = "Run the DIC UQ demo",
-            .source_path = "src/demo_dicuq.zig",
+            .source_path = "src/demo6_dicuq.zig",
         },
         .{
-            .step_name = "demo-stereocal",
+            .step_name = "demo8-stereocal",
             .description = "Run the stereo calibration demo",
-            .source_path = "src/demo_stereocal.zig",
+            .source_path = "src/demo8_stereocal.zig",
+        },
+        .{
+            .step_name = "demo9-feature-zoo",
+            .description = "Run the complete feature-zoo demo",
+            .source_path = "src/demo9_feature_zoo.zig",
         },
     };
 

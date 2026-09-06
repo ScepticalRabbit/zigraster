@@ -6,7 +6,7 @@
 #
 # Authors: scepticalrabbit (Lloyd Fletcher)
 # --------------------------------------------------------------------------
-from riley.pydemos.demo_stereocal import main
+from riley.pydemos.demo3_rabbits import main
 
 
 if __name__ == "__main__":

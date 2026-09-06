@@ -39,7 +39,7 @@ const rabbit_mesh_types = [_]gk.MeshType{
     .quad9,
 };
 
-const out_dir_root = "./out/demo-rabbits";
+const out_dir_root = "./out/demo5_rabbits_fields";
 const pixel_num = [_]u32{ 1600, 800 };
 const fov_scale: F = @floatCast(1.01);
 const overlap_frac_xy = [2]F{ 0.85, 0.8 };
@@ -110,36 +110,38 @@ fn loadRabbitUvMap(
     return try uvio.loadUVMap(allocator, io, uv_path);
 }
 
-fn buildUvGreyField(
+fn buildUvRgbField(
     allocator: std.mem.Allocator,
     uvs: uvio.UVMap,
 ) !meshio.Field {
     const node_num = uvs.array.dims[0];
-    var field = try meshio.Field.initAlloc(allocator, 1, node_num, 1);
+    var field = try meshio.Field.initAlloc(allocator, 1, node_num, 3);
 
     for (0..node_num) |nn| {
         const uu = uvs.array.get(&[_]usize{ nn, 0 });
         const vv = uvs.array.get(&[_]usize{ nn, 1 });
-        field.array.set(&[_]usize{ 0, nn, 0 }, 0.5 * (uu + vv));
+        field.array.set(&[_]usize{ 0, nn, 0 }, uu);
+        field.array.set(&[_]usize{ 0, nn, 1 }, vv);
+        field.array.set(&[_]usize{ 0, nn, 2 }, 0.5 * (uu + vv));
     }
 
     return field;
 }
 
-fn makeGreyMeshInput(
+fn makeFieldMeshInput(
     allocator: std.mem.Allocator,
     io: std.Io,
     rabbit_name: []const u8,
     mesh_type: gk.MeshType,
     shader_mode: ShaderMode,
-    texture: texops.Tex(u8, 1),
+    texture: texops.Tex(u8, 3),
 ) !MeshInput {
     const data_dir = try buildRabbitDir(allocator, rabbit_name, mesh_type);
     const sim_data = try loadStaticMesh(allocator, io, data_dir);
     const uvs = try loadRabbitUvMap(allocator, io, data_dir);
 
     const shader: shaderops.ShaderInput = switch (shader_mode) {
-        .tex => .{ .tex_u8 = .{
+        .tex => .{ .tex_rgb_u8 = .{
             .uvs = uvs.array,
             .tex = texture,
             .samp_cfg = .{
@@ -151,13 +153,13 @@ fn makeGreyMeshInput(
             .normal_type = .none,
         } },
         .nodal => .{ .nodal = .{
-            .field = try buildUvGreyField(allocator, uvs),
+            .field = try buildUvRgbField(allocator, uvs),
             .bits = 8,
             .scaling = .auto,
             .scale_over = .over_frames,
             .normal_type = .none,
         } },
-        .func => .{ .func = .{
+        .func => .{ .func_rgb = .{
             .uvs = uvs.array,
             .coord_mode = .uv,
             .builtin = FuncShaderBuiltin.checker,
@@ -185,7 +187,7 @@ fn makeGreyMeshInput(
 fn buildRabbitPairScene(
     allocator: std.mem.Allocator,
     io: std.Io,
-    texture: texops.Tex(u8, 1),
+    texture: texops.Tex(u8, 3),
 ) ![]MeshInput {
     var mesh_list = std.ArrayList(MeshInput).empty;
     var group_list = std.ArrayList(sceneops.MeshGroup).empty;
@@ -194,7 +196,7 @@ fn buildRabbitPairScene(
         const pair_start = mesh_list.items.len;
         const front_mode = shaderModeForMeshIndex(pair_start);
         const back_mode = shaderModeForMeshIndex(pair_start + 1);
-        try mesh_list.append(allocator, try makeGreyMeshInput(
+        try mesh_list.append(allocator, try makeFieldMeshInput(
             allocator,
             io,
             "riley",
@@ -202,7 +204,7 @@ fn buildRabbitPairScene(
             front_mode,
             texture,
         ));
-        try mesh_list.append(allocator, try makeGreyMeshInput(
+        try mesh_list.append(allocator, try makeFieldMeshInput(
             allocator,
             io,
             "feebs",
@@ -250,16 +252,15 @@ pub fn main(init: std.process.Init) !void {
 
     const texture = try iio.loadImage(
         u8,
-        1,
+        3,
         aa,
         io,
-        "texture/speckle.bmp",
+        "texture/speckle_rgb.bmp",
         .bmp,
     );
 
     const mesh_inputs = try buildRabbitPairScene(aa, io, texture);
-    // Canonical rabbit winding exposes the opposite side from the legacy data.
-    const rot = Rotation.init(0.0, 0.0, 0.0);
+    const rot = Rotation.init(0.0, std.math.pi, 0.0);
     const roi_pos = sceneops.boundsCenterOverMeshes(mesh_inputs);
     const cam_pos = cameraops.posFillFrameFromRotOverMeshes(
         mesh_inputs,
@@ -295,7 +296,7 @@ pub fn main(init: std.process.Init) !void {
     };
     const config = rastcfg.RasterConfig{
         .save_strategy = .disk,
-        .image_save_mode = .grey,
+        .image_save_mode = .multifield,
         .background_value = background_value,
         .image_save_opts = &[_]iio.ImageSaveOpts{
             .{ .format = .bmp, .bits = 8, .scaling = .none },
