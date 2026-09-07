@@ -29,20 +29,29 @@ def create_raster_config(
     total_threads: int = 1,
     save_strategy: SaveStrategy = SaveStrategy.both,
 ) -> RasterConfig:
+
     if not isinstance(num_frames, Integral) or isinstance(num_frames, bool):
         raise TypeError("num_frames must be an integer.")
+
     if not isinstance(total_threads, Integral) or isinstance(
         total_threads,
         bool,
     ):
         raise TypeError("total_threads must be an integer.")
+
     if not isinstance(save_strategy, SaveStrategy):
         raise TypeError("save_strategy must be a SaveStrategy member.")
+
     if num_frames <= 0:
         raise ValueError("num_frames must be positive.")
+
     if total_threads <= 0:
         raise ValueError("total_threads must be positive.")
 
+
+    # We get the best parallelisation from Riley when 1 thread works on 1 frame so 
+    # parallelisation over camera and frames is best. If we have only 1 frame we put
+    # all workers into the raster loop.
     frames_available = int(num_frames)
     threads_available = int(total_threads)
     if threads_available < frames_available:
@@ -54,6 +63,7 @@ def create_raster_config(
                 render_group_count = group_count
 
     workers_per_group = threads_available // render_group_count
+
     return RasterConfig(
         render_mode=RenderMode.offline,
         total_threads=threads_available,

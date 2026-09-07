@@ -468,9 +468,12 @@ def _reduce_elem_order_with_node_idxs(
     source_node_idxs: np.ndarray,
     target: EElemType,
 ) -> tuple[MeshGeometry, np.ndarray]:
+
     verify_mesh(mesh)
+
     if target not in ELEM_NODE_COUNT_MAP:
         raise MeshError(f"Unsupported reduction target elem type: {target}.")
+
     target_count = ELEM_NODE_COUNT_MAP[target]
     if mesh.connect.shape[1] < target_count:
         raise MeshError(
@@ -489,7 +492,9 @@ def _reduce_elem_order_with_node_idxs(
         np.ascontiguousarray(mesh.coords[retained]),
         np.ascontiguousarray(remap[connect], dtype=np.uintp),
     )
+
     verify_mesh(result)
+
     return result, np.ascontiguousarray(source_node_idxs[retained])
 
 
@@ -497,8 +502,10 @@ def reduce_mesh_order(
     mesh: MeshGeometry,
     target: EElemType,
 ) -> MeshGeometry:
+
     node_idxs = np.arange(mesh.coords.shape[0], dtype=np.uintp)
     result, _ = _reduce_elem_order_with_node_idxs(mesh, node_idxs, target)
+
     return result
 
 
@@ -507,7 +514,9 @@ def _triangulate_with_node_idxs(
     source_node_idxs: np.ndarray,
     source: EElemType,
 ) -> tuple[MeshGeometry, np.ndarray]:
+
     verify_mesh(mesh)
+
     if source not in RILEY_TRI_STENCIL_MAP:
         raise MeshError(
             f"Cannot triangulate unsupported element type: {source.value}."
@@ -525,15 +534,19 @@ def _triangulate_with_node_idxs(
         np.ascontiguousarray(mesh.coords[retained]),
         np.ascontiguousarray(remap[tri_connect], dtype=np.uintp),
     )
+
     verify_mesh(result)
+
     return result, np.ascontiguousarray(source_node_idxs[retained])
 
 
 def triangulate_mesh(mesh: MeshGeometry) -> MeshGeometry:
     node_idxs = np.arange(mesh.coords.shape[0], dtype=np.uintp)
+
     result, _ = _triangulate_with_node_idxs(
         mesh, node_idxs, mesh.elem_type
     )
+
     return result
 
 

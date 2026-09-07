@@ -84,7 +84,7 @@ def _prepare_component(
         raise ValueError(f"{name} must have shape (nodes, time).")
 
     if not np.issubdtype(array.dtype, np.floating):
-        raise TypeError(f"{name} must have a floating-point dtype.")
+        raise TypeError(f"{name} must have a floating point dtype.")
 
     if not np.all(np.isfinite(array)):
         raise ValueError(f"{name} must contain only finite values.")
@@ -150,24 +150,30 @@ def _prepare_shader(
     match shader:
         case TextureShader():
             texture = np.asarray(shader.texture)
+
             valid_dtype = texture.dtype in (
                 np.dtype(np.uint8), np.dtype(np.uint16),
                 np.dtype(np.float32), np.dtype(np.float64),
             )
+
             valid_shape = texture.ndim == 3 and texture.shape[0] in (1, 3)
+
             if not valid_shape or not valid_dtype:
                 raise ValueError(
                     "texture must be a supported dtype with 1 or 3 channels."
                 )
+
             if np.issubdtype(texture.dtype, np.floating):
                 if not np.all(np.isfinite(texture)):
                     raise ValueError(
                         "floating texture must contain finite values."
                     )
                 texture = np.ascontiguousarray(texture, dtype=np.float64)
+
+            uvs = _prepare_uvs(shader.uvs, nodes_num, source_node_idxs)  
+
             return TextureShader(
-                _prepare_uvs(shader.uvs, nodes_num, source_node_idxs),
-                np.ascontiguousarray(texture), shader.sample,
+                uvs, np.ascontiguousarray(texture), shader.sample,
                 shader.sample_mode, shader.bits, shader.scaling_type,
                 shader.scaling_min, shader.scaling_max, shader.normal_type,
             )
@@ -194,6 +200,8 @@ def _prepare_shader(
             if not np.all(np.isfinite(values)):
                 raise ValueError("nodal field must contain only finite values.")
 
+            # Riley expects field data to be time-major so we convert:
+            # (nodes, time, fields) → (time, nodes, fields)
             field_out = np.ascontiguousarray(
                 values[source_node_idxs].transpose(1, 0, 2), dtype=np.float64,
             )
@@ -209,15 +217,18 @@ def _prepare_shader(
             )
 
         case FunctionShader():
+        
             if shader.channels not in (1, 3):
                 raise ValueError(
                     "FunctionShader.channels must be one or three."
                 )
+                
             uvs_out = None
             if shader.uvs is not None:
                 uvs_out = _prepare_uvs(
                     shader.uvs, nodes_num, source_node_idxs
                 )
+
             return FunctionShader(
                 builtin=shader.builtin,
                 coord_mode=shader.coord_mode,
