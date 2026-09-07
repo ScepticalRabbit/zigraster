@@ -1,5 +1,12 @@
 # Riley Developer Notes
-This document collects the heavier development workflows for regression testing, gold generation and performance benchmarking. The top-level `README.md` keeps the quick-start path and the min test suite; this file is for the deeper day to day developer workflows.
+This document collects information for developers including: style guides and the heavier development workflows for regression testing, gold generation and performance benchmarking. 
+
+## Style Guide
+This project follow the Computer Aided Validation Laboratory style guides for python and Zig which can be found [here](https://github.com/Computer-Aided-Validation-Laboratory/styleguides). Riley is designed around three equally important principles:
+
+1. **Make it correct.**
+2. **Make it fast.**
+3. **Make it simple for users.**
 
 ## Extended Regression Test Suites
 Once the min suite passes, the next two regression suites are:
