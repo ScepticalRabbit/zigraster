@@ -13,7 +13,7 @@ import pytest
 
 import riley
 from riley import data
-from riley.python.meshconstants import (
+from riley.python.meshconst import (
     EElemType,
     MeshType,
 )

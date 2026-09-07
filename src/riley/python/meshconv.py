@@ -15,10 +15,11 @@ from typing import Literal
 
 import numpy as np
 
-from riley.python.meshconstants import (
+from riley.python.meshconst import (
     ELEM_NODE_COUNT_MAP,
     EXODUS_TO_RILEY_MAP,
     RILEY_ELEM_TOP_MAP,
+    RILEY_MAP,
     RILEY_TRI_STENCIL_MAP,
     RILEY_VOL_SURF_TYPE_MAP,
     VTK_TO_RILEY_MAP,
@@ -75,16 +76,19 @@ class ConnectConvention:
     def __post_init__(self) -> None:
         if not isinstance(self.elem_type, EElemType):
             raise TypeError("elem_type must be an EElemType member.")
+
         if not isinstance(self.elem_axis, EConnectAxis):
             raise TypeError("elem_axis must be an EConnectAxis member.")
+
         if isinstance(self.index_base, bool) or self.index_base not in (0, 1):
             raise ValueError("index_base must be the integer 0 or 1.")
+
         valid_order = isinstance(self.node_order, (ENodeOrder, UserTopology))
         if not valid_order:
             raise TypeError("node_order must be ENodeOrder or UserTopology.")
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class MeshGeometry:
 
     elem_type: EElemType
@@ -105,9 +109,7 @@ class MeshError(ValueError):
     def __init__(
         self,
         message: str | None = None,
-        issues: (
-            list[MeshVerifyIssue] | tuple[MeshVerifyIssue, ...] | None
-        ) = None,
+        issues: Sequence[MeshVerifyIssue] | None = None,
     ) -> None:
         self.issues: tuple[MeshVerifyIssue, ...] = (
             tuple(issues) if issues is not None else ()
@@ -210,22 +212,29 @@ def _get_user_topology_perm(
 
 
 def _get_source_perm(convention: ConnectConvention) -> tuple[int, ...]:
+
     if isinstance(convention.node_order, UserTopology):
         return _get_user_topology_perm(
             convention.elem_type,
             convention.node_order,
         )
-    if convention.node_order in (ENodeOrder.RILEY, ENodeOrder.VTK):
+        
+    if convention.node_order is ENodeOrder.RILEY:
+        return RILEY_MAP[convention.elem_type]
+    elif convention.node_order is ENodeOrder.VTK:
         return VTK_TO_RILEY_MAP[convention.elem_type]
-    if convention.node_order is ENodeOrder.EXODUS:
+    elif convention.node_order is ENodeOrder.EXODUS:
         return EXODUS_TO_RILEY_MAP[convention.elem_type]
+
     raise MeshError(f"Unsupported node ordering: {convention.node_order}.")
+
 
 def convert_mesh(
     coords: np.ndarray,
     connect: np.ndarray,
     convention: ConnectConvention,
 ) -> MeshGeometry:
+
     if not isinstance(convention, ConnectConvention):
         raise TypeError(
             "convention must be an instance of ConnectConvention."
@@ -265,11 +274,14 @@ def convert_mesh(
         coords=coords_std,
         connect=connect_std,
     )
+
     verify_mesh(mesh_out)
+
     return mesh_out
 
 
 def verify_mesh(mesh: MeshGeometry) -> None:
+
     if not isinstance(mesh, MeshGeometry):
         raise TypeError("mesh must be an instance of MeshGeometry.")
 
@@ -370,49 +382,67 @@ def _extract_surface_with_node_idxs(
     mesh: MeshGeometry,
 ) -> tuple[MeshGeometry, np.ndarray]:
 
+    # Check the input mesh before relying on its connectivity and coordinates.
     verify_mesh(mesh)
 
+    # Surface extraction requires a supported volume element type.
     if mesh.elem_type not in RILEY_VOL_SURF_TYPE_MAP:
         raise MeshError("extract_surface requires a volume mesh.")
 
+    # Get the topology needed to find volume faces and build surface elements.
     spec = RILEY_ELEM_TOP_MAP[mesh.elem_type]
     surf_type = RILEY_VOL_SURF_TYPE_MAP[mesh.elem_type]
     surf_spec = RILEY_ELEM_TOP_MAP[surf_type]
     face_uses: dict[tuple[int, ...], list[np.ndarray]] = {}
     corner_count = len(surf_spec.corner_slots)
 
+    # Collect every face so we can distinguish shared faces from boundary faces.
     for elem_row in mesh.connect:
         for face_slots in spec.surf_faces:
+            # Preserve the prescribed face ordering, including higher-order nodes.
             face = elem_row[np.asarray(face_slots, dtype=np.uintp)]
+
+            # Use corner node IDs to identify which geometric face this is.
             face_nodes: list[int] = []
             for node in face[:corner_count]:
                 face_nodes.append(int(node))
+
+            # Ignore corner ordering when matching faces from adjacent elements.
             face_key = tuple(sorted(face_nodes))
             face_uses.setdefault(face_key, []).append(face)
 
+    # Keep faces used by one element; faces shared by two elements are internal.
     surf_faces = []
     for face_key, uses in face_uses.items():
+        # More than two incident elements makes the face non-manifold.
         if len(uses) > 2:
             raise MeshError(
                 f"Non-manifold volume face {face_key} has {len(uses)} "
                 "incident elems."
             )
+            
         if len(uses) == 1:
             surf_faces.append(uses[0])
 
+    # Fail explicitly if there is no boundary from which to build a surface mesh.
     if not surf_faces:
         raise MeshError("Volume mesh has no boundary faces.")
 
+    # Assemble boundary connectivity and find all nodes it actually references.
     surf_connect_glob = np.ascontiguousarray(
         np.vstack(surf_faces), dtype=np.uintp
     )
     surf_node_idxs = np.unique(surf_connect_glob)
 
+    # Map original node indices to consecutive surface indices starting at zero.
+    # Nodes absent from the surface retain -1 and are never referenced below.
     node_remap = np.full(mesh.coords.shape[0], -1, dtype=np.int64)
     node_remap[surf_node_idxs] = np.arange(
         surf_node_idxs.shape[0], dtype=np.int64
     )
 
+    # Discard unused coordinates and rebase connectivity to the reduced array.
+    # Store both arrays contiguously for subsequent mesh processing.
     mesh_out = MeshGeometry(
         elem_type=surf_type,
         coords=np.ascontiguousarray(mesh.coords[surf_node_idxs]),
@@ -421,10 +451,12 @@ def _extract_surface_with_node_idxs(
         ),
     )
 
+    # Check that extraction and node remapping produced a valid surface mesh.
+    # We catch stray -1 left over from the remapping here.
     verify_mesh(mesh_out)
 
+    # Return original node indices too, so callers can subset associated fields.
     return mesh_out, surf_node_idxs
-
 
 def extract_surface(mesh: MeshGeometry) -> MeshGeometry:
     mesh_out, _ = _extract_surface_with_node_idxs(mesh)

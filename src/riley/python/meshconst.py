@@ -227,12 +227,14 @@ RILEY_SURF_TYPE_BY_NODE_COUNT_MAP = {
 }
 
 # Permutation maps from external formats to Riley standard ordering
-VTK_TO_RILEY_MAP: dict[EElemType, tuple[int, ...]] = {}
+RILEY_MAP: dict[EElemType, tuple[int, ...]] = {}
 for elem_type, spec in RILEY_ELEM_TOP_MAP.items():
-    VTK_TO_RILEY_MAP[elem_type] = tuple(range(spec.node_count))
+    RILEY_MAP[elem_type] = tuple(range(spec.node_count))
+
+VTK_TO_RILEY_MAP = RILEY_MAP
 
 EXODUS_TO_RILEY_MAP = {
-    **VTK_TO_RILEY_MAP,
+    **RILEY_MAP,
     EElemType.HEX20: (
         0, 1, 2, 3, 4, 5, 6, 7,
         8, 9, 10, 11, 16, 17, 18, 19, 12, 13, 14, 15,

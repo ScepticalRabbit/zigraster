@@ -7,7 +7,7 @@ from pathlib import Path
 import netCDF4
 import numpy as np
 
-from riley.python.meshconstants import (
+from riley.python.meshconst import (
     EXODUS_AMBIGUOUS_TYPE_MAP,
     EXODUS_ELEM_TYPE_STR_MAP,
     RILEY_ELEM_TOP_MAP,

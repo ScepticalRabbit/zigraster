@@ -13,7 +13,7 @@ from riley.cython.riley import (
     RileyShader,
     TextureShader,
 )
-from riley.python.meshconstants import (
+from riley.python.meshconst import (
     ELEM_FAMILY_MAP,
     ELEM_NODE_COUNT_MAP,
     ELEM_ORDER_MAP,
