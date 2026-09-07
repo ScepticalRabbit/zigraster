@@ -11,13 +11,11 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-import cv2
 import numpy as np
 from PIL import Image
 
 DEFAULT_CROP_SIZE: int = 128
 COLOR_MODES: tuple[str, ...] = ("mono", "rgb")
-BIT_DEPTHS: tuple[str, ...] = ("u8", "u16")
 FORMATS: tuple[str, ...] = ("bmp", "tiff", "png")
 
 DEFAULT_SOURCE_DIR = Path("texture")
@@ -69,24 +67,13 @@ def save_texture_image(
     output_path = Path(output_path)
     extension = output_path.suffix.lower().lstrip(".")
     is_u16 = image_array.dtype == np.uint16
-    is_rgb = image_array.ndim == 3
 
     if extension == "bmp":
         if is_u16:
             raise ValueError("BMP format does not support 16-bit textures.")
         Image.fromarray(image_array).save(output_path)
-    elif extension in ("tiff", "tif"):
-        if is_rgb and is_u16:
-            bgr = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
-            cv2.imwrite(str(output_path), bgr)
-        else:
-            Image.fromarray(image_array).save(output_path)
-    elif extension == "png":
-        if is_rgb and is_u16:
-            bgr = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
-            cv2.imwrite(str(output_path), bgr)
-        else:
-            Image.fromarray(image_array).save(output_path)
+    elif extension in ("tiff", "tif", "png"):
+        Image.fromarray(image_array).save(output_path)
     else:
         raise ValueError(f"Unsupported texture format: {extension}")
 
@@ -95,8 +82,6 @@ def generate_test_textures(
     source_dir: Path | None = None,
     output_dir: Path | None = None,
     crop_size: int = DEFAULT_CROP_SIZE,
-    color_modes: tuple[str, ...] = COLOR_MODES,
-    bit_depths: tuple[str, ...] = BIT_DEPTHS,
     formats: tuple[str, ...] = FORMATS,
 ) -> list[Path]:
     repo = _repo_root()
@@ -130,17 +115,24 @@ def generate_test_textures(
 
     generated_paths: list[Path] = []
 
-    for mode in color_modes:
-        src_array = cropped_mono if mode == "mono" else cropped_rgb
-        for depth in bit_depths:
-            depth_array = _convert_depth(src_array, depth)
-            for fmt in formats:
-                if fmt == "bmp" and depth == "u16":
-                    continue
-                filename = f"speck{crop_size}_{mode}_{depth}.{fmt}"
-                out_path = output_dir / filename
-                save_texture_image(depth_array, out_path)
-                generated_paths.append(out_path)
+    # Mono u8 and mono u16
+    for depth in ("u8", "u16"):
+        depth_array = _convert_depth(cropped_mono, depth)
+        for fmt in formats:
+            if fmt == "bmp" and depth == "u16":
+                continue
+            filename = f"speck{crop_size}_mono_{depth}.{fmt}"
+            out_path = output_dir / filename
+            save_texture_image(depth_array, out_path)
+            generated_paths.append(out_path)
+
+    # RGB u8 only
+    rgb_u8 = _convert_depth(cropped_rgb, "u8")
+    for fmt in formats:
+        filename = f"speck{crop_size}_rgb_u8.{fmt}"
+        out_path = output_dir / filename
+        save_texture_image(rgb_u8, out_path)
+        generated_paths.append(out_path)
 
     return generated_paths
 

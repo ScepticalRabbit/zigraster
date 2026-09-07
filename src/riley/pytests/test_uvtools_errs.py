@@ -49,5 +49,5 @@ def test_project_uvs_rejects_degenerate_proj() -> None:
             coords,
             (100, 100),
             (0.0, 0.0, 99.0, 99.0),
-            riley.EProjPlane.XY,
+            riley.EUVProjPlane.XY,
         )

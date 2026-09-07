@@ -84,7 +84,7 @@ def _prepare_component(
         raise ValueError(f"{name} must have shape (nodes, time).")
 
     if not np.issubdtype(array.dtype, np.floating):
-        raise TypeError(f"{name} must have a floating point dtype.")
+        raise TypeError(f"{name} must have a floating-point dtype.")
 
     if not np.all(np.isfinite(array)):
         raise ValueError(f"{name} must contain only finite values.")

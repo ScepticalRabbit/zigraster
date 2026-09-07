@@ -117,7 +117,7 @@ def _normalise_load_options(
     return connect_keys_out, disp_keys_out, nodal_keys_out
 
 
-def _validate_unmasked_array(
+def _verify_unmasked_array(
     values: np.ndarray,
     variable_name: str,
 ) -> np.ndarray:
@@ -230,15 +230,15 @@ def _read_coords(dataset: netCDF4.Dataset) -> np.ndarray:
     )
 
     if has_component_coords:
-        coord_x = _validate_unmasked_array(
+        coord_x = _verify_unmasked_array(
             dataset.variables["coordx"][:], "coordx",
         )
-        coord_y = _validate_unmasked_array(
+        coord_y = _verify_unmasked_array(
             dataset.variables["coordy"][:], "coordy",
         )
 
         if "coordz" in dataset.variables:
-            coord_z = _validate_unmasked_array(
+            coord_z = _verify_unmasked_array(
                 dataset.variables["coordz"][:], "coordz",
             )
         else:
@@ -258,7 +258,7 @@ def _read_coords(dataset: netCDF4.Dataset) -> np.ndarray:
         coords_raw = np.column_stack(components)
 
     else:
-        coord_table = _validate_unmasked_array(
+        coord_table = _verify_unmasked_array(
             dataset.variables["coord"][:], "coord",
         )
 
@@ -302,7 +302,7 @@ def _read_elem_blocks(
                 f"Connectivity table '{key}' must have an integer dtype."
             )
 
-        connect_raw = _validate_unmasked_array(connect_var[:], key)
+        connect_raw = _verify_unmasked_array(connect_var[:], key)
         if connect_raw.ndim != 2 or connect_raw.shape[0] == 0:
             raise ExodusError(
                 f"Connectivity table '{key}' must be a non-empty 2D array."
@@ -336,7 +336,7 @@ def _read_nodal_field(
 ) -> np.ndarray:
 
     variable_name = f"vals_nod_var{nodal_index[field_name]}"
-    field_raw = _validate_unmasked_array(
+    field_raw = _verify_unmasked_array(
         dataset.variables[variable_name][:], variable_name,
     )
 
@@ -366,7 +366,7 @@ def _read_time(dataset: netCDF4.Dataset) -> np.ndarray | None:
     if "time_whole" not in dataset.variables:
         return None
 
-    time_raw = _validate_unmasked_array(
+    time_raw = _verify_unmasked_array(
         dataset.variables["time_whole"][:], "time_whole",
     )
 

@@ -16,7 +16,7 @@ SHORT_DIM = base.SHORT_DIM
 THICKNESS = SHORT_DIM / 10.0
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True)
 class PlateGeometry:
     corners: np.ndarray
     faces: list[tuple[int, int, int, int]]
@@ -84,7 +84,10 @@ class NodeBuilder:
         return self.add(coord)
 
     def add_face_center(self, indices: tuple[int, int, int, int]) -> int:
-        coord = sum((self.coords[ii] for ii in indices), np.zeros(3, dtype=np.float64)) / 4.0
+        coord = np.zeros(3, dtype=np.float64)
+        for ii in indices:
+            coord += self.coords[ii]
+        coord = coord / 4.0
         return self.add(coord)
 
     def arrays(self) -> tuple[np.ndarray, np.ndarray]:

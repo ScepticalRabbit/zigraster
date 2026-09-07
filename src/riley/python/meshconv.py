@@ -396,10 +396,10 @@ def _extract_surface_with_node_idxs(
     face_uses: dict[tuple[int, ...], list[np.ndarray]] = {}
     corner_count = len(surf_spec.corner_slots)
 
-    # Collect every face so we can distinguish shared faces from boundary faces.
+    # Collect every face so we can distinguish shared from boundary faces.
     for elem_row in mesh.connect:
         for face_slots in spec.surf_faces:
-            # Preserve the prescribed face ordering, including higher-order nodes.
+            # Preserve prescribed face ordering, including higher-order nodes.
             face = elem_row[np.asarray(face_slots, dtype=np.uintp)]
 
             # Use corner node IDs to identify which geometric face this is.
@@ -407,11 +407,11 @@ def _extract_surface_with_node_idxs(
             for node in face[:corner_count]:
                 face_nodes.append(int(node))
 
-            # Ignore corner ordering when matching faces from adjacent elements.
+            # Ignore corner ordering when matching adjacent element faces.
             face_key = tuple(sorted(face_nodes))
             face_uses.setdefault(face_key, []).append(face)
 
-    # Keep faces used by one element; faces shared by two elements are internal.
+    # Keep faces used once; faces shared by two elements are internal.
     surf_faces = []
     for face_key, uses in face_uses.items():
         # More than two incident elements makes the face non-manifold.
@@ -424,11 +424,11 @@ def _extract_surface_with_node_idxs(
         if len(uses) == 1:
             surf_faces.append(uses[0])
 
-    # Fail explicitly if there is no boundary from which to build a surface mesh.
+    # Fail if there is no boundary from which to build a surface mesh.
     if not surf_faces:
         raise MeshError("Volume mesh has no boundary faces.")
 
-    # Assemble boundary connectivity and find all nodes it actually references.
+    # Assemble boundary connectivity and find all referenced nodes.
     surf_connect_glob = np.ascontiguousarray(
         np.vstack(surf_faces), dtype=np.uintp
     )

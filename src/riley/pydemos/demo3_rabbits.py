@@ -110,7 +110,7 @@ def main() -> None:
 
     texture = riley.load_texture_mono_u8(texture_path)
     mesh_inputs: list[riley.Mesh] = []
-    group_list: list[sceneops.MeshGroup] = []
+    group_list: list[sceneops.SceneMeshGroup] = []
 
     for mesh_type in rabbit_mesh_types:
         riley_dir = build_rabbit_dir("riley", mesh_type)
@@ -143,26 +143,36 @@ def main() -> None:
             ),
         )
 
-        sceneops.overlap_mesh_group_bounds(
-            [m.coords for m in mesh_inputs],
-            sceneops.create_mesh_group_single(pair_start),
-            sceneops.create_mesh_group_single(pair_start + 1),
-            sceneops.BoundsOverlapSpec(
+        coords_list = []
+        for m in mesh_inputs:
+            coords_list.append(m.coords)
+
+        sceneops.scene_overlap_mesh_group_bounds(
+            coords_list,
+            sceneops.scene_create_mesh_group_single(pair_start),
+            sceneops.scene_create_mesh_group_single(pair_start + 1),
+            sceneops.SceneBoundsOverlapSpec(
                 overlap_frac=(0.85, 0.8, 0.0),
                 enabled_axes=(True, True, False),
                 direct=(
-                    sceneops.EOverlapDirect.POSITIVE,
-                    sceneops.EOverlapDirect.NEGATIVE,
-                    sceneops.EOverlapDirect.CURRENT,
+                    sceneops.ESceneOverlapDirect.POSITIVE,
+                    sceneops.ESceneOverlapDirect.NEGATIVE,
+                    sceneops.ESceneOverlapDirect.CURRENT,
                 ),
             ),
         )
-        group_list.append(sceneops.create_mesh_group_span(pair_start, 2))
+        group_list.append(
+            sceneops.scene_create_mesh_group_span(pair_start, 2)
+        )
 
-    sceneops.arrange_mesh_groups_grid(
-        [m.coords for m in mesh_inputs],
+    coords_list = []
+    for m in mesh_inputs:
+        coords_list.append(m.coords)
+
+    sceneops.scene_arrange_mesh_groups_grid(
+        coords_list,
         group_list,
-        sceneops.GridSpec(gap=(0.18, 0.28, 0.0), max_divs=(3, 2, 1)),
+        sceneops.SceneGridSpec(gap=(0.18, 0.28, 0.0), max_divs=(3, 2, 1)),
     )
 
     roi_pos = riley.roi_cent_over_meshes(mesh_inputs)

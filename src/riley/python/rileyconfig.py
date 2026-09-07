@@ -49,9 +49,9 @@ def create_raster_config(
         raise ValueError("total_threads must be positive.")
 
 
-    # We get the best parallelisation from Riley when 1 thread works on 1 frame so 
-    # parallelisation over camera and frames is best. If we have only 1 frame we put
-    # all workers into the raster loop.
+    # We get best parallelisation from Riley when 1 thread works on 1 frame
+    # so parallelisation over camera and frames is best. If we have only 1
+    # frame we put all workers into the raster loop.
     frames_available = int(num_frames)
     threads_available = int(total_threads)
     if threads_available < frames_available:

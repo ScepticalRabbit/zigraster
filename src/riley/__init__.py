@@ -83,7 +83,6 @@ from riley.python.textureio import (
     load_texture_mono_u8,
     load_texture_mono_u16,
     load_texture_rgb_u8,
-    load_texture_rgb_u16,
 )
 from riley.python.meshconv import (
     ConnectConvention,
@@ -110,9 +109,12 @@ from riley.python.exodusio import (
 )
 from riley.python.meshio import create_mesh, load_csv
 from riley.python.uvtools import (
-    EPlanarProjMode,
-    EProjPlane,
-    ProjPlane,
+    EUVPlanarProjMode,
+    EUVProjPlane,
+    UVPixelBBox,
+    UVProjAxes,
+    UVProjBounds2D,
+    UVProjPlane,
     project_uvs_planar_bbox,
     project_uvs_planar_centered,
 )
@@ -127,8 +129,8 @@ __all__ = [
     "EElemType",
     "EFrameFit",
     "ENodeOrder",
-    "EPlanarProjMode",
-    "EProjPlane",
+    "EUVPlanarProjMode",
+    "EUVProjPlane",
     "EdgeNode",
     "ExodusBlock",
     "ExodusError",
@@ -152,7 +154,6 @@ __all__ = [
     "NewtonSeedMode",
     "NewtonSeedReuse",
     "NormalType",
-    "ProjPlane",
     "PsfType",
     "RasterConfig",
     "RenderMode",
@@ -164,6 +165,10 @@ __all__ = [
     "Shader",
     "SubPixelCenterMap",
     "TextureSample",
+    "UVPixelBBox",
+    "UVProjAxes",
+    "UVProjBounds2D",
+    "UVProjPlane",
     "TextureSampleMode",
     "TextureShader",
     "ETextureCoercion",
@@ -183,7 +188,6 @@ __all__ = [
     "load_texture_mono_u8",
     "load_texture_mono_u16",
     "load_texture_rgb_u8",
-    "load_texture_rgb_u16",
     "pos_fill_frame_from_rot",
     "pos_fill_frame_from_rot_over_meshes",
     "pos_frame_coords",

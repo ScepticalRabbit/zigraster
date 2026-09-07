@@ -75,7 +75,7 @@ def generate_case(
         mesh.coords,
         (128, 128),
         uv_span_max=0.9,
-        proj_plane=riley.EProjPlane.XY,
+        proj_plane=riley.EUVProjPlane.XY,
     )
 
     case_dir = OUT_DIR / name
@@ -93,9 +93,10 @@ def generate_case(
 def main() -> None:
     for case in CASES:
         generate_case(*case)
-    texture = riley.load_texture_rgb_u16(
-        ROOT / "texture" / "speck128_rgb_u16.png"
+    texture_u8 = riley.load_texture_rgb_u8(
+        ROOT / "texture" / "speck128_rgb_u8.png"
     )
+    texture = texture_u8.astype(np.uint16) * np.uint16(257)
     header = f"FIMG\n{texture.shape[2]} {texture.shape[1]} 3\n".encode()
     payload = np.ascontiguousarray(texture, dtype="<f8").tobytes()
     (OUT_DIR / "texture_rgb_u16.fimg").write_bytes(header + payload)

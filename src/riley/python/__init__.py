@@ -14,7 +14,6 @@ from riley.python.textureio import (
     load_texture_mono_u8,
     load_texture_mono_u16,
     load_texture_rgb_u8,
-    load_texture_rgb_u16,
 )
 from riley.python.meshconv import (
     ConnectConvention,
@@ -39,9 +38,12 @@ from riley.python.exodusio import (
 )
 from riley.python.meshio import create_mesh, load_csv
 from riley.python.uvtools import (
-    EPlanarProjMode,
-    EProjPlane,
-    ProjPlane,
+    EUVPlanarProjMode,
+    EUVProjPlane,
+    UVPixelBBox,
+    UVProjAxes,
+    UVProjBounds2D,
+    UVProjPlane,
     project_uvs_planar_bbox,
     project_uvs_planar_centered,
 )
@@ -51,8 +53,8 @@ __all__ = [
     "EConnectAxis",
     "EElemType",
     "ENodeOrder",
-    "EPlanarProjMode",
-    "EProjPlane",
+    "EUVPlanarProjMode",
+    "EUVProjPlane",
     "EdgeNode",
     "ExodusBlock",
     "ExodusError",
@@ -61,7 +63,10 @@ __all__ = [
     "MeshError",
     "MeshGeometry",
     "MeshVerifyIssue",
-    "ProjPlane",
+    "UVPixelBBox",
+    "UVProjAxes",
+    "UVProjBounds2D",
+    "UVProjPlane",
     "UserTopology",
     "convert_mesh",
     "create_raster_config",
@@ -73,7 +78,6 @@ __all__ = [
     "load_texture_mono_u8",
     "load_texture_mono_u16",
     "load_texture_rgb_u8",
-    "load_texture_rgb_u16",
     "project_uvs_planar_bbox",
     "project_uvs_planar_centered",
     "sceneops",

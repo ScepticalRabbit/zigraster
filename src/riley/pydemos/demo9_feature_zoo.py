@@ -158,17 +158,21 @@ def make_shader(
 
 
 def build_scene(channels: int, bits: int) -> list[riley.Mesh]:
-    texture_name = f"speck128_{'mono' if channels == 1 else 'rgb'}_u{bits}.png"
-    texture_path = Path.cwd() / "texture" / texture_name
-    texture = (
-        riley.load_texture_mono_u8(texture_path)
-        if (channels, bits) == (1, 8)
-        else riley.load_texture_mono_u16(texture_path)
-        if channels == 1
-        else riley.load_texture_rgb_u8(texture_path)
-        if bits == 8
-        else riley.load_texture_rgb_u16(texture_path)
+    texture_name = (
+        f"speck128_{'mono' if channels == 1 else 'rgb'}_u{bits}.png"
     )
+    texture_path = Path.cwd() / "texture" / texture_name
+    if (channels, bits) == (1, 8):
+        texture = riley.load_texture_mono_u8(texture_path)
+    elif (channels, bits) == (1, 16):
+        texture = riley.load_texture_mono_u16(texture_path)
+    elif (channels, bits) == (3, 8):
+        texture = riley.load_texture_rgb_u8(texture_path)
+    else:
+        texture_u8 = riley.load_texture_rgb_u8(
+            Path.cwd() / "texture" / "speck128_rgb_u8.png"
+        )
+        texture = texture_u8.astype(np.uint16) * np.uint16(257)
 
     meshes = []
     for index, (case_name, elem_type, mesh_type) in enumerate(CASES):
@@ -200,10 +204,13 @@ def build_scene(channels: int, bits: int) -> list[riley.Mesh]:
     plate_x = np.array(plate.coords[:, 0], copy=True)
     plate.coords[:, 0] = -plate.coords[:, 1]
     plate.coords[:, 1] = plate_x
+    mesh_coords = []
+    for mesh in meshes:
+        mesh_coords.append(mesh.coords)
     for index, center in enumerate(MESH_CENTERS):
-        sceneops.center_mesh_group_at(
-            [m.coords for m in meshes],
-            sceneops.create_mesh_group_single(index),
+        sceneops.scene_center_mesh_group_at(
+            mesh_coords,
+            sceneops.scene_create_mesh_group_single(index),
             center,
         )
     return meshes

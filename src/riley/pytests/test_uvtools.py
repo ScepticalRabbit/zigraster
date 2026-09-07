@@ -29,7 +29,7 @@ def test_project_uvs_planar_centered_xy() -> None:
         coords,
         (200, 100),
         uv_span_max=0.8,
-        proj_plane=riley.EProjPlane.XY,
+        proj_plane=riley.EUVProjPlane.XY,
     )
 
     assert uvs.shape == (4, 2)
@@ -40,13 +40,13 @@ def test_project_uvs_planar_centered_xy() -> None:
 @pytest.mark.parametrize(
     "plane",
     [
-        riley.EProjPlane.XY,
-        riley.EProjPlane.YZ,
-        riley.EProjPlane.XZ,
+        riley.EUVProjPlane.XY,
+        riley.EUVProjPlane.YZ,
+        riley.EUVProjPlane.XZ,
     ],
 )
 def test_project_uvs_planar_centered_axis_planes(
-    plane: riley.EProjPlane,
+    plane: riley.EUVProjPlane,
 ) -> None:
     coords = np.array(
         ((0.0, 0.0, 0.0), (2.0, 3.0, 4.0), (1.0, 1.0, 1.0)),
@@ -66,8 +66,8 @@ def test_project_uvs_planar_bbox_best_fits_inside_bbox() -> None:
     uvs = riley.project_uvs_planar_bbox(
         coords,
         (101, 101),
-        (20.0, 20.0, 80.0, 80.0),
-        riley.EProjPlane.XY,
+        riley.UVPixelBBox(20.0, 20.0, 80.0, 80.0),
+        riley.EUVProjPlane.XY,
     )
 
     pixels_x = uvs[:, 0] * 100.0
@@ -80,7 +80,7 @@ def test_project_uvs_planar_custom_plane() -> None:
     coords = np.array(
         ((0.0, 0.0, 1.0), (1.0, 0.0, 1.0), (0.0, 1.0, 1.0)),
     )
-    plane = riley.ProjPlane(
+    plane = riley.UVProjPlane(
         normal=np.array((0.0, 0.0, 1.0)),
         origin=np.array((0.0, 0.0, 1.0)),
     )
