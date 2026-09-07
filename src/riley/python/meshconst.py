@@ -32,6 +32,33 @@ from riley.cython.riley import MeshType
 # --------------------------------------------------------------------------
 
 class EElemType(Enum):
+    """Finite element geometry types supported by Riley.
+
+    Members
+    -------
+    TRI3 : str
+        3-node linear triangle.
+    TRI6 : str
+        6-node quadratic triangle.
+    TRI7 : str
+        7-node quadratic triangle with face center.
+    QUAD4 : str
+        4-node bilinear quadrilateral.
+    QUAD8 : str
+        8-node serendipity quadratic quadrilateral.
+    QUAD9 : str
+        9-node biquadratic quadrilateral with center node.
+    TET4 : str
+        4-node linear tetrahedron.
+    TET10 : str
+        10-node quadratic tetrahedron.
+    HEX8 : str
+        8-node trilinear hexahedron.
+    HEX20 : str
+        20-node serendipity quadratic hexahedron.
+    HEX27 : str
+        27-node triquadratic hexahedron with face and center nodes.
+    """
 
     TRI3 = "tri3"
     TRI6 = "tri6"
@@ -46,11 +73,43 @@ class EElemType(Enum):
     HEX27 = "hex27"
 
     def get_para_coords(self) -> np.ndarray:
+        """Get the parametric coordinates of nodes in Riley canonical order.
+
+        Returns
+        -------
+        numpy.ndarray
+            Array of shape `(N, D)` and dtype `np.float64`, where `N` is the
+            node count for the element type and `D` is the parametric
+            dimension (2 for 2D surface elements, 3 for 3D volume elements).
+        """
         return np.asarray(RILEY_PARA_COORD_MAP[self], dtype=np.float64)
 
 
 @dataclass(frozen=True, slots=True)
 class RileyElemTopology:
+    """Canonical topological definitions and node winding slots for an element.
+
+    Attributes
+    ----------
+    node_count : int
+        Total number of nodes defining the element.
+    is_surf : bool
+        True if the element is a 2D surface element; False if 3D volume.
+    corner_slots : tuple of int
+        Indices of the corner vertices in canonical ordering.
+    reverse_slots : tuple of int
+        Permutation to reverse surface normal or volume orientation.
+    edge_corners : tuple of tuple of int, default=()
+        Vertex index pairs `(start_idx, end_idx)` for all edges.
+    surf_faces : tuple of tuple of int, default=()
+        Node index tuples for external boundary faces.
+    face_corners : tuple of tuple of int, default=()
+        Corner vertex tuples for boundary faces.
+    face_slots : tuple of int, default=()
+        Indices of face center nodes.
+    centre_slot : int or None, default=None
+        Index of the volume or element center node, if present.
+    """
 
     node_count: int
     is_surf: bool

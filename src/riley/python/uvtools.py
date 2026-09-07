@@ -23,6 +23,27 @@ def _verify_finite_f64(
     name: str,
     shape: tuple[int, ...] | None = None,
 ) -> np.ndarray:
+    """Verify that an object can be cast to finite contiguous float64 array.
+
+    Parameters
+    ----------
+    values : object
+        Input array-like or sequence of numerical values.
+    name : str
+        Human-readable identifier for error messages.
+    shape : tuple of int, optional
+        Expected array shape. If None, any shape is permitted.
+
+    Returns
+    -------
+    numpy.ndarray
+        Contiguous array of dtype `np.float64`.
+
+    Raises
+    ------
+    ValueError
+        If array shape does not match `shape` or contains non-finite values.
+    """
     values_out = np.ascontiguousarray(values, dtype=np.float64)
 
     if shape is not None and values_out.shape != shape:
@@ -36,6 +57,25 @@ def _verify_finite_f64(
 
 
 def _verify_coords(coords: np.ndarray) -> np.ndarray:
+    """Verify that node coordinate array has shape (N, 3) and finite values.
+
+    Parameters
+    ----------
+    coords : numpy.ndarray
+        Array of shape `(N, 3)` and dtype `np.float64`, where `N` is the
+        number of nodes and columns represent `(x, y, z)` spatial coordinates.
+
+    Returns
+    -------
+    numpy.ndarray
+        Contiguous array of shape `(N, 3)` and dtype `np.float64`.
+
+    Raises
+    ------
+    ValueError
+        If `coords` is not 2-dimensional with shape `(N, 3)`, is empty,
+        or contains non-finite values.
+    """
     coords_out = np.ascontiguousarray(coords, dtype=np.float64)
 
     coords_are_2d = coords_out.ndim == 2
@@ -54,12 +94,36 @@ def _verify_coords(coords: np.ndarray) -> np.ndarray:
 
 
 class EUVProjPlane(Enum):
+    """Standard Cartesian coordinate projection planes.
+
+    Members
+    -------
+    XY
+        Project onto the XY plane along the Z axis.
+    YZ
+        Project onto the YZ plane along the X axis.
+    XZ
+        Project onto the XZ plane along the Y axis.
+    """
+
     XY = "xy"
     YZ = "yz"
     XZ = "xz"
 
 
 class EUVPlanarProjMode(Enum):
+    """Scaling mode for fitting projected coordinates into a bounding box.
+
+    Members
+    -------
+    BEST
+        Fit within bounding box preserving aspect ratio (minimum scale).
+    FIT_X
+        Scale coordinates to fill horizontal span of the bounding box.
+    FIT_Y
+        Scale coordinates to fill vertical span of the bounding box.
+    """
+
     BEST = "best"
     FIT_X = "fit_x"
     FIT_Y = "fit_y"
@@ -67,12 +131,36 @@ class EUVPlanarProjMode(Enum):
 
 @dataclass(slots=True)
 class UVProjPlane:
+    """Specification of an arbitrary planar projection surface in 3D.
+
+    Attributes
+    ----------
+    normal : numpy.ndarray
+        Surface normal vector of shape `(3,)` and dtype `np.float64`
+        representing direction `(nx, ny, nz)`.
+    origin : numpy.ndarray
+        Origin reference point of shape `(3,)` and dtype `np.float64`
+        representing spatial coordinates `(x0, y0, z0)`.
+    """
+
     normal: np.ndarray
     origin: np.ndarray
 
 
 @dataclass(slots=True)
 class UVProjAxes:
+    """Resolved 3D projection coordinate system origin and unit axes.
+
+    Attributes
+    ----------
+    origin : numpy.ndarray
+        Projection origin point of shape `(3,)` and dtype `np.float64`.
+    u_axis : numpy.ndarray
+        Normalized U axis vector of shape `(3,)` and dtype `np.float64`.
+    v_axis : numpy.ndarray
+        Normalized V axis vector of shape `(3,)` and dtype `np.float64`.
+    """
+
     origin: np.ndarray
     u_axis: np.ndarray
     v_axis: np.ndarray
@@ -80,6 +168,20 @@ class UVProjAxes:
 
 @dataclass(frozen=True, slots=True)
 class UVProjBounds2D:
+    """2D bounding extents of coordinates on a projection plane.
+
+    Attributes
+    ----------
+    x_min : float
+        Minimum projected horizontal coordinate.
+    x_max : float
+        Maximum projected horizontal coordinate.
+    y_min : float
+        Minimum projected vertical coordinate.
+    y_max : float
+        Maximum projected vertical coordinate.
+    """
+
     x_min: float
     x_max: float
     y_min: float
@@ -88,6 +190,20 @@ class UVProjBounds2D:
 
 @dataclass(frozen=True, slots=True)
 class UVPixelBBox:
+    """Target pixel bounding box within a texture map.
+
+    Attributes
+    ----------
+    x_lower : float
+        Lower horizontal pixel boundary.
+    y_lower : float
+        Lower vertical pixel boundary.
+    x_upper : float
+        Upper horizontal pixel boundary.
+    y_upper : float
+        Upper vertical pixel boundary.
+    """
+
     x_lower: float
     y_lower: float
     x_upper: float
@@ -109,7 +225,23 @@ UVPixelBBoxLike = (
 def _verify_texture_size(
     texture_size: tuple[int, int] | tuple[float, float],
 ) -> tuple[float, float]:
+    """Verify that texture dimensions are valid and return them as float64.
 
+    Parameters
+    ----------
+    texture_size : tuple of (int, int) or tuple of (float, float)
+        Dimensions `(width, height)` of the target texture map in pixels.
+
+    Returns
+    -------
+    tuple of float
+        Validated dimensions `(width, height)`.
+
+    Raises
+    ------
+    ValueError
+        If dimensions are not 2-element, are non-finite, or < 2 pixels.
+    """
     texture = _verify_finite_f64(texture_size, "texture_size", (2,))
 
     if np.any(texture < 2.0):
@@ -122,7 +254,27 @@ def _project_coords(
     coords: np.ndarray,
     proj_plane: UVProjPlaneLike,
 ) -> np.ndarray:
+    """Project 3D nodal coordinates onto a 2D planar coordinate frame.
 
+    Parameters
+    ----------
+    coords : numpy.ndarray
+        Array of shape `(N, 3)` and dtype `np.float64` of node coordinates
+        `(x, y, z)`.
+    proj_plane : EUVProjPlane, UVProjPlane, or tuple
+        Projection surface definition.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of shape `(N, 2)` and dtype `np.float64`, where `N` is the
+        number of nodes and columns represent projected `(u, v)` coordinates.
+
+    Raises
+    ------
+    ValueError
+        If the projection plane specification is invalid or degenerate.
+    """
     if proj_plane is EUVProjPlane.XY:
         return coords[:, :2]
 
@@ -173,7 +325,24 @@ def _project_coords(
 def _calc_proj_bounds(
     projected: np.ndarray,
 ) -> UVProjBounds2D:
+    """Compute 2D bounding extents for projected node coordinates.
 
+    Parameters
+    ----------
+    projected : numpy.ndarray
+        Array of shape `(N, 2)` and dtype `np.float64` of projected node
+        coordinates `(u, v)`.
+
+    Returns
+    -------
+    UVProjBounds2D
+        Computed 2D extents `(x_min, x_max, y_min, y_max)`.
+
+    Raises
+    ------
+    ValueError
+        If projected coordinates span zero area in the projection plane.
+    """
     minimum = np.min(projected, axis=0)
     maximum = np.max(projected, axis=0)
     extent = maximum - minimum
@@ -196,7 +365,34 @@ def _calc_uvs_from_proj(
     px_bbox: UVPixelBBox,
     mode: EUVPlanarProjMode,
 ) -> np.ndarray:
+    """Map projected coordinates into normalized [0, 1] texture space.
 
+    Parameters
+    ----------
+    projected : numpy.ndarray
+        Array of shape `(N, 2)` and dtype `np.float64` of projected node
+        coordinates `(u, v)`.
+    bounds : UVProjBounds2D
+        Precomputed 2D bounding extents of `projected`.
+    texture_size : tuple of float
+        Target texture dimensions `(width, height)` in pixels.
+    px_bbox : UVPixelBBox
+        Target pixel bounding box region on the texture.
+    mode : EUVPlanarProjMode
+        Aspect ratio and scaling fitting policy.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of shape `(N, 2)` and dtype `np.float64`, where `N` is the
+        number of nodes and columns represent normalized `(u, v)` coordinates
+        in `[0.0, 1.0]`.
+
+    Raises
+    ------
+    ValueError
+        If `mode` is an unsupported projection mode member.
+    """
     scale_x = (
         (px_bbox.x_upper - px_bbox.x_lower) / (bounds.x_max - bounds.x_min)
     )
@@ -238,7 +434,34 @@ def project_uvs_planar_bbox(
     proj_plane: UVProjPlaneLike,
     mode: EUVPlanarProjMode = EUVPlanarProjMode.BEST,
 ) -> np.ndarray:
+    """Project 3D nodal coordinates to UVs fitted to a pixel bounding box.
 
+    Parameters
+    ----------
+    coords : numpy.ndarray
+        Array of shape `(N, 3)` and dtype `np.float64`, where `N` is the
+        number of nodes and columns represent `(x, y, z)` spatial coordinates.
+    texture_size : tuple of (int, int) or tuple of (float, float)
+        Dimensions `(width, height)` of the target texture in pixels.
+    px_bbox : UVPixelBBox, tuple, sequence, or numpy.ndarray
+        Pixel bounding box `(x_lower, y_lower, x_upper, y_upper)`.
+    proj_plane : EUVProjPlane, UVProjPlane, or tuple
+        Projection surface definition.
+    mode : EUVPlanarProjMode, default=EUVPlanarProjMode.BEST
+        Policy for fitting projected coordinates to the bounding box.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of shape `(N, 2)` and dtype `np.float64`, where `N` is the
+        number of nodes and columns represent normalized UV texture coordinates
+        `(u, v)` in `[0.0, 1.0]`.
+
+    Raises
+    ------
+    TypeError or ValueError
+        If inputs are invalid, non-finite, out of range, or degenerate.
+    """
     coords_in = _verify_coords(coords)
     texture_size_in = _verify_texture_size(texture_size)
 
@@ -283,7 +506,33 @@ def project_uvs_planar_centered(
     uv_span_max: float = 1.0,
     proj_plane: UVProjPlaneLike = EUVProjPlane.XY,
 ) -> np.ndarray:
+    """Project 3D nodal coordinates to UVs centered in the texture map.
 
+    Parameters
+    ----------
+    coords : numpy.ndarray
+        Array of shape `(N, 3)` and dtype `np.float64`, where `N` is the
+        number of nodes and columns represent `(x, y, z)` spatial coordinates.
+    texture_size : tuple of (int, int) or tuple of (float, float)
+        Dimensions `(width, height)` of the target texture in pixels.
+    uv_span_max : float, default=1.0
+        Maximum fraction of normalized UV span in `(0.0, 1.0]` that the
+        larger mesh dimension should occupy.
+    proj_plane : EUVProjPlane, UVProjPlane, or tuple, default=EUVProjPlane.XY
+        Projection surface definition.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of shape `(N, 2)` and dtype `np.float64`, where `N` is the
+        number of nodes and columns represent normalized UV texture coordinates
+        `(u, v)` in `[0.0, 1.0]`.
+
+    Raises
+    ------
+    TypeError or ValueError
+        If inputs are invalid, non-finite, out of range, or degenerate.
+    """
     coords_in = _verify_coords(coords)
     texture_width, texture_height = _verify_texture_size(texture_size)
 

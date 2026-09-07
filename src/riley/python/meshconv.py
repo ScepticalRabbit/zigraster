@@ -28,12 +28,32 @@ from riley.python.meshconst import (
 
 
 class EConnectAxis(Enum):
+    """Array dimension orientation of elements in a connectivity table.
+
+    Members
+    -------
+    ROW
+        Each row represents an element: shape `(num_elems, nodes_per_elem)`.
+    COLUMN
+        Each column represents an element: shape `(nodes_per_elem, num_elems)`.
+    """
 
     ROW = "row"
     COLUMN = "column"
 
 
 class ENodeOrder(Enum):
+    """Standard element node numbering and winding conventions.
+
+    Members
+    -------
+    RILEY
+        Canonical Riley node winding order.
+    VTK
+        Visualization Toolkit (VTK) standard node order.
+    EXODUS
+        Exodus II standard node order.
+    """
 
     RILEY = "riley"
     VTK = "vtk"
@@ -42,6 +62,15 @@ class ENodeOrder(Enum):
 
 @dataclass(frozen=True, slots=True)
 class EdgeNode:
+    """Mid-edge node slot mapping for custom user topology.
+
+    Attributes
+    ----------
+    corners : tuple of int
+        Pair of corner vertex local indices `(corner_a, corner_b)`.
+    node_slot : int
+        Zero-based index of the mid-edge node in the source element.
+    """
 
     corners: tuple[int, int]
     node_slot: int
@@ -49,6 +78,15 @@ class EdgeNode:
 
 @dataclass(frozen=True, slots=True)
 class FaceNode:
+    """Face node slot mapping for custom user topology.
+
+    Attributes
+    ----------
+    corners : tuple of int
+        Tuple of corner vertex local indices bounding the face.
+    node_slot : int
+        Zero-based index of the face node in the source element.
+    """
 
     corners: tuple[int, ...]
     node_slot: int
@@ -56,6 +94,19 @@ class FaceNode:
 
 @dataclass(frozen=True, slots=True)
 class UserTopology:
+    """Custom node numbering layout specification for element conversion.
+
+    Attributes
+    ----------
+    corner_slots : tuple of int
+        Indices of corner vertices in source element ordering.
+    edge_nodes : tuple of EdgeNode, default=()
+        Mid-edge node definitions.
+    face_nodes : tuple of FaceNode, default=()
+        Face node definitions.
+    centre_slot : int or None, default=None
+        Index of the center/bubble node, if present.
+    """
 
     corner_slots: tuple[int, ...]
     edge_nodes: tuple[EdgeNode, ...] = ()
@@ -65,6 +116,23 @@ class UserTopology:
 
 @dataclass(frozen=True, slots=True)
 class ConnectConvention:
+    """Specification of connectivity table formatting and ordering.
+
+    Attributes
+    ----------
+    elem_type : EElemType
+        Target finite element geometry type.
+    elem_axis : EConnectAxis
+        Orientation of elements in the connectivity table (row or column).
+    index_base : {0, 1}
+        Indexing base for node IDs (0-based or 1-based).
+    node_order : ENodeOrder or UserTopology
+        Standard convention or custom topology mapping for node winding.
+    material_normal_hint : tuple of float or None, default=None
+        Optional direction `(nx, ny, nz)` indicating the material side.
+    reverse_open_surface : bool, default=False
+        Whether to reverse the surface normal winding for open surfaces.
+    """
 
     elem_type: EElemType
     elem_axis: EConnectAxis
@@ -90,6 +158,20 @@ class ConnectConvention:
 
 @dataclass(slots=True)
 class MeshGeometry:
+    """Standardized mesh geometry consisting of nodes and connectivity.
+
+    Attributes
+    ----------
+    elem_type : EElemType
+        Finite element geometry type.
+    coords : numpy.ndarray
+        Node coordinates array of shape `(N, 3)` and dtype `np.float64`,
+        where `N` is the number of nodes and columns represent `(x, y, z)`.
+    connect : numpy.ndarray
+        Element connectivity table of shape `(E, M)` and dtype `np.uintp`,
+        where `E` is the number of elements and `M` is the number of nodes
+        per element in canonical Riley winding order.
+    """
 
     elem_type: EElemType
     coords: np.ndarray
@@ -98,6 +180,17 @@ class MeshGeometry:
 
 @dataclass(frozen=True, slots=True)
 class MeshVerifyIssue:
+    """Individual issue or violation detected during mesh verification.
+
+    Attributes
+    ----------
+    code : str
+        Machine-readable error classification code.
+    message : str
+        Human-readable description of the issue.
+    elem_idx : int or None, default=None
+        Index of the offending element, if applicable.
+    """
 
     code: str
     message: str
@@ -105,6 +198,7 @@ class MeshVerifyIssue:
 
 
 class MeshError(ValueError):
+    """Exception raised when mesh data, conversion, or verification fails."""
 
     def __init__(
         self,
@@ -132,6 +226,26 @@ def _get_user_topology_perm(
     elem_type: EElemType,
     topology: UserTopology,
 ) -> tuple[int, ...]:
+    """Compute index permutation from a custom UserTopology to Riley ordering.
+
+    Parameters
+    ----------
+    elem_type : EElemType
+        Target finite element geometry type.
+    topology : UserTopology
+        User-specified node layout and topological definitions.
+
+    Returns
+    -------
+    tuple of int
+        Permutation tuple mapping canonical Riley slots to source slots.
+
+    Raises
+    ------
+    MeshError
+        If `topology` has incorrect corners, missing edges/faces, or
+        incomplete node mappings.
+    """
     spec = RILEY_ELEM_TOP_MAP[elem_type]
     node_count = spec.node_count
     corner_count = len(spec.corner_slots)
@@ -212,13 +326,29 @@ def _get_user_topology_perm(
 
 
 def _get_source_perm(convention: ConnectConvention) -> tuple[int, ...]:
+    """Retrieve the node index permutation tuple for a ConnectConvention.
 
+    Parameters
+    ----------
+    convention : ConnectConvention
+        Input mesh connectivity convention.
+
+    Returns
+    -------
+    tuple of int
+        Permutation tuple from source ordering to Riley standard ordering.
+
+    Raises
+    ------
+    MeshError
+        If `convention.node_order` is unsupported.
+    """
     if isinstance(convention.node_order, UserTopology):
         return _get_user_topology_perm(
             convention.elem_type,
             convention.node_order,
         )
-        
+
     if convention.node_order is ENodeOrder.RILEY:
         return RILEY_MAP[convention.elem_type]
     elif convention.node_order is ENodeOrder.VTK:
@@ -234,7 +364,36 @@ def convert_mesh(
     connect: np.ndarray,
     convention: ConnectConvention,
 ) -> MeshGeometry:
+    """Standardize raw mesh arrays into canonical Riley MeshGeometry.
 
+    Parameters
+    ----------
+    coords : numpy.ndarray
+        Array of node coordinates of shape `(N, 3)` and floating-point dtype
+        `np.float64`, where `N` is the number of nodes and columns represent
+        spatial coordinates `(x, y, z)`.
+    connect : numpy.ndarray
+        Connectivity table of shape `(E, M)` if `convention.elem_axis` is ROW,
+        or `(M, E)` if COLUMN, with integer dtype, where `E` is the number of
+        elements and `M` is the number of nodes per element.
+    convention : ConnectConvention
+        Description of element type, axis orientation, base index, and
+        node winding order of the input `connect` table.
+
+    Returns
+    -------
+    MeshGeometry
+        Verified standardized mesh containing C-contiguous `coords` of shape
+        `(N, 3)` with dtype `np.float64` and `connect` of shape `(E, M)` with
+        dtype `np.uintp`.
+
+    Raises
+    ------
+    TypeError
+        If `convention` is not a `ConnectConvention`.
+    MeshError
+        If conversion fails or the resulting mesh fails validation.
+    """
     if not isinstance(convention, ConnectConvention):
         raise TypeError(
             "convention must be an instance of ConnectConvention."
@@ -281,7 +440,22 @@ def convert_mesh(
 
 
 def verify_mesh(mesh: MeshGeometry) -> None:
+    """Validate that a MeshGeometry satisfies Riley integrity requirements.
 
+    Parameters
+    ----------
+    mesh : MeshGeometry
+        Mesh geometry to verify. `coords` must have shape `(N, 3)` and dtype
+        `np.float64`. `connect` must have shape `(E, M)` and dtype `np.uintp`.
+
+    Raises
+    ------
+    TypeError
+        If `mesh` is not a `MeshGeometry` instance.
+    MeshError
+        If coordinates or connectivity are non-contiguous, out of range,
+        empty, contain duplicates, or have mismatched element shapes.
+    """
     if not isinstance(mesh, MeshGeometry):
         raise TypeError("mesh must be an instance of MeshGeometry.")
 
@@ -381,7 +555,27 @@ def verify_mesh(mesh: MeshGeometry) -> None:
 def _extract_surface_with_node_idxs(
     mesh: MeshGeometry,
 ) -> tuple[MeshGeometry, np.ndarray]:
+    """Extract exterior boundary surface and track original node indices.
 
+    Parameters
+    ----------
+    mesh : MeshGeometry
+        Input 3D volume mesh with coordinates and connectivity.
+
+    Returns
+    -------
+    MeshGeometry
+        2D surface mesh containing only boundary faces and referenced nodes.
+    numpy.ndarray
+        Array of shape `(K,)` and dtype `np.uintp` mapping each surface node
+        back to its original node index in `mesh.coords`.
+
+    Raises
+    ------
+    MeshError
+        If `mesh` is not a volume mesh, has no boundary, or has non-manifold
+        topology.
+    """
     # Check the input mesh before relying on its connectivity and coordinates.
     verify_mesh(mesh)
 
@@ -420,7 +614,7 @@ def _extract_surface_with_node_idxs(
                 f"Non-manifold volume face {face_key} has {len(uses)} "
                 "incident elems."
             )
-            
+
         if len(uses) == 1:
             surf_faces.append(uses[0])
 
@@ -458,7 +652,25 @@ def _extract_surface_with_node_idxs(
     # Return original node indices too, so callers can subset associated fields.
     return mesh_out, surf_node_idxs
 
+
 def extract_surface(mesh: MeshGeometry) -> MeshGeometry:
+    """Extract exterior boundary 2D surface elements from a 3D volume mesh.
+
+    Parameters
+    ----------
+    mesh : MeshGeometry
+        Input 3D volume mesh (`TET4`, `TET10`, `HEX8`, `HEX20`, `HEX27`).
+
+    Returns
+    -------
+    MeshGeometry
+        Extracted 2D boundary surface mesh with matching element order.
+
+    Raises
+    ------
+    MeshError
+        If `mesh` is not a volume mesh or has non-manifold topology.
+    """
     mesh_out, _ = _extract_surface_with_node_idxs(mesh)
     return mesh_out
 
@@ -468,7 +680,29 @@ def _reduce_elem_order_with_node_idxs(
     source_node_idxs: np.ndarray,
     target: EElemType,
 ) -> tuple[MeshGeometry, np.ndarray]:
+    """Reduce element interpolation order and track original node indices.
 
+    Parameters
+    ----------
+    mesh : MeshGeometry
+        Input higher-order mesh geometry.
+    source_node_idxs : numpy.ndarray
+        Array of shape `(N,)` and dtype `np.uintp` of source node indices.
+    target : EElemType
+        Lower-order target element type.
+
+    Returns
+    -------
+    MeshGeometry
+        Reduced order mesh with unused higher-order nodes stripped.
+    numpy.ndarray
+        Array of shape `(K,)` and dtype `np.uintp` of retained node indices.
+
+    Raises
+    ------
+    MeshError
+        If `target` has more nodes than `mesh.elem_type`.
+    """
     verify_mesh(mesh)
 
     if target not in ELEM_NODE_COUNT_MAP:
@@ -502,7 +736,25 @@ def reduce_mesh_order(
     mesh: MeshGeometry,
     target: EElemType,
 ) -> MeshGeometry:
+    """Down-sample a higher-order mesh to a lower-order element topology.
 
+    Parameters
+    ----------
+    mesh : MeshGeometry
+        Input higher-order mesh geometry.
+    target : EElemType
+        Target element type with fewer nodes (e.g., `QUAD8` to `QUAD4`).
+
+    Returns
+    -------
+    MeshGeometry
+        Reduced mesh containing only nodes referenced by the target topology.
+
+    Raises
+    ------
+    MeshError
+        If `target` requires more nodes than the source element type.
+    """
     node_idxs = np.arange(mesh.coords.shape[0], dtype=np.uintp)
     result, _ = _reduce_elem_order_with_node_idxs(mesh, node_idxs, target)
 
@@ -514,7 +766,29 @@ def _triangulate_with_node_idxs(
     source_node_idxs: np.ndarray,
     source: EElemType,
 ) -> tuple[MeshGeometry, np.ndarray]:
+    """Subdivide 2D elements into linear triangles tracking node indices.
 
+    Parameters
+    ----------
+    mesh : MeshGeometry
+        Input 2D surface mesh geometry.
+    source_node_idxs : numpy.ndarray
+        Array of shape `(N,)` and dtype `np.uintp` of source node indices.
+    source : EElemType
+        Element type of the input mesh.
+
+    Returns
+    -------
+    MeshGeometry
+        Subdivided `TRI3` mesh geometry.
+    numpy.ndarray
+        Array of shape `(K,)` and dtype `np.uintp` of retained node indices.
+
+    Raises
+    ------
+    MeshError
+        If `source` element type does not have a triangulation stencil.
+    """
     verify_mesh(mesh)
 
     if source not in RILEY_TRI_STENCIL_MAP:
@@ -541,6 +815,24 @@ def _triangulate_with_node_idxs(
 
 
 def triangulate_mesh(mesh: MeshGeometry) -> MeshGeometry:
+    """Subdivide a 2D polygonal or quadratic mesh into 3-node linear triangles.
+
+    Parameters
+    ----------
+    mesh : MeshGeometry
+        Input 2D surface mesh (`TRI3`, `TRI6`, `TRI7`, `QUAD4`,
+        `QUAD8`, `QUAD9`).
+
+    Returns
+    -------
+    MeshGeometry
+        Triangulated `TRI3` mesh geometry.
+
+    Raises
+    ------
+    MeshError
+        If `mesh.elem_type` is not a 2D surface element.
+    """
     node_idxs = np.arange(mesh.coords.shape[0], dtype=np.uintp)
 
     result, _ = _triangulate_with_node_idxs(

@@ -16,17 +16,50 @@ from riley.python.meshconv import EElemType
 
 
 class ExodusError(ValueError):
-    pass
+    """Exception raised for Exodus II file loading and validation failures."""
 
 
 @dataclass(slots=True)
 class ExodusBlock:
+    """Single element block extracted from an Exodus II dataset.
+
+    Attributes
+    ----------
+    connect : numpy.ndarray
+        1-based raw connectivity table of shape `(E, M)` and dtype `np.int64`,
+        where `E` is the number of elements and `M` is the number of nodes
+        per element.
+    elem_type : EElemType
+        Parsed Riley element geometry type.
+    """
+
     connect: np.ndarray
     elem_type: EElemType
 
 
 @dataclass(slots=True)
 class ExodusSim:
+    """Simulation data bundle loaded from an Exodus II netCDF file.
+
+    Attributes
+    ----------
+    coords : numpy.ndarray
+        Global nodal coordinates of shape `(N, 3)` and dtype `np.float64`,
+        where `N` is the number of nodes and columns represent `(x, y, z)`.
+    elem_blocks : dict of str to ExodusBlock
+        Mapping of element block connectivity table names to `ExodusBlock`.
+    disp : tuple of numpy.ndarray or None, default=None
+        Displacement components `(disp_x, disp_y, disp_z)` if requested,
+        where each array has shape `(N, T)` and dtype `np.float64` (`N` nodes,
+        `T` time steps).
+    nodal_vars : dict of str to numpy.ndarray
+        Loaded nodal variables, where each array has shape `(N, T)` and
+        dtype `np.float64`.
+    time : numpy.ndarray or None, default=None
+        Simulation time step values of shape `(T,)` and dtype `np.float64`,
+        or None if no time steps exist.
+    """
+
     coords: np.ndarray
     elem_blocks: dict[str, ExodusBlock]
     disp: tuple[np.ndarray, ...] | None = None
@@ -38,7 +71,25 @@ def _parse_exodus_elem_type(
     type_str: str | None,
     node_count: int,
 ) -> EElemType:
+    """Infer the EElemType from Exodus element type attribute and node count.
 
+    Parameters
+    ----------
+    type_str : str or None
+        Element type attribute string stored in Exodus dataset.
+    node_count : int
+        Number of nodes per element in the connectivity table.
+
+    Returns
+    -------
+    EElemType
+        Matching canonical element type.
+
+    Raises
+    ------
+    ExodusError
+        If `node_count <= 0`, `type_str` is invalid, or no match exists.
+    """
     if node_count <= 0:
         raise ExodusError(f"Invalid node count: {node_count}.")
 
@@ -65,7 +116,25 @@ def _normalise_keys(
     keys: Sequence[str] | str,
     option_name: str,
 ) -> tuple[str, ...]:
+    """Validate and normalise variable/block key options to a tuple of strings.
 
+    Parameters
+    ----------
+    keys : collections.abc.Sequence of str or str
+        Single key string or sequence of key strings.
+    option_name : str
+        Option identifier for error reporting.
+
+    Returns
+    -------
+    tuple of str
+        Validated tuple of distinct key strings.
+
+    Raises
+    ------
+    ExodusError
+        If `keys` is empty, contains non-strings, or contains duplicates.
+    """
     if isinstance(keys, str):
         keys_out = (keys,)
     else:
@@ -98,7 +167,27 @@ def _normalise_load_options(
     disp_keys: Sequence[str] | str | None,
     nodal_keys: Sequence[str] | str | None,
 ) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...] | str | None]:
+    """Normalise all user-provided key options for loading Exodus datasets.
 
+    Parameters
+    ----------
+    connect_keys : collections.abc.Sequence of str or str
+        Connectivity table variable names.
+    disp_keys : collections.abc.Sequence of str, str, or None
+        Displacement component variable names.
+    nodal_keys : collections.abc.Sequence of str, str, or None
+        Additional nodal variable names or "all".
+
+    Returns
+    -------
+    tuple
+        Tuple `(connect_keys, disp_keys, nodal_keys)`.
+
+    Raises
+    ------
+    ExodusError
+        If any key specifications are invalid.
+    """
     connect_keys_out = _normalise_keys(connect_keys, "connect_keys")
 
     disp_keys_out: tuple[str, ...] = ()
@@ -121,7 +210,25 @@ def _verify_unmasked_array(
     values: np.ndarray,
     variable_name: str,
 ) -> np.ndarray:
+    """Ensure that a netCDF array contains no masked/missing values.
 
+    Parameters
+    ----------
+    values : numpy.ndarray or numpy.ma.MaskedArray
+        Input array read from netCDF4 variable.
+    variable_name : str
+        Variable name for error messages.
+
+    Returns
+    -------
+    numpy.ndarray
+        Unmasked ndarray.
+
+    Raises
+    ------
+    ExodusError
+        If `values` is masked and contains masked elements.
+    """
     if np.ma.isMaskedArray(values) and np.any(np.ma.getmaskarray(values)):
         raise ExodusError(
             f"Exodus variable '{variable_name}' contains masked values."
@@ -131,7 +238,23 @@ def _verify_unmasked_array(
 
 
 def _read_exodus_names(variable: netCDF4.Variable) -> list[str]:
+    """Read and decode 2D character arrays of variable names from Exodus netCDF.
 
+    Parameters
+    ----------
+    variable : netCDF4.Variable
+        NetCDF variable containing 2D character array of names.
+
+    Returns
+    -------
+    list of str
+        Decoded list of non-empty name strings.
+
+    Raises
+    ------
+    ExodusError
+        If names array is invalid, contains empty strings, or duplicates.
+    """
     # netCDF can return a masked array so we need to deal with that
     names_raw = np.ma.filled(variable[:], b"")
 
@@ -152,7 +275,18 @@ def _read_exodus_names(variable: netCDF4.Variable) -> list[str]:
 
 
 def _build_nodal_map(dataset: netCDF4.Dataset) -> dict[str, int]:
+    """Construct lookup dictionary from nodal variable name to 1-based index.
 
+    Parameters
+    ----------
+    dataset : netCDF4.Dataset
+        Opened netCDF4 Exodus dataset.
+
+    Returns
+    -------
+    dict of str to int
+        Mapping of variable name to 1-based integer index.
+    """
     if "name_nod_var" not in dataset.variables:
         return {}
 
@@ -172,6 +306,28 @@ def _verify_dataset(
     nodal_keys: tuple[str, ...] | str | None,
     nodal_index: dict[str, int],
 ) -> None:
+    """Validate that required variables and schema exist in Exodus dataset.
+
+    Parameters
+    ----------
+    dataset : netCDF4.Dataset
+        Opened netCDF4 Exodus dataset.
+    exodus_file : pathlib.Path
+        Path to the Exodus file.
+    connect_keys : tuple of str
+        Requested connectivity variable names.
+    disp_keys : tuple of str
+        Requested displacement variable names.
+    nodal_keys : tuple of str, "all", or None
+        Requested nodal field variable names.
+    nodal_index : dict of str to int
+        Mapping of variable names to variable indices.
+
+    Raises
+    ------
+    ExodusError
+        If coordinates, connectivity tables, or requested fields are missing.
+    """
     has_component_coords = (
         "coordx" in dataset.variables and "coordy" in dataset.variables
     )
@@ -198,7 +354,7 @@ def _verify_dataset(
     names_with_values = (
         tuple(nodal_index) if nodal_keys == "all" else requested_nodal
     )
-    
+
     missing_values = []
     for name in names_with_values:
         if name not in nodal_index:
@@ -225,6 +381,24 @@ def _verify_dataset(
 
 
 def _read_coords(dataset: netCDF4.Dataset) -> np.ndarray:
+    """Read global node coordinates from an Exodus II netCDF dataset.
+
+    Parameters
+    ----------
+    dataset : netCDF4.Dataset
+        Opened netCDF4 Exodus dataset.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of node coordinates of shape `(N, 3)` and dtype `np.float64`,
+        where `N` is the number of nodes and columns represent `(x, y, z)`.
+
+    Raises
+    ------
+    ExodusError
+        If coordinate arrays are empty, non-finite, or malformed.
+    """
     has_component_coords = (
         "coordx" in dataset.variables and "coordy" in dataset.variables
     )
@@ -292,7 +466,29 @@ def _read_elem_blocks(
     connect_keys: tuple[str, ...],
     node_count: int,
 ) -> dict[str, ExodusBlock]:
+    """Read element connectivity blocks and parse element types.
 
+    Parameters
+    ----------
+    dataset : netCDF4.Dataset
+        Opened netCDF4 Exodus dataset.
+    connect_keys : tuple of str
+        Connectivity table names to read.
+    node_count : int
+        Total number of global nodes in the dataset.
+
+    Returns
+    -------
+    dict of str to ExodusBlock
+        Parsed element blocks containing connectivity table of shape `(E, M)`
+        and dtype `np.int64`.
+
+    Raises
+    ------
+    ExodusError
+        If connectivity tables contain invalid node indices, non-integer
+        dtypes, or invalid element attributes.
+    """
     elem_blocks: dict[str, ExodusBlock] = {}
     for key in connect_keys:
 
@@ -334,7 +530,31 @@ def _read_nodal_field(
     field_name: str,
     node_count: int,
 ) -> np.ndarray:
+    """Read a nodal scalar field across time steps into a (N, T) array.
 
+    Parameters
+    ----------
+    dataset : netCDF4.Dataset
+        Opened netCDF4 Exodus dataset.
+    nodal_index : dict of str to int
+        Mapping of variable name to 1-based integer variable index.
+    field_name : str
+        Name of the nodal field variable.
+    node_count : int
+        Expected node count `N`.
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of shape `(N, T)` and dtype `np.float64`, where `N` is the
+        number of nodes and `T` is the number of time frames.
+
+    Raises
+    ------
+    ExodusError
+        If variable shape does not match `node_count` or contains non-finite
+        values.
+    """
     variable_name = f"vals_nod_var{nodal_index[field_name]}"
     field_raw = _verify_unmasked_array(
         dataset.variables[variable_name][:], variable_name,
@@ -362,7 +582,24 @@ def _read_nodal_field(
 
 
 def _read_time(dataset: netCDF4.Dataset) -> np.ndarray | None:
+    """Read the simulation time step array from an Exodus II netCDF dataset.
 
+    Parameters
+    ----------
+    dataset : netCDF4.Dataset
+        Opened netCDF4 Exodus dataset.
+
+    Returns
+    -------
+    numpy.ndarray or None
+        Array of shape `(T,)` and dtype `np.float64` containing time values,
+        or None if `time_whole` is absent.
+
+    Raises
+    ------
+    ExodusError
+        If time array is non-1D or contains non-finite values.
+    """
     if "time_whole" not in dataset.variables:
         return None
 
@@ -385,7 +622,22 @@ def _verify_field_time_dims(
     nodal_vars: dict[str, np.ndarray],
     time: np.ndarray | None,
 ) -> None:
+    """Validate consistency of time dimension across displacement and fields.
 
+    Parameters
+    ----------
+    disp : tuple of numpy.ndarray or None
+        Displacement field component arrays.
+    nodal_vars : dict of str to numpy.ndarray
+        Nodal field arrays.
+    time : numpy.ndarray or None
+        Time steps array.
+
+    Raises
+    ------
+    ExodusError
+        If time dimension lengths differ across variables.
+    """
     fields = list(nodal_vars.values())
 
     if disp is not None:
@@ -413,7 +665,34 @@ def load_exodus(
     disp_keys: Sequence[str] | str | None = None,
     nodal_keys: Sequence[str] | str | None = None,
 ) -> ExodusSim:
+    """Load mesh topology, coordinates, displacements, and nodal fields.
 
+    Parameters
+    ----------
+    path : str or pathlib.Path
+        Path to the Exodus II netCDF file on disk.
+    connect_keys : Sequence[str] or str, default=("connect1",)
+        Connectivity table variable names to load.
+    disp_keys : Sequence[str], str, or None, default=None
+        Nodal variable names corresponding to displacement components
+        `(disp_x, disp_y, disp_z)`. At most 3 keys allowed.
+    nodal_keys : Sequence[str], str, "all", or None, default=None
+        Additional nodal variable names to load, or "all" for all variables.
+
+    Returns
+    -------
+    ExodusSim
+        Loaded simulation dataset with node coordinates of shape `(N, 3)`
+        and dtype `np.float64`, element blocks of shape `(E, M)` and dtype
+        `np.int64`, and displacement / nodal fields of shape `(N, T)` and
+        dtype `np.float64`.
+
+    Raises
+    ------
+    ExodusError
+        If the file does not exist, has an invalid schema, or fails integrity
+        checks.
+    """
     connect_keys_in, disp_keys_in, nodal_keys_in = _normalise_load_options(
         connect_keys, disp_keys, nodal_keys
     )
@@ -458,7 +737,7 @@ def load_exodus(
             nodal_vars[name] = _read_nodal_field(
                 dataset, nodal_index, name, coords.shape[0]
             )
-            
+
         time = _read_time(dataset)
 
     _verify_field_time_dims(disp, nodal_vars, time)

@@ -38,6 +38,29 @@ def load_csv(
     dtype: npt.DTypeLike = np.float64,
     skip_rows: int = 0,
 ) -> np.ndarray:
+    """Load a 2D numerical table from a comma-separated CSV file.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+        Path to the CSV file on disk.
+    dtype : numpy.typing.DTypeLike, default=np.float64
+        Target NumPy data type for the parsed array.
+    skip_rows : int, default=0
+        Number of initial header rows to skip.
+
+    Returns
+    -------
+    numpy.ndarray
+        Contiguous array of shape `(R, C)` matching `dtype`, where `R` is
+        the number of rows and `C` is the number of columns.
+
+    Raises
+    ------
+    ValueError
+        If `skip_rows < 0`, or the table contains non-finite values or
+        values incompatible with `dtype`.
+    """
     if skip_rows < 0:
         raise ValueError("skip_rows must be non-negative.")
 
@@ -75,6 +98,30 @@ def _prepare_component(
     nodes_num: int,
     name: str,
 ) -> np.ndarray:
+    """Validate and format a nodal vector field component across timesteps.
+
+    Parameters
+    ----------
+    values : numpy.ndarray
+        Array of shape `(N,)` or `(N, T)` with floating dtype, where `N` is
+        the number of nodes and `T` is the number of time frames.
+    nodes_num : int
+        Expected node count `N`.
+    name : str
+        Field name identifier for error reporting.
+
+    Returns
+    -------
+    numpy.ndarray
+        Contiguous array of shape `(N, T)` and dtype `np.float64`.
+
+    Raises
+    ------
+    TypeError
+        If `values` does not have a floating-point dtype.
+    ValueError
+        If array shape does not match `(N, T)` or contains non-finite values.
+    """
     array = np.asarray(values)
 
     if array.ndim == 1:
@@ -97,7 +144,31 @@ def _prepare_disp(
     nodes_num: int,
     source_node_idxs: np.ndarray,
 ) -> np.ndarray | None:
+    """Format and reorder displacement components into time-major array.
 
+    Parameters
+    ----------
+    disp : tuple of numpy.ndarray or None
+        Tuple `(disp_x, disp_y, disp_z)` where each component has shape
+        `(N,)` or `(N, T)` and floating dtype.
+    nodes_num : int
+        Expected original node count `N`.
+    source_node_idxs : numpy.ndarray
+        Array of shape `(K,)` and dtype `np.uintp` indexing retained nodes.
+
+    Returns
+    -------
+    numpy.ndarray or None
+        Time-major displacement array of shape `(T, K, 3)` and dtype
+        `np.float64`, where `T` is time frames, `K` is retained nodes,
+        and dimension 2 represents `(dx, dy, dz)`. Returns None if `disp`
+        is None.
+
+    Raises
+    ------
+    TypeError or ValueError
+        If `disp` structure, component shapes, or values are invalid.
+    """
     if disp is None:
         return None
 
@@ -127,6 +198,28 @@ def _prepare_uvs(
     nodes_num: int,
     source_node_idxs: np.ndarray,
 ) -> np.ndarray:
+    """Validate UV coordinates and subset them for retained nodes.
+
+    Parameters
+    ----------
+    values : numpy.ndarray
+        Array of shape `(N, 2)` and floating dtype, where `N` is the number
+        of nodes and columns represent normalized UV coordinates `(u, v)`.
+    nodes_num : int
+        Expected node count `N`.
+    source_node_idxs : numpy.ndarray
+        Array of shape `(K,)` and dtype `np.uintp` indexing retained nodes.
+
+    Returns
+    -------
+    numpy.ndarray
+        Contiguous array of shape `(K, 2)` and dtype `np.float64`.
+
+    Raises
+    ------
+    TypeError or ValueError
+        If array shape is not `(N, 2)` or contains non-finite values.
+    """
     array = np.asarray(values)
 
     if array.shape != (nodes_num, 2):
@@ -146,7 +239,27 @@ def _prepare_shader(
     nodes_num: int,
     source_node_idxs: np.ndarray,
 ) -> RileyShader:
+    """Subset shader attributes and format field data for retained nodes.
 
+    Parameters
+    ----------
+    shader : RileyShader
+        Input texture, nodal, or function shader.
+    nodes_num : int
+        Expected original node count `N`.
+    source_node_idxs : numpy.ndarray
+        Array of shape `(K,)` and dtype `np.uintp` indexing retained nodes.
+
+    Returns
+    -------
+    RileyShader
+        Configured shader targeting the retained surface nodes.
+
+    Raises
+    ------
+    TypeError or ValueError
+        If shader properties or field array shapes/dtypes are invalid.
+    """
     match shader:
         case TextureShader():
             texture = np.asarray(shader.texture)
@@ -170,7 +283,7 @@ def _prepare_shader(
                     )
                 texture = np.ascontiguousarray(texture, dtype=np.float64)
 
-            uvs = _prepare_uvs(shader.uvs, nodes_num, source_node_idxs)  
+            uvs = _prepare_uvs(shader.uvs, nodes_num, source_node_idxs)
 
             return TextureShader(
                 uvs, np.ascontiguousarray(texture), shader.sample,
@@ -217,12 +330,12 @@ def _prepare_shader(
             )
 
         case FunctionShader():
-        
+
             if shader.channels not in (1, 3):
                 raise ValueError(
                     "FunctionShader.channels must be one or three."
                 )
-                
+
             uvs_out = None
             if shader.uvs is not None:
                 uvs_out = _prepare_uvs(
@@ -254,6 +367,42 @@ def create_mesh(
     shader: RileyShader,
     disp: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
 ) -> Mesh:
+    """Build a renderable Riley Mesh from raw coordinates and connectivity.
+
+    Standardizes raw mesh connectivity, extracts boundary surfaces for 3D
+    volume meshes, performs required topological conversions or order
+    reductions, and bundles shader and displacement fields into a Riley
+    Cython `Mesh`.
+
+    Parameters
+    ----------
+    convention : ConnectConvention
+        Conventions describing the input connectivity table format.
+    mesh_type : MeshType
+        Target Riley rasteriser mesh representation.
+    coords : numpy.ndarray
+        Array of node coordinates of shape `(N, 3)` and dtype `np.float64`,
+        where `N` is the number of nodes and columns represent `(x, y, z)`.
+    connect : numpy.ndarray
+        Connectivity table of shape `(E, M)` or `(M, E)` with integer dtype,
+        where `E` is elements and `M` is nodes per element.
+    shader : RileyShader
+        Configured texture, nodal, or procedural function shader.
+    disp : tuple of numpy.ndarray or None, default=None
+        Optional displacement field tuple `(disp_x, disp_y, disp_z)`, where
+        each component has shape `(N,)` or `(N, T)` with floating dtype.
+
+    Returns
+    -------
+    Mesh
+        Compiled Riley Cython mesh instance ready for rasterisation.
+
+    Raises
+    ------
+    TypeError or MeshError or ValueError
+        If inputs are incompatible, topology conversion fails, or array
+        dimensions/dtypes do not meet requirements.
+    """
     if not isinstance(convention, ConnectConvention):
         raise TypeError("convention must be a ConnectConvention.")
 

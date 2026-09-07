@@ -29,6 +29,30 @@ def create_raster_config(
     total_threads: int = 1,
     save_strategy: SaveStrategy = SaveStrategy.both,
 ) -> RasterConfig:
+    """Create an offline RasterConfig balanced across frames and workers.
+
+    Parameters
+    ----------
+    num_frames : int
+        Number of frames to render. Must be a positive integer.
+    total_threads : int, default=1
+        Total number of worker threads available. Must be positive.
+    save_strategy : SaveStrategy, default=SaveStrategy.both
+        Strategy for retaining and writing rendered frame buffers.
+
+    Returns
+    -------
+    RasterConfig
+        Configured rasteriser settings.
+
+    Raises
+    ------
+    TypeError
+        If `num_frames` or `total_threads` is not an integer, or
+        `save_strategy` is not a `SaveStrategy` member.
+    ValueError
+        If `num_frames` or `total_threads` is not positive.
+    """
 
     if not isinstance(num_frames, Integral) or isinstance(num_frames, bool):
         raise TypeError("num_frames must be an integer.")
