@@ -36,7 +36,6 @@ from riley.python.exodusio import (
     ExodusError,
     ExodusSim,
     load_exodus,
-    parse_exodus_elem_type,
 )
 from riley.python.meshio import create_mesh, load_csv
 from riley.python.uvtools import (
@@ -70,7 +69,6 @@ __all__ = [
     "extract_surface",
     "load_csv",
     "load_exodus",
-    "parse_exodus_elem_type",
     "ETextureCoercion",
     "load_texture_mono_u8",
     "load_texture_mono_u16",

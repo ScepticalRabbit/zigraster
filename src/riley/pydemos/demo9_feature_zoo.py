@@ -202,8 +202,8 @@ def build_scene(channels: int, bits: int) -> list[riley.Mesh]:
     plate.coords[:, 1] = plate_x
     for index, center in enumerate(MESH_CENTERS):
         sceneops.center_mesh_group_at(
-            meshes,
-            sceneops.mesh_group_single(index),
+            [m.coords for m in meshes],
+            sceneops.create_mesh_group_single(index),
             center,
         )
     return meshes

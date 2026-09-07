@@ -107,7 +107,6 @@ from riley.python.exodusio import (
     ExodusError,
     ExodusSim,
     load_exodus,
-    parse_exodus_elem_type,
 )
 from riley.python.meshio import create_mesh, load_csv
 from riley.python.uvtools import (
@@ -180,7 +179,6 @@ __all__ = [
     "load_camera",
     "load_csv",
     "load_exodus",
-    "parse_exodus_elem_type",
     "load_stereo_pair",
     "load_texture_mono_u8",
     "load_texture_mono_u16",

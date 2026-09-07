@@ -349,12 +349,17 @@ def verify_mesh(mesh: MeshGeometry) -> None:
                 "connect contains indices outside the coordinate array.",
             ))
         else:
-            for ee, row in enumerate(connect):
-                if np.unique(row).shape[0] != row.shape[0]:
+            sorted_connect = np.sort(connect, axis=1)
+            has_duplicate = np.any(
+                sorted_connect[:, :-1] == sorted_connect[:, 1:],
+                axis=1,
+            )
+            if np.any(has_duplicate):
+                for ee in np.flatnonzero(has_duplicate):
                     issues.append(MeshVerifyIssue(
                         "duplicate_node",
                         "connectivity contains a duplicate node ID.",
-                        ee,
+                        int(ee),
                     ))
 
     if issues:
@@ -379,7 +384,9 @@ def _extract_surface_with_node_idxs(
     for elem_row in mesh.connect:
         for face_slots in spec.surf_faces:
             face = elem_row[np.asarray(face_slots, dtype=np.uintp)]
-            face_nodes = [int(node) for node in face[:corner_count]]
+            face_nodes: list[int] = []
+            for node in face[:corner_count]:
+                face_nodes.append(int(node))
             face_key = tuple(sorted(face_nodes))
             face_uses.setdefault(face_key, []).append(face)
 

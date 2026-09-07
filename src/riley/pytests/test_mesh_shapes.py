@@ -280,7 +280,7 @@ def test_shape_exodus_loading_and_conversion(
         disp_keys=("disp_x", "disp_y", "disp_z"),
         nodal_keys=("temperature",),
     )
-    block = list(sim.blocks.values())[0]
+    block = list(sim.elem_blocks.values())[0]
     expected_enum = _ELEM_ENUM_MAP[elem_type]
     assert block.elem_type is expected_enum
 
@@ -539,8 +539,8 @@ def test_multishape_exodus_loading_and_invariants(
         disp_keys=("disp_x", "disp_y", "disp_z"),
         nodal_keys=("temperature",),
     )
-    b1 = sim.blocks["connect1"]
-    b2 = sim.blocks["connect2"]
+    b1 = sim.elem_blocks["connect1"]
+    b2 = sim.elem_blocks["connect2"]
     assert b1.elem_type is cube_type
     assert b2.elem_type is cyl_type
 
@@ -676,7 +676,7 @@ def test_platewithhole2d_exodus_loading_and_invariants(
         disp_keys=("disp_x", "disp_y"),
         nodal_keys=("temperature",),
     )
-    b1 = sim.blocks["connect1"]
+    b1 = sim.elem_blocks["connect1"]
     assert b1.elem_type is elem_type
 
     mesh = convert_mesh(

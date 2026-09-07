@@ -37,7 +37,7 @@ def _load_texture_array(texture_path: str | Path) -> np.ndarray:
                 texture = raw[:, :, ::-1]
             else:
                 texture = raw
-    except Exception:
+    except (cv2.error, OSError, ValueError):
         texture = None
 
     if texture is None:
@@ -80,7 +80,7 @@ def _coerce_channels(
                 "RGB texture requires ETextureCoercion.RGB_TO_MONO."
             )
         weights = np.array((0.299, 0.587, 0.114), dtype=np.float64)
-        mono = np.rint(np.einsum("ijk,k->ij", texture, weights))
+        mono = np.rint(texture @ weights)
         return mono.astype(texture.dtype)
     if source_channels == 1 and channels == 3:
         if ETextureCoercion.MONO_TO_RGB not in coercion:

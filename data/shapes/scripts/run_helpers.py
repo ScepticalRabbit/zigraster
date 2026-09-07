@@ -213,8 +213,8 @@ def extract_exodus_csvs(
     np.savetxt(coords_csv, sim.coords, delimiter=",", fmt="%.8f")
     out_paths: dict[str, Path] = {"coords": coords_csv}
 
-    if len(sim.blocks) == 1:
-        block = list(sim.blocks.values())[0]
+    if len(sim.elem_blocks) == 1:
+        block = list(sim.elem_blocks.values())[0]
         converted = riley.convert_mesh(
             sim.coords,
             block.connect,
@@ -231,7 +231,7 @@ def extract_exodus_csvs(
         out_paths["connectivity"] = connect_csv
     else:
         block_names = ("cube", "cylinder")
-        for idx, (b_key, block) in enumerate(sim.blocks.items()):
+        for idx, (b_key, block) in enumerate(sim.elem_blocks.items()):
             converted = riley.convert_mesh(
                 sim.coords,
                 block.connect,
@@ -291,7 +291,7 @@ def extract_exodus_csvs(
     print(
         f"Saved CSVs for {prefix.rstrip('_')}: "
         f"coords {sim.coords.shape}, "
-        f"blocks {len(sim.blocks)}, fields "
+        f"blocks {len(sim.elem_blocks)}, fields "
         f"{sim.disp[0].shape if sim.disp is not None else 'None'}"
     )
     return out_paths

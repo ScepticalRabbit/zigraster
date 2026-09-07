@@ -45,7 +45,7 @@ def main() -> None:
         exodus_path,
         disp_keys=("disp_x", "disp_y", "disp_z"),
     )
-    block = sim.blocks["connect1"]
+    block = sim.elem_blocks["connect1"]
     assert sim.disp is not None
     frame_indices = first_last_frame_indices(sim.disp[0].shape[1])
     disp = tuple(item[:, frame_indices] for item in sim.disp)

@@ -9,9 +9,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import Protocol, Sequence
 
 import numpy as np
 
@@ -22,10 +22,6 @@ class EOverlapDirect(Enum):
     NEGATIVE = "negative"
     CURRENT = "current"
     POSITIVE = "positive"
-
-
-class MeshCoords(Protocol):
-    coords: np.ndarray
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,8 +58,7 @@ class BoundsOverlapSpec:
     extra_offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
 
 
-def mesh_group_span(mesh_start: int, mesh_len: int) -> MeshGroup:
-
+def create_mesh_group_span(mesh_start: int, mesh_len: int) -> MeshGroup:
     if mesh_start < 0:
         raise ValueError("mesh_start must be non-negative.")
 
@@ -73,12 +68,14 @@ def mesh_group_span(mesh_start: int, mesh_len: int) -> MeshGroup:
     return MeshGroup(mesh_start=mesh_start, mesh_len=mesh_len)
 
 
-def mesh_group_single(mesh_idx: int) -> MeshGroup:
-    return mesh_group_span(mesh_idx, 1)
+def create_mesh_group_single(mesh_idx: int) -> MeshGroup:
+    return create_mesh_group_span(mesh_idx, 1)
 
 
-def _group_indices(meshes: Sequence[MeshCoords], group: MeshGroup) -> range:
-
+def _get_group_indices(
+    coords_list: Sequence[np.ndarray],
+    group: MeshGroup,
+) -> range:
     if group.mesh_start < 0 or group.mesh_len <= 0:
         raise ValueError(
             "Mesh groups require a non-negative start and positive length.",
@@ -86,14 +83,13 @@ def _group_indices(meshes: Sequence[MeshCoords], group: MeshGroup) -> range:
 
     group_end = group.mesh_start + group.mesh_len
 
-    if group_end > len(meshes):
+    if group_end > len(coords_list):
         raise IndexError("Mesh group extends beyond the mesh sequence.")
 
     return range(group.mesh_start, group_end)
 
 
-def bounds_for_coords(coords: np.ndarray) -> Bounds3D:
-
+def calc_bounds_for_coords(coords: np.ndarray) -> Bounds3D:
     coords_in = _validate_coords(coords, "Mesh coordinates")
     minimum = np.min(coords_in, axis=0)
     maximum = np.max(coords_in, axis=0)
@@ -106,14 +102,19 @@ def bounds_for_coords(coords: np.ndarray) -> Bounds3D:
     )
 
 
-def _bounds_for_indices(
-    meshes: Sequence[MeshCoords],
+def _calc_bounds_for_indices(
+    coords_list: Sequence[np.ndarray],
     indices: range,
 ) -> Bounds3D:
+    mins: list[np.ndarray] = []
+    maxs: list[np.ndarray] = []
+    for index in indices:
+        bounds = calc_bounds_for_coords(coords_list[index])
+        mins.append(bounds.minimum)
+        maxs.append(bounds.maximum)
 
-    mesh_bounds = [bounds_for_coords(meshes[index].coords) for index in indices]
-    minimum = np.min([bounds.minimum for bounds in mesh_bounds], axis=0)
-    maximum = np.max([bounds.maximum for bounds in mesh_bounds], axis=0)
+    minimum = np.min(mins, axis=0)
+    maximum = np.max(maxs, axis=0)
 
     return Bounds3D(
         minimum=minimum,
@@ -123,48 +124,53 @@ def _bounds_for_indices(
     )
 
 
-def bounds_for_meshes(meshes: Sequence[MeshCoords]) -> Bounds3D:
-    if not meshes:
+def calc_bounds_for_coords_list(
+    coords_list: Sequence[np.ndarray],
+) -> Bounds3D:
+    if not coords_list:
         raise ValueError("At least one mesh is required.")
 
-    return _bounds_for_indices(meshes, range(len(meshes)))
+    return _calc_bounds_for_indices(coords_list, range(len(coords_list)))
 
 
-def bounds_for_mesh_group(
-    meshes: Sequence[MeshCoords],
+def calc_bounds_for_mesh_group(
+    coords_list: Sequence[np.ndarray],
     group: MeshGroup,
 ) -> Bounds3D:
-    return _bounds_for_indices(meshes, _group_indices(meshes, group))
+    return _calc_bounds_for_indices(
+        coords_list,
+        _get_group_indices(coords_list, group),
+    )
 
 
 def translate_mesh_group(
-    meshes: Sequence[MeshCoords],
+    coords_list: Sequence[np.ndarray],
     group: MeshGroup,
     translation: tuple[float, float, float] | np.ndarray,
 ) -> None:
     translation_array = _validate_vec3(translation, "translation")
-    for index in _group_indices(meshes, group):
-        coords = _validate_coords(meshes[index].coords, "Mesh coordinates")
+    for index in _get_group_indices(coords_list, group):
+        coords = coords_list[index]
+        _ = _validate_coords(coords, "Mesh coordinates")
         if not np.issubdtype(coords.dtype, np.floating):
             raise TypeError("Mesh coordinates must use a floating-point dtype.")
         coords += translation_array
 
 
 def center_mesh_group_at(
-    meshes: Sequence[MeshCoords],
+    coords_list: Sequence[np.ndarray],
     group: MeshGroup,
     target_center: tuple[float, float, float] | np.ndarray,
 ) -> None:
-    bounds = bounds_for_mesh_group(meshes, group)
+    bounds = calc_bounds_for_mesh_group(coords_list, group)
     target = _validate_vec3(target_center, "target_center")
-    translate_mesh_group(meshes, group, target - bounds.center)
+    translate_mesh_group(coords_list, group, target - bounds.center)
 
 
 def _calc_overlap_sign(
     current_sep: float,
     direct: EOverlapDirect,
 ) -> float:
-
     if direct is EOverlapDirect.NEGATIVE:
         return -1.0
 
@@ -178,12 +184,11 @@ def _calc_overlap_sign(
 
 
 def overlap_mesh_group_bounds(
-    meshes: Sequence[MeshCoords],
+    coords_list: Sequence[np.ndarray],
     fixed_group: MeshGroup,
     moving_group: MeshGroup,
     spec: BoundsOverlapSpec,
 ) -> None:
-
     overlap = _validate_vec3(spec.overlap_frac, "overlap_frac")
     if np.any((overlap < 0.0) | (overlap > 1.0)):
         raise ValueError("overlap_frac values must lie in [0, 1].")
@@ -196,8 +201,8 @@ def overlap_mesh_group_bounds(
         raise ValueError("direct must contain three values.")
 
     extra_offset = _validate_vec3(spec.extra_offset, "extra_offset")
-    fixed_bounds = bounds_for_mesh_group(meshes, fixed_group)
-    moving_bounds = bounds_for_mesh_group(meshes, moving_group)
+    fixed_bounds = calc_bounds_for_mesh_group(coords_list, fixed_group)
+    moving_bounds = calc_bounds_for_mesh_group(coords_list, moving_group)
     translation = extra_offset.copy()
 
     for axis in range(3):
@@ -222,15 +227,14 @@ def overlap_mesh_group_bounds(
 
         translation[axis] = target - moving_bounds.center[axis]
 
-    translate_mesh_group(meshes, moving_group, translation)
+    translate_mesh_group(coords_list, moving_group, translation)
 
 
 def arrange_mesh_groups_grid(
-    meshes: Sequence[MeshCoords],
+    coords_list: Sequence[np.ndarray],
     groups: Sequence[MeshGroup],
     spec: GridSpec,
 ) -> None:
-
     if not groups:
         return
 
@@ -249,10 +253,15 @@ def arrange_mesh_groups_grid(
     if len(groups) > grid_capacity:
         raise ValueError("Mesh groups exceed the grid capacity.")
 
-    group_bounds = [bounds_for_mesh_group(meshes, group) for group in groups]
-    max_extent = np.max([bounds.extent for bounds in group_bounds], axis=0)
+    group_extents: list[np.ndarray] = []
+    for group in groups:
+        bounds = calc_bounds_for_mesh_group(coords_list, group)
+        group_extents.append(bounds.extent)
+
+    max_extent = np.max(group_extents, axis=0)
     stride = max_extent + gap
-    x_divs, y_divs, _ = (int(value) for value in divisions)
+    x_divs = int(divisions[0])
+    y_divs = int(divisions[1])
 
     for index, group in enumerate(groups):
         grid_index = (
@@ -260,13 +269,38 @@ def arrange_mesh_groups_grid(
             (index // x_divs) % y_divs,
             index // (x_divs * y_divs),
         )
-        center_mesh_group_at(meshes, group, np.asarray(grid_index) * stride)
+        center_mesh_group_at(
+            coords_list,
+            group,
+            np.asarray(grid_index) * stride,
+        )
+
+
+mesh_group_span = create_mesh_group_span
+mesh_group_single = create_mesh_group_single
+bounds_for_coords = calc_bounds_for_coords
+bounds_for_meshes = calc_bounds_for_coords_list
+bounds_for_mesh_group = calc_bounds_for_mesh_group
 
 
 __all__ = [
-    "Bounds3D", "BoundsOverlapSpec", "EOverlapDirect", "GridSpec",
-    "MeshGroup", "arrange_mesh_groups_grid",
-    "bounds_for_coords", "bounds_for_mesh_group", "bounds_for_meshes",
-    "center_mesh_group_at", "mesh_group_single", "mesh_group_span",
-    "overlap_mesh_group_bounds", "translate_mesh_group",
+    "Bounds3D",
+    "BoundsOverlapSpec",
+    "EOverlapDirect",
+    "GridSpec",
+    "MeshGroup",
+    "arrange_mesh_groups_grid",
+    "bounds_for_coords",
+    "bounds_for_mesh_group",
+    "bounds_for_meshes",
+    "calc_bounds_for_coords",
+    "calc_bounds_for_coords_list",
+    "calc_bounds_for_mesh_group",
+    "center_mesh_group_at",
+    "create_mesh_group_single",
+    "create_mesh_group_span",
+    "mesh_group_single",
+    "mesh_group_span",
+    "overlap_mesh_group_bounds",
+    "translate_mesh_group",
 ]

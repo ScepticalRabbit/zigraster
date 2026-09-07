@@ -144,9 +144,9 @@ def main() -> None:
         )
 
         sceneops.overlap_mesh_group_bounds(
-            mesh_inputs,
-            sceneops.mesh_group_single(pair_start),
-            sceneops.mesh_group_single(pair_start + 1),
+            [m.coords for m in mesh_inputs],
+            sceneops.create_mesh_group_single(pair_start),
+            sceneops.create_mesh_group_single(pair_start + 1),
             sceneops.BoundsOverlapSpec(
                 overlap_frac=(0.85, 0.8, 0.0),
                 enabled_axes=(True, True, False),
@@ -157,10 +157,10 @@ def main() -> None:
                 ),
             ),
         )
-        group_list.append(sceneops.mesh_group_span(pair_start, 2))
+        group_list.append(sceneops.create_mesh_group_span(pair_start, 2))
 
     sceneops.arrange_mesh_groups_grid(
-        mesh_inputs,
+        [m.coords for m in mesh_inputs],
         group_list,
         sceneops.GridSpec(gap=(0.18, 0.28, 0.0), max_divs=(3, 2, 1)),
     )

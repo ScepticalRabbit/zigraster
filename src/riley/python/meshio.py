@@ -111,8 +111,9 @@ def _prepare_disp(
 
     components = tuple(components_out)
 
-    if any(item.shape != components[0].shape for item in components[1:]):
-        raise ValueError("Displacement components must have equal shapes.")
+    for item in components[1:]:
+        if item.shape != components[0].shape:
+            raise ValueError("Displacement components must have equal shapes.")
 
     stacked = np.stack(components, axis=2)
 

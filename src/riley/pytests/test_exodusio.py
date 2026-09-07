@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 
 import riley
+from riley.python.exodusio import _parse_exodus_elem_type
 
 
 @pytest.mark.parametrize(
@@ -43,7 +44,7 @@ def test_parse_exodus_elem_type(
     node_count: int,
     expected: riley.EElemType,
 ) -> None:
-    assert riley.parse_exodus_elem_type(type_name, node_count) is expected
+    assert _parse_exodus_elem_type(type_name, node_count) is expected
 
 
 def test_load_exodus_platehole() -> None:
@@ -52,7 +53,7 @@ def test_load_exodus_platehole() -> None:
         disp_keys=("disp_x", "disp_y", "disp_z"),
         nodal_keys=("stress_yy", "vonmises_stress"),
     )
-    block = sim.blocks["connect1"]
+    block = sim.elem_blocks["connect1"]
     assert sim.coords.shape == (4032, 3)
     assert sim.coords.dtype == np.float64
     assert sim.coords.flags.c_contiguous
@@ -61,7 +62,8 @@ def test_load_exodus_platehole() -> None:
     assert block.elem_type is riley.EElemType.HEX20
     assert sim.disp is not None
     assert len(sim.disp) == 3
-    assert all(component.shape == (4032, 64) for component in sim.disp)
+    for component in sim.disp:
+        assert component.shape == (4032, 64)
     assert sim.time is not None
     assert sim.time.shape == (64,)
     assert sim.nodal_vars["stress_yy"].shape == (4032, 64)

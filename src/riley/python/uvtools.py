@@ -122,7 +122,7 @@ def _project_coords(
     return np.column_stack((difference @ u_axis, difference @ v_axis))
 
 
-def _proj_bounds(
+def _calc_proj_bounds(
     projected: np.ndarray,
 ) -> tuple[float, float, float, float]:
     minimum = np.min(projected, axis=0)
@@ -136,13 +136,13 @@ def _proj_bounds(
     )
 
 
-def _uvs_from_proj(
+def _calc_uvs_from_proj(
     projected: np.ndarray,
     texture_size: tuple[float, float],
     px_bbox: tuple[float, float, float, float],
     mode: EPlanarProjMode,
 ) -> np.ndarray:
-    x_min, x_max, y_min, y_max = _proj_bounds(projected)
+    x_min, x_max, y_min, y_max = _calc_proj_bounds(projected)
     px_bounds = _validate_finite_f64(px_bbox, "px_bbox", (4,))
     px_x_lower, px_y_lower, px_x_upper, px_y_upper = px_bounds
     if px_x_upper <= px_x_lower or px_y_upper <= px_y_lower:
@@ -179,7 +179,7 @@ def project_uvs_planar_bbox(
     coords_in = _validate_coords(coords, contiguous_f64=True)
     texture_size_in = _validate_texture_size(texture_size)
     projected = _project_coords(coords_in, proj_plane)
-    return _uvs_from_proj(projected, texture_size_in, px_bbox, mode)
+    return _calc_uvs_from_proj(projected, texture_size_in, px_bbox, mode)
 
 
 def project_uvs_planar_centered(
@@ -195,7 +195,7 @@ def project_uvs_planar_centered(
             "uv_span_max must be finite and in the interval (0, 1].",
         )
     projected = _project_coords(coords_in, proj_plane)
-    x_min, x_max, y_min, y_max = _proj_bounds(projected)
+    x_min, x_max, y_min, y_max = _calc_proj_bounds(projected)
     aspect_ratio_ratio = (
         (x_max - x_min) / (y_max - y_min)
         / (texture_width / texture_height)
@@ -216,7 +216,7 @@ def project_uvs_planar_centered(
         (1.0 - u_min) * (texture_width - 1.0),
         (1.0 - v_min) * (texture_height - 1.0),
     )
-    return _uvs_from_proj(
+    return _calc_uvs_from_proj(
         projected, (texture_width, texture_height), px_bbox, mode,
     )
 

@@ -149,8 +149,13 @@ RILEY_HEX20_FACE_TABLE = (
     (0, 3, 2, 1, 11, 10, 9, 8),
     (4, 5, 6, 7, 12, 13, 14, 15),
 )
-RILEY_HEX27_FACE_TABLE = tuple(
-    face + (20 + idx,) for idx, face in enumerate(RILEY_HEX20_FACE_TABLE)
+RILEY_HEX27_FACE_TABLE = (
+    (0, 4, 7, 3, 16, 15, 19, 11, 20),
+    (1, 2, 6, 5, 9, 18, 13, 17, 21),
+    (0, 1, 5, 4, 8, 17, 12, 16, 22),
+    (3, 7, 6, 2, 19, 14, 18, 10, 23),
+    (0, 3, 2, 1, 11, 10, 9, 8, 24),
+    (4, 5, 6, 7, 12, 13, 14, 15, 25),
 )
 RILEY_HEX_FACE_CORNER_TABLE = (
     (0, 4, 7, 3), (1, 2, 6, 5), (0, 1, 5, 4),
@@ -222,10 +227,10 @@ RILEY_SURF_TYPE_BY_NODE_COUNT_MAP = {
 }
 
 # Permutation maps from external formats to Riley standard ordering
-VTK_TO_RILEY_MAP = {
-    elem_type: tuple(range(spec.node_count))
-    for elem_type, spec in RILEY_ELEM_TOP_MAP.items()
-}
+VTK_TO_RILEY_MAP: dict[EElemType, tuple[int, ...]] = {}
+for elem_type, spec in RILEY_ELEM_TOP_MAP.items():
+    VTK_TO_RILEY_MAP[elem_type] = tuple(range(spec.node_count))
+
 EXODUS_TO_RILEY_MAP = {
     **VTK_TO_RILEY_MAP,
     EElemType.HEX20: (

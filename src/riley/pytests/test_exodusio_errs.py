@@ -27,7 +27,7 @@ def test_parse_exodus_elem_type_rejects_invalid_input(
     message: str,
 ) -> None:
     with pytest.raises(exodusio.ExodusError, match=message):
-        exodusio.parse_exodus_elem_type(type_name, node_count)
+        exodusio._parse_exodus_elem_type(type_name, node_count)
 
 
 @pytest.mark.parametrize(
