@@ -47,7 +47,7 @@ pub fn build(b: *std.Build) void {
     const speckle_evaluator = b.option(
         []const u8,
         "speckle-evaluator",
-        "Procedural speckle evaluator: cell-hash, list-naive, list-indexed, mask-1bit, or mask-u8",
+        "Procedural speckle evaluator: cell-hash, list-naive, list-indexed, classified-indexed, direct-fixed, mask-1bit, or mask-u8",
     ) orelse "mask-1bit";
     const speckle_shape = b.option(
         []const u8,
@@ -57,7 +57,7 @@ pub fn build(b: *std.Build) void {
     const speckle_mask_samples_per_cell = b.option(
         u8,
         "speckle-mask-samples-per-cell",
-        "Speckle mask resolution per cell: 8, 12, or 16",
+        "Speckle mask/classification resolution per cell: 8, 12, or 16",
     ) orelse 12;
     validatePrecision(precision);
     validateSimd(simd);
@@ -70,6 +70,7 @@ pub fn build(b: *std.Build) void {
         speckle_evaluator,
         speckle_shape,
         speckle_boundary_blur,
+        speckle_neighbor_count,
     );
 
     const build_options_module = createBuildOptionsModule(
@@ -141,10 +142,13 @@ pub fn build(b: *std.Build) void {
     const speckle_configs = [_]struct {
         evaluator: []const u8,
         shape: []const u8,
+        neighbor_count: u8 = 9,
     }{
         .{ .evaluator = "cell-hash", .shape = "gaussian" },
         .{ .evaluator = "list-naive", .shape = "gaussian" },
         .{ .evaluator = "list-indexed", .shape = "gaussian" },
+        .{ .evaluator = "classified-indexed", .shape = "disk" },
+        .{ .evaluator = "direct-fixed", .shape = "disk", .neighbor_count = 1 },
         .{ .evaluator = "mask-1bit", .shape = "disk" },
         .{ .evaluator = "mask-u8", .shape = "gaussian" },
         .{ .evaluator = "mask-u8", .shape = "perlin" },
@@ -171,7 +175,7 @@ pub fn build(b: *std.Build) void {
             newton_solver,
             simd_vector_width,
             false,
-            speckle_neighbor_count,
+            config.neighbor_count,
             config.evaluator,
             config.shape,
             speckle_mask_samples_per_cell,
@@ -757,15 +761,18 @@ fn validateSpeckleEvaluator(evaluator: []const u8) void {
     if (std.mem.eql(u8, evaluator, "cell-hash") or
         std.mem.eql(u8, evaluator, "list-naive") or
         std.mem.eql(u8, evaluator, "list-indexed") or
+        std.mem.eql(u8, evaluator, "classified-indexed") or
+        std.mem.eql(u8, evaluator, "direct-fixed") or
         std.mem.eql(u8, evaluator, "mask-1bit") or
         std.mem.eql(u8, evaluator, "mask-u8")) return;
-    @panic("Supported -Dspeckle-evaluator values are cell-hash, list-naive, list-indexed, mask-1bit, and mask-u8.");
+    @panic("Supported -Dspeckle-evaluator values are cell-hash, list-naive, list-indexed, classified-indexed, direct-fixed, mask-1bit, and mask-u8.");
 }
 
 fn validateSpeckleEvaluatorConfig(
     evaluator: []const u8,
     shape: []const u8,
     boundary_blur: bool,
+    neighbor_count: u8,
 ) void {
     if (std.mem.eql(u8, shape, "perlin") and
         !std.mem.eql(u8, evaluator, "mask-u8"))
@@ -776,6 +783,16 @@ fn validateSpeckleEvaluatorConfig(
         (!std.mem.eql(u8, shape, "disk") or boundary_blur))
     {
         @panic("-Dspeckle-evaluator=mask-1bit requires -Dspeckle-shape=disk and -Dspeckle-boundary-blur=false.");
+    }
+    if (std.mem.eql(u8, evaluator, "classified-indexed") and
+        (!std.mem.eql(u8, shape, "disk") or boundary_blur or neighbor_count != 9))
+    {
+        @panic("-Dspeckle-evaluator=classified-indexed requires -Dspeckle-shape=disk, -Dspeckle-boundary-blur=false, and -Dspeckle-neighbor-count=9.");
+    }
+    if (std.mem.eql(u8, evaluator, "direct-fixed") and
+        (!std.mem.eql(u8, shape, "disk") or boundary_blur or neighbor_count != 1))
+    {
+        @panic("-Dspeckle-evaluator=direct-fixed requires -Dspeckle-shape=disk, -Dspeckle-boundary-blur=false, and -Dspeckle-neighbor-count=1.");
     }
 }
 

@@ -20,6 +20,8 @@ fn evaluatorName(evaluator: buildconfig.SpeckleEvaluator) []const u8 {
         .cell_hash => "cell-hash",
         .list_naive => "list-naive",
         .list_indexed => "list-indexed",
+        .classified_indexed => "classified-indexed",
+        .direct_fixed => "direct-fixed",
         .mask_1bit => "mask-1bit",
         .mask_u8 => "mask-u8",
     };
@@ -55,7 +57,7 @@ test "selected speckle evaluator prepares its production resources" {
         .cells_per_uv = .{ 24.0, 20.0 },
         .occupancy = 0.8,
         .radius_mean = 0.42,
-        .radius_jitter = 0.06,
+        .radius_jitter = if (comptime buildconfig.speckle_direct_fixed) 0.0 else 0.06,
         .edge_softness = 0.03,
     };
     const mesh_input = meshpipeline.MeshInput{
@@ -83,6 +85,14 @@ test "selected speckle evaluator prepares its production resources" {
     try std.testing.expectEqual(
         std.mem.startsWith(u8, expected_evaluator, "list-"),
         func_static.speckle_list != null,
+    );
+    try std.testing.expectEqual(
+        std.mem.eql(u8, expected_evaluator, "classified-indexed"),
+        func_static.speckle_classified != null,
+    );
+    try std.testing.expectEqual(
+        std.mem.eql(u8, expected_evaluator, "direct-fixed"),
+        func_static.speckle_direct_fixed != null,
     );
     try std.testing.expectEqual(
         std.mem.startsWith(u8, expected_evaluator, "mask-"),

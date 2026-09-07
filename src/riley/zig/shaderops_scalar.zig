@@ -225,15 +225,26 @@ inline fn evalPreparedSpeckleMaskScal(
         params.output_offset;
 }
 
-inline fn evalFuncShaderGreyPreparedScal(
+pub inline fn evalFuncShaderGreyPreparedScal(
     shader: *const comm.FuncPrepared,
     coord: comm.FuncCoord,
 ) F {
     if (shader.builtin == .speckle) {
         const uv = [2]F{ coord.coord_0, coord.coord_1 };
         const params = shader.params;
-        switch (comptime buildconfig.speckle_evaluator) {
+        if (comptime buildconfig.speckle_classified_indexed) {
+            if (shader.speckle_classified) |classified| {
+                return comm.evalClassifiedIndexedSpeckle2D(uv, classified) *
+                    params.output_scale + params.output_offset;
+            }
+        } else if (comptime buildconfig.speckle_direct_fixed) {
+            if (shader.speckle_direct_fixed) |direct| {
+                return comm.evalDirectFixedSpeckle2D(uv, direct) *
+                    params.output_scale + params.output_offset;
+            }
+        } else switch (comptime buildconfig.speckle_evaluator) {
             .cell_hash => {},
+            .classified_indexed, .direct_fixed => unreachable,
             .list_naive, .list_indexed => {
                 if (shader.speckle_list) |speckles| {
                     return comm.evalSpeckleList2D(uv, speckles) *
@@ -316,6 +327,65 @@ pub inline fn fillFuncPerspScal(
             const idx = ch * spx_img_scratch.cols_num + ctx_shade.scratch_idx;
             spx_img_scratch.slice[idx] = vals[ch] * shader.scale_mul + shader.scale_add;
         }
+    }
+}
+
+test "direct fixed scalar handles active inactive nonfinite and scaling" {
+    if (comptime !buildconfig.speckle_direct_fixed) return;
+
+    const inactive: comm.DirectFixedSpeckleCell2D = 0;
+    const cells = [_]comm.DirectFixedSpeckleCell2D{
+        0x0000_8000_8000_0001,
+        inactive,
+        inactive,
+        inactive,
+        inactive,
+        inactive,
+    };
+    const speckle_params: comm.Speckle2DParams = .{
+        .cells_per_uv = .{ 2.0, 1.0 },
+        .occupancy = 0.5,
+        .radius_mean = 0.25,
+        .foreground = 0.2,
+        .background = 0.8,
+    };
+    const direct: comm.DirectFixedSpeckle2D = .{
+        .params = speckle_params,
+        .cells = &cells,
+        .cell_origin = .{ 0, 0 },
+        .cell_dims = .{ 3, 2 },
+        .radius2 = 0.25 * 0.25,
+    };
+    const shader: comm.FuncPrepared = .{
+        .elem_uvs = null,
+        .speckle_direct_fixed = direct,
+        .builtin = .speckle,
+        .params = .{
+            .output_scale = 1.75,
+            .output_offset = -0.125,
+            .settings = .{ .speckle = speckle_params },
+        },
+    };
+    const foreground = speckle_params.foreground * shader.params.output_scale +
+        shader.params.output_offset;
+    const background = speckle_params.background * shader.params.output_scale +
+        shader.params.output_offset;
+    const coords = [_][2]F{
+        .{ 0.25, 0.5 },
+        .{ 0.1, 0.5 },
+        .{ 0.75, 0.5 },
+        .{ std.math.nan(F), 0.5 },
+        .{ 0.25, std.math.inf(F) },
+    };
+    for (coords, 0..) |uv, index| {
+        const actual = evalFuncShaderGreyPreparedScal(&shader, .{
+            .coord_0 = uv[0],
+            .coord_1 = uv[1],
+            .normal_x = 0.0,
+            .normal_y = 0.0,
+            .normal_z = 0.0,
+        });
+        try std.testing.expectEqual(if (index == 0) foreground else background, actual);
     }
 }
 

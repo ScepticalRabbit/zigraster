@@ -144,7 +144,10 @@ pub fn main(init: std.process.Init) !void {
 // --------------------------------------------------------------------------------------
 
 const DemoArgs = struct {
-    params: shaderops.Speckle2DParams = .{},
+    params: shaderops.Speckle2DParams = if (buildconfig.speckle_direct_fixed)
+        .{ .radius_jitter = 0.0 }
+    else
+        .{},
     out_dir: []const u8 = out_dir_def,
     pixels_num: [2]u32 = pixel_num,
 };
@@ -154,6 +157,8 @@ fn printProceduralConfig(params: shaderops.Speckle2DParams, pixels_num: [2]u32) 
         .cell_hash => "cell-hash",
         .list_naive => "list-naive",
         .list_indexed => "list-indexed",
+        .classified_indexed => "classified-indexed",
+        .direct_fixed => "direct-fixed",
         .mask_1bit => "mask-1bit",
         .mask_u8 => "mask-u8",
     };
@@ -196,10 +201,32 @@ fn printProceduralConfig(params: shaderops.Speckle2DParams, pixels_num: [2]u32) 
             );
         },
         .disk, .gaussian => {
-            std.debug.print("  nominal radius: {d} cell units\n", .{params.radius_mean});
-            std.debug.print("  radius jitter: {d} cell units\n", .{params.radius_jitter});
+            if (comptime buildconfig.speckle_evaluator == .direct_fixed) {
+                std.debug.print("  fixed radius: {d} cell units\n", .{params.radius_mean});
+                std.debug.print("  radius jitter: zero (required by direct-fixed)\n", .{});
+            } else {
+                std.debug.print("  nominal radius: {d} cell units\n", .{params.radius_mean});
+                std.debug.print("  radius jitter: {d} cell units\n", .{params.radius_jitter});
+            }
             std.debug.print("  occupancy: {d}\n", .{params.occupancy});
         },
+    }
+
+    if (comptime buildconfig.speckle_evaluator == .classified_indexed) {
+        const samples: F = @floatFromInt(buildconfig.speckle_mask_samples_per_cell);
+        const classification_dims = [2]F{
+            @ceil(params.cells_per_uv[0] * samples),
+            @ceil(params.cells_per_uv[1] * samples),
+        };
+        std.debug.print("  classifier: precomputed static 2-bit classification\n", .{});
+        std.debug.print(
+            "  classification resolution: {d} x {d} microcells ({d} samples/cell)\n",
+            .{
+                classification_dims[0],
+                classification_dims[1],
+                buildconfig.speckle_mask_samples_per_cell,
+            },
+        );
     }
 
     if (comptime buildconfig.speckle_evaluator == .mask_1bit or

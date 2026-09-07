@@ -404,10 +404,23 @@ pub fn initMeshStatic(
                 tex_func_in.params,
             );
             var speckle_list: ?shaderops.SpeckleList2D = null;
+            var speckle_classified: ?shaderops.ClassifiedIndexedSpeckle2D = null;
+            var speckle_direct_fixed: ?shaderops.DirectFixedSpeckle2D = null;
             var speckle_mask: ?shaderops.SpeckleMask2D = null;
             if (tex_func_in.builtin == .speckle) {
-                switch (comptime buildconfig.speckle_evaluator) {
+                if (comptime buildconfig.speckle_classified_indexed) {
+                    speckle_classified = try shaderops.generateClassifiedIndexedSpeckle2D(
+                        allocator,
+                        params.settings.speckle,
+                    );
+                } else if (comptime buildconfig.speckle_direct_fixed) {
+                    speckle_direct_fixed = try shaderops.generateDirectFixedSpeckle2D(
+                        allocator,
+                        params.settings.speckle,
+                    );
+                } else switch (comptime buildconfig.speckle_evaluator) {
                     .cell_hash => {},
+                    .classified_indexed, .direct_fixed => unreachable,
                     .list_naive, .list_indexed => {
                         speckle_list = try shaderops.generateSpeckleList2D(
                             allocator,
@@ -425,6 +438,8 @@ pub fn initMeshStatic(
             shader_static = .{ .func = .{
                 .elem_uvs = elem_uvs,
                 .speckle_list = speckle_list,
+                .speckle_classified = speckle_classified,
+                .speckle_direct_fixed = speckle_direct_fixed,
                 .speckle_mask = speckle_mask,
                 .coord_mode = tex_func_in.coord_mode,
                 .builtin = tex_func_in.builtin,
@@ -1549,6 +1564,8 @@ fn FrameMeshPipeline(comptime MT: geomkerns.MeshType) type {
                 return .{ .func = .{
                     .elem_uvs = elem_uvs,
                     .speckle_list = func_static.speckle_list,
+                    .speckle_classified = func_static.speckle_classified,
+                    .speckle_direct_fixed = func_static.speckle_direct_fixed,
                     .speckle_mask = func_static.speckle_mask,
                     .elem_world_ref = elem_world_ref,
                     .elem_world_def = elem_world_def,
@@ -1569,6 +1586,8 @@ fn FrameMeshPipeline(comptime MT: geomkerns.MeshType) type {
                 return .{ .func_rgb = .{
                     .elem_uvs = elem_uvs,
                     .speckle_list = func_static.speckle_list,
+                    .speckle_classified = func_static.speckle_classified,
+                    .speckle_direct_fixed = func_static.speckle_direct_fixed,
                     .speckle_mask = func_static.speckle_mask,
                     .elem_world_ref = elem_world_ref,
                     .elem_world_def = elem_world_def,

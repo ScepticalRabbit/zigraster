@@ -395,6 +395,155 @@ inline fn evalPreparedSpeckleListSIMD(
     return comm.applyFuncShaderOutputParamsSIMD(values, params);
 }
 
+inline fn evalPreparedClassifiedSpeckleSIMD(
+    coord: comm.FuncCoordSIMD,
+    v_mask_active: VecSB,
+    classified: *const comm.ClassifiedIndexedSpeckle2D,
+    shader_params: comm.FuncShaderParams,
+) VecSF {
+    const params = classified.speckles.params;
+    const v_background: VecSF = @splat(params.background);
+    if (classified.speckles.disks.len == 0 or
+        params.foreground == params.background)
+    {
+        return comm.applyFuncShaderOutputParamsSIMD(v_background, shader_params);
+    }
+
+    const v_zero: VecSF = @splat(0.0);
+    const v_one: VecSF = @splat(1.0);
+    const v_inf: VecSF = @splat(std.math.inf(F));
+    const v_sample = v_mask_active & (@abs(coord.coord_0) < v_inf) &
+        (@abs(coord.coord_1) < v_inf);
+    const v_u = @select(F, v_sample, coord.coord_0, v_zero);
+    const v_v = @select(F, v_sample, coord.coord_1, v_zero);
+    const v_cell_x: VecSI = @intFromFloat(@min(
+        @as(VecSF, @splat(@as(F, @floatFromInt(classified.dims[0] - 1)))),
+        @max(v_zero, @min(v_one, v_u)) *
+            @as(VecSF, @splat(classified.uv_to_cell[0])),
+    ));
+    const v_cell_y: VecSI = @intFromFloat(@min(
+        @as(VecSF, @splat(@as(F, @floatFromInt(classified.dims[1] - 1)))),
+        @max(v_zero, @min(v_one, v_v)) *
+            @as(VecSF, @splat(classified.uv_to_cell[1])),
+    ));
+    const sample: [S]bool = v_sample;
+    const cell_x: [S]isize = v_cell_x;
+    const cell_y: [S]isize = v_cell_y;
+    var state_values = [_]u8{@intFromEnum(comm.SpeckleClassificationState.background)} ** S;
+    inline for (0..S) |lane| {
+        if (sample[lane]) {
+            const x: usize = @intCast(cell_x[lane]);
+            const y: usize = @intCast(cell_y[lane]);
+            const state_index = y * classified.dims[0] + x;
+            const packed_byte = classified.states[state_index / 4];
+            state_values[lane] = @intFromEnum(comm.decodeSpeckleClassificationState(
+                packed_byte,
+                state_index,
+            ));
+        }
+    }
+
+    const v_states: @Vector(S, u8) = state_values;
+    const v_foreground = v_sample & (v_states == @as(
+        @Vector(S, u8),
+        @splat(@intFromEnum(comm.SpeckleClassificationState.foreground)),
+    ));
+    const v_certified_background: VecSF = @splat(
+        comm.speckleCoverageEndpointValue(params, 0.0),
+    );
+    const v_full_coverage: VecSF = @splat(
+        comm.speckleCoverageEndpointValue(params, 1.0),
+    );
+    var v_values = @select(F, v_sample, v_certified_background, v_background);
+    v_values = @select(F, v_foreground, v_full_coverage, v_values);
+    var values: [S]F = v_values;
+    inline for (0..S) |lane| {
+        if (sample[lane] and
+            state_values[lane] == @intFromEnum(comm.SpeckleClassificationState.ambiguous))
+        {
+            values[lane] = comm.evalSpeckleList2DIndexed(
+                .{ coord.coord_0[lane], coord.coord_1[lane] },
+                classified.speckles,
+            );
+        }
+    }
+    return comm.applyFuncShaderOutputParamsSIMD(values, shader_params);
+}
+
+inline fn evalPreparedDirectFixedSpeckleSIMD(
+    coord: comm.FuncCoordSIMD,
+    v_mask_active: VecSB,
+    direct: *const comm.DirectFixedSpeckle2D,
+    shader_params: comm.FuncShaderParams,
+) VecSF {
+    const params = direct.params;
+    const v_background: VecSF = @splat(params.background);
+    if (params.foreground == params.background) {
+        return comm.applyFuncShaderOutputParamsSIMD(v_background, shader_params);
+    }
+
+    const v_zero: VecSF = @splat(0.0);
+    const v_one: VecSF = @splat(1.0);
+    const v_inf: VecSF = @splat(std.math.inf(F));
+    const v_sample = v_mask_active & (@abs(coord.coord_0) < v_inf) &
+        (@abs(coord.coord_1) < v_inf);
+    const v_u = @select(F, v_sample, coord.coord_0, v_zero);
+    const v_v = @select(F, v_sample, coord.coord_1, v_zero);
+    const v_proc_x = @max(v_zero, @min(v_one, v_u)) *
+        @as(VecSF, @splat(params.cells_per_uv[0])) +
+        @as(VecSF, @splat(params.uv_offset[0]));
+    const v_proc_y = @max(v_zero, @min(v_one, v_v)) *
+        @as(VecSF, @splat(params.cells_per_uv[1])) +
+        @as(VecSF, @splat(params.uv_offset[1]));
+    const v_cell_x: VecSI = @intFromFloat(@floor(v_proc_x));
+    const v_cell_y: VecSI = @intFromFloat(@floor(v_proc_y));
+    const sample: [S]bool = v_sample;
+    const cell_x: [S]isize = v_cell_x;
+    const cell_y: [S]isize = v_cell_y;
+    var descriptors = [_]u64{0} ** S;
+    inline for (0..S) |lane| {
+        if (sample[lane]) {
+            if (comm.directFixedSpeckleCellIndex(
+                direct.*,
+                @intCast(cell_x[lane]),
+                @intCast(cell_y[lane]),
+            )) |cell_index| {
+                descriptors[lane] = direct.cells[cell_index];
+            }
+        }
+    }
+
+    const VecSU64 = @Vector(S, u64);
+    const VecSU16 = @Vector(S, u16);
+    const VecSU6 = @Vector(S, u6);
+    const v_descriptors: VecSU64 = descriptors;
+    const v_center_x_bits: VecSU16 = @truncate(
+        v_descriptors >> @as(VecSU6, @splat(16)),
+    );
+    const v_center_y_bits: VecSU16 = @truncate(
+        v_descriptors >> @as(VecSU6, @splat(32)),
+    );
+    const v_radius: VecSF = @splat(params.radius_mean);
+    const v_center_extent: VecSF = @splat(1.0 - 2.0 * params.radius_mean);
+    const v_random_scale: VecSF = @splat(1.0 / 65_536.0);
+    const v_center_x = @as(VecSF, @floatFromInt(v_cell_x)) + v_radius +
+        @as(VecSF, @floatFromInt(v_center_x_bits)) * v_random_scale * v_center_extent;
+    const v_center_y = @as(VecSF, @floatFromInt(v_cell_y)) + v_radius +
+        @as(VecSF, @floatFromInt(v_center_y_bits)) * v_random_scale * v_center_extent;
+    const v_dx = v_proc_x - v_center_x;
+    const v_dy = v_proc_y - v_center_y;
+    const v_inside = v_sample &
+        (v_descriptors != @as(VecSU64, @splat(0))) &
+        (v_dx * v_dx + v_dy * v_dy <= @as(VecSF, @splat(direct.radius2)));
+    const v_value = @select(
+        F,
+        v_inside,
+        @as(VecSF, @splat(params.foreground)),
+        v_background,
+    );
+    return comm.applyFuncShaderOutputParamsSIMD(v_value, shader_params);
+}
+
 inline fn evalPreparedSpeckleMaskSIMD(
     coord: comm.FuncCoordSIMD,
     v_mask_active: VecSB,
@@ -471,8 +620,27 @@ fn evalFuncShaderGreyPreparedSIMD(
     v_mask_active: VecSB,
 ) VecSF {
     if (shader.builtin == .speckle) {
-        switch (comptime buildconfig.speckle_evaluator) {
+        if (comptime buildconfig.speckle_classified_indexed) {
+            if (shader.speckle_classified) |*classified| {
+                return evalPreparedClassifiedSpeckleSIMD(
+                    coord,
+                    v_mask_active,
+                    classified,
+                    shader.params,
+                );
+            }
+        } else if (comptime buildconfig.speckle_direct_fixed) {
+            if (shader.speckle_direct_fixed) |*direct| {
+                return evalPreparedDirectFixedSpeckleSIMD(
+                    coord,
+                    v_mask_active,
+                    direct,
+                    shader.params,
+                );
+            }
+        } else switch (comptime buildconfig.speckle_evaluator) {
             .cell_hash => {},
+            .classified_indexed, .direct_fixed => unreachable,
             .list_naive, .list_indexed => {
                 if (shader.speckle_list) |speckles| {
                     return evalPreparedSpeckleListSIMD(coord, speckles, shader.params);
@@ -882,6 +1050,185 @@ pub inline fn fillFuncPerspSIMD(
             v_mask_active,
             v_final,
         );
+    }
+}
+
+test "direct fixed prepared SIMD handles active inactive nonfinite and scaling" {
+    if (comptime !buildconfig.speckle_direct_fixed) return;
+
+    const cells = [_]comm.DirectFixedSpeckleCell2D{
+        0x0000_8000_8000_0001,
+        0,
+        0,
+        0,
+        0,
+        0,
+    };
+    const speckle_params: comm.Speckle2DParams = .{
+        .cells_per_uv = .{ 2.0, 1.0 },
+        .occupancy = 0.5,
+        .radius_mean = 0.25,
+        .foreground = 0.2,
+        .background = 0.8,
+    };
+    const direct: comm.DirectFixedSpeckle2D = .{
+        .params = speckle_params,
+        .cells = &cells,
+        .cell_origin = .{ 0, 0 },
+        .cell_dims = .{ 3, 2 },
+        .radius2 = 0.25 * 0.25,
+    };
+    const shader: comm.FuncPrepared = .{
+        .elem_uvs = null,
+        .speckle_direct_fixed = direct,
+        .builtin = .speckle,
+        .params = .{
+            .output_scale = 1.75,
+            .output_offset = -0.125,
+            .settings = .{ .speckle = speckle_params },
+        },
+    };
+    var coord_0: [S]F = undefined;
+    var coord_1: [S]F = undefined;
+    var active = [_]bool{true} ** S;
+    var expected: [S]F = undefined;
+    const foreground = speckle_params.foreground * shader.params.output_scale +
+        shader.params.output_offset;
+    const background = speckle_params.background * shader.params.output_scale +
+        shader.params.output_offset;
+    for (0..S) |lane| {
+        switch (lane % 5) {
+            0 => {
+                coord_0[lane] = 0.25;
+                coord_1[lane] = 0.5;
+                expected[lane] = foreground;
+            },
+            1 => {
+                coord_0[lane] = 0.1;
+                coord_1[lane] = 0.5;
+                expected[lane] = background;
+            },
+            2 => {
+                coord_0[lane] = 0.75;
+                coord_1[lane] = 0.5;
+                expected[lane] = background;
+            },
+            3 => {
+                coord_0[lane] = std.math.nan(F);
+                coord_1[lane] = std.math.inf(F);
+                expected[lane] = background;
+            },
+            4 => {
+                coord_0[lane] = 0.25;
+                coord_1[lane] = 0.5;
+                active[lane] = false;
+                expected[lane] = background;
+            },
+            else => unreachable,
+        }
+    }
+    const coord: comm.FuncCoordSIMD = .{
+        .coord_0 = coord_0,
+        .coord_1 = coord_1,
+        .normal_x = @splat(0.0),
+        .normal_y = @splat(0.0),
+        .normal_z = @splat(0.0),
+    };
+    const actual: [S]F = evalFuncShaderGreyPreparedSIMD(&shader, coord, active);
+    for (expected, actual) |expected_lane, actual_lane| {
+        try std.testing.expectEqual(expected_lane, actual_lane);
+    }
+}
+
+test "classified indexed prepared SIMD matches scalar for every state" {
+    if (comptime !buildconfig.speckle_classified_indexed) return;
+
+    const speckle_params: comm.Speckle2DParams = .{
+        .seed = 0x85ebca6b,
+        .cells_per_uv = .{ 5.25, 4.4 },
+        .uv_offset = .{ -1.375, -0.625 },
+        .occupancy = 1.0,
+        .radius_mean = 0.2,
+        .radius_jitter = 0.0,
+        .foreground = 0.17,
+        .background = 0.83,
+    };
+    const classified = try comm.generateClassifiedIndexedSpeckle2D(
+        std.testing.allocator,
+        speckle_params,
+    );
+    defer std.testing.allocator.free(classified.states);
+    defer std.testing.allocator.free(classified.speckles.disk_by_cell);
+    defer std.testing.allocator.free(classified.speckles.disks);
+
+    var state_uv: [3][2]F = undefined;
+    var found_state = [_]bool{false} ** 3;
+    const state_count = classified.dims[0] * classified.dims[1];
+    for (0..state_count) |index| {
+        const state = comm.decodeSpeckleClassificationState(
+            classified.states[index / 4],
+            index,
+        );
+        try std.testing.expect(state != .reserve3);
+        const state_value = @intFromEnum(state);
+        if (!found_state[state_value]) {
+            const x = index % classified.dims[0];
+            const y = index / classified.dims[0];
+            state_uv[state_value] = .{
+                (@as(F, @floatFromInt(x)) + 0.5) / classified.uv_to_cell[0],
+                (@as(F, @floatFromInt(y)) + 0.5) / classified.uv_to_cell[1],
+            };
+            found_state[state_value] = true;
+        }
+    }
+    for (found_state) |found| try std.testing.expect(found);
+
+    const shader: comm.FuncPrepared = .{
+        .elem_uvs = null,
+        .speckle_classified = classified,
+        .builtin = .speckle,
+        .params = .{
+            .output_scale = 1.75,
+            .output_offset = -0.125,
+            .settings = .{ .speckle = speckle_params },
+        },
+    };
+    var coord_0: [S]F = undefined;
+    var coord_1: [S]F = undefined;
+    var active = [_]bool{true} ** S;
+    for (0..S) |lane| {
+        coord_0[lane] = state_uv[lane % state_uv.len][0];
+        coord_1[lane] = state_uv[lane % state_uv.len][1];
+        if (lane % 4 == 3) active[lane] = false;
+    }
+    if (comptime S > 4) {
+        coord_0[S - 1] = std.math.nan(F);
+        coord_1[S - 1] = std.math.inf(F);
+        active[S - 1] = true;
+    }
+    const coord: comm.FuncCoordSIMD = .{
+        .coord_0 = coord_0,
+        .coord_1 = coord_1,
+        .normal_x = @splat(0.0),
+        .normal_y = @splat(0.0),
+        .normal_z = @splat(0.0),
+    };
+    const actual: [S]F = evalFuncShaderGreyPreparedSIMD(&shader, coord, active);
+    const inactive_value = speckle_params.background * shader.params.output_scale +
+        shader.params.output_offset;
+    for (0..S) |lane| {
+        const scalar_coord: comm.FuncCoord = .{
+            .coord_0 = coord_0[lane],
+            .coord_1 = coord_1[lane],
+            .normal_x = 0.0,
+            .normal_y = 0.0,
+            .normal_z = 0.0,
+        };
+        const expected = if (active[lane])
+            scal.evalFuncShaderGreyPreparedScal(&shader, scalar_coord)
+        else
+            inactive_value;
+        try std.testing.expectEqual(expected, actual[lane]);
     }
 }
 

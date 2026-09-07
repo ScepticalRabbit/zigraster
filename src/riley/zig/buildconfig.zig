@@ -48,7 +48,10 @@ pub const default_newton_solver_mode =
 pub const speckle_boundary_blur = buildOptionsSpeckleBoundaryBlur();
 pub const speckle_neighbor_count = buildOptionsSpeckleNeighborCount();
 pub const speckle_mask_samples_per_cell = buildOptionsSpeckleMaskSamplesPerCell();
-pub const speckle_evaluator = parseSpeckleEvaluator(buildOptionsSpeckleEvaluator());
+pub const speckle_evaluator_name = buildOptionsSpeckleEvaluator();
+pub const speckle_evaluator = parseSpeckleEvaluator(speckle_evaluator_name);
+pub const speckle_classified_indexed = speckle_evaluator == .classified_indexed;
+pub const speckle_direct_fixed = speckle_evaluator == .direct_fixed;
 pub const speckle_shape = parseSpeckleShape(buildOptionsSpeckleShape());
 
 comptime {
@@ -57,6 +60,20 @@ comptime {
     {
         @compileError(
             "speckle evaluator mask-1bit requires disk shape and boundary blur false.",
+        );
+    }
+    if (speckle_classified_indexed and
+        (speckle_shape != .disk or speckle_boundary_blur or speckle_neighbor_count != 9))
+    {
+        @compileError(
+            "speckle evaluator classified-indexed requires disk shape, boundary blur false, and neighbor count 9.",
+        );
+    }
+    if (speckle_direct_fixed and
+        (speckle_shape != .disk or speckle_boundary_blur or speckle_neighbor_count != 1))
+    {
+        @compileError(
+            "speckle evaluator direct-fixed requires disk shape, boundary blur false, and neighbor count 1.",
         );
     }
     if (speckle_shape == .perlin and speckle_evaluator != .mask_u8) {
@@ -94,6 +111,8 @@ pub const SpeckleEvaluator = enum {
     cell_hash,
     list_naive,
     list_indexed,
+    classified_indexed,
+    direct_fixed,
     mask_1bit,
     mask_u8,
 };
@@ -189,10 +208,12 @@ fn parseSpeckleEvaluator(comptime evaluator: []const u8) SpeckleEvaluator {
     if (std.mem.eql(u8, evaluator, "cell-hash")) return .cell_hash;
     if (std.mem.eql(u8, evaluator, "list-naive")) return .list_naive;
     if (std.mem.eql(u8, evaluator, "list-indexed")) return .list_indexed;
+    if (std.mem.eql(u8, evaluator, "classified-indexed")) return .classified_indexed;
+    if (std.mem.eql(u8, evaluator, "direct-fixed")) return .direct_fixed;
     if (std.mem.eql(u8, evaluator, "mask-1bit")) return .mask_1bit;
     if (std.mem.eql(u8, evaluator, "mask-u8")) return .mask_u8;
     @compileError(
-        "build_options.speckle_evaluator must be cell-hash, list-naive, list-indexed, mask-1bit, or mask-u8.",
+        "build_options.speckle_evaluator must be cell-hash, list-naive, list-indexed, classified-indexed, direct-fixed, mask-1bit, or mask-u8.",
     );
 }
 
