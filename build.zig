@@ -183,86 +183,70 @@ pub fn build(b: *std.Build) void {
         speckle_configs_step.dependOn(&test_run.step);
     }
 
-    const mask_tests = [_]TestEntry{
-        .{
-            .step_name = "test-speckle-mask-common",
-            .description = "Run direct speckle mask tests",
-            .source_path = "src/riley/zig/shaderops_common.zig",
-        },
-        .{
-            .step_name = "test-speckle-mask-scalar",
-            .description = "Run direct speckle mask scalar tests",
-            .source_path = "src/riley/zig/shaderops_scalar.zig",
-        },
-        .{
-            .step_name = "test-speckle-mask-simd",
-            .description = "Run direct speckle mask SIMD tests",
-            .source_path = "src/riley/zig/shaderops_simd.zig",
-        },
+    const mask_test_entry = TestEntry{
+        .step_name = "test-speckle-mask-root",
+        .description = "Run direct speckle mask tests",
+        .source_path = "src/testproceduralmasks.zig",
     };
     const mask_test_step = b.step(
         "test-speckle-mask",
         "Run focused 1-bit speckle mask tests",
     );
-    for (mask_tests) |entry| {
-        const test_run = addTestRunStep(
-            b,
-            .ReleaseSafe,
-            entry,
-            precision,
-            simd,
-            newton_solver,
-            simd_vector_width,
-            false,
-            9,
-            "mask-1bit",
-            "disk",
-            speckle_mask_samples_per_cell,
-        );
-        mask_test_step.dependOn(&test_run.step);
-    }
+    const mask_test_run = addTestRunStep(
+        b,
+        .ReleaseSafe,
+        mask_test_entry,
+        precision,
+        simd,
+        newton_solver,
+        simd_vector_width,
+        false,
+        9,
+        "mask-1bit",
+        "disk",
+        speckle_mask_samples_per_cell,
+    );
+    mask_test_step.dependOn(&mask_test_run.step);
+
     const mask_u8_test_step = b.step(
         "test-speckle-mask-u8",
         "Run focused Gaussian u8 speckle mask tests",
     );
-    for (mask_tests) |entry| {
-        const test_run = addTestRunStep(
-            b,
-            .ReleaseSafe,
-            entry,
-            precision,
-            simd,
-            newton_solver,
-            simd_vector_width,
-            speckle_boundary_blur,
-            9,
-            "mask-u8",
-            "gaussian",
-            speckle_mask_samples_per_cell,
-        );
-        mask_u8_test_step.dependOn(&test_run.step);
-    }
+    const mask_u8_test_run = addTestRunStep(
+        b,
+        .ReleaseSafe,
+        mask_test_entry,
+        precision,
+        simd,
+        newton_solver,
+        simd_vector_width,
+        speckle_boundary_blur,
+        9,
+        "mask-u8",
+        "gaussian",
+        speckle_mask_samples_per_cell,
+    );
+    mask_u8_test_step.dependOn(&mask_u8_test_run.step);
+
     const perlin_mask_test_step = b.step(
         "test-speckle-mask-perlin",
         "Run focused Perlin u8 speckle mask tests",
     );
-    for (mask_tests) |entry| {
-        const test_run = addTestRunStep(
-            b,
-            .ReleaseSafe,
-            entry,
-            precision,
-            simd,
-            newton_solver,
-            simd_vector_width,
-            speckle_boundary_blur,
-            9,
-            "mask-u8",
-            "perlin",
-            speckle_mask_samples_per_cell,
-        );
-        perlin_mask_test_step.dependOn(&test_run.step);
-    }
+    const perlin_mask_test_run = addTestRunStep(
+        b,
+        .ReleaseSafe,
+        mask_test_entry,
+        precision,
+        simd,
+        newton_solver,
+        simd_vector_width,
+        speckle_boundary_blur,
+        9,
+        "mask-u8",
+        "perlin",
+        speckle_mask_samples_per_cell,
+    );
+    perlin_mask_test_step.dependOn(&perlin_mask_test_run.step);
 
     const demos = [_]RunEntry{
         .{
