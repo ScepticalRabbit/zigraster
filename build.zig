@@ -18,73 +18,91 @@ const TestEntry = struct {
     source_path: []const u8,
 };
 
+const SpeckleConfig = struct {
+    boundary_blur: bool = false,
+    neighbor_count: u8 = 9,
+    evaluator: []const u8,
+    shape: []const u8,
+};
+
+const BuildOptions = struct {
+    precision: []const u8,
+    simd: []const u8,
+    newton_solver: []const u8,
+    simd_vector_width: u32,
+    speckle_boundary_blur: bool,
+    speckle_neighbor_count: u8,
+    speckle_evaluator: []const u8,
+    speckle_shape: []const u8,
+    speckle_mask_samples_per_cell: u8,
+
+    fn withSpeckleConfig(self: BuildOptions, config: SpeckleConfig) BuildOptions {
+        var result = self;
+        result.speckle_boundary_blur = config.boundary_blur;
+        result.speckle_neighbor_count = config.neighbor_count;
+        result.speckle_evaluator = config.evaluator;
+        result.speckle_shape = config.shape;
+        return result;
+    }
+};
+
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const precision = b.option([]const u8, "precision", "Floating point precision: f64 or f32") orelse
+    var options: BuildOptions = undefined;
+    options.precision = b.option([]const u8, "precision", "Floating point precision: f64 or f32") orelse
         "f64";
-    const simd = b.option([]const u8, "simd", "SIMD mode: on or off") orelse "on";
-    const newton_solver = b.option(
+    options.simd = b.option([]const u8, "simd", "SIMD mode: on or off") orelse "on";
+    options.newton_solver = b.option(
         []const u8,
         "newton-solver",
         "Newton solver mode: fast or robust",
     ) orelse "fast";
-    const simd_vector_width = b.option(
+    options.simd_vector_width = b.option(
         u32,
         "simd-vector-width",
         "SIMD vector width (0 to use default for precision)",
     ) orelse 0;
-    const speckle_boundary_blur = b.option(
+    options.speckle_boundary_blur = b.option(
         bool,
         "speckle-boundary-blur",
         "Enable smooth procedural speckle boundaries",
     ) orelse false;
-    const speckle_neighbor_count = b.option(
+    options.speckle_neighbor_count = b.option(
         u8,
         "speckle-neighbor-count",
         "Procedural speckle candidate cell count: 9, 4, or 1",
     ) orelse 9;
-    const speckle_evaluator = b.option(
+    options.speckle_evaluator = b.option(
         []const u8,
         "speckle-evaluator",
         "Procedural speckle evaluator: cell-hash, list-naive, list-indexed, classified-indexed, direct-fixed, mask-1bit, or mask-u8",
     ) orelse "mask-1bit";
-    const speckle_shape = b.option(
+    options.speckle_shape = b.option(
         []const u8,
         "speckle-shape",
         "Procedural speckle shape: disk, gaussian, or perlin",
     ) orelse "disk";
-    const speckle_mask_samples_per_cell = b.option(
+    options.speckle_mask_samples_per_cell = b.option(
         u8,
         "speckle-mask-samples-per-cell",
         "Speckle mask/classification resolution per cell: 8, 12, or 16",
     ) orelse 12;
-    validatePrecision(precision);
-    validateSimd(simd);
-    validateNewtonSolver(newton_solver);
-    validateSpeckleNeighborCount(speckle_neighbor_count);
-    validateSpeckleEvaluator(speckle_evaluator);
-    validateSpeckleShape(speckle_shape);
-    validateSpeckleMaskSamplesPerCell(speckle_mask_samples_per_cell);
+    validatePrecision(options.precision);
+    validateSimd(options.simd);
+    validateNewtonSolver(options.newton_solver);
+    validateSpeckleNeighborCount(options.speckle_neighbor_count);
+    validateSpeckleEvaluator(options.speckle_evaluator);
+    validateSpeckleShape(options.speckle_shape);
+    validateSpeckleMaskSamplesPerCell(options.speckle_mask_samples_per_cell);
     validateSpeckleEvaluatorConfig(
-        speckle_evaluator,
-        speckle_shape,
-        speckle_boundary_blur,
-        speckle_neighbor_count,
+        options.speckle_evaluator,
+        options.speckle_shape,
+        options.speckle_boundary_blur,
+        options.speckle_neighbor_count,
     );
 
-    const build_options_module = createBuildOptionsModule(
-        b,
-        precision,
-        simd,
-        newton_solver,
-        simd_vector_width,
-        speckle_boundary_blur,
-        speckle_neighbor_count,
-        speckle_evaluator,
-        speckle_shape,
-        speckle_mask_samples_per_cell,
-    );
+    const build_options_module = createBuildOptionsModule(b, options);
     const shared_lib = addRileySharedLibrary(
         b,
         target,
@@ -122,28 +140,11 @@ pub fn build(b: *std.Build) void {
 
     for (tests) |entry| {
         const test_step = b.step(entry.step_name, entry.description);
-        const test_run = addTestRunStep(
-            b,
-            .ReleaseSafe,
-            entry,
-            precision,
-            simd,
-            newton_solver,
-            simd_vector_width,
-            speckle_boundary_blur,
-            speckle_neighbor_count,
-            speckle_evaluator,
-            speckle_shape,
-            speckle_mask_samples_per_cell,
-        );
+        const test_run = addTestRunStep(b, .ReleaseSafe, entry, options);
         test_step.dependOn(&test_run.step);
     }
 
-    const speckle_configs = [_]struct {
-        evaluator: []const u8,
-        shape: []const u8,
-        neighbor_count: u8 = 9,
-    }{
+    const speckle_configs = [_]SpeckleConfig{
         .{ .evaluator = "cell-hash", .shape = "gaussian" },
         .{ .evaluator = "list-naive", .shape = "gaussian" },
         .{ .evaluator = "list-indexed", .shape = "gaussian" },
@@ -170,15 +171,7 @@ pub fn build(b: *std.Build) void {
             b,
             .ReleaseSafe,
             entry,
-            precision,
-            simd,
-            newton_solver,
-            simd_vector_width,
-            false,
-            config.neighbor_count,
-            config.evaluator,
-            config.shape,
-            speckle_mask_samples_per_cell,
+            options.withSpeckleConfig(config),
         );
         speckle_configs_step.dependOn(&test_run.step);
     }
@@ -196,15 +189,10 @@ pub fn build(b: *std.Build) void {
         b,
         .ReleaseSafe,
         mask_test_entry,
-        precision,
-        simd,
-        newton_solver,
-        simd_vector_width,
-        false,
-        9,
-        "mask-1bit",
-        "disk",
-        speckle_mask_samples_per_cell,
+        options.withSpeckleConfig(.{
+            .evaluator = "mask-1bit",
+            .shape = "disk",
+        }),
     );
     mask_test_step.dependOn(&mask_test_run.step);
 
@@ -216,15 +204,11 @@ pub fn build(b: *std.Build) void {
         b,
         .ReleaseSafe,
         mask_test_entry,
-        precision,
-        simd,
-        newton_solver,
-        simd_vector_width,
-        speckle_boundary_blur,
-        9,
-        "mask-u8",
-        "gaussian",
-        speckle_mask_samples_per_cell,
+        options.withSpeckleConfig(.{
+            .boundary_blur = options.speckle_boundary_blur,
+            .evaluator = "mask-u8",
+            .shape = "gaussian",
+        }),
     );
     mask_u8_test_step.dependOn(&mask_u8_test_run.step);
 
@@ -236,15 +220,11 @@ pub fn build(b: *std.Build) void {
         b,
         .ReleaseSafe,
         mask_test_entry,
-        precision,
-        simd,
-        newton_solver,
-        simd_vector_width,
-        speckle_boundary_blur,
-        9,
-        "mask-u8",
-        "perlin",
-        speckle_mask_samples_per_cell,
+        options.withSpeckleConfig(.{
+            .boundary_blur = options.speckle_boundary_blur,
+            .evaluator = "mask-u8",
+            .shape = "perlin",
+        }),
     );
     perlin_mask_test_step.dependOn(&perlin_mask_test_run.step);
 
@@ -404,9 +384,7 @@ pub fn build(b: *std.Build) void {
             optimize,
             build_options_module,
             entry,
-            precision,
-            simd,
-            simd_vector_width,
+            options,
         );
         install_step.dependOn(&install_artifact.step);
         bench_bins_step.dependOn(&install_artifact.step);
@@ -440,15 +418,7 @@ fn addTestRunStep(
     b: *std.Build,
     optimize: std.builtin.OptimizeMode,
     entry: TestEntry,
-    precision: []const u8,
-    simd: []const u8,
-    newton_solver: []const u8,
-    simd_vector_width: u32,
-    speckle_boundary_blur: bool,
-    speckle_neighbor_count: u8,
-    speckle_evaluator: []const u8,
-    speckle_shape: []const u8,
-    speckle_mask_samples_per_cell: u8,
+    options: BuildOptions,
 ) *std.Build.Step.Run {
     const run_step = b.addSystemCommand(&.{
         "sh",
@@ -514,15 +484,15 @@ fn addTestRunStep(
         "--",
         entry.step_name,
         entry.source_path,
-        precision,
-        simd,
-        newton_solver,
-        b.fmt("{d}", .{simd_vector_width}),
-        if (speckle_boundary_blur) "true" else "false",
-        b.fmt("{d}", .{speckle_neighbor_count}),
-        speckle_evaluator,
-        speckle_shape,
-        b.fmt("{d}", .{speckle_mask_samples_per_cell}),
+        options.precision,
+        options.simd,
+        options.newton_solver,
+        b.fmt("{d}", .{options.simd_vector_width}),
+        if (options.speckle_boundary_blur) "true" else "false",
+        b.fmt("{d}", .{options.speckle_neighbor_count}),
+        options.speckle_evaluator,
+        options.speckle_shape,
+        b.fmt("{d}", .{options.speckle_mask_samples_per_cell}),
         b.graph.zig_exe,
         @tagName(optimize),
     });
@@ -559,17 +529,13 @@ fn addBenchInstallStep(
     optimize: std.builtin.OptimizeMode,
     build_options_module: *std.Build.Module,
     entry: RunEntry,
-    precision: []const u8,
-    simd: []const u8,
-    simd_vector_width: u32,
+    options: BuildOptions,
 ) *std.Build.Step.InstallArtifact {
     const basename = std.fs.path.basename(entry.source_path);
     const binary_name = benchmarkBinaryName(
         b,
         basename[0 .. basename.len - ".zig".len],
-        precision,
-        simd,
-        simd_vector_width,
+        options,
     );
     const executable = b.addExecutable(.{
         .name = binary_name,
@@ -588,31 +554,20 @@ fn addBenchInstallStep(
     });
 }
 
-fn createBuildOptionsModule(
-    b: *std.Build,
-    precision: []const u8,
-    simd: []const u8,
-    newton_solver: []const u8,
-    simd_vector_width: u32,
-    speckle_boundary_blur: bool,
-    speckle_neighbor_count: u8,
-    speckle_evaluator: []const u8,
-    speckle_shape: []const u8,
-    speckle_mask_samples_per_cell: u8,
-) *std.Build.Module {
+fn createBuildOptionsModule(b: *std.Build, build_options: BuildOptions) *std.Build.Module {
     const options = b.addOptions();
-    options.addOption([]const u8, "precision", precision);
-    options.addOption([]const u8, "simd", simd);
-    options.addOption([]const u8, "newton_solver", newton_solver);
-    options.addOption(u32, "simd_vector_width", simd_vector_width);
-    options.addOption(bool, "speckle_boundary_blur", speckle_boundary_blur);
-    options.addOption(u8, "speckle_neighbor_count", speckle_neighbor_count);
-    options.addOption([]const u8, "speckle_evaluator", speckle_evaluator);
-    options.addOption([]const u8, "speckle_shape", speckle_shape);
+    options.addOption([]const u8, "precision", build_options.precision);
+    options.addOption([]const u8, "simd", build_options.simd);
+    options.addOption([]const u8, "newton_solver", build_options.newton_solver);
+    options.addOption(u32, "simd_vector_width", build_options.simd_vector_width);
+    options.addOption(bool, "speckle_boundary_blur", build_options.speckle_boundary_blur);
+    options.addOption(u8, "speckle_neighbor_count", build_options.speckle_neighbor_count);
+    options.addOption([]const u8, "speckle_evaluator", build_options.speckle_evaluator);
+    options.addOption([]const u8, "speckle_shape", build_options.speckle_shape);
     options.addOption(
         u8,
         "speckle_mask_samples_per_cell",
-        speckle_mask_samples_per_cell,
+        build_options.speckle_mask_samples_per_cell,
     );
     return options.createModule();
 }
@@ -820,26 +775,24 @@ fn validateNewtonSolver(newton_solver: []const u8) void {
 fn benchmarkBinaryName(
     b: *std.Build,
     base_name: []const u8,
-    precision: []const u8,
-    simd: []const u8,
-    simd_vector_width: u32,
+    options: BuildOptions,
 ) []const u8 {
-    const simd_tag = if (std.mem.eql(u8, simd, "on")) "simd" else "scalar";
-    const default_width: u32 = if (std.mem.eql(u8, precision, "f32")) 16 else 8;
+    const simd_tag = if (std.mem.eql(u8, options.simd, "on")) "simd" else "scalar";
+    const default_width: u32 = if (std.mem.eql(u8, options.precision, "f32")) 16 else 8;
 
-    if (simd_vector_width == 0 or simd_vector_width == default_width) {
+    if (options.simd_vector_width == 0 or options.simd_vector_width == default_width) {
         return b.fmt(
             "{s}_{s}_{s}",
-            .{ base_name, precision, simd_tag },
+            .{ base_name, options.precision, simd_tag },
         );
     } else {
         return b.fmt(
             "{s}_{s}_{s}_v{d}",
             .{
                 base_name,
-                precision,
+                options.precision,
                 simd_tag,
-                simd_vector_width,
+                options.simd_vector_width,
             },
         );
     }
