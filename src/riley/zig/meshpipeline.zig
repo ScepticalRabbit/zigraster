@@ -408,21 +408,22 @@ pub fn initMeshStatic(
             var speckle_direct_fixed: ?shaderops.DirectFixedSpeckle2D = null;
             var speckle_mask: ?shaderops.SpeckleMask2D = null;
             if (tex_func_in.builtin == .speckle) {
-                if (comptime buildconfig.speckle_classified_indexed) {
-                    speckle_classified = try shaderops.generateClassifiedIndexedSpeckle2D(
-                        allocator,
-                        params.settings.speckle,
-                    );
-                } else if (comptime buildconfig.speckle_direct_fixed) {
-                    speckle_direct_fixed = try shaderops.generateDirectFixedSpeckle2D(
-                        allocator,
-                        params.settings.speckle,
-                    );
-                } else switch (comptime buildconfig.speckle_evaluator) {
+                switch (comptime buildconfig.speckle_evaluator) {
                     .cell_hash => {},
-                    .classified_indexed, .direct_fixed => unreachable,
                     .list_naive, .list_indexed => {
                         speckle_list = try shaderops.generateSpeckleList2D(
+                            allocator,
+                            params.settings.speckle,
+                        );
+                    },
+                    .classified_indexed => {
+                        speckle_classified = try shaderops.generateClassifiedIndexedSpeckle2D(
+                            allocator,
+                            params.settings.speckle,
+                        );
+                    },
+                    .direct_fixed => {
+                        speckle_direct_fixed = try shaderops.generateDirectFixedSpeckle2D(
                             allocator,
                             params.settings.speckle,
                         );

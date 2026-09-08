@@ -620,30 +620,31 @@ fn evalFuncShaderGreyPreparedSIMD(
     v_mask_active: VecSB,
 ) VecSF {
     if (shader.builtin == .speckle) {
-        if (comptime buildconfig.speckle_classified_indexed) {
-            if (shader.speckle_classified) |*classified| {
-                return evalPreparedClassifiedSpeckleSIMD(
-                    coord,
-                    v_mask_active,
-                    classified,
-                    shader.params,
-                );
-            }
-        } else if (comptime buildconfig.speckle_direct_fixed) {
-            if (shader.speckle_direct_fixed) |*direct| {
-                return evalPreparedDirectFixedSpeckleSIMD(
-                    coord,
-                    v_mask_active,
-                    direct,
-                    shader.params,
-                );
-            }
-        } else switch (comptime buildconfig.speckle_evaluator) {
+        switch (comptime buildconfig.speckle_evaluator) {
             .cell_hash => {},
-            .classified_indexed, .direct_fixed => unreachable,
             .list_naive, .list_indexed => {
                 if (shader.speckle_list) |speckles| {
                     return evalPreparedSpeckleListSIMD(coord, speckles, shader.params);
+                }
+            },
+            .classified_indexed => {
+                if (shader.speckle_classified) |*classified| {
+                    return evalPreparedClassifiedSpeckleSIMD(
+                        coord,
+                        v_mask_active,
+                        classified,
+                        shader.params,
+                    );
+                }
+            },
+            .direct_fixed => {
+                if (shader.speckle_direct_fixed) |*direct| {
+                    return evalPreparedDirectFixedSpeckleSIMD(
+                        coord,
+                        v_mask_active,
+                        direct,
+                        shader.params,
+                    );
                 }
             },
             .mask_1bit, .mask_u8 => {
@@ -1054,7 +1055,7 @@ pub inline fn fillFuncPerspSIMD(
 }
 
 test "direct fixed prepared SIMD handles active inactive nonfinite and scaling" {
-    if (comptime !buildconfig.speckle_direct_fixed) return;
+    if (comptime buildconfig.speckle_evaluator != .direct_fixed) return;
 
     const cells = [_]comm.DirectFixedSpeckleCell2D{
         0x0000_8000_8000_0001,
@@ -1141,7 +1142,7 @@ test "direct fixed prepared SIMD handles active inactive nonfinite and scaling" 
 }
 
 test "classified indexed prepared SIMD matches scalar for every state" {
-    if (comptime !buildconfig.speckle_classified_indexed) return;
+    if (comptime buildconfig.speckle_evaluator != .classified_indexed) return;
 
     const speckle_params: comm.Speckle2DParams = .{
         .seed = 0x85ebca6b,

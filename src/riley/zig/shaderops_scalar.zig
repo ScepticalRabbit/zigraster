@@ -232,22 +232,23 @@ pub inline fn evalFuncShaderGreyPreparedScal(
     if (shader.builtin == .speckle) {
         const uv = [2]F{ coord.coord_0, coord.coord_1 };
         const params = shader.params;
-        if (comptime buildconfig.speckle_classified_indexed) {
-            if (shader.speckle_classified) |classified| {
-                return comm.evalClassifiedIndexedSpeckle2D(uv, classified) *
-                    params.output_scale + params.output_offset;
-            }
-        } else if (comptime buildconfig.speckle_direct_fixed) {
-            if (shader.speckle_direct_fixed) |direct| {
-                return comm.evalDirectFixedSpeckle2D(uv, direct) *
-                    params.output_scale + params.output_offset;
-            }
-        } else switch (comptime buildconfig.speckle_evaluator) {
+        switch (comptime buildconfig.speckle_evaluator) {
             .cell_hash => {},
-            .classified_indexed, .direct_fixed => unreachable,
             .list_naive, .list_indexed => {
                 if (shader.speckle_list) |speckles| {
                     return comm.evalSpeckleList2D(uv, speckles) *
+                        params.output_scale + params.output_offset;
+                }
+            },
+            .classified_indexed => {
+                if (shader.speckle_classified) |classified| {
+                    return comm.evalClassifiedIndexedSpeckle2D(uv, classified) *
+                        params.output_scale + params.output_offset;
+                }
+            },
+            .direct_fixed => {
+                if (shader.speckle_direct_fixed) |direct| {
+                    return comm.evalDirectFixedSpeckle2D(uv, direct) *
                         params.output_scale + params.output_offset;
                 }
             },
@@ -331,7 +332,7 @@ pub inline fn fillFuncPerspScal(
 }
 
 test "direct fixed scalar handles active inactive nonfinite and scaling" {
-    if (comptime !buildconfig.speckle_direct_fixed) return;
+    if (comptime buildconfig.speckle_evaluator != .direct_fixed) return;
 
     const inactive: comm.DirectFixedSpeckleCell2D = 0;
     const cells = [_]comm.DirectFixedSpeckleCell2D{

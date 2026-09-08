@@ -15,22 +15,10 @@ const meshpipeline = @import("../riley/zig/meshpipeline.zig");
 const shaderops = @import("../riley/zig/shaderops_common.zig");
 const uvio = @import("../riley/zig/uvio.zig");
 
-fn evaluatorName(evaluator: buildconfig.SpeckleEvaluator) []const u8 {
-    return switch (evaluator) {
-        .cell_hash => "cell-hash",
-        .list_naive => "list-naive",
-        .list_indexed => "list-indexed",
-        .classified_indexed => "classified-indexed",
-        .direct_fixed => "direct-fixed",
-        .mask_1bit => "mask-1bit",
-        .mask_u8 => "mask-u8",
-    };
-}
-
 test "selected speckle evaluator prepares its production resources" {
     try std.testing.expectEqualStrings(
         expected_config.evaluator,
-        evaluatorName(buildconfig.speckle_evaluator),
+        buildconfig.speckle_evaluator_name,
     );
     try std.testing.expectEqualStrings(
         expected_config.shape,
@@ -57,7 +45,7 @@ test "selected speckle evaluator prepares its production resources" {
         .cells_per_uv = .{ 24.0, 20.0 },
         .occupancy = 0.8,
         .radius_mean = 0.42,
-        .radius_jitter = if (comptime buildconfig.speckle_direct_fixed) 0.0 else 0.06,
+        .radius_jitter = if (comptime buildconfig.speckle_evaluator == .direct_fixed) 0.0 else 0.06,
         .edge_softness = 0.03,
     };
     const mesh_input = meshpipeline.MeshInput{
@@ -81,21 +69,21 @@ test "selected speckle evaluator prepares its production resources" {
         else => return error.UnexpectedShaderVariant,
     };
 
-    const expected_evaluator = expected_config.evaluator;
+    const evaluator = buildconfig.speckle_evaluator;
     try std.testing.expectEqual(
-        std.mem.startsWith(u8, expected_evaluator, "list-"),
+        evaluator == .list_naive or evaluator == .list_indexed,
         func_static.speckle_list != null,
     );
     try std.testing.expectEqual(
-        std.mem.eql(u8, expected_evaluator, "classified-indexed"),
+        evaluator == .classified_indexed,
         func_static.speckle_classified != null,
     );
     try std.testing.expectEqual(
-        std.mem.eql(u8, expected_evaluator, "direct-fixed"),
+        evaluator == .direct_fixed,
         func_static.speckle_direct_fixed != null,
     );
     try std.testing.expectEqual(
-        std.mem.startsWith(u8, expected_evaluator, "mask-"),
+        evaluator == .mask_1bit or evaluator == .mask_u8,
         func_static.speckle_mask != null,
     );
 }

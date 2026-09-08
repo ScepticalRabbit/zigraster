@@ -39,7 +39,7 @@ pub const DemoArgs = struct {
 };
 
 pub fn defaultParams() shaderops.Speckle2DParams {
-    return if (buildconfig.speckle_direct_fixed)
+    return if (buildconfig.speckle_evaluator == .direct_fixed)
         .{ .radius_jitter = 0.0 }
     else
         .{};
@@ -157,7 +157,7 @@ pub fn printProceduralConfig(
             );
         },
         .disk, .gaussian => {
-            if (comptime buildconfig.speckle_direct_fixed) {
+            if (comptime buildconfig.speckle_evaluator == .direct_fixed) {
                 std.debug.print("  fixed radius: {d} cell units\n", .{params.radius_mean});
                 std.debug.print("  radius jitter: zero (required by direct-fixed)\n", .{});
             } else {
@@ -168,7 +168,7 @@ pub fn printProceduralConfig(
         },
     }
 
-    if (comptime buildconfig.speckle_classified_indexed) {
+    if (comptime buildconfig.speckle_evaluator == .classified_indexed) {
         const samples: F = @floatFromInt(buildconfig.speckle_mask_samples_per_cell);
         const classification_dims = [2]F{
             @ceil(params.cells_per_uv[0] * samples),

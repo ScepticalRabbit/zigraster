@@ -50,8 +50,6 @@ pub const speckle_neighbor_count = buildOptionsSpeckleNeighborCount();
 pub const speckle_mask_samples_per_cell = buildOptionsSpeckleMaskSamplesPerCell();
 pub const speckle_evaluator_name = buildOptionsSpeckleEvaluator();
 pub const speckle_evaluator = parseSpeckleEvaluator(speckle_evaluator_name);
-pub const speckle_classified_indexed = speckle_evaluator == .classified_indexed;
-pub const speckle_direct_fixed = speckle_evaluator == .direct_fixed;
 pub const speckle_shape = parseSpeckleShape(buildOptionsSpeckleShape());
 
 comptime {
@@ -62,14 +60,14 @@ comptime {
             "speckle evaluator mask-1bit requires disk shape and boundary blur false.",
         );
     }
-    if (speckle_classified_indexed and
+    if (speckle_evaluator == .classified_indexed and
         (speckle_shape != .disk or speckle_boundary_blur or speckle_neighbor_count != 9))
     {
         @compileError(
             "speckle evaluator classified-indexed requires disk shape, boundary blur false, and neighbor count 9.",
         );
     }
-    if (speckle_direct_fixed and
+    if (speckle_evaluator == .direct_fixed and
         (speckle_shape != .disk or speckle_boundary_blur or speckle_neighbor_count != 1))
     {
         @compileError(
