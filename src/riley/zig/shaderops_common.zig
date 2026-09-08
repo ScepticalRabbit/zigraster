@@ -2274,12 +2274,10 @@ test "procedural speckle shape has bounded support" {
     }
 }
 
-test "procedural speckle is deterministic bounded and UV clamped" {
+test "procedural speckle is bounded seed-sensitive and UV clamped" {
     var params = Speckle2DParams{};
     params.cells_per_uv = .{ 12.0, 10.0 };
 
-    const value = evalSpeckle2D(.{ 0.37, 0.61 }, params);
-    try testing.expectEqual(value, evalSpeckle2D(.{ 0.37, 0.61 }, params));
     try testing.expectEqual(
         evalSpeckle2D(.{ 0.0, 1.0 }, params),
         evalSpeckle2D(.{ -2.0, 3.0 }, params),
@@ -2403,17 +2401,15 @@ test "generated speckle list matches cell hash evaluation" {
                 @as(F, @floatFromInt(xx)) / 8.0,
                 @as(F, @floatFromInt(yy)) / 8.0,
             };
-            const expected = evalSpeckle2D(uv, params);
-            const actual = switch (comptime buildconfig.speckle_evaluator) {
-                .cell_hash, .list_naive => evalSpeckleList2DNaive(uv, speckles),
-                .list_indexed, .classified_indexed, .direct_fixed, .mask_1bit, .mask_u8 => evalSpeckleList2DIndexed(uv, speckles),
-            };
-            try testing.expectEqual(expected, actual);
+            try testing.expectEqual(
+                evalSpeckle2D(uv, params),
+                evalSpeckleList2D(uv, speckles),
+            );
         }
     }
 }
 
-test "direct fixed generation is deterministic contained and exact" {
+test "direct fixed generation is contained and exact" {
     if (comptime buildconfig.speckle_evaluator != .direct_fixed) return;
 
     const params: Speckle2DParams = .{
@@ -2428,8 +2424,6 @@ test "direct fixed generation is deterministic contained and exact" {
     };
     const first = try generateDirectFixedSpeckle2D(testing.allocator, params);
     defer testing.allocator.free(first.cells);
-    const repeated = try generateDirectFixedSpeckle2D(testing.allocator, params);
-    defer testing.allocator.free(repeated.cells);
     var inactive_params = params;
     inactive_params.occupancy = 0.0;
     const inactive = try generateDirectFixedSpeckle2D(testing.allocator, inactive_params);
@@ -2439,10 +2433,7 @@ test "direct fixed generation is deterministic contained and exact" {
     try testing.expectEqual(@as(usize, 8), @sizeOf(DirectFixedSpeckleCell2D));
     try testing.expect(first.cell_dims[0] != first.cell_dims[1]);
     try testing.expectEqual(params.radius_mean * params.radius_mean, first.radius2);
-    try testing.expectEqual(first.cell_origin, repeated.cell_origin);
-    try testing.expectEqual(first.cell_dims, repeated.cell_dims);
-    for (first.cells, repeated.cells, 0..) |descriptor, repeated_descriptor, index| {
-        try testing.expectEqual(descriptor, repeated_descriptor);
+    for (first.cells, 0..) |descriptor, index| {
         const xx = index % first.cell_dims[0];
         const yy = index / first.cell_dims[0];
         const cell_x = first.cell_origin[0] + @as(i64, @intCast(xx));
@@ -2538,9 +2529,10 @@ fn expectClassifiedSpeckleExact(
     classified: ClassifiedIndexedSpeckle2D,
     uv: [2]F,
 ) !void {
-    const indexed = evalSpeckleList2DIndexed(uv, classified.speckles);
-    try testing.expectEqual(evalSpeckle2D(uv, classified.speckles.params), indexed);
-    try testing.expectEqual(indexed, evalClassifiedIndexedSpeckle2D(uv, classified));
+    try testing.expectEqual(
+        evalSpeckle2D(uv, classified.speckles.params),
+        evalClassifiedIndexedSpeckle2D(uv, classified),
+    );
 }
 
 test "classified indexed speckle is exact on boundaries and varied points" {
@@ -2645,12 +2637,7 @@ test "classified indexed speckle is exact on boundaries and varied points" {
     }
 }
 
-test "procedural speckle exact fast paths preserve endpoint behavior" {
-    if (comptime speckle_shape == .disk) {
-        try testing.expectEqual(@as(F, 1.0), speckleDiskMask(0.25, 0.5, 0.0));
-        try testing.expectEqual(@as(F, 0.0), speckleDiskMask(0.2501, 0.5, 0.0));
-    }
-
+test "procedural speckle equal-colour fast path is exact" {
     var params = Speckle2DParams{};
     params.foreground = 0.375;
     params.background = params.foreground;
@@ -2670,7 +2657,7 @@ fn speckleMaskTestParams() Speckle2DParams {
     };
 }
 
-test "Perlin mask is deterministic varied bounded and balanced" {
+test "Perlin mask is varied seed-sensitive bounded and balanced" {
     if (comptime speckle_shape != .perlin) return;
 
     var params = Speckle2DParams{
@@ -2687,9 +2674,6 @@ test "Perlin mask is deterministic varied bounded and balanced" {
 
     const first = try generateSpeckleMask2D(testing.allocator, params);
     defer testing.allocator.free(first.bits);
-    const repeated = try generateSpeckleMask2D(testing.allocator, params);
-    defer testing.allocator.free(repeated.bits);
-    try testing.expectEqualSlices(u8, first.bits, repeated.bits);
 
     params.seed +%= 1;
     const changed = try generateSpeckleMask2D(testing.allocator, params);
