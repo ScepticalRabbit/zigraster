@@ -181,52 +181,45 @@ pub fn build(b: *std.Build) void {
         .description = "Run direct speckle mask tests",
         .source_path = "src/testproceduralmasks.zig",
     };
-    const mask_test_step = b.step(
-        "test-speckle-mask",
-        "Run focused 1-bit speckle mask tests",
-    );
-    const mask_test_run = addTestRunStep(
-        b,
-        .ReleaseSafe,
-        mask_test_entry,
-        options.withSpeckleConfig(.{
-            .evaluator = "mask-1bit",
-            .shape = "disk",
-        }),
-    );
-    mask_test_step.dependOn(&mask_test_run.step);
-
-    const mask_u8_test_step = b.step(
-        "test-speckle-mask-u8",
-        "Run focused Gaussian u8 speckle mask tests",
-    );
-    const mask_u8_test_run = addTestRunStep(
-        b,
-        .ReleaseSafe,
-        mask_test_entry,
-        options.withSpeckleConfig(.{
-            .boundary_blur = options.speckle_boundary_blur,
-            .evaluator = "mask-u8",
-            .shape = "gaussian",
-        }),
-    );
-    mask_u8_test_step.dependOn(&mask_u8_test_run.step);
-
-    const perlin_mask_test_step = b.step(
-        "test-speckle-mask-perlin",
-        "Run focused Perlin u8 speckle mask tests",
-    );
-    const perlin_mask_test_run = addTestRunStep(
-        b,
-        .ReleaseSafe,
-        mask_test_entry,
-        options.withSpeckleConfig(.{
-            .boundary_blur = options.speckle_boundary_blur,
-            .evaluator = "mask-u8",
-            .shape = "perlin",
-        }),
-    );
-    perlin_mask_test_step.dependOn(&perlin_mask_test_run.step);
+    const mask_tests = [_]struct {
+        step_name: []const u8,
+        description: []const u8,
+        config: SpeckleConfig,
+    }{
+        .{
+            .step_name = "test-speckle-mask",
+            .description = "Run focused 1-bit speckle mask tests",
+            .config = .{ .evaluator = "mask-1bit", .shape = "disk" },
+        },
+        .{
+            .step_name = "test-speckle-mask-u8",
+            .description = "Run focused Gaussian u8 speckle mask tests",
+            .config = .{
+                .boundary_blur = options.speckle_boundary_blur,
+                .evaluator = "mask-u8",
+                .shape = "gaussian",
+            },
+        },
+        .{
+            .step_name = "test-speckle-mask-perlin",
+            .description = "Run focused Perlin u8 speckle mask tests",
+            .config = .{
+                .boundary_blur = options.speckle_boundary_blur,
+                .evaluator = "mask-u8",
+                .shape = "perlin",
+            },
+        },
+    };
+    for (mask_tests) |mask_test| {
+        const test_step = b.step(mask_test.step_name, mask_test.description);
+        const test_run = addTestRunStep(
+            b,
+            .ReleaseSafe,
+            mask_test_entry,
+            options.withSpeckleConfig(mask_test.config),
+        );
+        test_step.dependOn(&test_run.step);
+    }
 
     const demos = [_]RunEntry{
         .{
@@ -581,11 +574,7 @@ fn createRootModule(
     link_libc: bool,
     wrapper_kind: WrapperKind,
 ) *std.Build.Module {
-    const wrapper_text = wrapperSourceText(
-        b,
-        wrapper_kind,
-        source_path,
-    );
+    const wrapper_text = wrapperSourceText(wrapper_kind);
     const wrapper_files = b.addWriteFiles();
     const wrapper_source = wrapper_files.add(
         b.fmt("{s}.wrapper.zig", .{source_path}),
@@ -598,8 +587,6 @@ fn createRootModule(
         build_options_module,
         source_path,
         link_libc,
-        wrapper_kind,
-        wrapper_text,
     );
     return b.createModule(.{
         .root_source_file = wrapper_source,
@@ -612,15 +599,10 @@ fn createRootModule(
 
 const WrapperKind = enum {
     executable,
-    test_module,
     library,
 };
 
-fn wrapperSourceText(
-    b: *std.Build,
-    wrapper_kind: WrapperKind,
-    source_path: []const u8,
-) []const u8 {
+fn wrapperSourceText(wrapper_kind: WrapperKind) []const u8 {
     return switch (wrapper_kind) {
         .executable =>
         \\const entry_source = @import("entry_source");
@@ -631,22 +613,7 @@ fn wrapperSourceText(
         \\}
         \\
         ,
-        .test_module => blk: {
-            const source_text = std.Io.Dir.cwd().readFileAlloc(
-                b.graph.io,
-                source_path,
-                b.allocator,
-                .limited(16 * 1024 * 1024),
-            ) catch @panic("Failed to read test source file.");
-            break :blk std.fmt.allocPrint(
-                b.allocator,
-                \\pub const build_options = @import("build_options");
-                \\
-                \\{s}
-            ,
-                .{source_text},
-            ) catch @panic("Failed to write test wrapper source.");
-        },
+
         .library =>
         \\const entry_source = @import("entry_source");
         \\pub const build_options = @import("build_options");
@@ -665,8 +632,6 @@ fn buildWrapperImports(
     build_options_module: *std.Build.Module,
     source_path: []const u8,
     link_libc: bool,
-    wrapper_kind: WrapperKind,
-    _: []const u8,
 ) []const std.Build.Module.Import {
     var imports: std.ArrayList(std.Build.Module.Import) = .empty;
     imports.append(b.allocator, .{
@@ -674,18 +639,15 @@ fn buildWrapperImports(
         .module = build_options_module,
     }) catch @panic("OOM building imports.");
 
-    if (wrapper_kind != .test_module) {
-        imports.append(b.allocator, .{
-            .name = "entry_source",
-            .module = b.createModule(.{
-                .root_source_file = b.path(source_path),
-                .target = target,
-                .optimize = optimize,
-                .link_libc = link_libc,
-            }),
-        }) catch @panic("OOM building entry source import.");
-        return imports.items;
-    }
+    imports.append(b.allocator, .{
+        .name = "entry_source",
+        .module = b.createModule(.{
+            .root_source_file = b.path(source_path),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = link_libc,
+        }),
+    }) catch @panic("OOM building entry source import.");
     return imports.items;
 }
 
