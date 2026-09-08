@@ -17,6 +17,7 @@ const speckle_neighbor_count = buildconfig.speckle_neighbor_count;
 const speckle_shape = buildconfig.speckle_shape;
 const speckle_mask_samples_per_cell: F =
     @floatFromInt(buildconfig.speckle_mask_samples_per_cell);
+const max_speckle_cells = 10_000_000;
 const max_speckle_mask_bytes = 256 * 1024 * 1024;
 const max_speckle_classification_bytes = 256 * 1024 * 1024;
 const max_direct_fixed_speckle_bytes = 256 * 1024 * 1024;
@@ -713,6 +714,48 @@ inline fn effectiveSpeckleSoftness(params: Speckle2DParams) F {
         0.0;
 }
 
+const SpeckleCellBounds = struct {
+    min: [2]i64,
+    max: [2]i64,
+    dims: [2]usize,
+    count: usize,
+};
+
+fn speckleProceduralCellBounds(
+    params: Speckle2DParams,
+    comptime padding: i64,
+) ?SpeckleCellBounds {
+    const min = [2]i64{
+        @as(i64, @intFromFloat(@floor(params.uv_offset[0]))) - padding,
+        @as(i64, @intFromFloat(@floor(params.uv_offset[1]))) - padding,
+    };
+    const max = [2]i64{
+        @as(i64, @intFromFloat(@floor(
+            params.uv_offset[0] + params.cells_per_uv[0],
+        ))) + padding,
+        @as(i64, @intFromFloat(@floor(
+            params.uv_offset[1] + params.cells_per_uv[1],
+        ))) + padding,
+    };
+    const dims = [2]usize{
+        std.math.cast(usize, max[0] - min[0] + 1) orelse return null,
+        std.math.cast(usize, max[1] - min[1] + 1) orelse return null,
+    };
+    const count = std.math.mul(usize, dims[0], dims[1]) catch return null;
+    return .{ .min = min, .max = max, .dims = dims, .count = count };
+}
+
+fn speckleSampleIntervalDims(params: Speckle2DParams) ?[2]usize {
+    var intervals: [2]usize = undefined;
+    for (params.cells_per_uv, 0..) |cells, axis| {
+        const interval_f = @ceil(cells * speckle_mask_samples_per_cell);
+        const max_interval: F = @floatFromInt(std.math.maxInt(usize) - 1);
+        if (!std.math.isFinite(interval_f) or interval_f > max_interval) return null;
+        intervals[axis] = @intFromFloat(interval_f);
+    }
+    return intervals;
+}
+
 fn speckleDiskFromHash(
     cell_x: i64,
     cell_y: i64,
@@ -762,27 +805,15 @@ pub fn generateSpeckleList2D(
 ) !SpeckleList2D {
     try params.validate();
 
-    const min_x = @as(i64, @intFromFloat(@floor(params.uv_offset[0]))) - 1;
-    const min_y = @as(i64, @intFromFloat(@floor(params.uv_offset[1]))) - 1;
-    const max_x = @as(i64, @intFromFloat(@floor(
-        params.uv_offset[0] + params.cells_per_uv[0],
-    ))) + 1;
-    const max_y = @as(i64, @intFromFloat(@floor(
-        params.uv_offset[1] + params.cells_per_uv[1],
-    ))) + 1;
-    const width = std.math.cast(usize, max_x - min_x + 1) orelse
+    const cell_bounds = speckleProceduralCellBounds(params, 1) orelse
         return error.SpeckleListTooLarge;
-    const height = std.math.cast(usize, max_y - min_y + 1) orelse
-        return error.SpeckleListTooLarge;
-    const cell_count = std.math.mul(usize, width, height) catch
-        return error.SpeckleListTooLarge;
-    if (cell_count > 10_000_000) return error.SpeckleListTooLarge;
+    if (cell_bounds.count > max_speckle_cells) return error.SpeckleListTooLarge;
 
     var active_count: usize = 0;
-    var cell_y = min_y;
-    while (cell_y <= max_y) : (cell_y += 1) {
-        var cell_x = min_x;
-        while (cell_x <= max_x) : (cell_x += 1) {
+    var cell_y = cell_bounds.min[1];
+    while (cell_y <= cell_bounds.max[1]) : (cell_y += 1) {
+        var cell_x = cell_bounds.min[0];
+        while (cell_x <= cell_bounds.max[0]) : (cell_x += 1) {
             if (speckleDiskForCell(cell_x, cell_y, params) != null) active_count += 1;
         }
     }
@@ -792,7 +823,7 @@ pub fn generateSpeckleList2D(
     const disk_by_cell_count = if (comptime buildconfig.speckle_evaluator == .list_naive)
         0
     else
-        cell_count;
+        cell_bounds.count;
     const disk_by_cell = try allocator.alloc(u32, disk_by_cell_count);
     errdefer allocator.free(disk_by_cell);
     if (comptime buildconfig.speckle_evaluator != .list_naive) {
@@ -800,10 +831,10 @@ pub fn generateSpeckleList2D(
     }
     var disk_index: usize = 0;
     var cell_index: usize = 0;
-    cell_y = min_y;
-    while (cell_y <= max_y) : (cell_y += 1) {
-        var cell_x = min_x;
-        while (cell_x <= max_x) : (cell_x += 1) {
+    cell_y = cell_bounds.min[1];
+    while (cell_y <= cell_bounds.max[1]) : (cell_y += 1) {
+        var cell_x = cell_bounds.min[0];
+        while (cell_x <= cell_bounds.max[0]) : (cell_x += 1) {
             if (speckleDiskForCell(cell_x, cell_y, params)) |disk| {
                 disks[disk_index] = disk;
                 if (comptime buildconfig.speckle_evaluator != .list_naive) {
@@ -817,8 +848,8 @@ pub fn generateSpeckleList2D(
     return .{
         .params = params,
         .disks = disks,
-        .cell_origin = .{ min_x, min_y },
-        .cell_dims = .{ width, height },
+        .cell_origin = cell_bounds.min,
+        .cell_dims = cell_bounds.dims,
         .disk_by_cell = disk_by_cell,
     };
 }
@@ -851,44 +882,30 @@ pub fn generateDirectFixedSpeckle2D(
 ) !DirectFixedSpeckle2D {
     try params.validate();
 
-    const cell_origin = [2]i64{
-        @intFromFloat(@floor(params.uv_offset[0])),
-        @intFromFloat(@floor(params.uv_offset[1])),
-    };
-    const cell_max = [2]i64{
-        @intFromFloat(@floor(params.uv_offset[0] + params.cells_per_uv[0])),
-        @intFromFloat(@floor(params.uv_offset[1] + params.cells_per_uv[1])),
-    };
-    const cell_dims = [2]usize{
-        std.math.cast(usize, cell_max[0] - cell_origin[0] + 1) orelse
-            return error.DirectFixedSpeckleTooLarge,
-        std.math.cast(usize, cell_max[1] - cell_origin[1] + 1) orelse
-            return error.DirectFixedSpeckleTooLarge,
-    };
-    const cell_count = std.math.mul(usize, cell_dims[0], cell_dims[1]) catch
+    const cell_bounds = speckleProceduralCellBounds(params, 0) orelse
         return error.DirectFixedSpeckleTooLarge;
     const byte_count = std.math.mul(
         usize,
-        cell_count,
+        cell_bounds.count,
         @sizeOf(DirectFixedSpeckleCell2D),
     ) catch return error.DirectFixedSpeckleTooLarge;
     if (byte_count > max_direct_fixed_speckle_bytes) {
         return error.DirectFixedSpeckleTooLarge;
     }
 
-    const cells = try allocator.alloc(DirectFixedSpeckleCell2D, cell_count);
+    const cells = try allocator.alloc(DirectFixedSpeckleCell2D, cell_bounds.count);
     errdefer allocator.free(cells);
     @memset(cells, 0);
     if (params.occupancy != 0.0) {
-        var cell_y = cell_origin[1];
-        for (0..cell_dims[1]) |yy| {
-            var cell_x = cell_origin[0];
-            for (0..cell_dims[0]) |xx| {
+        var cell_y = cell_bounds.min[1];
+        for (0..cell_bounds.dims[1]) |yy| {
+            var cell_x = cell_bounds.min[0];
+            for (0..cell_bounds.dims[0]) |xx| {
                 const hash = hashSpeckleCell(cell_x, cell_y, params.seed);
                 if (params.occupancy == 1.0 or
                     randomUnitFromHash(hash, 0) < params.occupancy)
                 {
-                    cells[yy * cell_dims[0] + xx] = directFixedSpeckleDescriptor(hash);
+                    cells[yy * cell_bounds.dims[0] + xx] = directFixedSpeckleDescriptor(hash);
                 }
                 cell_x += 1;
             }
@@ -899,8 +916,8 @@ pub fn generateDirectFixedSpeckle2D(
     return .{
         .params = params,
         .cells = cells,
-        .cell_origin = cell_origin,
-        .cell_dims = cell_dims,
+        .cell_origin = cell_bounds.min,
+        .cell_dims = cell_bounds.dims,
         .radius2 = params.radius_mean * params.radius_mean,
     };
 }
@@ -912,15 +929,8 @@ fn speckleClassificationByteCount(state_count: usize) !usize {
 }
 
 fn speckleClassificationDims(params: Speckle2DParams) ![2]usize {
-    var dims: [2]usize = undefined;
-    for (params.cells_per_uv, 0..) |cells, axis| {
-        const dim_f = @ceil(cells * speckle_mask_samples_per_cell);
-        const max_dim: F = @floatFromInt(std.math.maxInt(usize) - 1);
-        if (!std.math.isFinite(dim_f) or dim_f > max_dim) {
-            return error.SpeckleClassificationTooLarge;
-        }
-        dims[axis] = @intFromFloat(dim_f);
-    }
+    const dims = speckleSampleIntervalDims(params) orelse
+        return error.SpeckleClassificationTooLarge;
     const state_count = std.math.mul(usize, dims[0], dims[1]) catch
         return error.SpeckleClassificationTooLarge;
     const state_byte_count = try speckleClassificationByteCount(state_count);
@@ -1091,35 +1101,6 @@ fn speckleListDiskAt(
     return speckles.disks[encoded];
 }
 
-const SpeckleMaskCellBounds = struct {
-    min: [2]i64,
-    max: [2]i64,
-    dims: [2]usize,
-};
-
-fn speckleMaskCellBounds(params: Speckle2DParams) !SpeckleMaskCellBounds {
-    const min = [2]i64{
-        @as(i64, @intFromFloat(@floor(params.uv_offset[0]))) - 1,
-        @as(i64, @intFromFloat(@floor(params.uv_offset[1]))) - 1,
-    };
-    const max = [2]i64{
-        @as(i64, @intFromFloat(@floor(
-            params.uv_offset[0] + params.cells_per_uv[0],
-        ))) + 1,
-        @as(i64, @intFromFloat(@floor(
-            params.uv_offset[1] + params.cells_per_uv[1],
-        ))) + 1,
-    };
-    const width = std.math.cast(usize, max[0] - min[0] + 1) orelse
-        return error.SpeckleMaskTooLarge;
-    const height = std.math.cast(usize, max[1] - min[1] + 1) orelse
-        return error.SpeckleMaskTooLarge;
-    const cell_count = std.math.mul(usize, width, height) catch
-        return error.SpeckleMaskTooLarge;
-    if (cell_count > 10_000_000) return error.SpeckleMaskTooLarge;
-    return .{ .min = min, .max = max, .dims = .{ width, height } };
-}
-
 inline fn quantizeSpeckleCoverage(coverage: F) u8 {
     return @intFromFloat(@round(@max(0.0, @min(1.0, coverage)) * 255.0));
 }
@@ -1196,7 +1177,7 @@ fn rasterizePerlinSpeckleMask(
     dims: [2]usize,
     row_stride: usize,
     uv_to_texel: [2]F,
-    cell_bounds: SpeckleMaskCellBounds,
+    cell_bounds: SpeckleCellBounds,
     params: Speckle2DParams,
 ) !void {
     const gradient_count = std.math.mul(
@@ -1329,17 +1310,12 @@ pub fn generateSpeckleMask2D(
     params: Speckle2DParams,
 ) !SpeckleMask2D {
     try params.validate();
-    const cell_bounds = try speckleMaskCellBounds(params);
+    const cell_bounds = speckleProceduralCellBounds(params, 1) orelse
+        return error.SpeckleMaskTooLarge;
+    if (cell_bounds.count > max_speckle_cells) return error.SpeckleMaskTooLarge;
 
-    var intervals: [2]usize = undefined;
-    for (params.cells_per_uv, 0..) |cells, axis| {
-        const interval_f = @ceil(cells * speckle_mask_samples_per_cell);
-        const max_interval: F = @floatFromInt(std.math.maxInt(usize) - 1);
-        if (!std.math.isFinite(interval_f) or interval_f > max_interval) {
-            return error.SpeckleMaskTooLarge;
-        }
-        intervals[axis] = @intFromFloat(interval_f);
-    }
+    const intervals = speckleSampleIntervalDims(params) orelse
+        return error.SpeckleMaskTooLarge;
     const dims = [2]usize{
         std.math.add(usize, intervals[0], 1) catch return error.SpeckleMaskTooLarge,
         std.math.add(usize, intervals[1], 1) catch return error.SpeckleMaskTooLarge,

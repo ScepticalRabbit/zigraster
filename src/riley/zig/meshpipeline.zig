@@ -390,8 +390,8 @@ pub fn initMeshStatic(
                 .normal_type = tex_in.normal_type,
             } };
         },
-        .func => |tex_func_in| {
-            const elem_uvs = if (tex_func_in.uvs) |uvs|
+        .func, .func_rgb => |func_input| {
+            const elem_uvs = if (func_input.uvs) |uvs|
                 try prepUVs(
                     allocator,
                     &uvs,
@@ -400,78 +400,56 @@ pub fn initMeshStatic(
             else
                 null;
             const params = shaderops.normFuncShaderParams(
-                tex_func_in.builtin,
-                tex_func_in.params,
+                func_input.builtin,
+                func_input.params,
             );
-            var speckle_list: ?shaderops.SpeckleList2D = null;
-            var speckle_classified: ?shaderops.ClassifiedIndexedSpeckle2D = null;
-            var speckle_direct_fixed: ?shaderops.DirectFixedSpeckle2D = null;
-            var speckle_mask: ?shaderops.SpeckleMask2D = null;
-            if (tex_func_in.builtin == .speckle) {
+            var func_static: shaderops.FuncStatic = .{
+                .elem_uvs = elem_uvs,
+                .coord_mode = func_input.coord_mode,
+                .builtin = func_input.builtin,
+                .params = params,
+                .bits = func_input.bits,
+                .scaling = func_input.scaling,
+                .normal_type = func_input.normal_type,
+            };
+            // Non-selected evaluator resources stay null so only the compile-time evaluator
+            // owns generated storage.
+            if (func_input.builtin == .speckle) {
                 switch (comptime buildconfig.speckle_evaluator) {
                     .cell_hash => {},
                     .list_naive, .list_indexed => {
-                        speckle_list = try shaderops.generateSpeckleList2D(
+                        func_static.speckle_list = try shaderops.generateSpeckleList2D(
                             allocator,
                             params.settings.speckle,
                         );
                     },
                     .classified_indexed => {
-                        speckle_classified = try shaderops.generateClassifiedIndexedSpeckle2D(
-                            allocator,
-                            params.settings.speckle,
-                        );
+                        func_static.speckle_classified =
+                            try shaderops.generateClassifiedIndexedSpeckle2D(
+                                allocator,
+                                params.settings.speckle,
+                            );
                     },
                     .direct_fixed => {
-                        speckle_direct_fixed = try shaderops.generateDirectFixedSpeckle2D(
-                            allocator,
-                            params.settings.speckle,
-                        );
+                        func_static.speckle_direct_fixed =
+                            try shaderops.generateDirectFixedSpeckle2D(
+                                allocator,
+                                params.settings.speckle,
+                            );
                     },
                     .mask_1bit, .mask_u8 => {
-                        speckle_mask = try shaderops.generateSpeckleMask2D(
+                        func_static.speckle_mask = try shaderops.generateSpeckleMask2D(
                             allocator,
                             params.settings.speckle,
                         );
                     },
                 }
             }
-            shader_static = .{ .func = .{
-                .elem_uvs = elem_uvs,
-                .speckle_list = speckle_list,
-                .speckle_classified = speckle_classified,
-                .speckle_direct_fixed = speckle_direct_fixed,
-                .speckle_mask = speckle_mask,
-                .coord_mode = tex_func_in.coord_mode,
-                .builtin = tex_func_in.builtin,
-                .params = params,
-                .bits = tex_func_in.bits,
-                .scaling = tex_func_in.scaling,
-                .normal_type = tex_func_in.normal_type,
-            } };
-        },
-        .func_rgb => |tex_func_in| {
-            const elem_uvs = if (tex_func_in.uvs) |uvs|
-                try prepUVs(
-                    allocator,
-                    &uvs,
-                    &mesh_input.connect,
-                )
-            else
-                null;
-            const params = shaderops.normFuncShaderParams(
-                tex_func_in.builtin,
-                tex_func_in.params,
-            );
-            shader_static = .{ .func_rgb = .{
-                .elem_uvs = elem_uvs,
-                .coord_mode = tex_func_in.coord_mode,
-                .builtin = tex_func_in.builtin,
-                .params = params,
-                .bits = tex_func_in.bits,
-                .scaling = tex_func_in.scaling,
-                .normal_type = tex_func_in.normal_type,
-            } };
+            shader_static = switch (mesh_input.shader) {
+                .func => .{ .func = func_static },
+                .func_rgb => .{ .func_rgb = func_static },
+                else => unreachable,
+            };
         },
     }
 
@@ -1561,50 +1539,32 @@ fn FrameMeshPipeline(comptime MT: geomkerns.MeshType) type {
                 null;
 
             const elem_normals = try self.prepVisNormals(func_static.normal_type);
+            const params = shaderops.normFuncShaderParams(
+                func_static.builtin,
+                func_static.params,
+            );
+            const func_prepared: shaderops.FuncPrepared = .{
+                .elem_uvs = elem_uvs,
+                .speckle_list = func_static.speckle_list,
+                .speckle_classified = func_static.speckle_classified,
+                .speckle_direct_fixed = func_static.speckle_direct_fixed,
+                .speckle_mask = func_static.speckle_mask,
+                .elem_world_ref = elem_world_ref,
+                .elem_world_def = elem_world_def,
+                .coord_mode = func_static.coord_mode,
+                .builtin = func_static.builtin,
+                .params = params,
+                .bits = func_static.bits,
+                .scaling = func_static.scaling,
+                .scale_mul = factors.mul,
+                .scale_add = factors.add,
+                .normal_type = func_static.normal_type,
+                .elem_normals = elem_normals,
+            };
             if (comptime C == 1) {
-                return .{ .func = .{
-                    .elem_uvs = elem_uvs,
-                    .speckle_list = func_static.speckle_list,
-                    .speckle_classified = func_static.speckle_classified,
-                    .speckle_direct_fixed = func_static.speckle_direct_fixed,
-                    .speckle_mask = func_static.speckle_mask,
-                    .elem_world_ref = elem_world_ref,
-                    .elem_world_def = elem_world_def,
-                    .coord_mode = func_static.coord_mode,
-                    .builtin = func_static.builtin,
-                    .params = shaderops.normFuncShaderParams(
-                        func_static.builtin,
-                        func_static.params,
-                    ),
-                    .bits = func_static.bits,
-                    .scaling = func_static.scaling,
-                    .scale_mul = factors.mul,
-                    .scale_add = factors.add,
-                    .normal_type = func_static.normal_type,
-                    .elem_normals = elem_normals,
-                } };
+                return .{ .func = func_prepared };
             } else {
-                return .{ .func_rgb = .{
-                    .elem_uvs = elem_uvs,
-                    .speckle_list = func_static.speckle_list,
-                    .speckle_classified = func_static.speckle_classified,
-                    .speckle_direct_fixed = func_static.speckle_direct_fixed,
-                    .speckle_mask = func_static.speckle_mask,
-                    .elem_world_ref = elem_world_ref,
-                    .elem_world_def = elem_world_def,
-                    .coord_mode = func_static.coord_mode,
-                    .builtin = func_static.builtin,
-                    .params = shaderops.normFuncShaderParams(
-                        func_static.builtin,
-                        func_static.params,
-                    ),
-                    .bits = func_static.bits,
-                    .scaling = func_static.scaling,
-                    .scale_mul = factors.mul,
-                    .scale_add = factors.add,
-                    .normal_type = func_static.normal_type,
-                    .elem_normals = elem_normals,
-                } };
+                return .{ .func_rgb = func_prepared };
             }
         }
 
