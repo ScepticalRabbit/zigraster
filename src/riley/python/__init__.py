@@ -8,12 +8,11 @@
 # --------------------------------------------------------------------------
 
 from riley.python import sceneops
-from riley.python.rileyconfig import create_raster_config
-from riley.python.textureio import (
-    ETextureCoercion,
-    load_texture_mono_u8,
-    load_texture_mono_u16,
-    load_texture_rgb_u8,
+from riley.python.exodusio import (
+    ExodusBlock,
+    ExodusError,
+    ExodusSim,
+    load_exodus,
 )
 from riley.python.meshconv import (
     ConnectConvention,
@@ -30,13 +29,22 @@ from riley.python.meshconv import (
     extract_surface,
     verify_mesh,
 )
-from riley.python.exodusio import (
-    ExodusBlock,
-    ExodusError,
-    ExodusSim,
-    load_exodus,
+from riley.python.meshio import (
+    MeshConversion,
+    convert_mesh_for_render,
+    create_mesh,
+    create_mesh_from_conversion,
+    create_mesh_from_prepared,
+    load_csv,
+    remap_nodal_data,
 )
-from riley.python.meshio import create_mesh, load_csv
+from riley.python.rileyconfig import create_raster_config
+from riley.python.textureio import (
+    ETextureCoercion,
+    load_texture_mono_u8,
+    load_texture_mono_u16,
+    load_texture_rgb_u8,
+)
 from riley.python.uvtools import (
     EUVPlanarProjMode,
     EUVProjPlane,
@@ -53,6 +61,7 @@ __all__ = [
     "EConnectAxis",
     "EElemType",
     "ENodeOrder",
+    "ETextureCoercion",
     "EUVPlanarProjMode",
     "EUVProjPlane",
     "EdgeNode",
@@ -60,6 +69,7 @@ __all__ = [
     "ExodusError",
     "ExodusSim",
     "FaceNode",
+    "MeshConversion",
     "MeshError",
     "MeshGeometry",
     "MeshVerifyIssue",
@@ -69,17 +79,20 @@ __all__ = [
     "UVProjPlane",
     "UserTopology",
     "convert_mesh",
-    "create_raster_config",
+    "convert_mesh_for_render",
     "create_mesh",
+    "create_mesh_from_conversion",
+    "create_mesh_from_prepared",
+    "create_raster_config",
     "extract_surface",
     "load_csv",
     "load_exodus",
-    "ETextureCoercion",
     "load_texture_mono_u8",
     "load_texture_mono_u16",
     "load_texture_rgb_u8",
     "project_uvs_planar_bbox",
     "project_uvs_planar_centered",
+    "remap_nodal_data",
     "sceneops",
     "verify_mesh",
 ]

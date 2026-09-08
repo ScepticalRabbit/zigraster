@@ -1,13 +1,12 @@
-from pathlib import Path
 import shutil
+from pathlib import Path
 
 import numpy as np
 
 import riley
 from riley.python import sceneops
 
-
-DATA_DIR = Path.cwd() / "data" / "feature_zoo"
+DATA_DIR = riley.data.feature_zoo_path()
 OUT_DIR = Path.cwd() / "out_riley_py" / "demo9_feature_zoo"
 PIXEL_SIZE = (5.3e-6, 5.3e-6)
 FOCAL_LENGTH = 50.0e-3
@@ -161,7 +160,7 @@ def build_scene(channels: int, bits: int) -> list[riley.Mesh]:
     texture_name = (
         f"speck128_{'mono' if channels == 1 else 'rgb'}_u{bits}.png"
     )
-    texture_path = Path.cwd() / "texture" / texture_name
+    texture_path = riley.data.texture_dir_path() / texture_name
     if (channels, bits) == (1, 8):
         texture = riley.load_texture_mono_u8(texture_path)
     elif (channels, bits) == (1, 16):
@@ -170,7 +169,7 @@ def build_scene(channels: int, bits: int) -> list[riley.Mesh]:
         texture = riley.load_texture_rgb_u8(texture_path)
     else:
         texture_u8 = riley.load_texture_rgb_u8(
-            Path.cwd() / "texture" / "speck128_rgb_u8.png"
+            riley.data.texture_dir_path() / "speck128_rgb_u8.png"
         )
         texture = texture_u8.astype(np.uint16) * np.uint16(257)
 

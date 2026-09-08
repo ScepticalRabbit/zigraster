@@ -1,7 +1,9 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
+
 import numpy as np
 import numpy.typing as npt
 
@@ -15,10 +17,8 @@ from riley.cython.riley import (
 )
 from riley.python.meshconst import (
     ELEM_FAMILY_MAP,
-    ELEM_NODE_COUNT_MAP,
     ELEM_ORDER_MAP,
     RILEY_MESH_ELEM_TYPE_MAP,
-    RILEY_TRI_STENCIL_MAP,
     RILEY_VOL_SURF_TYPE_MAP,
 )
 from riley.python.meshconv import (
@@ -30,8 +30,30 @@ from riley.python.meshconv import (
     _reduce_elem_order_with_node_idxs,
     _triangulate_with_node_idxs,
     convert_mesh,
-    verify_mesh,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class MeshConversion:
+    """Geometry converted for one Riley renderer mesh type.
+
+    Attributes
+    ----------
+    mesh_type : MeshType
+        Requested Riley renderer implementation.
+    geometry : MeshGeometry
+        Canonical, renderer-compatible surface geometry.
+    source_node_indices : numpy.ndarray
+        Array of shape ``(K,)`` mapping converted nodes to rows in the source
+        coordinate and nodal-attribute arrays.
+    source_node_count : int
+        Number of nodes in the source coordinate array.
+    """
+
+    mesh_type: MeshType
+    geometry: MeshGeometry
+    source_node_indices: np.ndarray
+    source_node_count: int
 
 def load_csv(
     path: str | Path,
@@ -359,6 +381,142 @@ def _prepare_shader(
             raise TypeError("shader must be a Riley shader object.")
 
 
+def remap_nodal_data(
+    conversion: MeshConversion,
+    values: np.ndarray,
+    *,
+    node_axis: int = 0,
+) -> np.ndarray:
+    """Remap source nodal data onto converted mesh nodes."""
+    if not isinstance(conversion, MeshConversion):
+        raise TypeError("conversion must be a MeshConversion.")
+
+    array = np.asarray(values)
+    if array.ndim == 0:
+        raise ValueError("values must have at least one dimension.")
+
+    axis = node_axis
+    if axis < 0:
+        axis += array.ndim
+    if axis < 0 or axis >= array.ndim:
+        raise ValueError("node_axis is outside the values dimensions.")
+    if array.shape[axis] != conversion.source_node_count:
+        raise ValueError(
+            "Nodal data axis length must match the source node count."
+        )
+
+    return np.ascontiguousarray(
+        np.take(array, conversion.source_node_indices, axis=axis)
+    )
+
+
+def convert_mesh_for_render(
+    convention: ConnectConvention,
+    mesh_type: MeshType,
+    coords: np.ndarray,
+    connect: np.ndarray,
+) -> MeshConversion:
+    """Convert raw geometry for a Riley renderer and retain node provenance."""
+    if not isinstance(convention, ConnectConvention):
+        raise TypeError("convention must be a ConnectConvention.")
+
+    if not isinstance(mesh_type, MeshType):
+        raise TypeError("mesh_type must be a MeshType member.")
+
+    source_elem = convention.elem_type
+    target_elem = RILEY_MESH_ELEM_TYPE_MAP[mesh_type]
+    surf_elem = RILEY_VOL_SURF_TYPE_MAP.get(source_elem, source_elem)
+
+    if target_elem is not EElemType.TRI3:
+        if ELEM_FAMILY_MAP[surf_elem] != ELEM_FAMILY_MAP[target_elem]:
+            raise MeshError(
+                f"Cannot change {source_elem.value} into {target_elem.value}."
+            )
+        if ELEM_ORDER_MAP[target_elem] > ELEM_ORDER_MAP[surf_elem]:
+            raise MeshError(
+                f"Cannot convert {source_elem.value} to {target_elem.value}."
+            )
+
+    coords_array = np.asarray(coords)
+    source_node_count = (
+        coords_array.shape[0] if coords_array.ndim == 2 else 0
+    )
+    mesh = convert_mesh(coords, connect, convention)
+    source_node_indices = np.arange(mesh.coords.shape[0], dtype=np.uintp)
+
+    if ELEM_FAMILY_MAP[source_elem] in ("tet", "hex"):
+        mesh, source_node_indices = _extract_surface_with_node_idxs(mesh)
+
+    if target_elem is EElemType.TRI3:
+        if mesh.elem_type is not EElemType.TRI3:
+            mesh, source_node_indices = _triangulate_with_node_idxs(
+                mesh, source_node_indices, mesh.elem_type
+            )
+    elif mesh.elem_type is not target_elem:
+        mesh, source_node_indices = _reduce_elem_order_with_node_idxs(
+            mesh, source_node_indices, target_elem
+        )
+
+    return MeshConversion(
+        mesh_type=mesh_type,
+        geometry=mesh,
+        source_node_indices=np.ascontiguousarray(
+            source_node_indices, dtype=np.uintp
+        ),
+        source_node_count=source_node_count,
+    )
+
+
+def create_mesh_from_conversion(
+    conversion: MeshConversion,
+    shader: RileyShader,
+    disp: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
+) -> Mesh:
+    """Create a Riley mesh from source-indexed nodal attributes."""
+    if not isinstance(conversion, MeshConversion):
+        raise TypeError("conversion must be a MeshConversion.")
+    if not isinstance(shader, RileyShader):
+        raise TypeError("shader must be a Riley supported shader.")
+
+    geometry = conversion.geometry
+    return Mesh(
+        conversion.mesh_type,
+        geometry.coords,
+        np.ascontiguousarray(geometry.connect, dtype=np.uintp),
+        _prepare_disp(
+            disp,
+            conversion.source_node_count,
+            conversion.source_node_indices,
+        ),
+        _prepare_shader(
+            shader,
+            conversion.source_node_count,
+            conversion.source_node_indices,
+        ),
+    )
+
+
+def create_mesh_from_prepared(
+    conversion: MeshConversion,
+    shader: RileyShader,
+    disp: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
+) -> Mesh:
+    """Create a Riley mesh from attributes indexed by converted mesh nodes."""
+    if not isinstance(conversion, MeshConversion):
+        raise TypeError("conversion must be a MeshConversion.")
+
+    nodes_num = conversion.geometry.coords.shape[0]
+    identity = np.arange(nodes_num, dtype=np.uintp)
+    geometry = conversion.geometry
+    return Mesh(
+        conversion.mesh_type,
+        geometry.coords,
+        np.ascontiguousarray(geometry.connect, dtype=np.uintp),
+        _prepare_disp(disp, nodes_num, identity),
+        _prepare_shader(shader, nodes_num, identity),
+    )
+
+
 def create_mesh(
     convention: ConnectConvention,
     mesh_type: MeshType,
@@ -403,58 +561,18 @@ def create_mesh(
         If inputs are incompatible, topology conversion fails, or array
         dimensions/dtypes do not meet requirements.
     """
-    if not isinstance(convention, ConnectConvention):
-        raise TypeError("convention must be a ConnectConvention.")
-
-    if not isinstance(mesh_type, MeshType):
-        raise TypeError("mesh_type must be a MeshType member.")
-
-    if not isinstance(shader, RileyShader):
-        raise TypeError("shader must be a Riley supported shader.")
-
-    source_elem = convention.elem_type
-    target_elem = RILEY_MESH_ELEM_TYPE_MAP[mesh_type]
-    surf_elem = RILEY_VOL_SURF_TYPE_MAP.get(source_elem, source_elem)
-
-    if target_elem is not EElemType.TRI3:
-        if ELEM_FAMILY_MAP[surf_elem] != ELEM_FAMILY_MAP[target_elem]:
-            raise MeshError(
-                f"Cannot change {source_elem.value} into {target_elem.value}."
-            )
-        if ELEM_ORDER_MAP[target_elem] > ELEM_ORDER_MAP[surf_elem]:
-            raise MeshError(
-                f"Cannot convert {source_elem.value} to {target_elem.value}."
-            )
-
-    coords_array = np.asarray(coords)
-    nodes_num = coords_array.shape[0] if coords_array.ndim == 2 else 0
-
-    # 1) Convert to standard Riley convention
-    mesh = convert_mesh(coords, connect, convention)
-    source_node_idxs = np.arange(mesh.coords.shape[0], dtype=np.uintp)
-
-    # 2) Extract boundary surface if volume mesh
-    if ELEM_FAMILY_MAP[source_elem] in ("tet", "hex"):
-        mesh, source_node_idxs = _extract_surface_with_node_idxs(mesh)
-
-    # 3) Tessellate to tri3 or reduce order if needed
-    if target_elem is EElemType.TRI3:
-        if mesh.elem_type is not EElemType.TRI3:
-            mesh, source_node_idxs = _triangulate_with_node_idxs(
-                mesh, source_node_idxs, mesh.elem_type
-            )
-    elif mesh.elem_type is not target_elem:
-        mesh, source_node_idxs = _reduce_elem_order_with_node_idxs(
-            mesh, source_node_idxs, target_elem
-        )
-
-    return Mesh(
-        mesh_type,
-        mesh.coords,
-        np.ascontiguousarray(mesh.connect, dtype=np.uintp),
-        _prepare_disp(disp, nodes_num, source_node_idxs),
-        _prepare_shader(shader, nodes_num, source_node_idxs),
+    conversion = convert_mesh_for_render(
+        convention, mesh_type, coords, connect
     )
+    return create_mesh_from_conversion(conversion, shader, disp)
 
 
-__all__ = ["create_mesh", "load_csv"]
+__all__ = [
+    "MeshConversion",
+    "convert_mesh_for_render",
+    "create_mesh",
+    "create_mesh_from_conversion",
+    "create_mesh_from_prepared",
+    "load_csv",
+    "remap_nodal_data",
+]

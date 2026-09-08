@@ -11,7 +11,6 @@ from __future__ import annotations
 from importlib.resources import files
 from pathlib import Path
 
-
 _SHAPE_NAMES = (
     "cube",
     "cylinder",
@@ -85,6 +84,10 @@ def cal_target_texture_path() -> Path:
 
 def texture_dir_path() -> Path:
     return _resolve_data_path("textures", "texture")
+
+
+def feature_zoo_path() -> Path:
+    return _resolve_data_path("feature_zoo", "data/feature_zoo")
 
 
 def _normalize_shape_and_prefix(
@@ -609,6 +612,7 @@ __all__ = [
     "cylinder_moose_input_path",
     "cylinder_msh_path",
     "cylinder_temperature_path",
+    "feature_zoo_path",
     "multishape_case_path",
     "multishape_connectivity_path",
     "multishape_coords_path",
@@ -620,15 +624,6 @@ __all__ = [
     "multishape_temperature_path",
     "platehole_csv_case_path",
     "platehole_exodus_path",
-    "platewithhole_case_path",
-    "platewithhole_connectivity_path",
-    "platewithhole_coords_path",
-    "platewithhole_disp_path",
-    "platewithhole_exodus_path",
-    "platewithhole_geo_path",
-    "platewithhole_moose_input_path",
-    "platewithhole_msh_path",
-    "platewithhole_temperature_path",
     "platewithhole2d_case_path",
     "platewithhole2d_connectivity_path",
     "platewithhole2d_coords_path",
@@ -638,6 +633,15 @@ __all__ = [
     "platewithhole2d_moose_input_path",
     "platewithhole2d_msh_path",
     "platewithhole2d_temperature_path",
+    "platewithhole_case_path",
+    "platewithhole_connectivity_path",
+    "platewithhole_coords_path",
+    "platewithhole_disp_path",
+    "platewithhole_exodus_path",
+    "platewithhole_geo_path",
+    "platewithhole_moose_input_path",
+    "platewithhole_msh_path",
+    "platewithhole_temperature_path",
     "rabbit_case_path",
     "rabbits_root_path",
     "shape_case_path",

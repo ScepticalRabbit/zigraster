@@ -8,6 +8,11 @@ source = "data/shapes"
 dest = "shapes"
 patterns = ["*.csv", "*.e", "*.msh"]
 
+[[copy_tree]]
+source = "data/feature_zoo"
+dest = "feature_zoo"
+patterns = ["*.csv"]
+
 [[copy]]
 source = "data/FE/platehole3d_2mr_63f.e"
 dest = "fe/platehole3d_2mr_63f.e"
