@@ -94,6 +94,46 @@ zig build test-bench -Dprecision=f32 -Dsimd=off -Doptimize=ReleaseSafe
 
 The min suite requires SIMD on. Scalar min orchestration is not implemented.
 
+## Focused Verification Suite
+
+The focused verification suite checks independent analytic and numerical contracts rather
+than broad image-output stability. It currently covers:
+
+- inverse element-solver recovery from known parent coordinates;
+- undistorted silhouette area and centroid against Python-generated analytic references;
+- overlapping-rabbit depth ordering at four rear-surface separations;
+- camera-distortion forward/inverse recovery from known ideal raster points.
+
+The suite is intentionally fixed to the production `f64` configuration with SIMD enabled:
+
+```shell
+zig build test-verif -Dprecision=f64 -Dsimd=on -Doptimize=ReleaseSafe
+```
+
+The ordinary test command is Zig-only. It reads compact comparison data from
+`./gold/verif/`; it does not run Python or regenerate expected results.
+
+The depth cases place the rear rabbit at separations of one largest mesh-coordinate span,
+`1/100` span, `1/1000` span, and twice the active depth-buffer tolerance. The final case is
+constructed in inverse camera-depth space because Riley's depth-buffer comparison tolerance
+has inverse-depth units. Each case renders the individual masks and both mesh submission
+orders, then verifies the analytic front-over-rear composition pixel by pixel.
+
+Regenerate the verification comparison data with the repository virtual environment:
+
+```shell
+zig build gen-gold-verif -Dprecision=f64 -Dsimd=on -Doptimize=ReleaseSafe
+```
+
+This first runs the Zig input generator and then
+`./src/gengold/gengold_verif.py`. The Python stage independently integrates the projected
+linear and quadratic element boundaries and writes only the compact analytic results beneath
+`./gold/verif/`. These files remain ignored for now. If they are committed later, only the
+`f64`, SIMD-enabled dataset should be added.
+
+Changes to verification comparison data should be reviewed together with the generator and
+the numerical diff. Do not regenerate comparison data as part of `test-verif`.
+
 ## Benchmark Binaries
 The benchmark entry points exposed through `zig build` are:
 

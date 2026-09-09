@@ -1292,9 +1292,9 @@ int main() {
 
     // 2. Load textures
     int tex_w = 0, tex_h = 0;
-    float* tex_data_g = load_bmp("texture/speckle.bmp", &tex_w, &tex_h, 1);
+    float* tex_data_g = load_bmp("texture/speckle_mono.bmp", &tex_w, &tex_h, 1);
     if (!tex_data_g) {
-        fprintf(stderr, "Could not load texture/speckle.bmp\n");
+        fprintf(stderr, "Could not load texture/speckle_mono.bmp\n");
         return 1;
     }
 

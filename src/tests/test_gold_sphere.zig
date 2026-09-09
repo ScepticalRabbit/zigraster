@@ -34,7 +34,7 @@ test "Sphere Gold Tests" {
         1,
         allocator,
         io,
-        "texture/speckle.bmp",
+        "texture/speckle_mono.bmp",
         .bmp,
     );
     defer texture_grey.deinit(allocator);

@@ -35,7 +35,7 @@ pub fn main(init: std.process.Init) !void {
         1,
         aa,
         io,
-        "texture/speckle.bmp",
+        "texture/speckle_mono.bmp",
         .bmp,
     );
     const texture_rgb = try iio.loadImage(

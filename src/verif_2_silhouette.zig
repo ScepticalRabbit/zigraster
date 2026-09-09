@@ -10,6 +10,7 @@ const std = @import("std");
 const buildconfig = @import("riley/zig/buildconfig.zig");
 const F = buildconfig.F;
 const cam = @import("riley/zig/camera.zig");
+const gk = @import("riley/zig/geometrykernels.zig");
 const cameraops = @import("riley/zig/cameraops.zig");
 const iio = @import("riley/zig/imageio.zig");
 const matrix = @import("riley/zig/matstack.zig");
@@ -23,6 +24,7 @@ const verif = @import("dev_support/verif.zig");
 const vector = @import("riley/zig/vecstack.zig");
 const riley = @import("riley/zig/riley.zig");
 const sceneops = @import("riley/zig/sceneops.zig");
+const csvio = @import("riley/zig/csvio.zig");
 
 const pixel_num = [_]u32{ 1024, 1024 };
 const fov_scale: F = 1.05;
@@ -42,6 +44,24 @@ const ScalarMap = struct {
     rows_num: usize,
     cols_num: usize,
     vals: []F,
+};
+
+pub const focused_cases = [_]struct {
+    mesh_type: gk.MeshType,
+    distort_name: []const u8,
+    frame_idx: usize,
+}{
+    .{ .mesh_type = .tri3, .distort_name = "shear", .frame_idx = 0 },
+    .{ .mesh_type = .tri6, .distort_name = "bulge", .frame_idx = 5 },
+    .{ .mesh_type = .quad4newton, .distort_name = "shear", .frame_idx = 0 },
+    .{ .mesh_type = .quad8, .distort_name = "bulge", .frame_idx = 5 },
+    .{ .mesh_type = .quad9, .distort_name = "bulge", .frame_idx = 5 },
+};
+
+const FocusedMetrics = struct {
+    cent_x: F,
+    cent_y: F,
+    area_px2: F,
 };
 
 fn imageFormatExt(format: iio.ImageFormat) []const u8 {
@@ -363,7 +383,7 @@ fn renderScalarMap(
 fn buildCentroidCameraInput(ref_coords: *const meshio.Coords) cam.CameraInput {
     const initial_rot = orch.defaultRotation();
     const roi_cent_world = sceneops.meanCenter(ref_coords);
-    const pos_world = cameraops.posFillFrameFromRotAndTarget(
+    const pos_world = cameraops.posFillFrameFromRotAndTarg(
         ref_coords,
         roi_cent_world,
         pixel_num,
@@ -558,6 +578,134 @@ fn runDistortCase(
                 frame_idx,
                 stats.dist,
             },
+        );
+    }
+}
+
+fn findCaseSpec(mesh_type: gk.MeshType, distort_name: []const u8) !vconst.DistortCase {
+    for (vconst.distort_cases) |case_spec| {
+        if (case_spec.mesh_type == mesh_type and
+            std.mem.eql(u8, case_spec.case_name, distort_name))
+        {
+            return case_spec;
+        }
+    }
+    return error.VerifCaseNotFound;
+}
+
+fn renderFocusedCase(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    focused_case: @TypeOf(focused_cases[0]),
+    out_dir_path: ?[]const u8,
+) !FocusedMetrics {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const local_alloc = arena.allocator();
+    const case_spec = try findCaseSpec(focused_case.mesh_type, focused_case.distort_name);
+    const sim_data = try orch.loadData(local_alloc, io, case_spec.data_dir);
+    const ref_coords = try buildFrameCoords(local_alloc, &sim_data, 0);
+    const camera_input = buildCentroidCameraInput(&ref_coords);
+    const frame_coords = try buildFrameCoords(local_alloc, &sim_data, focused_case.frame_idx);
+    var config = tcfg.getRasterConfig(.preview);
+    config.save_strategy = .memory;
+    config.report = .off;
+    const scalar_map = try renderScalarMap(
+        local_alloc,
+        allocator,
+        io,
+        case_spec,
+        sim_data.connect,
+        frame_coords,
+        camera_input,
+        config,
+        out_dir_path orelse ".",
+    );
+    defer allocator.free(scalar_map.vals);
+    const stats = try calcCentroidStats(
+        camera_input,
+        scalar_map.rows_num,
+        scalar_map.cols_num,
+        scalar_map.vals,
+    );
+    const fill_value = std.mem.max(F, scalar_map.vals);
+    var weighted_area: F = 0.0;
+    for (scalar_map.vals) |val| weighted_area += val;
+
+    if (out_dir_path) |path| {
+        var out_dir = try orch.openDirEnsured(io, path);
+        defer out_dir.close(io);
+        try verif.writeScalarMapCsv(
+            io,
+            out_dir,
+            "cam0_frame0_field0.csv",
+            scalar_map.rows_num,
+            scalar_map.cols_num,
+            scalar_map.vals,
+        );
+        const camera = try cam.CameraPrepared.init(local_alloc, camera_input);
+        const frame_cent_world = sceneops.meanCenter(&frame_coords);
+        const scaling = cameraops.calcFOVScaling(camera_input, frame_cent_world);
+        try writeStatsCsv(
+            io,
+            out_dir,
+            "cam0_frame0_field0_stats.csv",
+            stats,
+            frame_cent_world,
+            scaling,
+            &camera,
+            &frame_coords,
+        );
+    }
+
+    return .{
+        .cent_x = stats.calc_x,
+        .cent_y = stats.calc_y,
+        .area_px2 = weighted_area / fill_value,
+    };
+}
+
+pub fn generateFocusedGoldInputs(allocator: std.mem.Allocator, io: std.Io) !void {
+    for (focused_cases) |focused_case| {
+        const path = try std.fmt.allocPrint(
+            allocator,
+            "out/verif_oracle_inputs/b_{s}_{s}",
+            .{ orch.meshDataName(focused_case.mesh_type), focused_case.distort_name },
+        );
+        defer allocator.free(path);
+        _ = try renderFocusedCase(allocator, io, focused_case, path);
+    }
+}
+
+pub fn runFocusedTests(allocator: std.mem.Allocator, io: std.Io) !void {
+    var oracle = try csvio.loadScalarCsv2D(
+        allocator,
+        io,
+        "gold/verif/silhouette_metrics.csv",
+    );
+    defer {
+        allocator.free(oracle.slice);
+        oracle.deinit(allocator);
+    }
+    try std.testing.expectEqual(focused_cases.len, oracle.dims[0]);
+    try std.testing.expectEqual(@as(usize, 3), oracle.dims[1]);
+
+    for (focused_cases, 0..) |focused_case, case_idx| {
+        const actual = try renderFocusedCase(allocator, io, focused_case, null);
+        try std.testing.expectApproxEqAbs(
+            oracle.get(&.{ case_idx, 0 }),
+            actual.cent_x,
+            tcfg.VERIF_TOL.silhouette_cent_abs_px,
+        );
+        try std.testing.expectApproxEqAbs(
+            oracle.get(&.{ case_idx, 1 }),
+            actual.cent_y,
+            tcfg.VERIF_TOL.silhouette_cent_abs_px,
+        );
+        try std.testing.expectApproxEqAbs(
+            oracle.get(&.{ case_idx, 2 }),
+            actual.area_px2,
+            tcfg.VERIF_TOL.silhouette_area_abs_px2,
         );
     }
 }

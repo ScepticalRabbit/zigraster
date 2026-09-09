@@ -72,13 +72,13 @@ def _resolve_data_path(
 
 
 def speckle_texture_path() -> Path:
-    return _resolve_data_path("textures/speckle.bmp", "texture/speckle.bmp")
+    return _resolve_data_path("textures/speckle_mono.bmp", "texture/speckle_mono.bmp")
 
 
 def cal_target_texture_path() -> Path:
     return _resolve_data_path(
-        "textures/cal_target-simple.tiff",
-        "texture/cal_target-simple.tiff",
+        "textures/cal_target.tiff",
+        "texture/cal_target.tiff",
     )
 
 

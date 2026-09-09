@@ -101,7 +101,7 @@ pub fn forwardMapWorld(
     node_y: []const F,
     node_z: []const F,
 ) Vec3 {
-    shapefun.shapeFunctions(
+    shapefun.shapeFunc(
         N,
         xi,
         eta,
@@ -241,7 +241,7 @@ pub fn observedToIdealRaster(
     const x_dist = (observed_xy[0] - offsets.x_off) / focal_px.fx;
     const y_dist = (observed_xy[1] - offsets.y_off) / focal_px.fy;
 
-    const solved = try cam.inverseDistortionModelScalar(
+    const solved = try cam.invDistortionModelScal(
         camera.distortion,
         x_dist,
         y_dist,

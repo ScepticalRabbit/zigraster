@@ -20,7 +20,7 @@ FORMATS: tuple[str, ...] = ("bmp", "tiff", "png")
 
 DEFAULT_SOURCE_DIR = Path("texture")
 DEFAULT_OUTPUT_DIR = Path("texture")
-MONO_SOURCE_FILENAME = "speckle.bmp"
+MONO_SOURCE_FILENAME = "speckle_mono.bmp"
 RGB_SOURCE_FILENAME = "speckle_rgb.bmp"
 
 

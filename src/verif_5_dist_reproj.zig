@@ -18,7 +18,7 @@ const sample_grid_rows_num: usize = 250;
 const sample_grid_cols_num: usize = 250;
 const verif_subdir_name = "verif_5";
 
-const DistortionRoundTripRecord = struct {
+pub const DistortionRoundTripRecord = struct {
     ideal_x_true: F,
     ideal_y_true: F,
     ideal_x_rec: F,
@@ -38,7 +38,7 @@ const DistortionRoundTripRecord = struct {
     col_idx: usize,
 };
 
-const PixelSample = struct {
+pub const PixelSample = struct {
     ideal_x: F,
     ideal_y: F,
     row_idx: usize,
@@ -68,7 +68,7 @@ fn inverseDistortionWithIters(
     x_dist: F,
     y_dist: F,
 ) !DistortionInverseResult {
-    const tol = buildconfig.config.tolerance;
+    const tol = buildconfig.config.tol;
     const max_iters = buildconfig.config.distortion_newton_iter_max;
 
     var x_guess = x_dist;
@@ -160,7 +160,7 @@ fn observedToIdealRasterWithIters(
         .brown_conrady_polynomial,
         .brown_conrady_ext_polynomial,
         => blk: {
-            const solved = try cam.inverseDistortionModelScalar(
+            const solved = try cam.invDistortionModelScal(
                 camera.distortion,
                 x_dist,
                 y_dist,
@@ -225,7 +225,7 @@ fn isInSensorBounds(
         ideal_y >= 0.5 and ideal_y <= height_px - 0.5;
 }
 
-fn evalPixelSample(
+pub fn evalPixelSample(
     camera: *const cam.CameraPrepared,
     camera_input: cam.CameraInput,
     sample: PixelSample,

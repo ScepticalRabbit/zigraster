@@ -25,6 +25,28 @@ pub const MAX_RASTER_WORKERS_PER_JOB: u16 = 3;
 pub const GEOM_SCHEDULING_MODE: rastcfg.GeometrySchedulingMode = .auto;
 pub const TEST_CASE_VERBOSE: bool = false;
 
+pub const VerifTol = struct {
+    para_abs: F,
+    reproj_abs_px: F,
+    distortion_abs_px: F,
+    silhouette_area_abs_px2: F,
+    silhouette_cent_abs_px: F,
+    silhouette_mask_diff_pct: F,
+    depth_value_abs: F,
+    depth_gap_rel: F,
+};
+
+pub const VERIF_TOL = VerifTol{
+    .para_abs = 1.0e-7,
+    .reproj_abs_px = 1.0e-6,
+    .distortion_abs_px = 1.0e-6,
+    .silhouette_area_abs_px2 = 16.0,
+    .silhouette_cent_abs_px = 5.0e-2,
+    .silhouette_mask_diff_pct = 1.0e-3,
+    .depth_value_abs = 1.0e-12,
+    .depth_gap_rel = 1.0e-5,
+};
+
 pub const RasterConfigMode = enum {
     gold_gen,
     preview,

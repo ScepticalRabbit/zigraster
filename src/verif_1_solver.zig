@@ -45,7 +45,7 @@ fn isFinite(val: F) bool {
     return !std.math.isNan(val) and !std.math.isInf(val);
 }
 
-fn evalSample(
+pub fn evalSample(
     comptime mesh_type: gk.MeshType,
     camera: *const cam.CameraPrepared,
     node_x: []const F,
@@ -341,7 +341,7 @@ fn saveIdealMapsDynamic(
     };
 }
 
-fn frameNodes(
+pub fn frameNodes(
     comptime mesh_type: gk.MeshType,
     sim_data: *const meshio.SimData,
     frame_idx: usize,

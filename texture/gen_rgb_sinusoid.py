@@ -50,7 +50,7 @@ def generate_sinusoidal_rgb(input_path, output_path, period_pct):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Add sinusoidal RGB patterns to a texture.")
-    parser.add_argument("--input", default="texture/speckle.tiff", help="Input image path")
+    parser.add_argument("--input", default="texture/speckle_mono.tiff", help="Input image path")
     parser.add_argument("--output", default="texture/speckle_rgb.bmp", help="Output image path")
     parser.add_argument("--period", type=float, default=20.0, help="Period as percentage of width")
     

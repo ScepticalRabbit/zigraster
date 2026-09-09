@@ -31,7 +31,7 @@ const DEFAULT_PIXELS_SIZE = [2]F{
     @floatCast(5.3e-6),
 };
 const DEFAULT_FOV_SCALE: F = 0.5;
-const DEFAULT_TEX_GREY_PATH = "texture/speckle.bmp";
+const DEFAULT_TEX_GREY_PATH = "texture/speckle_mono.bmp";
 const DEFAULT_TEX_RGB_PATH = "texture/speckle_rgb.bmp";
 const DEFAULT_ROT = Rotation.init(0, 0, 0);
 

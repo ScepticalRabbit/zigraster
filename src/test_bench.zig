@@ -33,7 +33,7 @@ test "Unified Benchmark Tests" {
         1,
         outer_alloc,
         io,
-        "texture/speckle.bmp",
+        "texture/speckle_mono.bmp",
         .bmp,
     );
     defer texture_grey.deinit(outer_alloc);

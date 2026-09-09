@@ -73,6 +73,11 @@ pub fn build(b: *std.Build) void {
             .description = "Run the benchmark regression test suite",
             .source_path = "src/test_bench.zig",
         },
+        .{
+            .step_name = "test-verif",
+            .description = "Run the focused analytic verification suite",
+            .source_path = "src/test_verif.zig",
+        },
     };
 
     for (tests) |entry| {
@@ -162,6 +167,11 @@ pub fn build(b: *std.Build) void {
             .description = "Generate the MIN gold datasets",
             .source_path = "src/gen_gold_min.zig",
         },
+        .{
+            .step_name = "gen-gold-verif-zig",
+            .description = "Generate the Zig verification oracle inputs",
+            .source_path = "src/gen_gold_verif.zig",
+        },
     };
 
     const gold_step = b.step("gen-gold", "Run all gold generation entrypoints");
@@ -179,6 +189,28 @@ pub fn build(b: *std.Build) void {
             gold_step.dependOn(&run_artifact.step);
         }
     }
+
+    const gen_verif_python = b.addSystemCommand(&.{
+        ".venv/bin/python",
+        "src/gengold/gengold_verif.py",
+    });
+    const gen_verif_zig = addRunStep(
+        b,
+        target,
+        optimize,
+        build_options_module,
+        .{
+            .step_name = "gen-gold-verif-zig-internal",
+            .description = "Generate verification oracle inputs",
+            .source_path = "src/gen_gold_verif.zig",
+        },
+    );
+    gen_verif_python.step.dependOn(&gen_verif_zig.step);
+    const gen_verif_step = b.step(
+        "gen-gold-verif",
+        "Generate focused analytic verification gold",
+    );
+    gen_verif_step.dependOn(&gen_verif_python.step);
 
     const benches = [_]RunEntry{
         .{

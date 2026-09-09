@@ -333,7 +333,7 @@ pub fn buildMultimeshInputs(
             &default_multimesh_mesh_types,
             .tex,
             dir_paths,
-            "texture/speckle-simple.tiff",
+            "texture/speckle_mono.tiff",
             null,
         ),
     };

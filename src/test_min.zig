@@ -40,7 +40,7 @@ test "MIN Suite: sphere200 and multimesh" {
         1,
         allocator,
         io,
-        "texture/speckle.bmp",
+        "texture/speckle_mono.bmp",
         .bmp,
     );
     defer texture_grey.deinit(allocator);

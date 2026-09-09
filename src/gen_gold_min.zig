@@ -40,7 +40,7 @@ pub fn main(init: std.process.Init) !void {
         1,
         allocator,
         io,
-        "texture/speckle.bmp",
+        "texture/speckle_mono.bmp",
         .bmp,
     );
     defer texture_grey.deinit(allocator);

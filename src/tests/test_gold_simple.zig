@@ -31,7 +31,7 @@ test "Gold Simple Suite" {
             1,
             allocator,
             io,
-            "texture/speckle-simple.tiff",
+            "texture/speckle_mono.tiff",
             .tiff,
         );
     };
