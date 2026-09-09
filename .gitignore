@@ -72,6 +72,8 @@ refs/
 !gold/perf_stats_ref/**/*.json
 !gold/perf_stats_ref/**/*.txt
 !gold/perf_stats_ref/**/*.md
+!gold/verif/
+!gold/verif/**
 
 # Keep our other test suite data committed to the repo
 !data/small/**/*.csv

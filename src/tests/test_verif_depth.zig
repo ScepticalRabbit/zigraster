@@ -9,6 +9,6 @@
 const std = @import("std");
 const depth_verif = @import("../verif_4_depth.zig");
 
-test "verification depth buffer preserves the front overlapping rabbit" {
-    try depth_verif.runFocusedTests(std.testing.allocator, std.testing.io);
+pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
+    try depth_verif.runFocusedTests(allocator, io);
 }

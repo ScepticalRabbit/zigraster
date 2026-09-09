@@ -12,8 +12,8 @@ const tcfg = @import("../dev_support/testconfig.zig");
 const vconst = @import("../dev_support/verifconstants.zig");
 const dist_verif = @import("../verif_5_dist_reproj.zig");
 
-test "verification distortion recovers known ideal raster coordinates" {
-    const allocator = std.testing.allocator;
+pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
+    _ = io;
     const camera_base = vconst.distort_cases[0].camera_input;
     const width = @as(f64, @floatFromInt(camera_base.pixels_num[0]));
     const height = @as(f64, @floatFromInt(camera_base.pixels_num[1]));

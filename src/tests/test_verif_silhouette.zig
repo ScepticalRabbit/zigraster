@@ -9,6 +9,6 @@
 const std = @import("std");
 const silhouette_verif = @import("../verif_2_silhouette.zig");
 
-test "verification silhouettes match analytic area and centroid" {
-    try silhouette_verif.runFocusedTests(std.testing.allocator, std.testing.io);
+pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
+    try silhouette_verif.runFocusedTests(allocator, io);
 }

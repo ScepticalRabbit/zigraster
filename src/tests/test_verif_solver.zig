@@ -83,10 +83,7 @@ fn checkCase(
     }
 }
 
-test "verification solver recovers known parent coordinates" {
-    const allocator = std.testing.allocator;
-    const io = std.testing.io;
-
+pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
     for (vconst.distort_cases) |case_spec| {
         const selected = std.mem.eql(u8, case_spec.case_name, "shear") or
             std.mem.eql(u8, case_spec.case_name, "bulge");

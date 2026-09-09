@@ -20,6 +20,32 @@ comptime {
     }
 }
 
-test {
-    std.testing.refAllDecls(@This());
+fn runCase(
+    comptime name: []const u8,
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    comptime run: fn (std.mem.Allocator, std.Io) anyerror!void,
+) !void {
+    std.debug.print("Running verification case: {s}...\n", .{name});
+    const start = std.Io.Clock.Timestamp.now(io, .awake);
+    try run(allocator, io);
+    const end = std.Io.Clock.Timestamp.now(io, .awake);
+    const elapsed_s = @as(f64, @floatFromInt(start.durationTo(end).raw.nanoseconds)) / 1.0e9;
+    std.debug.print("Verification case {s} took {d:.3} seconds.\n", .{ name, elapsed_s });
+}
+
+test "focused analytic verification suite" {
+    const allocator = std.testing.allocator;
+    const io = std.testing.io;
+    const start = std.Io.Clock.Timestamp.now(io, .awake);
+
+    std.debug.print("\nRunning verification tests.\n\n", .{});
+    try runCase("solver", allocator, io, solver.run);
+    try runCase("silhouette", allocator, io, silhouette.run);
+    try runCase("depth buffer", allocator, io, depth.run);
+    try runCase("camera distortion", allocator, io, distortion.run);
+
+    const end = std.Io.Clock.Timestamp.now(io, .awake);
+    const elapsed_s = @as(f64, @floatFromInt(start.durationTo(end).raw.nanoseconds)) / 1.0e9;
+    std.debug.print("\nVerification tests took {d:.3} seconds.\n", .{elapsed_s});
 }
