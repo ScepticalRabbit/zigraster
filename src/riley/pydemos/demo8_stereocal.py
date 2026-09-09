@@ -8,16 +8,14 @@
 # --------------------------------------------------------------------------
 from __future__ import annotations
 
-from time import perf_counter
+import copy
 from pathlib import Path
 import shutil
+from time import perf_counter
 
 import numpy as np
 
 import riley
-from riley.pydemos.demoframes import (
-    evenly_spaced_frame_indices,
-)
 
 FRAMES_MAX = 8
 
@@ -36,8 +34,7 @@ def create_stereo_cameras(
     stereo_angle_deg = 20.0
     sub_sample = 2
 
-    # Brown-Conrady distortion (k1=-0.2, k2=0.1, p1=0.0001, p2=-0.0001)
-    # distortion_model: 0=none, 1=brown_conrady, 2=brown_conrady_ext, etc.
+    # Brown-Conrady distortion
     distortion_model = {
         "distortion_model": 1,
         "distortion_k1": -0.2,
@@ -60,23 +57,19 @@ def create_stereo_cameras(
         **distortion_model,
     )
 
-    # Camera 1: stereo angle
-    cam1_rot = (0.0, np.deg2rad(stereo_angle_deg), 0.0)
-    camera_1 = riley.Camera(
-        pixels_num=pixels_num,
-        pixels_size=pixels_size,
-        pos_world=MATCHED_CAM1_POS,
-        rot_world=cam1_rot,
-        roi_cent_world=tuple(roi_pos),
-        focal_length=focal_length,
-        sub_sample=sub_sample,
-        **distortion_model,
-    )
+    # Camera 1: stereo angle 
+    cam1_rot = (0.0, float(np.deg2rad(stereo_angle_deg)), 0.0)
+    camera_1 = copy.deepcopy(camera_0)
+    camera_1.pos_world = MATCHED_CAM1_POS
+    camera_1.rot_world = cam1_rot
 
     return camera_0, camera_1
 
 
 def main() -> None:
+    # --------------------------------------------------------------------------
+    # 1. Setup paths and parameters
+    # --------------------------------------------------------------------------
     data_dir = riley.data.stereocal_case_path()
     texture_path = riley.data.cal_target_texture_path()
     out_dir = Path.cwd() / "out_riley_py" / "demo8_stereocal"
@@ -84,6 +77,9 @@ def main() -> None:
     out_dir.mkdir(parents=True)
     total_threads = 8
 
+    # --------------------------------------------------------------------------
+    # 2. Load calibration plate mesh, sample frames, and apply texture
+    # --------------------------------------------------------------------------
     coords = riley.load_csv(data_dir / "coords.csv")
     connect = riley.load_csv(data_dir / "connect.csv", dtype=np.int64)
     uvs = riley.load_csv(data_dir / "uvs.csv")
@@ -91,8 +87,10 @@ def main() -> None:
         riley.load_csv(data_dir / f"field_disp_{axis}.csv")
         for axis in "xyz"
     )
-    frame_indices = evenly_spaced_frame_indices(
-        disp_components[0].shape[1], FRAMES_MAX
+
+    frame_indices = riley.frames_evenly_spaced_idxs(
+        disp_components[0].shape[1],
+        FRAMES_MAX,
     )
     disp_components = tuple(item[:, frame_indices] for item in disp_components)
     texture = riley.load_texture_mono_u8(texture_path)
@@ -103,19 +101,23 @@ def main() -> None:
     coords = coords + roi_shift
     roi_pos = riley.roi_cent_from_coords(coords)
 
-    # Create stereo cameras programmatically
+    # --------------------------------------------------------------------------
+    # 3. Create, save, and reload stereo camera pair
+    # --------------------------------------------------------------------------
     camera_0, camera_1 = create_stereo_cameras(roi_pos)
 
-    # Save stereo pair to output directory
     stereo_file = "stereo_data_opengl.csv"
     riley.save_stereo_pair(str(out_dir), stereo_file, camera_0, camera_1)
-
-    # Load stereo pair back from output directory (standalone test)
     camera_0, camera_1 = riley.load_stereo_pair(str(out_dir), stereo_file)
 
+    # --------------------------------------------------------------------------
+    # 4. Build mesh and raster configuration
+    # --------------------------------------------------------------------------
     mesh = riley.create_mesh(
         convention=riley.ConnectConvention(
-            riley.EElemType.TRI3, riley.EConnectAxis.ROW, 0,
+            riley.EElemType.TRI3,
+            riley.EConnectAxis.ROW,
+            0,
             riley.ENodeOrder.RILEY,
         ),
         mesh_type=riley.MeshType.tri3,
@@ -132,6 +134,9 @@ def main() -> None:
     )
     config.background_value = 128.0
 
+    # --------------------------------------------------------------------------
+    # 5. Render stereocal poses
+    # --------------------------------------------------------------------------
     start_time = perf_counter()
     riley.raster([mesh], [camera_0, camera_1], config, out_dir=str(out_dir))
     elapsed_time = perf_counter() - start_time

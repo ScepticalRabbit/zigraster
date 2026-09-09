@@ -7,18 +7,36 @@
 # Authors: scepticalrabbit (Lloyd Fletcher)
 # --------------------------------------------------------------------------
 
-from riley.python import sceneops
+from riley.python import (
+    exodusio,
+    frameops,
+    meshconst,
+    meshconv,
+    meshio,
+    rileyconfig,
+    sceneops,
+    textureio,
+    uvtools,
+)
 from riley.python.exodusio import (
     ExodusBlock,
     ExodusError,
     ExodusSim,
     load_exodus,
 )
+from riley.python.frameops import (
+    frames_evenly_spaced_idxs,
+    frames_first_last_idxs,
+    frames_select,
+)
+from riley.python.meshconst import (
+    EElemType,
+    RileyElemTopology,
+)
 from riley.python.meshconv import (
     ConnectConvention,
     EConnectAxis,
     EdgeNode,
-    EElemType,
     ENodeOrder,
     FaceNode,
     MeshError,
@@ -27,6 +45,8 @@ from riley.python.meshconv import (
     UserTopology,
     convert_mesh,
     extract_surface,
+    reduce_mesh_order,
+    triangulate_mesh,
     verify_mesh,
 )
 from riley.python.meshio import (
@@ -39,6 +59,22 @@ from riley.python.meshio import (
     remap_nodal_data,
 )
 from riley.python.rileyconfig import create_raster_config
+from riley.python.sceneops import (
+    ESceneOverlapDirect,
+    SceneBounds3D,
+    SceneBoundsOverlapSpec,
+    SceneGridSpec,
+    SceneMeshGroup,
+    scene_arrange_mesh_groups_grid,
+    scene_calc_bounds_for_coords,
+    scene_calc_bounds_for_coords_list,
+    scene_calc_bounds_for_mesh_group,
+    scene_center_mesh_group_at,
+    scene_create_mesh_group_single,
+    scene_create_mesh_group_span,
+    scene_overlap_mesh_group_bounds,
+    scene_translate_mesh_group,
+)
 from riley.python.textureio import (
     ETextureCoercion,
     load_texture_mono_u8,
@@ -61,6 +97,7 @@ __all__ = [
     "EConnectAxis",
     "EElemType",
     "ENodeOrder",
+    "ESceneOverlapDirect",
     "ETextureCoercion",
     "EUVPlanarProjMode",
     "EUVProjPlane",
@@ -73,6 +110,11 @@ __all__ = [
     "MeshError",
     "MeshGeometry",
     "MeshVerifyIssue",
+    "RileyElemTopology",
+    "SceneBounds3D",
+    "SceneBoundsOverlapSpec",
+    "SceneGridSpec",
+    "SceneMeshGroup",
     "UVPixelBBox",
     "UVProjAxes",
     "UVProjBounds2D",
@@ -84,15 +126,37 @@ __all__ = [
     "create_mesh_from_conversion",
     "create_mesh_from_prepared",
     "create_raster_config",
+    "exodusio",
     "extract_surface",
+    "frameops",
+    "frames_evenly_spaced_idxs",
+    "frames_first_last_idxs",
+    "frames_select",
     "load_csv",
     "load_exodus",
     "load_texture_mono_u8",
     "load_texture_mono_u16",
     "load_texture_rgb_u8",
+    "meshconst",
+    "meshconv",
+    "meshio",
     "project_uvs_planar_bbox",
     "project_uvs_planar_centered",
+    "reduce_mesh_order",
     "remap_nodal_data",
+    "rileyconfig",
+    "scene_arrange_mesh_groups_grid",
+    "scene_calc_bounds_for_coords",
+    "scene_calc_bounds_for_coords_list",
+    "scene_calc_bounds_for_mesh_group",
+    "scene_center_mesh_group_at",
+    "scene_create_mesh_group_single",
+    "scene_create_mesh_group_span",
+    "scene_overlap_mesh_group_bounds",
+    "scene_translate_mesh_group",
     "sceneops",
+    "textureio",
+    "triangulate_mesh",
+    "uvtools",
     "verify_mesh",
 ]

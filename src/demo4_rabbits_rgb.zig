@@ -189,6 +189,9 @@ fn buildRabbitPairScene(
     io: std.Io,
     texture: texops.Tex(u8, 3),
 ) ![]MeshInput {
+    // -------------------------------------------------------------------------
+    // 1. Build and overlap rabbit mesh pairs
+    // -------------------------------------------------------------------------
     var mesh_list = std.ArrayList(MeshInput).empty;
     var group_list = std.ArrayList(sceneops.MeshGroup).empty;
 
@@ -233,6 +236,9 @@ fn buildRabbitPairScene(
         try group_list.append(allocator, sceneops.meshGroupSpan(pair_start, 2));
     }
 
+    // -------------------------------------------------------------------------
+    // 2. Arrange rabbit groups in grid layout
+    // -------------------------------------------------------------------------
     sceneops.arrangeMeshGroupsGrid(
         mesh_list.items,
         group_list.items,
@@ -250,6 +256,9 @@ pub fn main(init: std.process.Init) !void {
     defer arena.deinit();
     const aa = arena.allocator();
 
+    // -------------------------------------------------------------------------
+    // 1. Setup paths, texture, and meshes
+    // -------------------------------------------------------------------------
     const texture = try iio.loadImage(
         u8,
         3,
@@ -260,6 +269,10 @@ pub fn main(init: std.process.Init) !void {
     );
 
     const mesh_inputs = try buildRabbitPairScene(aa, io, texture);
+
+    // -------------------------------------------------------------------------
+    // 2. Position and configure camera
+    // -------------------------------------------------------------------------
     const rot = Rotation.init(0.0, std.math.pi, 0.0);
     const roi_pos = sceneops.boundsCenterOverMeshes(mesh_inputs);
     const cam_pos = cameraops.posFillFrameFromRotOverMeshes(
@@ -294,6 +307,10 @@ pub fn main(init: std.process.Init) !void {
         .sub_sample = camera.sub_sample,
         .distortion = camera.distortion,
     };
+
+    // -------------------------------------------------------------------------
+    // 3. Configure raster engine
+    // -------------------------------------------------------------------------
     const config = rastcfg.RasterConfig{
         .save_strategy = .disk,
         .image_save_mode = .rgb,
@@ -309,6 +326,9 @@ pub fn main(init: std.process.Init) !void {
         },
     };
 
+    // -------------------------------------------------------------------------
+    // 4. Render rabbit multi-mesh scene
+    // -------------------------------------------------------------------------
     const images = try riley.raster(
         aa,
         &render_groups,

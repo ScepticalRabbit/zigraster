@@ -11,6 +11,7 @@ import platform
 from pathlib import Path
 
 from riley import data
+from riley import python
 
 # Add DLL directory to the search path on Windows to avoid "DLL load failed"
 if platform.system().lower() == "windows":
@@ -77,17 +78,36 @@ from riley.cython.riley import (
     save_camera,
     save_stereo_pair,
 )
+from riley.python import (
+    exodusio,
+    frameops,
+    meshconst,
+    meshconv,
+    meshio,
+    rileyconfig,
+    sceneops,
+    textureio,
+    uvtools,
+)
 from riley.python.exodusio import (
     ExodusBlock,
     ExodusError,
     ExodusSim,
     load_exodus,
 )
+from riley.python.frameops import (
+    frames_evenly_spaced_idxs,
+    frames_first_last_idxs,
+    frames_select,
+)
+from riley.python.meshconst import (
+    EElemType,
+    RileyElemTopology,
+)
 from riley.python.meshconv import (
     ConnectConvention,
     EConnectAxis,
     EdgeNode,
-    EElemType,
     ENodeOrder,
     FaceNode,
     MeshError,
@@ -110,6 +130,22 @@ from riley.python.meshio import (
     remap_nodal_data,
 )
 from riley.python.rileyconfig import create_raster_config
+from riley.python.sceneops import (
+    ESceneOverlapDirect,
+    SceneBounds3D,
+    SceneBoundsOverlapSpec,
+    SceneGridSpec,
+    SceneMeshGroup,
+    scene_arrange_mesh_groups_grid,
+    scene_calc_bounds_for_coords,
+    scene_calc_bounds_for_coords_list,
+    scene_calc_bounds_for_mesh_group,
+    scene_center_mesh_group_at,
+    scene_create_mesh_group_single,
+    scene_create_mesh_group_span,
+    scene_overlap_mesh_group_bounds,
+    scene_translate_mesh_group,
+)
 from riley.python.textureio import (
     ETextureCoercion,
     load_texture_mono_u8,
@@ -137,6 +173,7 @@ __all__ = [
     "EElemType",
     "EFrameFit",
     "ENodeOrder",
+    "ESceneOverlapDirect",
     "ETextureCoercion",
     "EUVPlanarProjMode",
     "EUVProjPlane",
@@ -168,10 +205,15 @@ __all__ = [
     "RasterConfig",
     "RenderMode",
     "ReportMode",
+    "RileyElemTopology",
     "RileyShader",
     "SaveStrategy",
     "ScaleOver",
     "ScaleStrategy",
+    "SceneBounds3D",
+    "SceneBoundsOverlapSpec",
+    "SceneGridSpec",
+    "SceneMeshGroup",
     "Shader",
     "SubPixelCenterMap",
     "TextureSample",
@@ -191,8 +233,13 @@ __all__ = [
     "create_mesh_from_prepared",
     "create_raster_config",
     "data",
+    "exodusio",
     "extract_surface",
     "fov_scale_to_coverage",
+    "frameops",
+    "frames_evenly_spaced_idxs",
+    "frames_first_last_idxs",
+    "frames_select",
     "load_camera",
     "load_csv",
     "load_exodus",
@@ -200,6 +247,9 @@ __all__ = [
     "load_texture_mono_u8",
     "load_texture_mono_u16",
     "load_texture_rgb_u8",
+    "meshconst",
+    "meshconv",
+    "meshio",
     "pos_fill_frame_from_rot",
     "pos_fill_frame_from_rot_over_meshes",
     "pos_frame_coords",
@@ -209,13 +259,27 @@ __all__ = [
     "pos_stereo_pair",
     "project_uvs_planar_bbox",
     "project_uvs_planar_centered",
+    "python",
     "raster",
     "reduce_mesh_order",
     "remap_nodal_data",
+    "rileyconfig",
     "roi_cent_from_coords",
     "roi_cent_over_meshes",
     "save_camera",
     "save_stereo_pair",
+    "scene_arrange_mesh_groups_grid",
+    "scene_calc_bounds_for_coords",
+    "scene_calc_bounds_for_coords_list",
+    "scene_calc_bounds_for_mesh_group",
+    "scene_center_mesh_group_at",
+    "scene_create_mesh_group_single",
+    "scene_create_mesh_group_span",
+    "scene_overlap_mesh_group_bounds",
+    "scene_translate_mesh_group",
+    "sceneops",
+    "textureio",
     "triangulate_mesh",
+    "uvtools",
     "verify_mesh",
 ]

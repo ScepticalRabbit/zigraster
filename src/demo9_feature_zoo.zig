@@ -274,17 +274,59 @@ fn buildCameras(meshes: []MeshInput) [6]camera.CameraInput {
         .supp_rad_px = 2.0,
     } };
     return .{
-        makeCamera(meshes, .{ 1024, 1024 }, Rotation.init(0, 0, 0), 1, .none, .{ .pixel_box = .{} }),
-        makeCamera(meshes, .{ 1024, 1024 }, Rotation.init(0, deg(25.0), 0), 4, brown, .{ .pixel_box = .{} }),
-        makeCamera(meshes, .{ 1024, 1229 }, Rotation.init(0, deg(-28.0), 0), 4, .none, gaussian),
-        makeCamera(meshes, .{ 1229, 1024 }, Rotation.init(deg(90.0), deg(25.0), 0), 4, brown, gaussian),
-        makeCamera(meshes, .{ 1024, 1024 }, Rotation.init(deg(18.0), deg(38.0), deg(26.0)), 4, .none, .{ .anisotropic_gaussian = .{
-            .sigma_x_px = 0.55,
-            .sigma_y_px = 0.9,
-            .theta_rad = deg(25.0),
-            .supp_rad_px = 2.5,
-        } }),
-        makeCamera(meshes, .{ 1229, 1024 }, Rotation.init(deg(-90.0), deg(-20.0), deg(5.0)), 4, brown, .{ .pixel_box = .{} }),
+        makeCamera(
+            meshes,
+            .{ 1024, 1024 },
+            Rotation.init(0, 0, 0),
+            1,
+            .none,
+            .{ .pixel_box = .{} },
+        ),
+        makeCamera(
+            meshes,
+            .{ 1024, 1024 },
+            Rotation.init(0, deg(25.0), 0),
+            4,
+            brown,
+            .{ .pixel_box = .{} },
+        ),
+        makeCamera(
+            meshes,
+            .{ 1024, 1229 },
+            Rotation.init(0, deg(-28.0), 0),
+            4,
+            .none,
+            gaussian,
+        ),
+        makeCamera(
+            meshes,
+            .{ 1229, 1024 },
+            Rotation.init(deg(90.0), deg(25.0), 0),
+            4,
+            brown,
+            gaussian,
+        ),
+        makeCamera(
+            meshes,
+            .{ 1024, 1024 },
+            Rotation.init(deg(18.0), deg(38.0), deg(26.0)),
+            4,
+            .none,
+            .{ .anisotropic_gaussian = .{
+                .sigma_x_px = 0.55,
+                .sigma_y_px = 0.9,
+                .theta_rad = deg(25.0),
+                .supp_rad_px = 2.5,
+            } },
+        ),
+        makeCamera(
+            meshes,
+            .{ 1229, 1024 },
+            Rotation.init(deg(-90.0), deg(-20.0), deg(5.0)),
+            4,
+            brown,
+            .{ .pixel_box = .{} },
+        ),
     };
 }
 
@@ -297,6 +339,9 @@ fn renderCase(
     texture_path: []const u8,
     case_name: []const u8,
 ) !void {
+    // -------------------------------------------------------------------------
+    // 1. Build scene meshes and cameras
+    // -------------------------------------------------------------------------
     const texture = try iio.loadImage(
         T,
         C,
@@ -307,6 +352,10 @@ fn renderCase(
     );
     const meshes = try buildScene(T, C, bits, allocator, io, texture);
     const cameras = buildCameras(meshes);
+
+    // -------------------------------------------------------------------------
+    // 2. Configure raster settings and output directory
+    // -------------------------------------------------------------------------
     const out_dir = try std.fs.path.join(
         allocator,
         &.{ out_dir_root, case_name },
@@ -327,6 +376,10 @@ fn renderCase(
         },
     };
     const groups = [_]riley.RenderGroupSpec{.{ .io = io, .workers = 4 }};
+
+    // -------------------------------------------------------------------------
+    // 3. Render the multi-mesh multi-camera case
+    // -------------------------------------------------------------------------
     if (try riley.raster(
         allocator,
         &groups,
@@ -346,11 +399,47 @@ pub fn main(init: std.process.Init) !void {
     defer arena.deinit();
     const allocator = arena.allocator();
     const io = init.io;
+
+    // -------------------------------------------------------------------------
+    // Clean output root and render all combinations
+    // -------------------------------------------------------------------------
     std.Io.Dir.cwd().deleteTree(io, out_dir_root) catch |err| {
         if (err != error.FileNotFound) return err;
     };
-    try renderCase(u8, 1, 8, allocator, io, "texture/speck128_mono_u8.bmp", "mono-u8");
-    try renderCase(u16, 1, 16, allocator, io, "texture/speck128_mono_u16.tiff", "mono-u16");
-    try renderCase(u8, 3, 8, allocator, io, "texture/speck128_rgb_u8.bmp", "rgb-u8");
-    try renderCase(u16, 3, 16, allocator, io, "data/feature_zoo/texture_rgb_u16.fimg", "rgb-u16");
+    try renderCase(
+        u8,
+        1,
+        8,
+        allocator,
+        io,
+        "texture/speck128_mono_u8.bmp",
+        "mono-u8",
+    );
+    try renderCase(
+        u16,
+        1,
+        16,
+        allocator,
+        io,
+        "texture/speck128_mono_u16.tiff",
+        "mono-u16",
+    );
+    try renderCase(
+        u8,
+        3,
+        8,
+        allocator,
+        io,
+        "texture/speck128_rgb_u8.bmp",
+        "rgb-u8",
+    );
+    try renderCase(
+        u16,
+        3,
+        16,
+        allocator,
+        io,
+        "data/feature_zoo/texture_rgb_u16.fimg",
+        "rgb-u16",
+    );
 }

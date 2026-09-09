@@ -103,6 +103,9 @@ pub fn main(init: std.process.Init) !void {
     defer arena.deinit();
     const aa = arena.allocator();
 
+    // -------------------------------------------------------------------------
+    // 1. Setup paths and parameters
+    // -------------------------------------------------------------------------
     var coord_sys = camera_mod.CameraCoordSys.opengl;
     if (init.minimal.args.vector.len > 1) {
         const arg = std.mem.span(init.minimal.args.vector[1]);
@@ -114,24 +117,6 @@ pub fn main(init: std.process.Init) !void {
         "stereo_data_opencv.csv"
     else
         "stereo_data_opengl.csv";
-
-    const config = RasterConfig{
-        .render_mode = .offline,
-        .total_threads = TOTAL_THREADS,
-        .frame_batch_size_per_group = FRAMES_MAX,
-        .max_geom_jobs_in_flight_per_group = FRAMES_MAX,
-        .max_geom_workers_per_job = 1,
-        .geom_scheduling_mode = .spread,
-        .max_raster_workers_per_job = 1,
-        .save_strategy = .disk,
-        .tile_size_min = 8,
-        .tile_size_max = 128,
-        .background_value = 128.0,
-        .image_save_opts = &[_]iio.ImageSaveOpts{
-            .{ .format = .bmp, .bits = 8, .scaling = .auto },
-        },
-        .report = .bench,
-    };
 
     const coord_path = DATA_DIR ++ "coords.csv";
     const conn_path = DATA_DIR ++ "connect.csv";
@@ -185,6 +170,9 @@ pub fn main(init: std.process.Init) !void {
         if (err != error.FileNotFound) return err;
     };
 
+    // -------------------------------------------------------------------------
+    // 2. Load calibration plate mesh, sample frames, and apply texture
+    // -------------------------------------------------------------------------
     var sim_data = try meshio.loadSimData(
         aa,
         io,
@@ -249,7 +237,9 @@ pub fn main(init: std.process.Init) !void {
     }
     const roi_pos = sceneops.boundsCenter(&sim_data.coords);
 
-    // Create stereo camera pair matching the DICUQ example setup
+    // -------------------------------------------------------------------------
+    // 3. Create, save, and reload stereo camera pair
+    // -------------------------------------------------------------------------
     const cam0_rot = Rotation.init(
         std.math.degreesToRadians(0.0),
         std.math.degreesToRadians(0.0),
@@ -274,29 +264,22 @@ pub fn main(init: std.process.Init) !void {
         MATCHED_CAM1_POS[2],
     );
 
+    const cam0_in = CameraInput{
+        .pixels_num = PIXELS_NUM,
+        .pixels_size = PIXELS_SIZE,
+        .pos_world = cam0_pos,
+        .rot_world = cam0_rot,
+        .roi_cent_world = roi_pos,
+        .focal_length = FOCAL_LENGTH,
+        .sub_sample = SUB_SAMPLE,
+        .distortion = distortion,
+    };
+    var cam1_in = cam0_in;
+    cam1_in.rot_world = cam1_rot;
+    cam1_in.pos_world = cam1_pos;
+
     var stereo_pair = StereoPairInput{
-        .cameras = .{
-            .{
-                .pixels_num = PIXELS_NUM,
-                .pixels_size = PIXELS_SIZE,
-                .pos_world = cam0_pos,
-                .rot_world = cam0_rot,
-                .roi_cent_world = roi_pos,
-                .focal_length = FOCAL_LENGTH,
-                .sub_sample = SUB_SAMPLE,
-                .distortion = distortion,
-            },
-            .{
-                .pixels_num = PIXELS_NUM,
-                .pixels_size = PIXELS_SIZE,
-                .pos_world = cam1_pos,
-                .rot_world = cam1_rot,
-                .roi_cent_world = roi_pos,
-                .focal_length = FOCAL_LENGTH,
-                .sub_sample = SUB_SAMPLE,
-                .distortion = distortion,
-            },
-        },
+        .cameras = .{ cam0_in, cam1_in },
     };
 
     // Save stereo pair to output directory
@@ -305,6 +288,9 @@ pub fn main(init: std.process.Init) !void {
     // Load stereo pair back from output directory (standalone test)
     stereo_pair = try cameraio.loadStereoPair(aa, io, out_dir, stereo_file_name);
 
+    // -------------------------------------------------------------------------
+    // 4. Build mesh and raster configuration
+    // -------------------------------------------------------------------------
     const mesh_input = MeshInput{
         .mesh_type = .tri3,
         .coords = sim_data.coords,
@@ -322,6 +308,27 @@ pub fn main(init: std.process.Init) !void {
         } },
     };
 
+    const config = RasterConfig{
+        .render_mode = .offline,
+        .total_threads = TOTAL_THREADS,
+        .frame_batch_size_per_group = FRAMES_MAX,
+        .max_geom_jobs_in_flight_per_group = FRAMES_MAX,
+        .max_geom_workers_per_job = 1,
+        .geom_scheduling_mode = .spread,
+        .max_raster_workers_per_job = 1,
+        .save_strategy = .disk,
+        .tile_size_min = 8,
+        .tile_size_max = 128,
+        .background_value = 128.0,
+        .image_save_opts = &[_]iio.ImageSaveOpts{
+            .{ .format = .bmp, .bits = 8, .scaling = .auto },
+        },
+        .report = .bench,
+    };
+
+    // -------------------------------------------------------------------------
+    // 5. Render stereocal poses
+    // -------------------------------------------------------------------------
     const meshes = [_]MeshInput{mesh_input};
     const images = try riley.raster(
         aa,

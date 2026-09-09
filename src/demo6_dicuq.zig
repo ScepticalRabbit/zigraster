@@ -90,7 +90,9 @@ pub fn main(init: std.process.Init) !void {
     defer arena.deinit();
     const aa = arena.allocator();
 
-    // 1. Setup Rasteriser Configuration
+    // -------------------------------------------------------------------------
+    // 1. Setup paths and parameters
+    // -------------------------------------------------------------------------
     const config = RasterConfig{
         .render_mode = .offline,
         .total_threads = TOTAL_THREADS,
@@ -133,7 +135,9 @@ pub fn main(init: std.process.Init) !void {
     }
     const io = render_groups[0].io;
 
-    // 2. Load Simulation Data
+    // -------------------------------------------------------------------------
+    // 2. Load simulation data, frames, and texture shader
+    // -------------------------------------------------------------------------
     std.debug.print("Loading simulation data from {s}...\n", .{DATA_DIR});
     const coord_path = DATA_DIR ++ "coords.csv";
     const conn_path = DATA_DIR ++ "connect.csv";
@@ -144,7 +148,6 @@ pub fn main(init: std.process.Init) !void {
         DATA_DIR ++ "field_disp_z.csv",
     };
 
-    // For this demo, we don't need the field data as we are using texture shading
     const sim_data = try meshio.loadSimData(
         aa,
         io,
@@ -164,12 +167,10 @@ pub fn main(init: std.process.Init) !void {
         frame_indices,
     );
 
-    // 3. Load UV map for the texture
     std.debug.print("Loading UV map...\n", .{});
     const uv_path = DATA_DIR ++ "uvs.csv";
     const uvs = try uvio.loadUVMap(aa, io, uv_path);
 
-    // 4. Load Texture for shading
     std.debug.print("Loading speckle texture...\n", .{});
     const texture = try iio.loadImage(
         u8,
@@ -180,7 +181,6 @@ pub fn main(init: std.process.Init) !void {
         .bmp,
     );
 
-    // 5. Prepare Mesh Input
     std.debug.print("Preparing mesh input...\n", .{});
     const mesh_input = MeshInput{
         .mesh_type = .quad8,
@@ -199,17 +199,18 @@ pub fn main(init: std.process.Init) !void {
         } },
     };
 
-    // 6. Setup Camera
+    // -------------------------------------------------------------------------
+    // 3. Create stereo cameras
+    // -------------------------------------------------------------------------
     std.debug.print("Setting up camera...\n", .{});
     const roi_pos = sceneops.boundsCenter(&sim_data.coords);
-
     const distortion = buildDistortion();
 
     // Camera 0: face on
     const cam0_rot = Rotation.init(
-        std.math.degreesToRadians(0.0), //alpha_z_deg
-        std.math.degreesToRadians(0.0), //beta_y_deg - stereo axis
-        std.math.degreesToRadians(0.0), //gamma_x_deg
+        std.math.degreesToRadians(0.0),
+        std.math.degreesToRadians(0.0),
+        std.math.degreesToRadians(0.0),
     );
 
     const cam0_pos = cameraops.posFillFrameFromRot(
@@ -234,9 +235,9 @@ pub fn main(init: std.process.Init) !void {
 
     // Camera 1: stereo angle
     const cam1_rot = Rotation.init(
-        std.math.degreesToRadians(0.0), //alpha_z_deg
-        std.math.degreesToRadians(STEREO_ANGLE_DEG), //beta_y_deg - stereo axis
-        std.math.degreesToRadians(0.0), //gamma_x_deg
+        std.math.degreesToRadians(0.0),
+        std.math.degreesToRadians(STEREO_ANGLE_DEG),
+        std.math.degreesToRadians(0.0),
     );
 
     const cam1_pos = cameraops.posFillFrameFromRot(
@@ -248,18 +249,13 @@ pub fn main(init: std.process.Init) !void {
         FOV_SCALE_FACTOR,
     );
 
-    const cam1_in = CameraInput{
-        .pixels_num = PIXELS_NUM,
-        .pixels_size = PIXELS_SIZE,
-        .pos_world = cam1_pos,
-        .rot_world = cam1_rot,
-        .roi_cent_world = roi_pos,
-        .focal_length = FOCAL_LENGTH,
-        .sub_sample = SUB_SAMPLE,
-        .distortion = distortion,
-    };
+    var cam1_in = cam0_in;
+    cam1_in.rot_world = cam1_rot;
+    cam1_in.pos_world = cam1_pos;
 
-    // 7. Run the Rasteriser
+    // -------------------------------------------------------------------------
+    // 4. Configure raster engine and render
+    // -------------------------------------------------------------------------
     std.debug.print("Rendering simulation to {s}/...\n", .{OUT_DIR_ROOT});
     const meshes = [_]MeshInput{mesh_input};
     const cams_in = [_]CameraInput{ cam0_in, cam1_in };
@@ -282,6 +278,9 @@ pub fn main(init: std.process.Init) !void {
         img.deinit(aa);
     }
 
+    // -------------------------------------------------------------------------
+    // 5. Export stereo calibration data
+    // -------------------------------------------------------------------------
     var out_dir = try std.Io.Dir.cwd().openDir(io, OUT_DIR_ROOT, .{});
     defer out_dir.close(io);
 

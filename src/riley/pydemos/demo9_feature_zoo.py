@@ -1,5 +1,16 @@
-import shutil
+# --------------------------------------------------------------------------
+# Riley: A High Performance Rasteriser for DIC UQ
+#
+# Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
+# Licensed under the MIT License (see LICENSE file for details)
+#
+# Authors: scepticalrabbit (Lloyd Fletcher)
+# --------------------------------------------------------------------------
+from __future__ import annotations
+
+import copy
 from pathlib import Path
+import shutil
 
 import numpy as np
 
@@ -90,6 +101,7 @@ def make_shader(
         riley.NormalType.averaged,
     )
     normal_type = normal_modes[case_index % len(normal_modes)]
+
     if case_index in (0, 2, 6):
         sample = (
             riley.TextureSample.cubic_catmull_rom
@@ -110,6 +122,7 @@ def make_shader(
             scaling_type=riley.ScaleStrategy.auto,
             normal_type=normal_type,
         )
+
     if case_index in (1, 5):
         field = temperature[:, :, None]
         if channels == 3:
@@ -161,6 +174,7 @@ def build_scene(channels: int, bits: int) -> list[riley.Mesh]:
         f"speck128_{'mono' if channels == 1 else 'rgb'}_u{bits}.png"
     )
     texture_path = riley.data.texture_dir_path() / texture_name
+
     if (channels, bits) == (1, 8):
         texture = riley.load_texture_mono_u8(texture_path)
     elif (channels, bits) == (1, 16):
@@ -203,20 +217,30 @@ def build_scene(channels: int, bits: int) -> list[riley.Mesh]:
     plate_x = np.array(plate.coords[:, 0], copy=True)
     plate.coords[:, 0] = -plate.coords[:, 1]
     plate.coords[:, 1] = plate_x
-    mesh_coords = []
-    for mesh in meshes:
-        mesh_coords.append(mesh.coords)
+
+    mesh_coords = [mesh.coords for mesh in meshes]
     for index, center in enumerate(MESH_CENTERS):
         sceneops.scene_center_mesh_group_at(
             mesh_coords,
             sceneops.scene_create_mesh_group_single(index),
             center,
         )
+
     return meshes
 
 
 def build_cameras(meshes: list[riley.Mesh]) -> list[riley.Camera]:
     target = riley.roi_cent_over_meshes(meshes)
+    base_camera = riley.Camera(
+        pixels_num=(1024, 1024),
+        pixels_size=PIXEL_SIZE,
+        pos_world=(0.0, 0.0, 0.0),
+        rot_world=(0.0, 0.0, 0.0),
+        roi_cent_world=target,
+        focal_length=FOCAL_LENGTH,
+        sub_sample=1,
+    )
+
     cameras = []
     for pixels_num, rotation, sub_sample, optics in CAMERA_CASES:
         position = riley.pos_frame_meshes(
@@ -228,51 +252,52 @@ def build_cameras(meshes: list[riley.Mesh]) -> list[riley.Camera]:
             fov_scale=1.1,
             target=target,
         )
-        options = {}
+
+        cam = copy.deepcopy(base_camera)
+        cam.pixels_num = pixels_num
+        cam.pos_world = position
+        cam.rot_world = rotation
+        cam.sub_sample = sub_sample
+
         if optics in ("distortion", "both", "ring"):
-            options.update(
-                distortion_model=1,
-                distortion_k1=-0.12,
-                distortion_k2=0.035,
-                distortion_p1=0.0002,
-                distortion_p2=-0.0001,
-            )
+            cam.distortion_model = 1
+            cam.distortion_k1 = -0.12
+            cam.distortion_k2 = 0.035
+            cam.distortion_p1 = 0.0002
+            cam.distortion_p2 = -0.0001
+
         if optics in ("psf", "both"):
-            options.update(
-                psf_type=riley.PsfType.gaussian,
-                psf_sigma_x=0.65,
-                psf_sigma_y=0.65,
-                psf_support_rad=2.0,
-            )
+            cam.psf_type = riley.PsfType.gaussian
+            cam.psf_sigma_x = 0.65
+            cam.psf_sigma_y = 0.65
+            cam.psf_support_rad = 2.0
+
         if optics == "corner":
-            options.update(
-                psf_type=riley.PsfType.anisotropic_gaussian,
-                psf_sigma_x=0.55,
-                psf_sigma_y=0.9,
-                psf_theta=np.deg2rad(25.0),
-                psf_support_rad=2.5,
-                psf_separable=0,
-            )
-        cameras.append(
-            riley.Camera(
-                pixels_num=pixels_num,
-                pixels_size=PIXEL_SIZE,
-                pos_world=position,
-                rot_world=rotation,
-                roi_cent_world=target,
-                focal_length=FOCAL_LENGTH,
-                sub_sample=sub_sample,
-                **options,
-            )
-        )
+            cam.psf_type = riley.PsfType.anisotropic_gaussian
+            cam.psf_sigma_x = 0.55
+            cam.psf_sigma_y = 0.9
+            cam.psf_theta = float(np.deg2rad(25.0))
+            cam.psf_support_rad = 2.5
+            cam.psf_separable = 0
+
+        cameras.append(cam)
     return cameras
 
 
 def render_case(channels: int, bits: int) -> None:
+    # --------------------------------------------------------------------------
+    # 1. Build scene meshes and cameras
+    # --------------------------------------------------------------------------
     meshes = build_scene(channels, bits)
     cameras = build_cameras(meshes)
+
+    # --------------------------------------------------------------------------
+    # 2. Configure raster settings and output directory
+    # --------------------------------------------------------------------------
     case_name = f"{'mono' if channels == 1 else 'rgb'}-u{bits}"
     out_dir = OUT_DIR / case_name
+    out_dir.mkdir(parents=True, exist_ok=True)
+
     config = riley.create_raster_config(
         num_frames=len(FRAME_INDICES),
         total_threads=4,
@@ -287,11 +312,19 @@ def render_case(channels: int, bits: int) -> None:
     )
     config.save_scaling = riley.ScaleStrategy.none
     config.background_value = 0.5 * (2**bits - 1)
+
+    # --------------------------------------------------------------------------
+    # 3. Render the multi-mesh multi-camera case
+    # --------------------------------------------------------------------------
     riley.raster(meshes, cameras, config, out_dir=str(out_dir))
 
 
 def main() -> None:
+    # --------------------------------------------------------------------------
+    # Clean output root and render all combinations
+    # --------------------------------------------------------------------------
     shutil.rmtree(OUT_DIR, ignore_errors=True)
+
     for channels, bits in ((1, 8), (1, 16), (3, 8), (3, 16)):
         render_case(channels, bits)
 

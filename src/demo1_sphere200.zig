@@ -34,41 +34,48 @@ pub fn main(init: std.process.Init) !void {
     defer arena.deinit();
     const aa = arena.allocator();
 
-    // 1. Setup Rasteriser Configuration
-    const config = RasterConfig{
-        .save_strategy = .disk,
-        .total_threads = 4,
-        .max_raster_workers_per_job = 4,
-        .image_save_opts = &[_]iio.ImageSaveOpts{
-            .{ .format = .bmp, .bits = 8, .scaling = .auto },
-        },
-        .report = .bench,
+    // -------------------------------------------------------------------------
+    // 1. Setup paths and parameters
+    // -------------------------------------------------------------------------
+    const data_dir = "data/min/tri6_sphere200/";
+    const out_dir_root = "./out/demo1_sphere200";
+    const pixel_num = [_]u32{ 800, 500 };
+    const pixel_size = [_]F{
+        @floatCast(5.3e-6),
+        @floatCast(5.3e-6),
     };
+    const focal_leng: F = @floatCast(50.0e-3);
+    const rot = Rotation.init(0, 0, 0);
+    const fov_scale_factor: F = 1.0;
+    const total_threads: u16 = 4;
+
     var threaded_io = riley.getThreadedIo(
         aa,
         init.minimal,
-        config.total_threads,
+        total_threads,
     );
     defer threaded_io.deinit();
     const io = threaded_io.io();
 
-    const data_dir = "data/min/tri6_sphere200/";
-    const out_dir_root = "./out/demo1_sphere200";
-    const pixel_num = [_]u32{ 800, 500 };
-
-    // 2. Load Simulation Data
+    // -------------------------------------------------------------------------
+    // 2. Load mesh data and texture shader
+    // -------------------------------------------------------------------------
     std.debug.print("Loading sphere simulation data from {s}...\n", .{data_dir});
     const coord_path = data_dir ++ "coords.csv";
     const conn_path = data_dir ++ "connect.csv";
-    // For this demo, we don't need the field data as we are using texture shading
-    const sim_data = try meshio.loadSimData(aa, io, coord_path, conn_path, null, null);
+    const sim_data = try meshio.loadSimData(
+        aa,
+        io,
+        coord_path,
+        conn_path,
+        null,
+        null,
+    );
 
-    // 3. Load UV map for the texture
     std.debug.print("Loading UV map...\n", .{});
     const uv_path = data_dir ++ "uvs.csv";
     const uvs = try uvio.loadUVMap(aa, io, uv_path);
 
-    // 4. Load Texture for shading
     std.debug.print("Loading speckle texture...\n", .{});
     const texture = try iio.loadImage(
         u8,
@@ -79,7 +86,6 @@ pub fn main(init: std.process.Init) !void {
         .bmp,
     );
 
-    // 5. Prepare Mesh Input
     std.debug.print("Preparing mesh input...\n", .{});
     const mesh_input = MeshInput{
         .mesh_type = .tri6,
@@ -98,17 +104,10 @@ pub fn main(init: std.process.Init) !void {
         } },
     };
 
-    // 6. Setup Camera
-    // Position camera to frame the sphere
+    // -------------------------------------------------------------------------
+    // 3. Position and create camera
+    // -------------------------------------------------------------------------
     std.debug.print("Setting up camera...\n", .{});
-    const pixel_size = [_]F{
-        @floatCast(5.3e-6),
-        @floatCast(5.3e-6),
-    };
-    const focal_leng: F = @floatCast(50.0e-3);
-    const rot = Rotation.init(0, 0, 0);
-    const fov_scale_factor: F = 1.0;
-
     const roi_pos = sceneops.boundsCenter(&sim_data.coords);
     const cam_pos = cameraops.posFillFrameFromRot(
         &sim_data.coords,
@@ -132,9 +131,6 @@ pub fn main(init: std.process.Init) !void {
     );
     defer camera.deinit(aa);
 
-    // 7. Run the Rasteriser
-    std.debug.print("Rendering sphere to {s}/...\n", .{out_dir_root});
-    const meshes = [_]MeshInput{mesh_input};
     const camera_input = CameraInput{
         .pixels_num = camera.pixels_num,
         .pixels_size = camera.pixels_size,
@@ -145,10 +141,28 @@ pub fn main(init: std.process.Init) !void {
         .sub_sample = camera.sub_sample,
         .distortion = camera.distortion,
     };
+
+    // -------------------------------------------------------------------------
+    // 4. Configure raster engine
+    // -------------------------------------------------------------------------
+    const config = RasterConfig{
+        .save_strategy = .disk,
+        .total_threads = total_threads,
+        .max_raster_workers_per_job = total_threads,
+        .image_save_opts = &[_]iio.ImageSaveOpts{
+            .{ .format = .bmp, .bits = 8, .scaling = .auto },
+        },
+        .report = .bench,
+    };
     const render_groups = [_]riley.RenderGroupSpec{
         .{ .io = io, .workers = @max(@as(u16, 1), config.total_threads) },
     };
 
+    // -------------------------------------------------------------------------
+    // 5. Render sphere scene
+    // -------------------------------------------------------------------------
+    std.debug.print("Rendering sphere to {s}/...\n", .{out_dir_root});
+    const meshes = [_]MeshInput{mesh_input};
     const images = try riley.raster(
         aa,
         &render_groups,

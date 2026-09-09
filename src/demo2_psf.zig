@@ -28,6 +28,9 @@ pub fn main(init: std.process.Init) !void {
     defer arena.deinit();
     const aa = arena.allocator();
 
+    // -------------------------------------------------------------------------
+    // 1. Setup paths and parameters
+    // -------------------------------------------------------------------------
     const config_base = riley.RasterConfig{
         .save_strategy = .disk,
         .total_threads = raster_threads,
@@ -49,6 +52,9 @@ pub fn main(init: std.process.Init) !void {
     const out_dir_root = "./out/demo2_psf";
     const pixel_num = [_]u32{ 800, 500 };
 
+    // -------------------------------------------------------------------------
+    // 2. Load mesh data and texture shader
+    // -------------------------------------------------------------------------
     std.debug.print(
         "Loading sphere simulation data from {s} with {d} raster threads...\n",
         .{ data_dir, raster_threads },
@@ -87,6 +93,9 @@ pub fn main(init: std.process.Init) !void {
         } },
     };
 
+    // -------------------------------------------------------------------------
+    // 3. Position and create camera with PSF
+    // -------------------------------------------------------------------------
     const pixel_size = [_]F{ @floatCast(5.3e-6), @floatCast(5.3e-6) };
     const focal_length: F = @floatCast(50.0e-3);
     const rotation = Rotation.init(0, 0, 0);
@@ -113,6 +122,10 @@ pub fn main(init: std.process.Init) !void {
             .separable = .yes,
         } },
     };
+
+    // -------------------------------------------------------------------------
+    // 4. Render across buffer modes
+    // -------------------------------------------------------------------------
     const render_groups = [_]riley.RenderGroupSpec{
         .{ .io = io, .workers = config_base.total_threads },
     };

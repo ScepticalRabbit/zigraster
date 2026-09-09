@@ -17,6 +17,9 @@ pub fn main(init: std.process.Init) !void {
     defer arena.deinit();
     const allocator = arena.allocator();
 
+    // -------------------------------------------------------------------------
+    // 1. Create the mesh geometry and shader
+    // -------------------------------------------------------------------------
     var coord_values = [_]F{
         -1.0, -1.0, 0.0,
         1.0,  -1.0, 0.0,
@@ -40,6 +43,10 @@ pub fn main(init: std.process.Init) !void {
             .scaling = .auto,
         } },
     };
+
+    // -------------------------------------------------------------------------
+    // 2. Configure and frame the camera
+    // -------------------------------------------------------------------------
     const pixels_num = [2]u32{ 512, 512 };
     const pixels_size = [2]F{ 0.02, 0.02 };
     const focal_length: F = 1.0;
@@ -63,6 +70,10 @@ pub fn main(init: std.process.Init) !void {
         .focal_length = focal_length,
         .sub_sample = 1,
     };
+
+    // -------------------------------------------------------------------------
+    // 3. Configure the raster engine and output path
+    // -------------------------------------------------------------------------
     const config = riley.RasterConfig{
         .save_strategy = .disk,
         .image_save_mode = .grey,
@@ -71,6 +82,10 @@ pub fn main(init: std.process.Init) !void {
         },
     };
     const groups = [_]riley.RenderGroupSpec{.{ .io = init.io, .workers = 1 }};
+
+    // -------------------------------------------------------------------------
+    // 4. Render the scene
+    // -------------------------------------------------------------------------
     if (try riley.raster(
         allocator,
         &groups,

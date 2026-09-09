@@ -13,10 +13,9 @@ import shutil
 from time import perf_counter
 
 import numpy as np
+
 import riley
-
 from riley.python import sceneops
-
 
 CHECKER_SQUARES_PER_AXIS = 36.0
 BACKGROUND_VALUE = 127.5
@@ -64,7 +63,10 @@ def make_grey_mesh_input(
         riley.MeshType.quad9: riley.EElemType.QUAD9,
     }[mesh_type]
     convention = riley.ConnectConvention(
-        elem_type, riley.EConnectAxis.ROW, 0, riley.ENodeOrder.RILEY,
+        elem_type,
+        riley.EConnectAxis.ROW,
+        0,
+        riley.ENodeOrder.RILEY,
     )
 
     if shader_idx == 0:
@@ -85,21 +87,31 @@ def make_grey_mesh_input(
             scaling_type=riley.ScaleStrategy.auto,
         )
     return riley.create_mesh(
-        convention, mesh_type, np.array(coords, copy=True), connect,
+        convention,
+        mesh_type,
+        np.array(coords, copy=True),
+        connect,
         shader=shader,
     )
 
 
 def main() -> None:
+    # --------------------------------------------------------------------------
+    # 1. Setup paths and parameters
+    # --------------------------------------------------------------------------
     pixels_num = (1600, 800)
     fov_scale = 1.01
-    out_dir = Path.cwd() / "out_riley_py" / "demo3_rabbits"
-    shutil.rmtree(out_dir, ignore_errors=True)
-    out_dir.mkdir(parents=True)
     default_pixel_size = (5.3e-6, 5.3e-6)
     default_focal_length = 50.0e-3
     rot_world = (0.0, 0.0, 0.0)
+
+    out_dir = Path.cwd() / "out_riley_py" / "demo3_rabbits"
+    shutil.rmtree(out_dir, ignore_errors=True)
+    out_dir.mkdir(parents=True)
+
     texture_path = riley.data.speckle_texture_path()
+    texture = riley.load_texture_mono_u8(texture_path)
+
     rabbit_mesh_types = [
         riley.MeshType.tri3,
         riley.MeshType.tri6,
@@ -108,7 +120,9 @@ def main() -> None:
         riley.MeshType.quad9,
     ]
 
-    texture = riley.load_texture_mono_u8(texture_path)
+    # --------------------------------------------------------------------------
+    # 2. Build and position rabbit mesh pairs
+    # --------------------------------------------------------------------------
     mesh_inputs: list[riley.Mesh] = []
     group_list: list[sceneops.SceneMeshGroup] = []
 
@@ -143,9 +157,7 @@ def main() -> None:
             ),
         )
 
-        coords_list = []
-        for m in mesh_inputs:
-            coords_list.append(m.coords)
+        coords_list = [m.coords for m in mesh_inputs]
 
         sceneops.scene_overlap_mesh_group_bounds(
             coords_list,
@@ -162,12 +174,13 @@ def main() -> None:
             ),
         )
         group_list.append(
-            sceneops.scene_create_mesh_group_span(pair_start, 2)
+            sceneops.scene_create_mesh_group_span(pair_start, 2),
         )
 
-    coords_list = []
-    for m in mesh_inputs:
-        coords_list.append(m.coords)
+    # --------------------------------------------------------------------------
+    # 3. Arrange rabbit groups in grid layout
+    # --------------------------------------------------------------------------
+    coords_list = [m.coords for m in mesh_inputs]
 
     sceneops.scene_arrange_mesh_groups_grid(
         coords_list,
@@ -175,6 +188,9 @@ def main() -> None:
         sceneops.SceneGridSpec(gap=(0.18, 0.28, 0.0), max_divs=(3, 2, 1)),
     )
 
+    # --------------------------------------------------------------------------
+    # 4. Position camera and configure raster engine
+    # --------------------------------------------------------------------------
     roi_pos = riley.roi_cent_over_meshes(mesh_inputs)
     cam_pos = riley.pos_frame_meshes(
         mesh_inputs,
@@ -203,6 +219,9 @@ def main() -> None:
     config.background_value = BACKGROUND_VALUE
     config.save_scaling = riley.ScaleStrategy.none
 
+    # --------------------------------------------------------------------------
+    # 5. Render rabbit multi-mesh scene
+    # --------------------------------------------------------------------------
     start_time = perf_counter()
     riley.raster(mesh_inputs, [camera], config, out_dir=str(out_dir))
     elapsed_time = perf_counter() - start_time
