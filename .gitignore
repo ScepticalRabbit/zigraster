@@ -58,6 +58,8 @@ refs/
 !gold/min/**/*.fimg
 !gold/min/**/*.bmp
 !gold/min/**/*.csv
+!gold/basic/
+!gold/basic/**/*.fimg
 !gold/perf_stats_ref/
 !gold/perf_stats_ref/**/
 !gold/perf_stats_ref/**/*.csv

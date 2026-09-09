@@ -59,6 +59,11 @@ pub fn build(b: *std.Build) void {
 
     const tests = [_]TestEntry{
         .{
+            .step_name = "test-basic",
+            .description = "Run the BASIC test suite",
+            .source_path = "src/test_basic.zig",
+        },
+        .{
             .step_name = "test-min",
             .description = "Run the MIN test suite",
             .source_path = "src/test_min.zig",
@@ -157,6 +162,11 @@ pub fn build(b: *std.Build) void {
     }
 
     const generators = [_]RunEntry{
+        .{
+            .step_name = "gen-gold-basic",
+            .description = "Generate the BASIC gold datasets",
+            .source_path = "src/gen_gold_basic.zig",
+        },
         .{
             .step_name = "gen-gold-all",
             .description = "Generate the ALL gold datasets",

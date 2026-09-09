@@ -20,6 +20,7 @@ pub const GoldModePolicy = enum {
 
 pub const GoldSuite = enum {
     min,
+    basic,
     small,
     simple,
     edge,
@@ -57,6 +58,7 @@ pub fn goldModePolicy(comptime suite: GoldSuite) GoldModePolicy {
 pub fn suiteDirName(comptime suite: GoldSuite) []const u8 {
     return switch (suite) {
         .min => "min",
+        .basic => "basic",
         .small => "small",
         .simple => "simple",
         .edge => "edge",
@@ -77,6 +79,7 @@ pub fn suiteDirName(comptime suite: GoldSuite) []const u8 {
 pub fn goldRoot(comptime suite: GoldSuite) []const u8 {
     return switch (suite) {
         .min => if (F == f64) "gold/min" else "gold/min_f32",
+        .basic => if (F == f64) "gold/basic" else "gold/basic_f32",
         .small => if (F == f64) "gold/small" else "gold/small_f32",
         .simple => if (F == f64) "gold/simple" else "gold/simple_f32",
         .edge => if (F == f64) "gold/edge" else "gold/edge_f32",

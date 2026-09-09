@@ -142,18 +142,29 @@ pub fn compareNDArrayToGold(
         else => array.dims[2],
     };
 
-    if (gold_rows != rows) {
-        std.debug.print(
-            "Row count mismatch: Gold has {d}, array expects {d} (path: {s})\n",
-            .{ gold_rows, rows, path },
-        );
-        return error.GoldRowsMismatch;
+    if (array.dims.len == 5) {
+        if (gold_rows > rows or gold_cols > cols) {
+            std.debug.print(
+                "Dimension mismatch: Gold ({d}x{d}) exceeds array buffer " ++
+                    "({d}x{d}) (path: {s})\n",
+                .{ gold_rows, gold_cols, rows, cols, path },
+            );
+            return error.GoldRowsMismatch;
+        }
+    } else {
+        if (gold_rows != rows) {
+            std.debug.print(
+                "Row count mismatch: Gold has {d}, array expects {d} (path: {s})\n",
+                .{ gold_rows, rows, path },
+            );
+            return error.GoldRowsMismatch;
+        }
+
+        if (gold_cols != cols) return error.GoldColsMismatch;
     }
 
-    if (gold_cols != cols) return error.GoldColsMismatch;
-
-    for (0..rows) |r| {
-        for (0..cols) |c| {
+    for (0..gold_rows) |r| {
+        for (0..gold_cols) |c| {
             for (0..channels) |ch| {
                 const gold_val = getGoldValue(
                     &gold,
