@@ -28,7 +28,7 @@ _SURF_CASES = (
 )
 
 
-@pytest.mark.parametrize("shape", ("cube", "cylinder", "platewithhole"))
+@pytest.mark.parametrize("shape", ("cube", "cylinder", "sphere", "platewithhole"))
 @pytest.mark.parametrize(
     "elem_type",
     ("tet4", "tet10", "hex8", "hex20", "hex27"),
@@ -66,10 +66,10 @@ def test_packaged_shape_data_paths_exist(
     temp = np.loadtxt(temp_path, delimiter=",")
 
     num_nodes = coords.shape[0]
-    assert disp_x.shape == (num_nodes, 5)
-    assert disp_y.shape == (num_nodes, 5)
-    assert disp_z.shape == (num_nodes, 5)
-    assert temp.shape == (num_nodes, 5)
+    assert disp_x.shape == (num_nodes, 4)
+    assert disp_y.shape == (num_nodes, 4)
+    assert disp_z.shape == (num_nodes, 4)
+    assert temp.shape == (num_nodes, 4)
 
 
 @pytest.mark.parametrize(
@@ -97,56 +97,22 @@ def test_packaged_pure_cube_data_paths_exist(case_name: str) -> None:
     disp_x = np.loadtxt(disp_x_path, delimiter=",")
     temp = np.loadtxt(temp_path, delimiter=",")
     num_nodes = coords.shape[0]
-    assert disp_x.shape == (num_nodes, 5)
-    assert temp.shape == (num_nodes, 5)
+    assert disp_x.shape == (num_nodes, 4)
+    assert temp.shape == (num_nodes, 4)
 
 
+@pytest.mark.parametrize("shape", ("cube", "cylinder", "sphere", "platewithhole"))
 @pytest.mark.parametrize(
-    "case_name",
-    (
-        "hex8_tet4",
-        "hex20_tet10",
-        "hex27_tet10",
-        "tet4_hex8",
-        "tet10_hex20",
-        "tet10_hex27",
-    ),
+    "surf_type",
+    ("tri3", "tri6", "quad4ibi", "quad4newton", "quad8", "quad9"),
 )
-def test_packaged_multishape_data_paths_exist(case_name: str) -> None:
-    coords_path = riley.data.multishape_coords_path(case_name)
-    cube_connect = riley.data.multishape_connectivity_path(
-        case_name, block="cube"
-    )
-    cyl_connect = riley.data.multishape_connectivity_path(
-        case_name, block="cylinder"
-    )
-    exodus_path = riley.data.multishape_exodus_path(case_name)
-    disp_x_path = riley.data.multishape_disp_path(case_name, "x")
-    disp_y_path = riley.data.multishape_disp_path(case_name, "y")
-    disp_z_path = riley.data.multishape_disp_path(case_name, "z")
-    temp_path = riley.data.multishape_temperature_path(case_name)
-    msh_path = riley.data.multishape_msh_path(case_name)
-    geo_path = riley.data.multishape_geo_path(case_name)
-    moose_path = riley.data.multishape_moose_input_path(case_name)
-
-    assert coords_path.is_file()
-    assert cube_connect.is_file()
-    assert cyl_connect.is_file()
-    assert exodus_path.is_file()
-    assert disp_x_path.is_file()
-    assert disp_y_path.is_file()
-    assert disp_z_path.is_file()
-    assert temp_path.is_file()
-    assert msh_path.is_file()
-    assert geo_path.is_file()
-    assert moose_path.is_file()
-
-    coords = np.loadtxt(coords_path, delimiter=",")
-    disp_x = np.loadtxt(disp_x_path, delimiter=",")
-    temp = np.loadtxt(temp_path, delimiter=",")
-    num_nodes = coords.shape[0]
-    assert disp_x.shape == (num_nodes, 5)
-    assert temp.shape == (num_nodes, 5)
+def test_packaged_surface_data_paths_exist(
+    shape: str, surf_type: str
+) -> None:
+    surf_sub = riley.data.shape_surface_dataset_path(shape, surf_type)
+    assert surf_sub.is_dir()
+    for name in ("coords.csv", "connect.csv", "uvs.csv", "temperature.csv", "disp_x.csv", "disp_y.csv", "disp_z.csv"):
+        assert (surf_sub / name).is_file()
 
 
 @pytest.mark.parametrize(
@@ -186,11 +152,11 @@ def test_packaged_platewithhole2d_data_paths_exist(
     temp = np.loadtxt(temp_path, delimiter=",")
 
     num_nodes = coords.shape[0]
-    assert disp_x.shape == (num_nodes, 5)
-    assert disp_y.shape == (num_nodes, 5)
-    assert disp_z.shape == (num_nodes, 5)
+    assert disp_x.shape == (num_nodes, 4)
+    assert disp_y.shape == (num_nodes, 4)
+    assert disp_z.shape == (num_nodes, 4)
     assert np.all(disp_z == 0.0)
-    assert temp.shape == (num_nodes, 5)
+    assert temp.shape == (num_nodes, 4)
 
 
 @pytest.mark.parametrize(
@@ -218,246 +184,330 @@ def test_other_packaged_data_paths_exist() -> None:
     assert riley.data.rabbit_case_path("riley", "tri3").is_dir()
 
 
-def test_load_csv_preserves_table_orientation(tmp_path: Path) -> None:
-    table = np.array(((1.0, 2.0, 3.0), (4.0, 5.0, 6.0)))
-    save_csv(tmp_path / "table.csv", table)
+def test_remap_nodal_data_reorders_rows() -> None:
+    source_values = np.array(
+        [
+            [10.0, 11.0],
+            [20.0, 21.0],
+            [30.0, 31.0],
+        ]
+    )
+    geom = riley.MeshGeometry(
+        elem_type=riley.EElemType.TRI3,
+        coords=source_values.copy(),
+        connect=np.array([[0, 1, 2]], dtype=np.uintp),
+    )
+    conv = riley.MeshConversion(
+        mesh_type=riley.MeshType.tri3,
+        geometry=geom,
+        source_node_indices=np.array([2, 0, 1], dtype=np.uintp),
+        source_node_count=3,
+    )
+    remapped = riley.remap_nodal_data(conv, source_values)
 
-    loaded = riley.load_csv(tmp_path / "table.csv")
-
-    assert loaded.dtype == np.float64
-    assert loaded.flags.c_contiguous
-    np.testing.assert_allclose(loaded, table)
-
-
-def test_load_csv_preserves_integer_indices(tmp_path: Path) -> None:
-    connect = np.array(((1, 2, 3), (3, 4, 1)), dtype=np.int64)
-    np.savetxt(tmp_path / "connect.csv", connect, delimiter=",", fmt="%d")
-
-    loaded = riley.load_csv(tmp_path / "connect.csv", dtype=np.int64)
-
-    assert loaded.dtype == np.int64
-    np.testing.assert_array_equal(loaded, connect)
+    expected = np.array(
+        [
+            [30.0, 31.0],
+            [10.0, 11.0],
+            [20.0, 21.0],
+        ]
+    )
+    np.testing.assert_array_equal(remapped, expected)
 
 
-@pytest.mark.parametrize(("elem_type", "mesh_type"), _SURF_CASES)
-@pytest.mark.parametrize("axis", tuple(riley.EConnectAxis))
-@pytest.mark.parametrize("index_base", (0, 1))
-def test_create_mesh_identity_representations(
-    elem_type: riley.EElemType,
+def test_load_csv_loads_floats_and_integers(tmp_path: Path) -> None:
+    float_path = tmp_path / "floats.csv"
+    save_csv(float_path, np.array([[1.5, 2.5], [3.5, 4.5]]))
+    int_path = tmp_path / "ints.csv"
+    save_csv(int_path, np.array([[1.0, 2.0], [3.0, 4.0]]))
+
+    loaded_floats = riley.load_csv(float_path)
+    loaded_ints = riley.load_csv(int_path, dtype=np.int64)
+
+    assert loaded_floats.dtype == np.float64
+    assert loaded_ints.dtype == np.int64
+    np.testing.assert_array_equal(
+        loaded_floats, np.array([[1.5, 2.5], [3.5, 4.5]])
+    )
+    np.testing.assert_array_equal(loaded_ints, np.array([[1, 2], [3, 4]]))
+
+
+@pytest.mark.parametrize(("source_elem", "mesh_type"), _SURF_CASES)
+def test_create_mesh_builds_and_renders_for_all_supported_surface_types(
+    source_elem: riley.EElemType,
     mesh_type: riley.MeshType,
-    axis: riley.EConnectAxis,
-    index_base: int,
 ) -> None:
-    coords = coords_3d(elem_type)
-    connect = np.arange(coords.shape[0], dtype=np.int64)[None, :] + index_base
-    if axis is riley.EConnectAxis.COLUMN:
-        connect = connect.T
+    coords = coords_3d(source_elem)
+    connect = np.arange(coords.shape[0], dtype=np.uintp).reshape((1, -1))
     convention = riley.ConnectConvention(
-        elem_type, axis, index_base, riley.ENodeOrder.RILEY
+        source_elem,
+        riley.EConnectAxis.ROW,
+        0,
+        riley.ENodeOrder.RILEY,
     )
+    shader = function_shader()
+
     mesh = riley.create_mesh(
-        convention, mesh_type, coords, connect, shader=function_shader()
-    )
-    assert mesh.mesh_type is mesh_type
-    assert mesh.coords.dtype == np.float64
-    assert mesh.connect.dtype == np.uintp
-    assert mesh.coords.flags.c_contiguous
-    assert mesh.connect.flags.c_contiguous
-
-
-@pytest.mark.parametrize(
-    ("source", "target"),
-    (
-        (riley.EElemType.TRI7, riley.MeshType.tri6),
-        (riley.EElemType.TRI7, riley.MeshType.tri3),
-        (riley.EElemType.TRI6, riley.MeshType.tri3),
-        (riley.EElemType.QUAD4, riley.MeshType.tri3),
-        (riley.EElemType.QUAD8, riley.MeshType.tri3),
-        (riley.EElemType.QUAD9, riley.MeshType.tri3),
-        (riley.EElemType.QUAD9, riley.MeshType.quad8),
-        (riley.EElemType.QUAD9, riley.MeshType.quad4newton),
-        (riley.EElemType.QUAD8, riley.MeshType.quad4ibi),
-        (riley.EElemType.TET4, riley.MeshType.tri3),
-        (riley.EElemType.TET10, riley.MeshType.tri6),
-        (riley.EElemType.TET10, riley.MeshType.tri3),
-        (riley.EElemType.HEX8, riley.MeshType.tri3),
-        (riley.EElemType.HEX8, riley.MeshType.quad4newton),
-        (riley.EElemType.HEX20, riley.MeshType.tri3),
-        (riley.EElemType.HEX20, riley.MeshType.quad8),
-        (riley.EElemType.HEX20, riley.MeshType.quad4ibi),
-        (riley.EElemType.HEX27, riley.MeshType.tri3),
-        (riley.EElemType.HEX27, riley.MeshType.quad9),
-        (riley.EElemType.HEX27, riley.MeshType.quad8),
-        (riley.EElemType.HEX27, riley.MeshType.quad4newton),
-    ),
-)
-def test_create_mesh_supported_topology_transitions(source, target) -> None:
-    coords = coords_3d(source)
-    connect = np.arange(coords.shape[0], dtype=np.int64)[None, :]
-    mesh = riley.create_mesh(
-        riley.ConnectConvention(
-            source, riley.EConnectAxis.ROW, 0, riley.ENodeOrder.RILEY
-        ),
-        target, coords, connect, shader=function_shader(),
-    )
-    assert mesh.connect.shape[1] in (3, 4, 6, 8, 9)
-
-
-@pytest.mark.parametrize(
-    ("source", "expected_tri_count"),
-    (
-        (riley.EElemType.TRI3, 1),
-        (riley.EElemType.TRI6, 4),
-        (riley.EElemType.TRI7, 6),
-        (riley.EElemType.QUAD4, 2),
-        (riley.EElemType.QUAD8, 6),
-        (riley.EElemType.QUAD9, 8),
-        (riley.EElemType.TET4, 4),
-        (riley.EElemType.TET10, 16),
-        (riley.EElemType.HEX8, 12),
-        (riley.EElemType.HEX20, 36),
-        (riley.EElemType.HEX27, 48),
-    ),
-)
-def test_create_mesh_triangulation_elem_counts(
-    source: riley.EElemType,
-    expected_tri_count: int,
-) -> None:
-    coords = coords_3d(source)
-    connect = np.arange(coords.shape[0], dtype=np.int64)[None, :]
-    mesh = riley.create_mesh(
-        riley.ConnectConvention(
-            source, riley.EConnectAxis.ROW, 0, riley.ENodeOrder.RILEY
-        ),
-        riley.MeshType.tri3, coords, connect, shader=function_shader(),
-    )
-    assert mesh.mesh_type is riley.MeshType.tri3
-    assert mesh.connect.shape == (expected_tri_count, 3)
-    is_hex27 = source is riley.EElemType.HEX27
-    expected_nodes = 26 if is_hex27 else coords.shape[0]
-    assert mesh.coords.shape[0] == expected_nodes
-
-
-def test_create_mesh_remaps_every_nodal_array_by_source_index() -> None:
-    source = riley.EElemType.HEX27
-    coords = source.get_para_coords()
-    ids = np.arange(coords.shape[0], dtype=np.float64)
-    uvs = np.column_stack((ids, -ids))
-    texture = np.zeros((1, 2, 2), dtype=np.uint8)
-    mesh = riley.create_mesh(
-        riley.ConnectConvention(
-            source, riley.EConnectAxis.ROW, 0, riley.ENodeOrder.RILEY
-        ),
-        riley.MeshType.quad4newton,
-        coords,
-        np.arange(27, dtype=np.int64)[None, :],
-        disp=(ids[:, None], (ids + 100)[:, None], (ids + 200)[:, None]),
-        shader=riley.TextureShader(uvs, texture),
-    )
-    retained = np.arange(8, dtype=np.float64)
-    np.testing.assert_array_equal(mesh.shader.uvs[:, 0], retained)
-    np.testing.assert_array_equal(mesh.disp[0, :, 0], retained)
-    np.testing.assert_array_equal(mesh.disp[0, :, 1], retained + 100)
-
-
-@pytest.mark.parametrize("channels", (1, 3))
-def test_create_mesh_prepares_nodal_shader(channels: int) -> None:
-    coords = coords_3d(riley.EElemType.TRI3)
-    field = np.ones((3, 2, channels), dtype=np.float32)
-    mesh = riley.create_mesh(
-        riley.ConnectConvention(
-            riley.EElemType.TRI3, riley.EConnectAxis.ROW, 0,
-            riley.ENodeOrder.RILEY,
-        ),
-        riley.MeshType.tri3,
-        coords,
-        np.array(((0, 1, 2),), dtype=np.int64),
-        shader=riley.NodalShader(field),
-    )
-    assert mesh.shader.field.shape == (2, 3, channels)
-    assert mesh.shader.field.dtype == np.float64
-
-
-def test_create_mesh_result_crosses_cython_mesh_boundary() -> None:
-    coords = coords_3d(riley.EElemType.TRI3)
-    mesh = riley.create_mesh(
-        riley.ConnectConvention(
-            riley.EElemType.TRI3, riley.EConnectAxis.ROW, 0,
-            riley.ENodeOrder.RILEY,
-        ),
-        riley.MeshType.tri3,
-        coords,
-        np.array(((0, 1, 2),), dtype=np.int64),
-        shader=function_shader(),
-    )
-    center = riley.roi_cent_over_meshes([mesh])
-    np.testing.assert_allclose(center, (0.5, 0.5, 0))
-
-
-@pytest.mark.parametrize(
-    ("case_name", "elem_type", "mesh_type"),
-    (
-        ("tet4", riley.EElemType.TET4, riley.MeshType.tri3),
-        ("tet10", riley.EElemType.TET10, riley.MeshType.tri6),
-        ("hex8", riley.EElemType.HEX8, riley.MeshType.quad4newton),
-        ("hex20", riley.EElemType.HEX20, riley.MeshType.quad8),
-        ("hex27", riley.EElemType.HEX27, riley.MeshType.quad9),
-    ),
-)
-def test_create_mesh_reuses_packaged_cube_fixtures(
-    case_name: str,
-    elem_type: riley.EElemType,
-    mesh_type: riley.MeshType,
-) -> None:
-    mesh = riley.create_mesh(
-        riley.ConnectConvention(
-            elem_type, riley.EConnectAxis.ROW, 0, riley.ENodeOrder.RILEY
-        ),
+        convention,
         mesh_type,
-        riley.load_csv(riley.data.cube_coords_path(case_name)),
-        riley.load_csv(
-            riley.data.cube_connectivity_path(case_name), dtype=np.int64
-        ),
-        shader=function_shader(),
+        coords,
+        connect,
+        shader,
     )
-    assert mesh.connect.shape[0] > 0
-    riley.roi_cent_over_meshes([mesh])
+    assert mesh.mesh_type == mesh_type
+
+    pixels_num = (64, 64)
+    pixels_size = (10e-6, 10e-6)
+    focal_length = 50e-3
+    rotation = (0.0, 0.0, 0.0)
+    target = riley.roi_cent_from_coords(coords)
+    position = riley.pos_frame_mesh(
+        mesh,
+        pixels_num,
+        pixels_size,
+        focal_length,
+        rotation,
+        target=target,
+    )
+    camera = riley.Camera(
+        pixels_num=pixels_num,
+        pixels_size=pixels_size,
+        pos_world=position,
+        rot_world=rotation,
+        roi_cent_world=target,
+        focal_length=focal_length,
+        sub_sample=2,
+    )
+    config = riley.create_raster_config(
+        1,
+        save_strategy=riley.SaveStrategy.memory,
+    )
+    riley.raster(mesh, camera, config)
 
 
-@pytest.mark.parametrize("channels", (1, 3))
-@pytest.mark.parametrize("dtype", (np.uint8, np.uint16, np.float64))
-def test_create_mesh_supports_all_texture_storage_types(
-    channels: int,
-    dtype: type,
-) -> None:
-    coords = coords_3d(riley.EElemType.TRI3)
-    texture = np.ones((channels, 2, 2), dtype=dtype)
-    shader = riley.TextureShader(coords[:, :2], texture)
+def test_create_mesh_converts_volume_hex8_to_quad4ibi() -> None:
+    coords = coords_3d(riley.EElemType.HEX8)
+    connect = np.arange(coords.shape[0], dtype=np.uintp).reshape((1, -1))
+    convention = riley.ConnectConvention(
+        riley.EElemType.HEX8,
+        riley.EConnectAxis.ROW,
+        0,
+        riley.ENodeOrder.RILEY,
+    )
+    shader = function_shader()
+
     mesh = riley.create_mesh(
-        riley.ConnectConvention(
-            riley.EElemType.TRI3, riley.EConnectAxis.ROW, 0,
-            riley.ENodeOrder.RILEY,
-        ),
+        convention,
+        riley.MeshType.quad4ibi,
+        coords,
+        connect,
+        shader,
+    )
+    assert mesh.mesh_type == riley.MeshType.quad4ibi
+    assert mesh.coords.shape[0] == 8
+    assert mesh.connect.shape == (6, 4)
+
+
+def test_create_mesh_converts_volume_tet4_to_tri3() -> None:
+    coords = coords_3d(riley.EElemType.TET4)
+    connect = np.arange(coords.shape[0], dtype=np.uintp).reshape((1, -1))
+    convention = riley.ConnectConvention(
+        riley.EElemType.TET4,
+        riley.EConnectAxis.ROW,
+        0,
+        riley.ENodeOrder.RILEY,
+    )
+    shader = function_shader()
+
+    mesh = riley.create_mesh(
+        convention,
         riley.MeshType.tri3,
         coords,
-        np.array(((0, 1, 2),), dtype=np.int64),
-        shader=shader,
+        connect,
+        shader,
     )
-    riley.roi_cent_over_meshes([mesh])
+    assert mesh.mesh_type == riley.MeshType.tri3
+    assert mesh.coords.shape[0] == 4
+    assert mesh.connect.shape == (4, 3)
 
 
-@pytest.mark.parametrize("builtin", tuple(riley.FuncShaderBuiltin))
-@pytest.mark.parametrize("channels", (1, 3))
-def test_create_mesh_supports_every_function_shader(builtin, channels) -> None:
-    coords = coords_3d(riley.EElemType.TRI3)
+def test_create_mesh_maps_displacements_from_source_volume_to_surface() -> None:
+    coords = coords_3d(riley.EElemType.HEX8)
+    connect = np.arange(coords.shape[0], dtype=np.uintp).reshape((1, -1))
+    convention = riley.ConnectConvention(
+        riley.EElemType.HEX8,
+        riley.EConnectAxis.ROW,
+        0,
+        riley.ENodeOrder.RILEY,
+    )
+    shader = function_shader()
+    disp_x = np.arange(coords.shape[0], dtype=np.float64) * 0.1
+    disp_y = np.arange(coords.shape[0], dtype=np.float64) * 0.2
+    disp_z = np.arange(coords.shape[0], dtype=np.float64) * 0.3
+
     mesh = riley.create_mesh(
-        riley.ConnectConvention(
-            riley.EElemType.TRI3, riley.EConnectAxis.ROW, 0,
-            riley.ENodeOrder.RILEY,
-        ),
+        convention,
+        riley.MeshType.quad4ibi,
+        coords,
+        connect,
+        shader,
+        disp=(disp_x, disp_y, disp_z),
+    )
+
+    assert mesh.disp is not None
+    assert mesh.disp.shape == (1, mesh.coords.shape[0], 3)
+    np.testing.assert_allclose(mesh.disp[0, :, 0], disp_x)
+    np.testing.assert_allclose(mesh.disp[0, :, 1], disp_y)
+    np.testing.assert_allclose(mesh.disp[0, :, 2], disp_z)
+
+
+def test_create_mesh_reduces_order_from_quad8_to_quad4ibi() -> None:
+    coords = coords_3d(riley.EElemType.QUAD8)
+    connect = np.arange(coords.shape[0], dtype=np.uintp).reshape((1, -1))
+    convention = riley.ConnectConvention(
+        riley.EElemType.QUAD8,
+        riley.EConnectAxis.ROW,
+        0,
+        riley.ENodeOrder.RILEY,
+    )
+    shader = function_shader()
+
+    mesh = riley.create_mesh(
+        convention,
+        riley.MeshType.quad4ibi,
+        coords,
+        connect,
+        shader,
+    )
+    assert mesh.mesh_type == riley.MeshType.quad4ibi
+    assert mesh.coords.shape[0] == 4
+    assert mesh.connect.shape == (1, 4)
+
+
+def test_create_mesh_triangulates_quad8_to_tri3() -> None:
+    coords = coords_3d(riley.EElemType.QUAD8)
+    connect = np.arange(coords.shape[0], dtype=np.uintp).reshape((1, -1))
+    convention = riley.ConnectConvention(
+        riley.EElemType.QUAD8,
+        riley.EConnectAxis.ROW,
+        0,
+        riley.ENodeOrder.RILEY,
+    )
+    shader = function_shader()
+
+    mesh = riley.create_mesh(
+        convention,
         riley.MeshType.tri3,
         coords,
-        np.array(((0, 1, 2),), dtype=np.int64),
-        shader=riley.FunctionShader(builtin, channels=channels),
+        connect,
+        shader,
     )
-    riley.roi_cent_over_meshes([mesh])
+    assert mesh.mesh_type == riley.MeshType.tri3
+    assert mesh.coords.shape[0] == 8
+    assert mesh.connect.shape == (6, 3)
+
+
+def test_create_mesh_triangulates_quad4_to_tri3() -> None:
+    coords = coords_3d(riley.EElemType.QUAD4)
+    connect = np.arange(coords.shape[0], dtype=np.uintp).reshape((1, -1))
+    convention = riley.ConnectConvention(
+        riley.EElemType.QUAD4,
+        riley.EConnectAxis.ROW,
+        0,
+        riley.ENodeOrder.RILEY,
+    )
+    shader = function_shader()
+
+    mesh = riley.create_mesh(
+        convention,
+        riley.MeshType.tri3,
+        coords,
+        connect,
+        shader,
+    )
+    assert mesh.mesh_type == riley.MeshType.tri3
+    assert mesh.coords.shape[0] == 4
+    assert mesh.connect.shape == (2, 3)
+
+
+def test_create_mesh_triangulates_tri6_to_tri3() -> None:
+    coords = coords_3d(riley.EElemType.TRI6)
+    connect = np.arange(coords.shape[0], dtype=np.uintp).reshape((1, -1))
+    convention = riley.ConnectConvention(
+        riley.EElemType.TRI6,
+        riley.EConnectAxis.ROW,
+        0,
+        riley.ENodeOrder.RILEY,
+    )
+    shader = function_shader()
+
+    mesh = riley.create_mesh(
+        convention,
+        riley.MeshType.tri3,
+        coords,
+        connect,
+        shader,
+    )
+    assert mesh.mesh_type == riley.MeshType.tri3
+    assert mesh.coords.shape[0] == 6
+    assert mesh.connect.shape == (4, 3)
+
+
+def test_create_mesh_supports_temporal_fields() -> None:
+    coords = coords_3d(riley.EElemType.TRI3)
+    connect = np.arange(coords.shape[0], dtype=np.uintp).reshape((1, -1))
+    convention = riley.ConnectConvention(
+        riley.EElemType.TRI3,
+        riley.EConnectAxis.ROW,
+        0,
+        riley.ENodeOrder.RILEY,
+    )
+    nodal_field = np.array(
+        [
+            [1.0, 2.0, 3.0],
+            [10.0, 20.0, 30.0],
+            [100.0, 200.0, 300.0],
+        ]
+    )
+    shader = riley.NodalShader(nodal_field)
+    disp_x = np.zeros((3, 3), dtype=np.float64)
+    disp_y = np.zeros((3, 3), dtype=np.float64)
+    disp_z = np.zeros((3, 3), dtype=np.float64)
+
+    mesh = riley.create_mesh(
+        convention,
+        riley.MeshType.tri3,
+        coords,
+        connect,
+        shader,
+        disp=(disp_x, disp_y, disp_z),
+    )
+    assert mesh.disp is not None
+    assert mesh.disp.shape == (3, 3, 3)
+    assert mesh.shader.field.shape == (3, 3, 1)
+
+
+def test_create_mesh_from_prepared_creates_mesh() -> None:
+    coords = coords_3d(riley.EElemType.TRI3)
+    connect = np.arange(coords.shape[0], dtype=np.uintp).reshape((1, -1))
+    convention = riley.ConnectConvention(
+        riley.EElemType.TRI3,
+        riley.EConnectAxis.ROW,
+        0,
+        riley.ENodeOrder.RILEY,
+    )
+    conversion = riley.convert_mesh_for_render(
+        convention,
+        riley.MeshType.tri3,
+        coords,
+        connect,
+    )
+    shader = function_shader()
+
+    mesh = riley.create_mesh_from_prepared(
+        conversion,
+        shader,
+    )
+    assert mesh.mesh_type == riley.MeshType.tri3
+    assert mesh.coords.shape == (3, 3)
+    assert mesh.connect.shape == (1, 3)

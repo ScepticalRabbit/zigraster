@@ -21,7 +21,7 @@ DATA_DIR = riley.data.feature_zoo_path()
 OUT_DIR = Path.cwd() / "out_riley_py" / "demo9_feature_zoo"
 PIXEL_SIZE = (5.3e-6, 5.3e-6)
 FOCAL_LENGTH = 50.0e-3
-FRAME_INDICES = (0, 1, 2, 3, 4)
+FRAME_INDICES = (0, 1, 2, 3)
 
 CASES = (
     ("cube_quad9", riley.EElemType.QUAD9, riley.MeshType.quad9),
@@ -62,13 +62,13 @@ CAMERA_CASES = (
 )
 
 MESH_CENTERS = (
-    (0.016, -0.0065, 0.0),
-    (0.027, -0.0065, 0.0),
-    (0.016, -0.0195, 0.0),
-    (0.027, -0.0195, 0.0),
-    (-0.013, 0.018, 0.0),
-    (0.013, 0.018, 0.0),
-    (-0.008, -0.013, 0.0),
+    (-0.0125, 0.0125, 0.0),
+    (0.0125, 0.0125, 0.0),
+    (-0.0125, 0.0, 0.0),
+    (0.0125, 0.0, 0.0),
+    (-0.0125, -0.0125, 0.0),
+    (0.0, -0.0125, 0.0),
+    (0.0125, -0.0125, 0.0),
 )
 
 

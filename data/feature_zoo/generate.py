@@ -39,7 +39,7 @@ def generate_case(
     elem_type: riley.EElemType,
     mesh_type: riley.MeshType,
 ) -> None:
-    source_dir = SHAPES_DIR / shape
+    source_dir = SHAPES_DIR / f"{shape}_vol"
     source_prefix = source_dir / f"{shape}_{source_name}"
     coords = riley.load_csv(
         source_prefix.with_name(f"{source_prefix.name}_coords.csv")
@@ -71,10 +71,15 @@ def generate_case(
         riley.NodalShader(temperature),
         disp=disp,
     )
+    extent_max = max(
+        float(np.ptp(mesh.coords[:, 0])),
+        float(np.ptp(mesh.coords[:, 1])),
+    )
+    uv_span_max = (extent_max * 2500.0) / 128.0
     uvs = riley.project_uvs_planar_centered(
         mesh.coords,
         (128, 128),
-        uv_span_max=0.9,
+        uv_span_max=uv_span_max,
         proj_plane=riley.EUVProjPlane.XY,
     )
 

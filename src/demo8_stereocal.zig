@@ -27,6 +27,7 @@ const Rotation = @import("riley/zig/rotation.zig").Rotation;
 const DistortionModel = camera_mod.DistortionModel;
 const BrownConrady = camera_mod.BrownConrady;
 const BrownConradyExt = camera_mod.BrownConradyExt;
+const CameraInput = camera_mod.CameraInput;
 const StereoPairInput = camera_mod.StereoPairInput;
 const F = buildconfig.F;
 
