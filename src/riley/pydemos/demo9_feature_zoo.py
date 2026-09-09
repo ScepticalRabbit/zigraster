@@ -170,27 +170,43 @@ def make_shader(
 
 
 def build_scene(channels: int, bits: int) -> list[riley.Mesh]:
-    texture_name = (
-        f"speck128_{'mono' if channels == 1 else 'rgb'}_u{bits}.png"
-    )
-    texture_path = riley.data.texture_dir_path() / texture_name
-
+    tex_dir = riley.data.texture_dir_path()
     if (channels, bits) == (1, 8):
-        texture = riley.load_texture_mono_u8(texture_path)
+        texture = riley.load_texture_mono_u8(
+            tex_dir / "speck128_mono_u8.bmp"
+        )
     elif (channels, bits) == (1, 16):
-        texture = riley.load_texture_mono_u16(texture_path)
+        texture = riley.load_texture_mono_u16(
+            tex_dir / "speck128_mono_u16.tiff"
+        )
     elif (channels, bits) == (3, 8):
-        texture = riley.load_texture_rgb_u8(texture_path)
+        texture = riley.load_texture_rgb_u8(
+            tex_dir / "speck128_rgb_u8.bmp"
+        )
     else:
         texture_u8 = riley.load_texture_rgb_u8(
-            riley.data.texture_dir_path() / "speck128_rgb_u8.png"
+            tex_dir / "speck128_rgb_u8.bmp"
         )
         texture = texture_u8.astype(np.uint16) * np.uint16(257)
 
+    raw_data = [load_case(case[0]) for case in CASES]
+    mesh_coords = [data[0] for data in raw_data]
+
+    plate_x = np.array(mesh_coords[6][:, 0], copy=True)
+    mesh_coords[6][:, 0] = -mesh_coords[6][:, 1]
+    mesh_coords[6][:, 1] = plate_x
+
+    for index, center in enumerate(MESH_CENTERS):
+        sceneops.scene_center_mesh_group_at(
+            mesh_coords,
+            sceneops.scene_create_mesh_group_single(index),
+            center,
+        )
+
     meshes = []
     for index, (case_name, elem_type, mesh_type) in enumerate(CASES):
-        coords, connect, uvs, temperature, disp_x, disp_y, disp_z = load_case(
-            case_name
+        coords, connect, uvs, temperature, disp_x, disp_y, disp_z = (
+            raw_data[index]
         )
         disp = (disp_x, disp_y, disp_z)
         shader = make_shader(
@@ -211,19 +227,6 @@ def build_scene(channels: int, bits: int) -> list[riley.Mesh]:
                 shader,
                 disp=disp if index % 2 else None,
             )
-        )
-
-    plate = meshes[6]
-    plate_x = np.array(plate.coords[:, 0], copy=True)
-    plate.coords[:, 0] = -plate.coords[:, 1]
-    plate.coords[:, 1] = plate_x
-
-    mesh_coords = [mesh.coords for mesh in meshes]
-    for index, center in enumerate(MESH_CENTERS):
-        sceneops.scene_center_mesh_group_at(
-            mesh_coords,
-            sceneops.scene_create_mesh_group_single(index),
-            center,
         )
 
     return meshes
