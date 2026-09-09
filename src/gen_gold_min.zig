@@ -114,7 +114,7 @@ pub fn main(init: std.process.Init) !void {
                 if (is_rgb and !is_allowed_rgb) continue;
 
                 if (common.shouldRun(
-                    .{ .run = .all, .skip_quad4ibi_sphere = true },
+                    .{ .run = .all },
                     mt,
                     st,
                     sc,
@@ -192,7 +192,7 @@ pub fn main(init: std.process.Init) !void {
                 if (is_rgb and !is_allowed_rgb) continue;
 
                 if (common.shouldRun(
-                    .{ .run = .all, .skip_quad4ibi_sphere = true },
+                    .{ .run = .all },
                     mt,
                     st,
                     sc,

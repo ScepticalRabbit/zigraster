@@ -135,10 +135,7 @@ pub fn canonicalCaseMeshType(mesh_type: gk.MeshType) gk.MeshType {
 }
 
 pub fn sphereGoldCaseMeshType(mesh_type: gk.MeshType) gk.MeshType {
-    return switch (mesh_type) {
-        .quad4ibi => .quad4newton,
-        else => mesh_type,
-    };
+    return mesh_type;
 }
 
 pub fn meshName(
@@ -148,7 +145,6 @@ pub fn meshName(
     return switch (context) {
         .fixture_case => switch (mesh_type) {
             .tri3opt => "tri3",
-            .quad4ibi, .quad4newton => "quad4",
             else => @tagName(mesh_type),
         },
         .benchmark_data => switch (mesh_type) {

@@ -306,16 +306,8 @@ fn saveIdealMapsDynamic(
             rows_num,
             cols_num,
         ),
-        .quad4ibi => try saveIdealMaps(
-            .quad4ibi,
-            allocator,
-            io,
-            sample_list,
-            rows_num,
-            cols_num,
-        ),
-        .quad4newton => try saveIdealMaps(
-            .quad4newton,
+        .quad4 => try saveIdealMaps(
+            .quad4,
             allocator,
             io,
             sample_list,
@@ -535,15 +527,8 @@ pub fn main(init: std.process.Init) !void {
                 io,
                 &global_reproj_errs,
             ),
-            .quad4ibi => try runDistortCase(
-                .quad4ibi,
-                case_spec,
-                allocator,
-                io,
-                &global_reproj_errs,
-            ),
-            .quad4newton => try runDistortCase(
-                .quad4newton,
+            .quad4 => try runDistortCase(
+                .quad4,
                 case_spec,
                 allocator,
                 io,

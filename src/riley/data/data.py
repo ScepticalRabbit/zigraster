@@ -26,15 +26,14 @@ _2D_SHAPE_ELEM_TYPES = ("quad4", "quad8", "quad9", "tri3", "tri6")
 _SURF_ELEM_TYPES = (
     "tri3",
     "tri6",
-    "quad4ibi",
-    "quad4newton",
+    "quad4",
     "quad8",
     "quad9",
 )
 _SPHERE200_CASE_NAMES = (
     "tri3_sphere200",
     "tri6_sphere200",
-    "quad4newton_sphere200",
+    "quad4_sphere200",
     "quad8_sphere200",
     "quad9_sphere200",
 )
@@ -87,10 +86,6 @@ def cal_target_texture_path() -> Path:
 
 def texture_dir_path() -> Path:
     return _resolve_data_path("textures", "texture")
-
-
-def feature_zoo_path() -> Path:
-    return _resolve_data_path("feature_zoo", "data/feature_zoo")
 
 
 def _normalize_shape_name(shape: str) -> str:
@@ -192,6 +187,35 @@ def shape_case_path(
     return shape_vol_dir_path(shape)
 
 
+def _find_shape_file(
+    shape_norm: str,
+    filename: str,
+    kind: str = "vol",
+) -> Path:
+    if shape_norm == "platewithhole_2d":
+        candidates = (
+            "shapes/platewithhole_2d",
+            "shapes/platewithhole2d",
+        )
+    elif kind == "surf":
+        candidates = (f"shapes/{shape_norm}_surf",)
+    else:
+        candidates = (
+            f"shapes/{shape_norm}_vol",
+            f"shapes/{shape_norm}",
+        )
+    for rel_path in candidates:
+        pkg_file = _package_data_root_path() / rel_path / filename
+        if pkg_file.is_file():
+            return pkg_file
+        repo_file = _fallback_repo_data_path(f"data/{rel_path}/{filename}")
+        if repo_file.is_file():
+            return repo_file
+    raise FileNotFoundError(
+        f"Shape file '{filename}' for shape '{shape_norm}' ({kind}) not found."
+    )
+
+
 def shape_exodus_path(
     shape: str,
     elem_type: str,
@@ -200,16 +224,10 @@ def shape_exodus_path(
     shape_norm, prefix = _normalize_shape_and_prefix(
         shape, elem_type, pure=pure
     )
-    dir_path = shape_vol_dir_path(shape_norm)
-    candidate = dir_path / f"{prefix}_out.e"
-    if candidate.is_file():
-        return candidate
-
-    alt_cand = dir_path / f"{prefix}.e"
-    if alt_cand.is_file():
-        return alt_cand
-
-    raise FileNotFoundError(f"Exodus file not found: {candidate}")
+    try:
+        return _find_shape_file(shape_norm, f"{prefix}_out.e")
+    except FileNotFoundError:
+        return _find_shape_file(shape_norm, f"{prefix}.e")
 
 
 def shape_coords_path(
@@ -220,12 +238,7 @@ def shape_coords_path(
     shape_norm, prefix = _normalize_shape_and_prefix(
         shape, elem_type, pure=pure
     )
-    dir_path = shape_vol_dir_path(shape_norm)
-    candidate = dir_path / f"{prefix}_coords.csv"
-    if candidate.is_file():
-        return candidate
-
-    raise FileNotFoundError(f"Coords file not found: {candidate}")
+    return _find_shape_file(shape_norm, f"{prefix}_coords.csv")
 
 
 def shape_connectivity_path(
@@ -237,18 +250,14 @@ def shape_connectivity_path(
     shape_norm, prefix = _normalize_shape_and_prefix(
         shape, elem_type, pure=pure
     )
-    dir_path = shape_vol_dir_path(shape_norm)
     if block is not None:
-        cand_block = dir_path / f"{prefix}_{block}_connectivity.csv"
-        if cand_block.is_file():
-            return cand_block
-    candidate = dir_path / f"{prefix}_connectivity.csv"
-    if candidate.is_file():
-        return candidate
-
-    raise FileNotFoundError(
-        f"Connectivity file not found: {prefix} (block={block})"
-    )
+        try:
+            return _find_shape_file(
+                shape_norm, f"{prefix}_{block}_connectivity.csv"
+            )
+        except FileNotFoundError:
+            pass
+    return _find_shape_file(shape_norm, f"{prefix}_connectivity.csv")
 
 
 def shape_field_path(
@@ -260,12 +269,7 @@ def shape_field_path(
     shape_norm, prefix = _normalize_shape_and_prefix(
         shape, elem_type, pure=pure
     )
-    dir_path = shape_vol_dir_path(shape_norm)
-    candidate = dir_path / f"{prefix}_{field_name}.csv"
-    if candidate.is_file():
-        return candidate
-
-    raise FileNotFoundError(f"Field file not found: {candidate}")
+    return _find_shape_file(shape_norm, f"{prefix}_{field_name}.csv")
 
 
 def shape_disp_path(
@@ -303,11 +307,7 @@ def shape_msh_path(
     shape_norm, prefix = _normalize_shape_and_prefix(
         shape, elem_type, pure=False
     )
-    dir_path = shape_vol_dir_path(shape_norm)
-    candidate = dir_path / f"{prefix}.msh"
-    if candidate.is_file():
-        return candidate
-    raise FileNotFoundError(f"Mesh file not found: {candidate}")
+    return _find_shape_file(shape_norm, f"{prefix}.msh")
 
 
 def shape_geo_path(
@@ -320,11 +320,7 @@ def shape_geo_path(
     shape_norm, prefix = _normalize_shape_and_prefix(
         shape, elem_type, pure=False
     )
-    dir_path = shape_vol_dir_path(shape_norm)
-    candidate = dir_path / f"{prefix}.geo"
-    if candidate.is_file():
-        return candidate
-    raise FileNotFoundError(f"Geo file not found: {candidate}")
+    return _find_shape_file(shape_norm, f"{prefix}.geo")
 
 
 def shape_moose_input_path(
@@ -335,11 +331,7 @@ def shape_moose_input_path(
     shape_norm, prefix = _normalize_shape_and_prefix(
         shape, elem_type, pure=pure
     )
-    dir_path = shape_vol_dir_path(shape_norm)
-    candidate = dir_path / f"{prefix}.i"
-    if candidate.is_file():
-        return candidate
-    raise FileNotFoundError(f"MOOSE input file not found: {candidate}")
+    return _find_shape_file(shape_norm, f"{prefix}.i")
 
 
 def shape_surface_dataset_path(shape: str, surf_type: str) -> Path:
@@ -349,7 +341,8 @@ def shape_surface_dataset_path(shape: str, surf_type: str) -> Path:
     if sub_dir.is_dir():
         return sub_dir
     raise FileNotFoundError(
-        f"Surface dataset directory not found for {shape}/{surf_type} at {sub_dir}"
+        f"Surface dataset directory not found for {shape}/{surf_type} "
+        f"at {sub_dir}"
     )
 
 
@@ -618,7 +611,6 @@ __all__ = [
     "cylinder_moose_input_path",
     "cylinder_msh_path",
     "cylinder_temperature_path",
-    "feature_zoo_path",
     "platehole_csv_case_path",
     "platehole_exodus_path",
     "platewithhole2d_case_path",

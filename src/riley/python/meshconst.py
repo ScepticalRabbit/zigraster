@@ -359,8 +359,7 @@ RILEY_MESH_ELEM_TYPE_MAP = {
     MeshType.tri3: EElemType.TRI3,
     MeshType.tri3opt: EElemType.TRI3,
     MeshType.tri6: EElemType.TRI6,
-    MeshType.quad4ibi: EElemType.QUAD4,
-    MeshType.quad4newton: EElemType.QUAD4,
+    MeshType.quad4: EElemType.QUAD4,
     MeshType.quad8: EElemType.QUAD8,
     MeshType.quad9: EElemType.QUAD9,
 }

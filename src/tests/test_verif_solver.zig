@@ -33,15 +33,6 @@ const quad_points = [_]verif.SamplePoint{
     .{ .xi_true = -0.35, .eta_true = 0.55 },
 };
 
-const quad_ibi_points = [_]verif.SamplePoint{
-    .{ .xi_true = 0.50, .eta_true = 0.50 },
-    .{ .xi_true = 0.05, .eta_true = 0.05 },
-    .{ .xi_true = 0.95, .eta_true = 0.05 },
-    .{ .xi_true = 0.95, .eta_true = 0.95 },
-    .{ .xi_true = 0.05, .eta_true = 0.95 },
-    .{ .xi_true = 0.30, .eta_true = 0.70 },
-};
-
 fn checkCase(
     comptime mesh_type: gk.MeshType,
     allocator: std.mem.Allocator,
@@ -55,7 +46,10 @@ fn checkCase(
 
     const camera = try cam.CameraPrepared.init(local_alloc, case_spec.camera_input);
     const sim_data = try orch.loadData(local_alloc, io, case_spec.data_dir);
-    const frame_idx = if (sim_data.field) |field| @min(@as(usize, 1), field.getTimeN() - 1) else 0;
+    const frame_idx = if (sim_data.field) |field|
+        @min(@as(usize, 1), field.getTimeN() - 1)
+    else
+        0;
     const nodes = solver_verif.frameNodes(mesh_type, &sim_data, frame_idx);
     const solver_nodes = verif.worldNodesToSolverCoords(
         mesh_type,
@@ -77,8 +71,16 @@ fn checkCase(
         );
         try std.testing.expect(record.converged);
         try std.testing.expect(record.in_domain);
-        try std.testing.expectApproxEqAbs(point.xi_true, record.xi_rec, tcfg.VERIF_TOL.para_abs);
-        try std.testing.expectApproxEqAbs(point.eta_true, record.eta_rec, tcfg.VERIF_TOL.para_abs);
+        try std.testing.expectApproxEqAbs(
+            point.xi_true,
+            record.xi_rec,
+            tcfg.VERIF_TOL.para_abs,
+        );
+        try std.testing.expectApproxEqAbs(
+            point.eta_true,
+            record.eta_rec,
+            tcfg.VERIF_TOL.para_abs,
+        );
         try std.testing.expect(record.reproj_err <= tcfg.VERIF_TOL.reproj_abs_px);
     }
 }
@@ -93,8 +95,7 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
             .tri3 => try checkCase(.tri3, allocator, io, case_spec, &tri_points),
             .tri3opt => {},
             .tri6 => try checkCase(.tri6, allocator, io, case_spec, &tri_points),
-            .quad4ibi => try checkCase(.quad4ibi, allocator, io, case_spec, &quad_ibi_points),
-            .quad4newton => try checkCase(.quad4newton, allocator, io, case_spec, &quad_points),
+            .quad4 => try checkCase(.quad4, allocator, io, case_spec, &quad_points),
             .quad8 => try checkCase(.quad8, allocator, io, case_spec, &quad_points),
             .quad9 => try checkCase(.quad9, allocator, io, case_spec, &quad_points),
         }

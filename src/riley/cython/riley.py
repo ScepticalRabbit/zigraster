@@ -178,8 +178,7 @@ class MeshType(IntEnum):
     tri3 = 0
     tri3opt = 1
     tri6 = 2
-    quad4ibi = 3
-    quad4newton = 4
+    quad4 = 4
     quad8 = 5
     quad9 = 6
 

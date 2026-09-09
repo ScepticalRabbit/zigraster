@@ -506,7 +506,6 @@ pub const BenchConfig = struct {
     element_type: gk.MeshType = .tri3,
     texture_type: ShaderType = .tex8_grey,
     samp_cfg: TextureSampleConfig = .{ .sample = .cubic_catmull_rom, .mode = .lut_lerp },
-    skip_quad4ibi_sphere: bool = false,
 };
 
 pub fn shouldRun(
@@ -516,16 +515,9 @@ pub fn shouldRun(
     sc: TextureSampleConfig,
     data_dir: []const u8,
 ) bool {
+    _ = data_dir;
     const is_tex = (st == .tex8_grey or st == .tex8_rgb);
     if (!is_tex and (sc.sample != .linear or sc.mode != .direct)) return false;
-
-    if (config.skip_quad4ibi_sphere and mt == .quad4ibi) {
-        if (std.mem.indexOf(u8, data_dir, "sphere200") != null or
-            std.mem.indexOf(u8, data_dir, "sphere2000") != null)
-        {
-            return false;
-        }
-    }
 
     return switch (config.run) {
         .all => true,

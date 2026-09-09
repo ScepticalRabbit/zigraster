@@ -53,7 +53,7 @@ pub const focused_cases = [_]struct {
 }{
     .{ .mesh_type = .tri3, .distort_name = "shear", .frame_idx = 0 },
     .{ .mesh_type = .tri6, .distort_name = "bulge", .frame_idx = 5 },
-    .{ .mesh_type = .quad4newton, .distort_name = "shear", .frame_idx = 0 },
+    .{ .mesh_type = .quad4, .distort_name = "shear", .frame_idx = 0 },
     .{ .mesh_type = .quad8, .distort_name = "bulge", .frame_idx = 5 },
     .{ .mesh_type = .quad9, .distort_name = "bulge", .frame_idx = 5 },
 };

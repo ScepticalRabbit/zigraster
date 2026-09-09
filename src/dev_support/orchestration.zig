@@ -26,7 +26,7 @@ const policy = @import("testpolicy.zig");
 pub const default_multimesh_mesh_types = [_]gk.MeshType{
     .tri3,
     .tri6,
-    .quad4newton,
+    .quad4,
     .quad8,
     .quad9,
 };

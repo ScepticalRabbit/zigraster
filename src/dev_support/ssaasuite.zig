@@ -27,7 +27,7 @@ pub const gold_root = policy.goldRoot(.ssaa);
 pub const pixel_num = [_]u32{ 640, 400 };
 pub const fov_scale: F = 0.75;
 pub const ssaa_values = [_]u8{4};
-pub const mesh_types = [_]gk.MeshType{ .tri3, .tri6, .quad4ibi, .quad8, .quad9 };
+pub const mesh_types = [_]gk.MeshType{ .tri3, .tri6, .quad4, .quad8, .quad9 };
 pub const DistortionCase = enum {
     none,
     brown,

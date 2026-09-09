@@ -27,8 +27,6 @@ def build_uv_grey_field(uvs: np.ndarray) -> np.ndarray:
 
 
 def mesh_data_name(mesh_type: riley.MeshType) -> str:
-    if mesh_type in (riley.MeshType.quad4ibi, riley.MeshType.quad4newton):
-        return "quad4"
     return mesh_type.name
 
 
@@ -58,7 +56,7 @@ def make_grey_mesh_input(
     elem_type = {
         riley.MeshType.tri3: riley.EElemType.TRI3,
         riley.MeshType.tri6: riley.EElemType.TRI6,
-        riley.MeshType.quad4newton: riley.EElemType.QUAD4,
+        riley.MeshType.quad4: riley.EElemType.QUAD4,
         riley.MeshType.quad8: riley.EElemType.QUAD8,
         riley.MeshType.quad9: riley.EElemType.QUAD9,
     }[mesh_type]
@@ -115,7 +113,7 @@ def main() -> None:
     rabbit_mesh_types = [
         riley.MeshType.tri3,
         riley.MeshType.tri6,
-        riley.MeshType.quad4newton,
+        riley.MeshType.quad4,
         riley.MeshType.quad8,
         riley.MeshType.quad9,
     ]

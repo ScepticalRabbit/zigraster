@@ -121,7 +121,7 @@ test "MIN Suite: sphere200 and multimesh" {
                         if (is_rgb and !is_allowed_rgb) continue;
 
                         if (common.shouldRun(
-                            .{ .run = .all, .skip_quad4ibi_sphere = true },
+                            .{ .run = .all },
                             mt,
                             st,
                             sc,
@@ -242,7 +242,7 @@ test "MIN Suite: sphere200 and multimesh" {
                         if (is_rgb and !is_allowed_rgb) continue;
 
                         if (common.shouldRun(
-                            .{ .run = .all, .skip_quad4ibi_sphere = true },
+                            .{ .run = .all },
                             mt,
                             st,
                             sc,

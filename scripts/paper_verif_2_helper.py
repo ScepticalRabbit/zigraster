@@ -108,8 +108,6 @@ def parse_case_info(stats_path: pathlib.Path) -> tuple[str, str, str, int]:
     case_name = stats_path.parent.name
     case_parts = case_name.split("_")
     mesh_name = case_parts[1]
-    if mesh_name == "quad4ibi" or mesh_name == "quad4newton":
-        mesh_name = "quad4"
     distort_name = case_parts[2]
 
     frame_match = FRAME_RE.match(stats_path.name)

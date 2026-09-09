@@ -39,7 +39,7 @@ _CUBE_TYPES = {
 _SPHERE_TYPES = {
     "tri3_sphere200": meshconv.EElemType.TRI3,
     "tri6_sphere200": meshconv.EElemType.TRI6,
-    "quad4newton_sphere200": meshconv.EElemType.QUAD4,
+    "quad4_sphere200": meshconv.EElemType.QUAD4,
     "quad8_sphere200": meshconv.EElemType.QUAD8,
     "quad9_sphere200": meshconv.EElemType.QUAD9,
 }

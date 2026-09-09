@@ -55,7 +55,6 @@ test "Unified Benchmark Tests" {
         is_sphere: bool = false,
         fov_scale: F = 1.0,
         sub_sample: u32 = 2,
-        skip_quad4ibi_sphere: bool = false,
     }{
         .{
             .name = "fullraster",
@@ -82,7 +81,6 @@ test "Unified Benchmark Tests" {
             .gold_dir = policy.goldRoot(.sphere2000),
             .out_dir = "out/sphere2000",
             .is_sphere = true,
-            .skip_quad4ibi_sphere = true,
         },
         .{
             .name = "sphere2000_ssaa1",
@@ -91,7 +89,6 @@ test "Unified Benchmark Tests" {
             .out_dir = "out/sphere2000_ssaa1",
             .is_sphere = true,
             .sub_sample = 1,
-            .skip_quad4ibi_sphere = true,
         },
         .{
             .name = "sphere2000zoom",
@@ -100,7 +97,6 @@ test "Unified Benchmark Tests" {
             .out_dir = "out/sphere2000zoom",
             .is_sphere = true,
             .fov_scale = 0.5,
-            .skip_quad4ibi_sphere = true,
         },
     };
 
@@ -172,10 +168,7 @@ test "Unified Benchmark Tests" {
                     );
 
                     const run_config = if (cc.is_sphere)
-                        common.BenchConfig{
-                            .run = .all,
-                            .skip_quad4ibi_sphere = cc.skip_quad4ibi_sphere,
-                        }
+                        common.BenchConfig{ .run = .all }
                     else
                         config;
 

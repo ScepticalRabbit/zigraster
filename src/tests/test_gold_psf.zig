@@ -417,7 +417,7 @@ test "PSF gaussian constant render is invariant to tile size" {
     const io = std.testing.io;
     const render_case = suite.RenderCase{
         .distortion_case_name = "distort_shear",
-        .mesh_type = .quad4ibi,
+        .mesh_type = .quad4,
         .shader_case = suite.shader_cases[1],
         .psf_case = suite.psf_cases[1],
     };

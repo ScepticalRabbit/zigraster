@@ -93,7 +93,6 @@ fn generateCases(
         gold_root: []const u8,
         is_shared: bool,
         fov_scale: F = 1.0,
-        skip_quad4ibi_sphere: bool = false,
     }{
         .{
             .name = "fullraster_ssaa1",
@@ -106,7 +105,6 @@ fn generateCases(
             .data_name = "sphere2000",
             .gold_root = policy.goldRoot(.sphere2000_ssaa1),
             .is_shared = false,
-            .skip_quad4ibi_sphere = true,
         },
     };
 
@@ -131,13 +129,7 @@ fn generateCases(
                         "data/bench/{s}_{s}",
                         .{ mesh_name, case.data_name },
                     );
-                    const run_config = if (case.skip_quad4ibi_sphere)
-                        common.BenchConfig{
-                            .run = .all,
-                            .skip_quad4ibi_sphere = true,
-                        }
-                    else
-                        common.BenchConfig{ .run = .all };
+                    const run_config = common.BenchConfig{ .run = .all };
 
                     if (common.shouldRun(run_config, mt, st, sc, data_dir)) {
                         const case_name = try common.calcCaseName(

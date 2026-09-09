@@ -45,7 +45,7 @@ const out_root = "verif/verif_4";
 const mesh_types = [_]gk.MeshType{
     .tri3,
     .tri6,
-    .quad4ibi,
+    .quad4,
     .quad8,
     .quad9,
 };
@@ -65,9 +65,8 @@ fn pairedBackMeshType(front_mesh_type: gk.MeshType) gk.MeshType {
     return switch (front_mesh_type) {
         .tri3, .tri3opt => .tri6,
         .tri6 => .tri3,
-        .quad4ibi => .quad8,
-        .quad4newton => .quad8,
-        .quad8, .quad9 => .quad4ibi,
+        .quad4 => .quad8,
+        .quad8, .quad9 => .quad4,
     };
 }
 
@@ -213,15 +212,8 @@ fn buildCaseSpec(
         };
     }
 
-    // Sphere case - need to handle quad4 variants differently than rabbit/simple
-    const front_data_name = if (mesh_type == .quad4ibi)
-        "quad4ibi"
-    else
-        orch.meshDataName(mesh_type);
-    const back_data_name = if (back_mesh_type == .quad4ibi)
-        "quad4ibi"
-    else
-        orch.meshDataName(back_mesh_type);
+    const front_data_name = orch.meshDataName(mesh_type);
+    const back_data_name = orch.meshDataName(back_mesh_type);
     return .{
         .case_name = case_name,
         .front_mesh_type = mesh_type,
@@ -545,7 +537,7 @@ pub fn main(init: std.process.Init) !void {
 }
 
 pub fn runFocusedTests(allocator: std.mem.Allocator, io: std.Io) !void {
-    const focused_mesh_types = [_]gk.MeshType{ .tri3, .tri6, .quad4newton, .quad8, .quad9 };
+    const focused_mesh_types = [_]gk.MeshType{ .tri3, .tri6, .quad4, .quad8, .quad9 };
     const separations = [_]Separation{ .far, .close, .very_close, .twice_tol };
     for (focused_mesh_types) |mesh_type| {
         const case_spec = try buildCaseSpec("rabbit", mesh_type);

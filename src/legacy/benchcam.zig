@@ -57,7 +57,7 @@ const mesh_types = [_]gk.MeshType{
     .tri3,
     .tri6,
     // Add more element paths here later if broader camera-path coverage is
-    // useful, e.g. .quad4ibi, .quad4newton, .quad8, .quad9.
+    // useful, e.g. .quad4, .quad8, .quad9.
 };
 
 const shader_types = [_]common.ShaderType{

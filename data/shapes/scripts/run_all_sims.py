@@ -1653,16 +1653,10 @@ def extract_surface_datasets(shapes_root: Path) -> None:
                     riley.MeshType.tri6,
                 ),
                 (
-                    "quad4ibi",
+                    "quad4",
                     "cube_hex8",
                     riley.EElemType.HEX8,
-                    riley.MeshType.quad4ibi,
-                ),
-                (
-                    "quad4newton",
-                    "cube_hex8",
-                    riley.EElemType.HEX8,
-                    riley.MeshType.quad4newton,
+                    riley.MeshType.quad4,
                 ),
                 (
                     "quad8",
@@ -1696,16 +1690,10 @@ def extract_surface_datasets(shapes_root: Path) -> None:
                     riley.MeshType.tri6,
                 ),
                 (
-                    "quad4ibi",
+                    "quad4",
                     "cylinder_hex8",
                     riley.EElemType.HEX8,
-                    riley.MeshType.quad4ibi,
-                ),
-                (
-                    "quad4newton",
-                    "cylinder_hex8",
-                    riley.EElemType.HEX8,
-                    riley.MeshType.quad4newton,
+                    riley.MeshType.quad4,
                 ),
                 (
                     "quad8",
@@ -1739,16 +1727,10 @@ def extract_surface_datasets(shapes_root: Path) -> None:
                     riley.MeshType.tri6,
                 ),
                 (
-                    "quad4ibi",
+                    "quad4",
                     "sphere_hex8",
                     riley.EElemType.HEX8,
-                    riley.MeshType.quad4ibi,
-                ),
-                (
-                    "quad4newton",
-                    "sphere_hex8",
-                    riley.EElemType.HEX8,
-                    riley.MeshType.quad4newton,
+                    riley.MeshType.quad4,
                 ),
                 (
                     "quad8",
@@ -1782,16 +1764,10 @@ def extract_surface_datasets(shapes_root: Path) -> None:
                     riley.MeshType.tri6,
                 ),
                 (
-                    "quad4ibi",
+                    "quad4",
                     "platewithhole_hex8",
                     riley.EElemType.HEX8,
-                    riley.MeshType.quad4ibi,
-                ),
-                (
-                    "quad4newton",
-                    "platewithhole_hex8",
-                    riley.EElemType.HEX8,
-                    riley.MeshType.quad4newton,
+                    riley.MeshType.quad4,
                 ),
                 (
                     "quad8",

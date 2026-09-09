@@ -387,8 +387,7 @@ pub fn generateDistortEdgeGold(
     const full_mesh_types = [_]gk.MeshType{
         .tri3,
         .tri6,
-        .quad4ibi,
-        .quad4newton,
+        .quad4,
         .quad8,
         .quad9,
     };
@@ -434,8 +433,7 @@ pub fn generateDistortEdgeGoldForHullMode(
     const full_mesh_types = [_]gk.MeshType{
         .tri3,
         .tri6,
-        .quad4ibi,
-        .quad4newton,
+        .quad4,
         .quad8,
         .quad9,
     };

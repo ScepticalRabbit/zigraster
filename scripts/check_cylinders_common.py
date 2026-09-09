@@ -7,7 +7,7 @@ import riley
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
-DATA_DIR = ROOT_DIR / "data" / "feature_zoo" / "cylinder_tri6"
+DATA_DIR = ROOT_DIR / "data" / "shapes" / "cylinder_surf" / "tri6"
 OUT_DIR = ROOT_DIR / "out_riley_py" / "check_cylinders"
 PIXELS_NUM = (1024, 1024)
 PIXELS_SIZE = (5.3e-6, 5.3e-6)

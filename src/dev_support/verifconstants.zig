@@ -191,7 +191,7 @@ pub const distort_cases = [_]DistortCase{
     },
     .{
         .case_name = "stretch",
-        .mesh_type = .quad4newton,
+        .mesh_type = .quad4,
         .data_dir = "data/edge/quad4_distort_stretch",
         .camera_input = edgeCameraInput(
             .{ 60.0, 5.0, 1556.6037735849059 },
@@ -236,7 +236,7 @@ pub const distort_cases = [_]DistortCase{
     },
     .{
         .case_name = "shear",
-        .mesh_type = .quad4newton,
+        .mesh_type = .quad4,
         .data_dir = "data/edge/quad4_distort_shear",
         .camera_input = edgeCameraInput(
             .{ 60.0, 5.0, 1556.6037735849059 },
@@ -281,7 +281,7 @@ pub const distort_cases = [_]DistortCase{
     },
     .{
         .case_name = "rot",
-        .mesh_type = .quad4newton,
+        .mesh_type = .quad4,
         .data_dir = "data/edge/quad4_distort_rot",
         .camera_input = edgeCameraInput(
             .{ 5.0, 5.0, 167.27358490566039 },

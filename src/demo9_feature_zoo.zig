@@ -21,18 +21,18 @@ const pixel_size = [2]F{ @floatCast(5.3e-6), @floatCast(5.3e-6) };
 const focal_length: F = @floatCast(50.0e-3);
 
 const Case = struct {
-    name: []const u8,
+    shape: []const u8,
+    elem: []const u8,
     mesh_type: gk.MeshType,
 };
 
 const cases = [_]Case{
-    .{ .name = "cube_quad9", .mesh_type = .quad9 },
-    .{ .name = "cube_tri6", .mesh_type = .tri6 },
-    .{ .name = "cylinder_quad8", .mesh_type = .quad8 },
-    .{ .name = "cylinder_tri6", .mesh_type = .tri6 },
-    .{ .name = "plate_quad4ibi", .mesh_type = .quad4ibi },
-    .{ .name = "plate_quad4newton", .mesh_type = .quad4newton },
-    .{ .name = "plate_tri3", .mesh_type = .tri3 },
+    .{ .shape = "cube_surf", .elem = "quad9", .mesh_type = .quad9 },
+    .{ .shape = "cube_surf", .elem = "tri6", .mesh_type = .tri6 },
+    .{ .shape = "cylinder_surf", .elem = "quad8", .mesh_type = .quad8 },
+    .{ .shape = "cylinder_surf", .elem = "tri6", .mesh_type = .tri6 },
+    .{ .shape = "platewithhole_surf", .elem = "quad4", .mesh_type = .quad4 },
+    .{ .shape = "platewithhole_surf", .elem = "tri3", .mesh_type = .tri3 },
 };
 
 const mesh_centers = [cases.len][3]F{
@@ -41,7 +41,6 @@ const mesh_centers = [cases.len][3]F{
     .{ -0.0125, 0.0, 0.0 },
     .{ 0.0125, 0.0, 0.0 },
     .{ -0.0125, -0.0125, 0.0 },
-    .{ 0.0, -0.0125, 0.0 },
     .{ 0.0125, -0.0125, 0.0 },
 };
 
@@ -103,8 +102,8 @@ fn loadMesh(
 ) !MeshInput {
     const dir = try std.fmt.allocPrint(
         allocator,
-        "data/feature_zoo/{s}/",
-        .{case.name},
+        "data/shapes/{s}/{s}/",
+        .{ case.shape, case.elem },
     );
     const temp_files = &[_][]const u8{
         try std.fmt.allocPrint(allocator, "{s}temperature.csv", .{dir}),
@@ -136,7 +135,7 @@ fn loadMesh(
     };
 
     const shader: shaderops.ShaderInput = switch (case_index) {
-        0, 2, 6 => textureShader(
+        0, 2 => textureShader(
             T,
             C,
             texture,
@@ -218,7 +217,7 @@ fn buildScene(
         );
         try groups.append(allocator, sceneops.meshGroupSingle(index));
     }
-    const plate = &meshes.items[6];
+    const plate = &meshes.items[5];
     for (0..plate.coords.mat.rows_num) |node| {
         const x = plate.coords.mat.get(node, 0);
         const y = plate.coords.mat.get(node, 1);
@@ -342,14 +341,37 @@ fn renderCase(
     // -------------------------------------------------------------------------
     // 1. Build scene meshes and cameras
     // -------------------------------------------------------------------------
-    const texture = try iio.loadImage(
-        T,
-        C,
-        allocator,
-        io,
-        texture_path,
-        if (T == u8) .bmp else if (C == 1) .tiff else .fimg,
-    );
+    const texture: texops.Tex(T, C) = if (T == u16 and C == 3) blk: {
+        const tex_u8 = try iio.loadImage(
+            u8,
+            3,
+            allocator,
+            io,
+            "texture/speck128_rgb_u8.bmp",
+            .bmp,
+        );
+        defer tex_u8.deinit(allocator);
+
+        var tex_u16 = try texops.Tex(u16, 3).init(
+            allocator,
+            tex_u8.rows_num,
+            tex_u8.cols_num,
+        );
+        for (0..tex_u8.array.slice.len) |ii| {
+            tex_u16.array.slice[ii] = @as(u16, tex_u8.array.slice[ii]) * 257;
+        }
+        break :blk tex_u16;
+    } else blk: {
+        break :blk try iio.loadImage(
+            T,
+            C,
+            allocator,
+            io,
+            texture_path,
+            if (T == u8) .bmp else .tiff,
+        );
+    };
+    defer texture.deinit(allocator);
     const meshes = try buildScene(T, C, bits, allocator, io, texture);
     const cameras = buildCameras(meshes);
 
@@ -439,7 +461,7 @@ pub fn main(init: std.process.Init) !void {
         16,
         allocator,
         io,
-        "data/feature_zoo/texture_rgb_u16.fimg",
+        "texture/speck128_rgb_u8.bmp",
         "rgb-u16",
     );
 }

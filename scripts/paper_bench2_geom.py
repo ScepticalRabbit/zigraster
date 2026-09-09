@@ -28,7 +28,7 @@ GEOM_SHADER_CASE_SUFFIX = "nodal_grey"
 GEOM_CASES = [
     ("tri3", "tri3", "tri3"),
     ("tri6", "tri6", "tri6"),
-    ("quad4", "quad4newton", "quad4newton"),
+    ("quad4", "quad4", "quad4"),
     ("quad8", "quad8", "quad8"),
     ("quad9", "quad9", "quad9"),
 ]

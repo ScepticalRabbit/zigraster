@@ -30,7 +30,7 @@ pub fn main(init: std.process.Init) !void {
         .tiff,
     );
 
-    const mesh_types = [_]gk.MeshType{ .tri3, .tri6, .quad4ibi, .quad8, .quad9 };
+    const mesh_types = [_]gk.MeshType{ .tri3, .tri6, .quad4, .quad8, .quad9 };
     const samp_cfgs = [_]texops.TextureSampleConfig{
         .{ .sample = .linear, .mode = .direct },
         .{ .sample = .cubic_catmull_rom, .mode = .direct },

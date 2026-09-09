@@ -17,24 +17,23 @@ import numpy as np
 import riley
 from riley.python import sceneops
 
-DATA_DIR = riley.data.feature_zoo_path()
 OUT_DIR = Path.cwd() / "out_riley_py" / "demo9_feature_zoo"
 PIXEL_SIZE = (5.3e-6, 5.3e-6)
 FOCAL_LENGTH = 50.0e-3
 FRAME_INDICES = (0, 1, 2, 3)
 
 CASES = (
-    ("cube_quad9", riley.EElemType.QUAD9, riley.MeshType.quad9),
-    ("cube_tri6", riley.EElemType.TRI6, riley.MeshType.tri6),
-    ("cylinder_quad8", riley.EElemType.QUAD8, riley.MeshType.quad8),
-    ("cylinder_tri6", riley.EElemType.TRI6, riley.MeshType.tri6),
-    ("plate_quad4ibi", riley.EElemType.QUAD4, riley.MeshType.quad4ibi),
+    ("cube", "quad9", riley.EElemType.QUAD9, riley.MeshType.quad9),
+    ("cube", "tri6", riley.EElemType.TRI6, riley.MeshType.tri6),
+    ("cylinder", "quad8", riley.EElemType.QUAD8, riley.MeshType.quad8),
+    ("cylinder", "tri6", riley.EElemType.TRI6, riley.MeshType.tri6),
     (
-        "plate_quad4newton",
+        "platewithhole",
+        "quad4",
         riley.EElemType.QUAD4,
-        riley.MeshType.quad4newton,
+        riley.MeshType.quad4,
     ),
-    ("plate_tri3", riley.EElemType.TRI3, riley.MeshType.tri3),
+    ("platewithhole", "tri3", riley.EElemType.TRI3, riley.MeshType.tri3),
 )
 
 CAMERA_CASES = (
@@ -67,13 +66,12 @@ MESH_CENTERS = (
     (-0.0125, 0.0, 0.0),
     (0.0125, 0.0, 0.0),
     (-0.0125, -0.0125, 0.0),
-    (0.0, -0.0125, 0.0),
     (0.0125, -0.0125, 0.0),
 )
 
 
-def load_case(case_name: str) -> tuple[np.ndarray, ...]:
-    case_dir = DATA_DIR / case_name
+def load_case(shape: str, elem_type: str) -> tuple[np.ndarray, ...]:
+    case_dir = riley.data.shape_surface_dataset_path(shape, elem_type)
     return (
         riley.load_csv(case_dir / "coords.csv"),
         riley.load_csv(case_dir / "connect.csv", dtype=np.int64),
@@ -102,7 +100,7 @@ def make_shader(
     )
     normal_type = normal_modes[case_index % len(normal_modes)]
 
-    if case_index in (0, 2, 6):
+    if case_index in (0, 2):
         sample = (
             riley.TextureSample.cubic_catmull_rom
             if case_index == 0
@@ -189,12 +187,12 @@ def build_scene(channels: int, bits: int) -> list[riley.Mesh]:
         )
         texture = texture_u8.astype(np.uint16) * np.uint16(257)
 
-    raw_data = [load_case(case[0]) for case in CASES]
+    raw_data = [load_case(case[0], case[1]) for case in CASES]
     mesh_coords = [data[0] for data in raw_data]
 
-    plate_x = np.array(mesh_coords[6][:, 0], copy=True)
-    mesh_coords[6][:, 0] = -mesh_coords[6][:, 1]
-    mesh_coords[6][:, 1] = plate_x
+    plate_x = np.array(mesh_coords[5][:, 0], copy=True)
+    mesh_coords[5][:, 0] = -mesh_coords[5][:, 1]
+    mesh_coords[5][:, 1] = plate_x
 
     for index, center in enumerate(MESH_CENTERS):
         sceneops.scene_center_mesh_group_at(
@@ -204,7 +202,7 @@ def build_scene(channels: int, bits: int) -> list[riley.Mesh]:
         )
 
     meshes = []
-    for index, (case_name, elem_type, mesh_type) in enumerate(CASES):
+    for index, (shape, elem_norm, elem_type, mesh_type) in enumerate(CASES):
         coords, connect, uvs, temperature, disp_x, disp_y, disp_z = (
             raw_data[index]
         )

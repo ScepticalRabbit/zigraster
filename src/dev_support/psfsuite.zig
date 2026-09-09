@@ -33,8 +33,7 @@ pub const midside_mesh_types = [_]gk.MeshType{ .tri6, .quad8, .quad9 };
 pub const full_mesh_types = [_]gk.MeshType{
     .tri3,
     .tri6,
-    .quad4ibi,
-    .quad4newton,
+    .quad4,
     .quad8,
     .quad9,
 };

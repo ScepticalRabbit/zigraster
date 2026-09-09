@@ -75,7 +75,7 @@ pub fn main(init: std.process.Init) !void {
     const mesh_types = [_]mo.MeshType{
         .tri3,
         .tri6,
-        .quad4ibi,
+        .quad4,
         .quad8,
         .quad9,
     };

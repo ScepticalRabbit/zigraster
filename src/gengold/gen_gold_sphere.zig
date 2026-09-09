@@ -111,7 +111,7 @@ pub fn main(init: std.process.Init) !void {
                     );
 
                     if (common.shouldRun(
-                        .{ .run = .all, .skip_quad4ibi_sphere = true },
+                        .{ .run = .all },
                         mt,
                         st,
                         sc,

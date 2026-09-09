@@ -21,14 +21,15 @@ _SURF_CASES = (
     (riley.EElemType.TRI3, riley.MeshType.tri3),
     (riley.EElemType.TRI3, riley.MeshType.tri3opt),
     (riley.EElemType.TRI6, riley.MeshType.tri6),
-    (riley.EElemType.QUAD4, riley.MeshType.quad4ibi),
-    (riley.EElemType.QUAD4, riley.MeshType.quad4newton),
+    (riley.EElemType.QUAD4, riley.MeshType.quad4),
     (riley.EElemType.QUAD8, riley.MeshType.quad8),
     (riley.EElemType.QUAD9, riley.MeshType.quad9),
 )
 
 
-@pytest.mark.parametrize("shape", ("cube", "cylinder", "sphere", "platewithhole"))
+@pytest.mark.parametrize(
+    "shape", ("cube", "cylinder", "sphere", "platewithhole")
+)
 @pytest.mark.parametrize(
     "elem_type",
     ("tet4", "tet10", "hex8", "hex20", "hex27"),
@@ -101,17 +102,27 @@ def test_packaged_pure_cube_data_paths_exist(case_name: str) -> None:
     assert temp.shape == (num_nodes, 4)
 
 
-@pytest.mark.parametrize("shape", ("cube", "cylinder", "sphere", "platewithhole"))
+@pytest.mark.parametrize(
+    "shape", ("cube", "cylinder", "sphere", "platewithhole")
+)
 @pytest.mark.parametrize(
     "surf_type",
-    ("tri3", "tri6", "quad4ibi", "quad4newton", "quad8", "quad9"),
+    ("tri3", "tri6", "quad4", "quad8", "quad9"),
 )
 def test_packaged_surface_data_paths_exist(
     shape: str, surf_type: str
 ) -> None:
     surf_sub = riley.data.shape_surface_dataset_path(shape, surf_type)
     assert surf_sub.is_dir()
-    for name in ("coords.csv", "connect.csv", "uvs.csv", "temperature.csv", "disp_x.csv", "disp_y.csv", "disp_z.csv"):
+    for name in (
+        "coords.csv",
+        "connect.csv",
+        "uvs.csv",
+        "temperature.csv",
+        "disp_x.csv",
+        "disp_y.csv",
+        "disp_z.csv",
+    ):
         assert (surf_sub / name).is_file()
 
 
@@ -164,7 +175,7 @@ def test_packaged_platewithhole2d_data_paths_exist(
     (
         "tri3_sphere200",
         "tri6_sphere200",
-        "quad4newton_sphere200",
+        "quad4_sphere200",
         "quad8_sphere200",
         "quad9_sphere200",
     ),
@@ -285,7 +296,7 @@ def test_create_mesh_builds_and_renders_for_all_supported_surface_types(
     riley.raster(mesh, camera, config)
 
 
-def test_create_mesh_converts_volume_hex8_to_quad4ibi() -> None:
+def test_create_mesh_converts_volume_hex8_to_quad4() -> None:
     coords = coords_3d(riley.EElemType.HEX8)
     connect = np.arange(coords.shape[0], dtype=np.uintp).reshape((1, -1))
     convention = riley.ConnectConvention(
@@ -298,12 +309,12 @@ def test_create_mesh_converts_volume_hex8_to_quad4ibi() -> None:
 
     mesh = riley.create_mesh(
         convention,
-        riley.MeshType.quad4ibi,
+        riley.MeshType.quad4,
         coords,
         connect,
         shader,
     )
-    assert mesh.mesh_type == riley.MeshType.quad4ibi
+    assert mesh.mesh_type == riley.MeshType.quad4
     assert mesh.coords.shape[0] == 8
     assert mesh.connect.shape == (6, 4)
 
@@ -347,7 +358,7 @@ def test_create_mesh_maps_displacements_from_source_volume_to_surface() -> None:
 
     mesh = riley.create_mesh(
         convention,
-        riley.MeshType.quad4ibi,
+        riley.MeshType.quad4,
         coords,
         connect,
         shader,
@@ -361,7 +372,7 @@ def test_create_mesh_maps_displacements_from_source_volume_to_surface() -> None:
     np.testing.assert_allclose(mesh.disp[0, :, 2], disp_z)
 
 
-def test_create_mesh_reduces_order_from_quad8_to_quad4ibi() -> None:
+def test_create_mesh_reduces_order_from_quad8_to_quad4() -> None:
     coords = coords_3d(riley.EElemType.QUAD8)
     connect = np.arange(coords.shape[0], dtype=np.uintp).reshape((1, -1))
     convention = riley.ConnectConvention(
@@ -374,14 +385,23 @@ def test_create_mesh_reduces_order_from_quad8_to_quad4ibi() -> None:
 
     mesh = riley.create_mesh(
         convention,
-        riley.MeshType.quad4ibi,
+        riley.MeshType.quad4,
         coords,
         connect,
         shader,
     )
-    assert mesh.mesh_type == riley.MeshType.quad4ibi
+    assert mesh.mesh_type == riley.MeshType.quad4
     assert mesh.coords.shape[0] == 4
     assert mesh.connect.shape == (1, 4)
+
+
+def test_quad4_mesh_type_enum_contract() -> None:
+    assert int(riley.MeshType.quad4) == 4
+    assert riley.MeshType(4) is riley.MeshType.quad4
+    assert not hasattr(riley.MeshType, "quad4ibi")
+    assert not hasattr(riley.MeshType, "quad4newton")
+    with pytest.raises(ValueError):
+        riley.MeshType(3)
 
 
 def test_create_mesh_triangulates_quad8_to_tri3() -> None:

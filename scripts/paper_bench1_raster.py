@@ -58,14 +58,14 @@ ELEMENT_CASES = [
         "quad4",
         1,
         [
-            ("nodal interp.", "quad4newton_nodal_grey"),
+            ("nodal interp.", "quad4_nodal_grey"),
             (
                 "\\makecell[c]{Catmull--Rom\\\\ direct}",
-                "quad4newton_tex8_grey_cubic_catmull_rom_direct",
+                "quad4_tex8_grey_cubic_catmull_rom_direct",
             ),
             (
                 "\\makecell[c]{Catmull--Rom\\\\ LUT-lerp}",
-                "quad4newton_tex8_grey_cubic_catmull_rom_lut_lerp",
+                "quad4_tex8_grey_cubic_catmull_rom_lut_lerp",
             ),
         ],
     ),
