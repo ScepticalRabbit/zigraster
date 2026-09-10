@@ -678,8 +678,12 @@ pub fn prepareScene1(
                 .params = .{
                     .coord_scale = .{ 24.0, 24.0 },
                     .coord_offset = .{ 0.0, 0.0 },
+                    .settings = .{ .checker = .{} },
                 },
                 .coord_mode = .uv,
+                .bits = 8,
+                .scaling = .auto,
+                .normal_type = .none,
             },
         },
     };
@@ -753,8 +757,11 @@ pub fn buildScene2Meshes(
             .params = .{
                 .coord_scale = .{ 24.0, 24.0 },
                 .coord_offset = .{ 0.0, 0.0 },
+                .settings = .{ .checker = .{} },
             },
             .coord_mode = .uv,
+            .bits = 8,
+            .scaling = .auto,
             .normal_type = .none,
         },
     };
@@ -767,6 +774,8 @@ pub fn buildScene2Meshes(
                 .sample = .cubic_catmull_rom,
                 .mode = .direct,
             },
+            .bits = 8,
+            .scaling = .auto,
             .normal_type = .none,
         },
     };
@@ -867,6 +876,574 @@ pub fn prepareScene2(
         .sphere2_connect = sphere2_connect,
         .sphere2_uvs = sphere2_uvs,
     };
+}
+
+// --------------------------------------------------------------------------
+// Scene 3: 16 Meshes (2 Rows x 4 Overlapping Pairs, 8 Shaders, 4 Frames)
+// --------------------------------------------------------------------------
+
+pub const pixel_num_scene3 = [_]u32{ 400, 250 };
+pub const pixel_size_scene3 = [2]F{ @floatCast(5.3e-6), @floatCast(5.3e-6) };
+pub const focal_length_scene3: F = @floatCast(50.0e-3);
+pub const z_cam0_scene3: F = @floatCast(1.8276);
+pub const z_cam2_scene3: F = @floatCast(1.1879);
+
+pub const Scene3MeshSpec = struct {
+    shape_dir: []const u8,
+    mesh_type: gk.MeshType,
+    pair_idx: usize,
+    is_front: bool,
+    row_idx: usize,
+};
+
+pub const scene3_mesh_specs = [16]Scene3MeshSpec{
+    // Top Row (Row 0): Front low order, Back high order
+    .{
+        .shape_dir = "cube_surf",
+        .mesh_type = .tri3,
+        .pair_idx = 0,
+        .is_front = true,
+        .row_idx = 0,
+    },
+    .{
+        .shape_dir = "cube_surf",
+        .mesh_type = .tri6,
+        .pair_idx = 0,
+        .is_front = false,
+        .row_idx = 0,
+    },
+    .{
+        .shape_dir = "sphere_surf",
+        .mesh_type = .quad4,
+        .pair_idx = 1,
+        .is_front = true,
+        .row_idx = 0,
+    },
+    .{
+        .shape_dir = "sphere_surf",
+        .mesh_type = .quad8,
+        .pair_idx = 1,
+        .is_front = false,
+        .row_idx = 0,
+    },
+    .{
+        .shape_dir = "cylinder_surf",
+        .mesh_type = .tri3,
+        .pair_idx = 2,
+        .is_front = true,
+        .row_idx = 0,
+    },
+    .{
+        .shape_dir = "cylinder_surf",
+        .mesh_type = .tri6,
+        .pair_idx = 2,
+        .is_front = false,
+        .row_idx = 0,
+    },
+    .{
+        .shape_dir = "platewithhole_surf",
+        .mesh_type = .quad4,
+        .pair_idx = 3,
+        .is_front = true,
+        .row_idx = 0,
+    },
+    .{
+        .shape_dir = "platewithhole_surf",
+        .mesh_type = .quad9,
+        .pair_idx = 3,
+        .is_front = false,
+        .row_idx = 0,
+    },
+
+    // Bottom Row (Row 1): Front high order, Back low order
+    .{
+        .shape_dir = "cube_surf",
+        .mesh_type = .tri6,
+        .pair_idx = 0,
+        .is_front = true,
+        .row_idx = 1,
+    },
+    .{
+        .shape_dir = "cube_surf",
+        .mesh_type = .tri3,
+        .pair_idx = 0,
+        .is_front = false,
+        .row_idx = 1,
+    },
+    .{
+        .shape_dir = "sphere_surf",
+        .mesh_type = .quad8,
+        .pair_idx = 1,
+        .is_front = true,
+        .row_idx = 1,
+    },
+    .{
+        .shape_dir = "sphere_surf",
+        .mesh_type = .quad4,
+        .pair_idx = 1,
+        .is_front = false,
+        .row_idx = 1,
+    },
+    .{
+        .shape_dir = "cylinder_surf",
+        .mesh_type = .tri6,
+        .pair_idx = 2,
+        .is_front = true,
+        .row_idx = 1,
+    },
+    .{
+        .shape_dir = "cylinder_surf",
+        .mesh_type = .tri3,
+        .pair_idx = 2,
+        .is_front = false,
+        .row_idx = 1,
+    },
+    .{
+        .shape_dir = "platewithhole_surf",
+        .mesh_type = .quad9,
+        .pair_idx = 3,
+        .is_front = true,
+        .row_idx = 1,
+    },
+    .{
+        .shape_dir = "platewithhole_surf",
+        .mesh_type = .quad4,
+        .pair_idx = 3,
+        .is_front = false,
+        .row_idx = 1,
+    },
+};
+
+pub const Scene3MeshPrepared = struct {
+    mesh_type: gk.MeshType,
+    coords: meshio.Coords,
+    connect: meshio.Connect,
+    disp: ?meshio.Field,
+    field: ?meshio.Field,
+    uvs: uvio.UVMap,
+
+    pub fn deinit(self: *Scene3MeshPrepared, allocator: std.mem.Allocator) void {
+        allocator.free(self.coords.mem);
+        self.connect.deinit(allocator);
+        if (self.disp) |*dd| dd.deinit(allocator);
+        if (self.field) |*ff| ff.deinit(allocator);
+        self.uvs.deinit(allocator);
+    }
+};
+
+pub const Scene3Prepared = struct {
+    meshes: [16]Scene3MeshPrepared,
+
+    pub fn deinit(self: *Scene3Prepared, allocator: std.mem.Allocator) void {
+        for (&self.meshes) |*mm| {
+            mm.deinit(allocator);
+        }
+    }
+};
+
+pub fn prepareScene3(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+) !Scene3Prepared {
+    const pair_x_centers = [_]F{
+        -0.02815,
+        -0.00880,
+        0.01055,
+        0.02815,
+    };
+    const pair_widths = [_]F{
+        0.010,
+        0.012,
+        0.010,
+        0.010,
+    };
+    const pair_heights = [_]F{
+        0.010,
+        0.012,
+        0.012,
+        0.012,
+    };
+    const row_y_centers = [_]F{
+        0.00755,
+        -0.00755,
+    };
+
+    var prep_meshes: [16]Scene3MeshPrepared = undefined;
+    var loaded_count: usize = 0;
+    errdefer {
+        for (0..loaded_count) |ii| {
+            prep_meshes[ii].deinit(allocator);
+        }
+    }
+
+    for (0..16) |ii| {
+        const spec = scene3_mesh_specs[ii];
+        const elem_str = switch (spec.mesh_type) {
+            .tri3opt => "tri3",
+            else => @tagName(spec.mesh_type),
+        };
+
+        const mesh_dir = try std.fmt.allocPrint(
+            allocator,
+            "data/shapes/{s}/{s}/",
+            .{ spec.shape_dir, elem_str },
+        );
+        defer allocator.free(mesh_dir);
+
+        const coords_path = try std.fmt.allocPrint(
+            allocator,
+            "{s}coords.csv",
+            .{mesh_dir},
+        );
+        defer allocator.free(coords_path);
+
+        const connect_path = try std.fmt.allocPrint(
+            allocator,
+            "{s}connect.csv",
+            .{mesh_dir},
+        );
+        defer allocator.free(connect_path);
+
+        const uvs_path = try std.fmt.allocPrint(
+            allocator,
+            "{s}uvs.csv",
+            .{mesh_dir},
+        );
+        defer allocator.free(uvs_path);
+
+        const disp_x_path = try std.fmt.allocPrint(
+            allocator,
+            "{s}disp_x.csv",
+            .{mesh_dir},
+        );
+        defer allocator.free(disp_x_path);
+
+        const disp_y_path = try std.fmt.allocPrint(
+            allocator,
+            "{s}disp_y.csv",
+            .{mesh_dir},
+        );
+        defer allocator.free(disp_y_path);
+
+        const disp_z_path = try std.fmt.allocPrint(
+            allocator,
+            "{s}disp_z.csv",
+            .{mesh_dir},
+        );
+        defer allocator.free(disp_z_path);
+
+        const temp_path = try std.fmt.allocPrint(
+            allocator,
+            "{s}temperature.csv",
+            .{mesh_dir},
+        );
+        defer allocator.free(temp_path);
+
+        const field_paths = [_][]const u8{temp_path};
+        const disp_paths = [_][]const u8{ disp_x_path, disp_y_path, disp_z_path };
+
+        const sim = try meshio.loadSimData(
+            allocator,
+            io,
+            coords_path,
+            connect_path,
+            &field_paths,
+            &disp_paths,
+        );
+        var coords = sim.coords;
+        const connect = sim.connect;
+        const uvs = try uvio.loadUVMap(allocator, io, uvs_path);
+
+        const pw = pair_widths[spec.pair_idx];
+        const ph = pair_heights[spec.pair_idx];
+        const cx = pair_x_centers[spec.pair_idx];
+        const cy = row_y_centers[spec.row_idx];
+
+        const shift_x = if (spec.is_front) -0.375 * pw else 0.375 * pw;
+        const shift_y = if (spec.is_front) -0.125 * ph else 0.125 * ph;
+        const shift_z: F = if (spec.is_front) 0.0 else -0.010;
+
+        sceneops.centerCoordsAt(&coords, .{ cx + shift_x, cy + shift_y, shift_z });
+
+        prep_meshes[ii] = .{
+            .mesh_type = spec.mesh_type,
+            .coords = coords,
+            .connect = connect,
+            .disp = sim.disp,
+            .field = sim.field,
+            .uvs = uvs,
+        };
+        loaded_count += 1;
+    }
+
+    return .{ .meshes = prep_meshes };
+}
+
+pub fn buildScene3Meshes(
+    prep: *const Scene3Prepared,
+    textures: *const FullTextures,
+) [16]MeshInput {
+    var result: [16]MeshInput = undefined;
+
+    for (0..16) |ii| {
+        const shader_idx = ii % 8;
+        const shader = switch (shader_idx) {
+            0 => shaderops.ShaderInput{
+                .nodal = .{
+                    .field = prep.meshes[ii].field.?,
+                    .scale_over = .within_frames,
+                    .bits = 16,
+                    .scaling = .auto,
+                    .normal_type = .none,
+                },
+            },
+            1 => shaderops.ShaderInput{
+                .func = .{
+                    .uvs = prep.meshes[ii].uvs.array,
+                    .builtin = .checker,
+                    .params = .{
+                        .coord_scale = .{ 16.0, 16.0 },
+                        .coord_offset = .{ 0.0, 0.0 },
+                        .settings = .{ .checker = .{} },
+                    },
+                    .coord_mode = .uv,
+                    .bits = 16,
+                    .scaling = .auto,
+                    .normal_type = .none,
+                },
+            },
+            2 => shaderops.ShaderInput{
+                .tex_u8 = .{
+                    .uvs = prep.meshes[ii].uvs.array,
+                    .tex = textures.tex_u8_mono,
+                    .samp_cfg = .{
+                        .sample = .cubic_catmull_rom,
+                        .mode = .direct,
+                    },
+                    .bits = 16,
+                    .scaling = .auto,
+                    .normal_type = .none,
+                },
+            },
+            3 => shaderops.ShaderInput{
+                .func = .{
+                    .uvs = prep.meshes[ii].uvs.array,
+                    .builtin = .eggbox,
+                    .params = .{
+                        .coord_scale = .{ 16.0, 16.0 },
+                        .coord_offset = .{ 0.0, 0.0 },
+                        .settings = .{ .eggbox = .{} },
+                    },
+                    .coord_mode = .uv,
+                    .bits = 16,
+                    .scaling = .auto,
+                    .normal_type = .none,
+                },
+            },
+            4 => shaderops.ShaderInput{
+                .nodal = .{
+                    .field = prep.meshes[ii].field.?,
+                    .scale_over = .over_frames,
+                    .bits = 16,
+                    .scaling = .auto,
+                    .normal_type = .none,
+                },
+            },
+            5 => shaderops.ShaderInput{
+                .tex_u16 = .{
+                    .uvs = prep.meshes[ii].uvs.array,
+                    .tex = textures.tex_u16_mono,
+                    .samp_cfg = .{
+                        .sample = .linear,
+                        .mode = .direct,
+                    },
+                    .bits = 16,
+                    .scaling = .auto,
+                    .normal_type = .none,
+                },
+            },
+            6 => shaderops.ShaderInput{
+                .func = .{
+                    .uvs = prep.meshes[ii].uvs.array,
+                    .builtin = .checker_smooth,
+                    .params = .{
+                        .coord_scale = .{ 16.0, 16.0 },
+                        .coord_offset = .{ 0.0, 0.0 },
+                        .settings = .{ .checker_smooth = .{} },
+                    },
+                    .coord_mode = .uv,
+                    .bits = 16,
+                    .scaling = .auto,
+                    .normal_type = .none,
+                },
+            },
+            7 => shaderops.ShaderInput{
+                .tex_f = .{
+                    .uvs = prep.meshes[ii].uvs.array,
+                    .tex = textures.tex_f64_mono,
+                    .samp_cfg = .{
+                        .sample = .cubic_catmull_rom,
+                        .mode = .lut_lerp,
+                    },
+                    .bits = 16,
+                    .scaling = .auto,
+                    .normal_type = .none,
+                },
+            },
+            else => unreachable,
+        };
+
+        result[ii] = .{
+            .mesh_type = prep.meshes[ii].mesh_type,
+            .coords = prep.meshes[ii].coords,
+            .connect = prep.meshes[ii].connect,
+            .disp = prep.meshes[ii].disp,
+            .shader = shader,
+        };
+    }
+
+    return result;
+}
+
+pub fn createScene3Cameras() [8]CameraInput {
+    const cam0 = CameraInput{
+        .pixels_num = pixel_num_scene3,
+        .pixels_size = pixel_size_scene3,
+        .pos_world = vec.initVec3(F, 0.0, 0.0, z_cam0_scene3),
+        .rot_world = Rotation.init(0.0, 0.0, 0.0),
+        .roi_cent_world = vec.initVec3(F, 0.0, 0.0, 0.0),
+        .focal_length = focal_length_scene3,
+        .sub_sample = 2,
+        .distortion = .none,
+        .psf = .{ .pixel_box = .{} },
+    };
+
+    const cam1 = cam0;
+
+    const cam2 = CameraInput{
+        .pixels_num = pixel_num_scene3,
+        .pixels_size = pixel_size_scene3,
+        .pos_world = vec.initVec3(F, 0.0, 0.0, z_cam2_scene3),
+        .rot_world = Rotation.init(0.0, 0.0, 0.0),
+        .roi_cent_world = vec.initVec3(F, 0.0, 0.0, 0.0),
+        .focal_length = focal_length_scene3,
+        .sub_sample = 2,
+        .distortion = .none,
+        .psf = .{
+            .gaussian = .{
+                .sigma_px = 1.5,
+                .supp_rad_px = 4.5,
+                .separable = .yes,
+            },
+        },
+    };
+
+    const cam3 = CameraInput{
+        .pixels_num = pixel_num_scene3,
+        .pixels_size = pixel_size_scene3,
+        .pos_world = vec.initVec3(F, 0.0, 0.0, z_cam2_scene3),
+        .rot_world = Rotation.init(0.0, 0.0, 0.0),
+        .roi_cent_world = vec.initVec3(F, 0.0, 0.0, 0.0),
+        .focal_length = focal_length_scene3,
+        .sub_sample = 2,
+        .distortion = .{
+            .brown_conrady = .{
+                .k1 = -0.45,
+                .k2 = 0.0,
+                .k3 = 0.0,
+                .p1 = 0.0,
+                .p2 = 0.0,
+            },
+        },
+        .psf = .{ .pixel_box = .{} },
+    };
+
+    const cam4 = CameraInput{
+        .pixels_num = pixel_num_scene3,
+        .pixels_size = pixel_size_scene3,
+        .pos_world = vec.initVec3(F, 0.0, 0.0, z_cam2_scene3),
+        .rot_world = Rotation.init(0.0, 0.0, 0.0),
+        .roi_cent_world = vec.initVec3(F, 0.0, 0.0, 0.0),
+        .focal_length = focal_length_scene3,
+        .sub_sample = 2,
+        .distortion = .{
+            .brown_conrady = .{
+                .k1 = -0.45,
+                .k2 = 0.0,
+                .k3 = 0.0,
+                .p1 = 0.0,
+                .p2 = 0.0,
+            },
+        },
+        .psf = .{
+            .gaussian = .{
+                .sigma_px = 1.5,
+                .supp_rad_px = 4.5,
+                .separable = .yes,
+            },
+        },
+    };
+
+    const stereo_angle_rad: F = 30.0 * std.math.pi / 180.0;
+    const cam5_rot = Rotation.init(0.0, stereo_angle_rad, 0.0);
+    const cam5_pos = vec.initVec3(
+        F,
+        z_cam0_scene3 * @sin(stereo_angle_rad),
+        0.0,
+        z_cam0_scene3 * @cos(stereo_angle_rad),
+    );
+    const cam5 = CameraInput{
+        .pixels_num = pixel_num_scene3,
+        .pixels_size = pixel_size_scene3,
+        .pos_world = cam5_pos,
+        .rot_world = cam5_rot,
+        .roi_cent_world = vec.initVec3(F, 0.0, 0.0, 0.0),
+        .focal_length = focal_length_scene3,
+        .sub_sample = 2,
+        .distortion = .none,
+        .psf = .{ .pixel_box = .{} },
+    };
+
+    const cam6_rot = Rotation.init(0.0, -stereo_angle_rad, 0.0);
+    const cam6_pos = vec.initVec3(
+        F,
+        -z_cam0_scene3 * @sin(stereo_angle_rad),
+        0.0,
+        z_cam0_scene3 * @cos(stereo_angle_rad),
+    );
+    const cam6 = CameraInput{
+        .pixels_num = pixel_num_scene3,
+        .pixels_size = pixel_size_scene3,
+        .pos_world = cam6_pos,
+        .rot_world = cam6_rot,
+        .roi_cent_world = vec.initVec3(F, 0.0, 0.0, 0.0),
+        .focal_length = focal_length_scene3,
+        .sub_sample = 2,
+        .distortion = .none,
+        .psf = .{ .pixel_box = .{} },
+    };
+
+    const oblique_angle_rad: F = 20.0 * std.math.pi / 180.0;
+    const cam7_rot = Rotation.init(0.0, oblique_angle_rad, oblique_angle_rad);
+    const cam7_pos = vec.initVec3(
+        F,
+        z_cam0_scene3 * cam7_rot.matrix.slice[2],
+        z_cam0_scene3 * cam7_rot.matrix.slice[5],
+        z_cam0_scene3 * cam7_rot.matrix.slice[8],
+    );
+    const cam7 = CameraInput{
+        .pixels_num = pixel_num_scene3,
+        .pixels_size = pixel_size_scene3,
+        .pos_world = cam7_pos,
+        .rot_world = cam7_rot,
+        .roi_cent_world = vec.initVec3(F, 0.0, 0.0, 0.0),
+        .focal_length = focal_length_scene3,
+        .sub_sample = 2,
+        .distortion = .none,
+        .psf = .{ .pixel_box = .{} },
+    };
+
+    return [_]CameraInput{ cam0, cam1, cam2, cam3, cam4, cam5, cam6, cam7 };
 }
 
 

@@ -67,6 +67,35 @@ The test suites leverage standardized benchmark scenes designed to exercise spec
 - **Camera View**: $128 \times 128\text{ px}$, $95\%$ sensor frame fill factor ($5\%$ border margin), viewed obliquely from above at $+5^\circ$ yaw / $-5^\circ$ pitch orientation to inspect front, top, and side faces simultaneously.
 - **Primary Use**: [`test_full_dist_psf.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_dist_psf.zig) and [`test_full_ssaa_pxmap.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_ssaa_pxmap.zig).
 
+### Scene 2: Multi-Sphere Cropping & Edge Occlusion
+- **Geometry**: Two interacting FE sphere surface meshes (`tri3`):
+  - **Sphere 1 (Front Left)**: Positioned in the foreground at $Z = 0.0\text{ mm}$, cropped tightly by the left, top, and bottom edges of the camera sensor frame.
+  - **Sphere 2 (Back Right)**: Positioned well behind the foreground sphere ($Z = -20.0\text{ mm}$), fully contained within the field of view with its top, right, and bottom edges visible while its inner edge is occluded by Sphere 1.
+- **Shaders**:
+  - **Sphere 1**: Procedural checkerboard shader.
+  - **Sphere 2**: Direct Catmull-Rom cubic texture map.
+- **Camera View**: Face-on camera view configured to crop Sphere 1 along sensor boundaries while keeping Sphere 2 uncropped.
+- **Primary Use**: [`test_full_tiling.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_tiling.zig).
+
+### Scene 3: Multi-Shape FE Grid & Order Pairs
+- **Geometry**: 16 finite element surface meshes arranged in 2 rows $\times$ 4 shape pairs:
+  - **Shapes per Row**: 2x Cubes, 2x Spheres, 2x Cylinders, 2x Plate with hole (thickness $2.0\text{ mm}$).
+  - **Pair Overlap**: Each pair overlaps $25\%$ row-wise (Y) and $75\%$ column-wise (X), with the front mesh positioned lower in front ($Z = 0.0\text{ mm}$) and the back mesh higher behind ($Z = -10.0\text{ mm}$). A thin $0.1\text{ mm}$ clearance separates adjacent pairs.
+  - **Element Order Pairs**:
+    - **Top Row**: Front mesh is low-order, back mesh is equivalent high-order (`tri3`/`tri6`, `quad4`/`quad8`).
+    - **Bottom Row**: Front mesh is high-order, back mesh is equivalent low-order (`tri6`/`tri3`, `quad8`/`quad4`).
+- **Dynamics**: 4 temporal frames (1 static baseline frame + 3 nonlinear deformation steps for all meshes).
+- **Shaders**: 8 distinct 16-bit auto-scaled shaders cycled across the meshes:
+  1. Nodal field interpolation (within-frame auto-scaling, u16)
+  2. Procedural Checker function (u16)
+  3. Direct Cubic Catmull-Rom texture sampling from u8 source (u16)
+  4. Procedural Eggbox function (u16)
+  5. Nodal field interpolation (over-frames auto-scaling, u16)
+  6. Direct Linear texture sampling from u16 source (u16)
+  7. Procedural Smooth Checker function on UV coordinates (u16)
+  8. LUT-interpolated Catmull-Rom texture sampling from f64 source (u16)
+- **Primary Use**: [`test_full_scene_camera_threads.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_scene_camera_threads.zig).
+
 ---
 
 ## 4. Verification Oracle Suite (`test_verif`)
@@ -111,13 +140,13 @@ The **Basic Suite** is the primary regression suite packaged with the repository
 - **Generator**: [`src/gen_gold_full.zig`](file:///home/lloydf/riley-raster/src/gen_gold_full.zig)
 - **Data Location**: `gold/test_full_*/` (uncommitted, generated locally)
 
-The **Full Test Suite** is an exhaustive factorial regression suite replacing legacy benchmark and monolithic test runs. Gold reference images are generated locally on-demand and verified across 4 specialized sub-suites:
+The **Full Test Suite** is an exhaustive factorial regression suite replacing legacy benchmark and monolithic test runs. Gold reference images are generated locally on-demand and verified across 7 specialized sub-suites:
 
 ```bash
-# Generate reference gold for all 4 sub-suites
+# Generate reference gold for all 7 sub-suites
 zig build gen-gold-full -Doptimize=ReleaseSafe
 
-# Run all 4 sub-suites against generated gold
+# Run all 7 sub-suites against generated gold
 zig build test-full -Doptimize=ReleaseSafe
 ```
 
@@ -155,6 +184,40 @@ zig build test-full -Doptimize=ReleaseSafe
   - **Subpixel Center Mapping Engines**: `full_in_mem` (precomputed global grid), `per_tile` (on-the-fly tile evaluation), and `affine_jac` (first-order Jacobian local approximation).
   - **Distortion Models**: Brown-Conrady, Brown-Conrady-Ext, and Brown-Conrady-Polynomial.
   - **PSFs & Halos**: Pixel box and Gaussian halo filtering ($\sigma = 1.5\text{ px}$, $5\text{ px}$ halo margin).
+
+### Sub-Suite 5: Full Hull Geometry Suite (`test_full_hull`)
+- **Driver**: [`src/tests/test_full_hull.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_hull.zig)
+- **Scenes**: Single element scenes and continuous deformation sequences across all 5 element types (`tri3`, `tri6`, `quad4`, `quad8`, `quad9`).
+- **Coverage**:
+  - $128 \times 128\text{ px}$, $\text{SSAA} = 2$, procedural checkerboard shader.
+  - Exact bounding hull rasterisation compared against gold references and deformation delta non-zero assertions.
+
+### Sub-Suite 6: Full Tiling, Buffers & Threading Suite (`test_full_tiling`)
+- **Driver**: [`src/tests/test_full_tiling.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_tiling.zig)
+- **Scene**: Scene 2 (Two overlapping/occluded spheres)
+- **Coverage**:
+  - **Resolutions (4)**: Non-power-of-two and prime dimensions ($31 \times 19$, $65 \times 47$, $161 \times 103$, $401 \times 251$).
+  - **SSAA Levels**: $1$ and $4$.
+  - **Tile Dimensions**: $16 \times 16$, $32 \times 32$, $64 \times 64$.
+  - **Buffer Strategies**: `tile_local`, `global_subpx_full`, `global_subpx_stripe`.
+  - **Thread Configurations**: $1$, $2$, and $4$ worker threads.
+  - **Invariance Invariant**: Asserts bit-identical rendered images regardless of tile size, buffer mode, or worker count.
+
+### Sub-Suite 7: Full Scene, Cameras & Threads Suite (`test_full_scene_camera_threads`)
+- **Driver**: [`src/tests/test_full_scene_camera_threads.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_scene_camera_threads.zig)
+- **Scene**: Scene 3 (16 FE meshes in 2 rows $\times$ 4 shape pairs, 4 deformation frames, 8 16-bit shaders)
+- **Coverage**:
+  - **Cameras (8)**:
+    - `cam0`: Centered face-on ($256 \times 256$, $\text{SSAA} = 1$).
+    - `cam1`: Centered face-on ($256 \times 256$, $\text{SSAA} = 2$).
+    - `cam2`: Cropped ($128 \times 128$, $\text{SSAA} = 2$, Anisotropic Gaussian PSF $\sigma_x = 1.2, \sigma_y = 0.2$).
+    - `cam3`: Cropped ($128 \times 128$, $\text{SSAA} = 2$, Brown-Conrady Extreme distortion).
+    - `cam4`: Cropped ($128 \times 128$, $\text{SSAA} = 2$, Brown-Conrady Ext + Separable Gaussian PSF $\sigma = 1.5$).
+    - `cam5`: Stereo Left $+30^\circ$ yaw ($256 \times 256$, $\text{SSAA} = 2$).
+    - `cam6`: Stereo Right $-30^\circ$ yaw ($256 \times 256$, $\text{SSAA} = 2$).
+    - `cam7`: Oblique $+20^\circ$ yaw / $+20^\circ$ pitch ($256 \times 256$, $\text{SSAA} = 2$).
+  - **Execution Configurations**: Evaluated across tile sizes ($16 \times 16, 32 \times 32, 64 \times 64$), buffer modes (`tile_local`, `global_subpx_full`, `global_subpx_stripe`), and thread counts ($1, 2, 4$ threads).
+  - **Invariance Invariant**: Asserts identical bit-accurate output matching single-threaded reference gold images across all configurations.
 
 ### Automated Failure Diagnostics
 When any case in the Full Test Suite encounters a regression or discrepancy exceeding tolerance:

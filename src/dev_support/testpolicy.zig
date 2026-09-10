@@ -27,6 +27,7 @@ pub const GoldSuite = enum {
     full_ssaa_pxmap,
     full_hull,
     full_tiling,
+    full_scene_camera_threads,
     small,
     simple,
     edge,
@@ -116,6 +117,10 @@ pub fn goldRoot(comptime suite: GoldSuite) []const u8 {
             "gold/test_full_tiling"
         else
             "gold/test_full_tiling_f32",
+        .full_scene_camera_threads => if (F == f64)
+            "gold/test_full_scene_camera_threads"
+        else
+            "gold/test_full_scene_camera_threads_f32",
         .small => if (F == f64) "gold/small" else "gold/small_f32",
         .simple => if (F == f64) "gold/simple" else "gold/simple_f32",
         .edge => if (F == f64) "gold/edge" else "gold/edge_f32",

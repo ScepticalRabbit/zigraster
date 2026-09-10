@@ -161,8 +161,12 @@ pub fn buildScene1Mesh(prep: *const common.Scene1Prepared) MeshInput {
                 .params = .{
                     .coord_scale = .{ 24.0, 24.0 },
                     .coord_offset = .{ 0.0, 0.0 },
+                    .settings = .{ .checker = .{} },
                 },
                 .coord_mode = .uv,
+                .bits = 8,
+                .scaling = .auto,
+                .normal_type = .none,
             },
         },
     };

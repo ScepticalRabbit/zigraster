@@ -14,6 +14,9 @@ pub const dist_psf_suite = @import("tests/test_full_dist_psf.zig");
 pub const ssaa_pxmap_suite = @import("tests/test_full_ssaa_pxmap.zig");
 pub const hull_suite = @import("tests/test_full_hull.zig");
 pub const tiling_suite = @import("tests/test_full_tiling.zig");
+pub const scene_camera_threads_suite = @import(
+    "tests/test_full_scene_camera_threads.zig",
+);
 
 fn runSuite(
     comptime name: []const u8,
@@ -44,6 +47,12 @@ test "full test suite" {
     try runSuite("ssaa_pxmap", allocator, io, ssaa_pxmap_suite.run);
     try runSuite("hull", allocator, io, hull_suite.run);
     try runSuite("tiling", allocator, io, tiling_suite.run);
+    try runSuite(
+        "scene_camera_threads",
+        allocator,
+        io,
+        scene_camera_threads_suite.run,
+    );
 
     const end = std.Io.Clock.Timestamp.now(io, .awake);
     const elapsed_s = @as(

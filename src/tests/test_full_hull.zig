@@ -89,6 +89,11 @@ fn runOneElemHullCaseTest(
         );
     }
 
+    const shader_params = shaderops.FuncShaderParams{
+        .coord_scale = .{ 4.0, 4.0 },
+        .settings = .{ .checker = .{} },
+    };
+
     const mesh_input = MeshInput{
         .mesh_type = mesh_type,
         .coords = prepared.sim_data.coords,
@@ -99,10 +104,9 @@ fn runOneElemHullCaseTest(
                 .uvs = null,
                 .coord_mode = .para,
                 .builtin = .checker,
-                .params = .{
-                    .coord_scale = .{ 24.0, 24.0 },
-                    .coord_offset = .{ 0.0, 0.0 },
-                },
+                .params = shader_params,
+                .bits = 8,
+                .scaling = .auto,
                 .normal_type = .none,
             },
         },

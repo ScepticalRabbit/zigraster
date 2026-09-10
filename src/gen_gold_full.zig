@@ -10,6 +10,7 @@ const std = @import("std");
 const buildconfig = @import("riley/zig/buildconfig.zig");
 const gen_dist_psf = @import("gengold/gen_gold_full_dist_psf.zig");
 const gen_hull = @import("gengold/gen_gold_full_hull.zig");
+const gen_sct = @import("gengold/gen_gold_full_scene_camera_threads.zig");
 const gen_shader = @import("gengold/gen_gold_full_shader.zig");
 const gen_ssaa_pxmap = @import("gengold/gen_gold_full_ssaa_pxmap.zig");
 const gen_texture = @import("gengold/gen_gold_full_texture.zig");
@@ -38,6 +39,7 @@ pub fn main(init: std.process.Init) !void {
     const ssaa_pxmap_gold_dir = policy.goldRoot(.full_ssaa_pxmap);
     const hull_gold_dir = policy.goldRoot(.full_hull);
     const tiling_gold_dir = policy.goldRoot(.full_tiling);
+    const sct_gold_dir = policy.goldRoot(.full_scene_camera_threads);
 
     std.debug.print("\nGenerating FULL Gold Suite...\n\n", .{});
 
@@ -141,7 +143,7 @@ pub fn main(init: std.process.Init) !void {
     );
 
     std.debug.print(
-        "--- 6/6: Full Tiling Cases ({s}) ---\n",
+        "--- 6/7: Full Tiling Cases ({s}) ---\n",
         .{tiling_gold_dir},
     );
     const start_tiling = std.Io.Clock.Timestamp.now(io, .awake);
@@ -154,6 +156,22 @@ pub fn main(init: std.process.Init) !void {
     std.debug.print(
         "Tiling gold generation took {d:.3} seconds.\n\n",
         .{tiling_elapsed},
+    );
+
+    std.debug.print(
+        "--- 7/7: Full Scene Camera Threads Cases ({s}) ---\n",
+        .{sct_gold_dir},
+    );
+    const start_sct = std.Io.Clock.Timestamp.now(io, .awake);
+    try gen_sct.generate(aa, io);
+    const end_sct = std.Io.Clock.Timestamp.now(io, .awake);
+    const sct_elapsed = @as(
+        f64,
+        @floatFromInt(start_sct.durationTo(end_sct).raw.nanoseconds),
+    ) / 1.0e9;
+    std.debug.print(
+        "Scene Camera Threads gold generation took {d:.3} seconds.\n\n",
+        .{sct_elapsed},
     );
 
     const end_time = std.Io.Clock.Timestamp.now(io, .awake);
