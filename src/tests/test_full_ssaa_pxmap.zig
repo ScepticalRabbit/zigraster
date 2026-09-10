@@ -114,7 +114,7 @@ pub fn runFullSsaaPxmapCaseTest(
     ) catch |err| {
         const fail_dir_name = try std.fmt.allocPrint(
             aa,
-            "test_full_ssaa_pxmap/{s}",
+            "full_ssaa_pxmap/{s}",
             .{case_name},
         );
         try common_test.saveComparisonArtifactsFromResult(

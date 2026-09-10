@@ -56,7 +56,12 @@ const report_modes = [_]rastcfg.ReportMode{
     .full_stats,
 };
 
-const scale_strategies = [_]imageops.ScaleStrategy{
+const scale_strategies = [_]enum {
+    none,
+    auto,
+    fixed,
+    frac,
+}{
     .none,
     .auto,
     .fixed,
@@ -87,10 +92,9 @@ fn runBaseComparison(
     var run_config = config;
     run_config.save_strategy = .memory;
     run_config.image_save_mode = if (bc.is_rgb) .rgb else .grey;
-    const bits: ?u8 = if (bc.is_u16) 16 else 8;
     run_config.image_save_opts = &[_]iio.ImageSaveOpts{
         .{ .format = .fimg, .bits = null, .scaling = .none },
-        .{ .format = .bmp, .bits = bits, .scaling = .auto },
+        .{ .format = .bmp, .bits = 8, .scaling = .auto },
     };
 
     const start_time = Timestamp.now(io, .awake);
@@ -152,7 +156,7 @@ fn runBaseComparison(
     ) catch |err| {
         const fail_dir_name = try std.fmt.allocPrint(
             aa,
-            "test_full_image_output/{s}",
+            "full_image_output/{s}",
             .{bc.tag},
         );
         try common.saveComparisonArtifactsFromResult(

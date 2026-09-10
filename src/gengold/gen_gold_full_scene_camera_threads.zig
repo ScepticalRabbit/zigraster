@@ -32,7 +32,7 @@ pub fn generate(allocator: std.mem.Allocator, io: std.Io) !void {
     config.image_save_mode = .grey;
     config.image_save_opts = &[_]iio.ImageSaveOpts{
         .{ .format = .fimg, .bits = null, .scaling = .none },
-        .{ .format = .bmp, .bits = 16, .scaling = .auto },
+        .{ .format = .bmp, .bits = 8, .scaling = .auto },
     };
 
     const gold_dir_root = policy.goldRoot(.full_scene_camera_threads);

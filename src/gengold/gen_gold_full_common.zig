@@ -1486,7 +1486,12 @@ pub fn buildScene2ImageOutputMeshes(
                 .params = .{
                     .coord_scale = .{ 10.0, 10.0 },
                     .coord_offset = .{ 0.0, 0.0 },
-                    .settings = .{ .checker = .{} },
+                    .settings = .{ .checker = .{
+                        .levels_rgb = .{
+                            .{ 0.0, 0.0, 1.0 },
+                            .{ 0.0, 1.0, 0.0 },
+                        },
+                    } },
                 },
                 .coord_mode = .uv,
                 .bits = bits,

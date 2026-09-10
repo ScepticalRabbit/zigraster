@@ -207,12 +207,12 @@ fn assertImagesDiffer(
 pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
     const start_time = Timestamp.now(io, .awake);
 
-    var config = tcfg.getRasterConfig(.test_full);
+    var config = tcfg.getRasterConfig(.testing);
     config.save_strategy = .memory;
     config.image_save_mode = .grey;
     config.image_save_opts = &[_]iio.ImageSaveOpts{
         .{ .format = .fimg, .bits = null, .scaling = .none },
-        .{ .format = .bmp, .bits = 16, .scaling = .auto },
+        .{ .format = .bmp, .bits = 8, .scaling = .auto },
     };
 
     const gold_dir_root = policy.goldRoot(.full_scene_camera_threads);

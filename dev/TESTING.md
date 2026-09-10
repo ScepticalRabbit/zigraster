@@ -138,7 +138,7 @@ The **Basic Suite** is the primary regression suite packaged with the repository
 
 - **Driver**: [`src/test_full.zig`](file:///home/lloydf/riley-raster/src/test_full.zig)
 - **Generator**: [`src/gen_gold_full.zig`](file:///home/lloydf/riley-raster/src/gen_gold_full.zig)
-- **Data Location**: `gold/test_full_*/` (uncommitted, generated locally)
+- **Data Location**: `gold/full_*/` (uncommitted, generated locally)
 
 The **Full Test Suite** is an exhaustive factorial regression suite replacing legacy benchmark and monolithic test runs. Gold reference images are generated locally on-demand and verified across 8 specialized sub-suites:
 

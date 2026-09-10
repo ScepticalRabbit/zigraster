@@ -124,7 +124,7 @@ pub fn runFullDistPsfCaseTest(
     ) catch |err| {
         const fail_dir_name = try std.fmt.allocPrint(
             aa,
-            "test_full_dist_psf/{s}_{s}",
+            "full_dist_psf/{s}_{s}",
             .{ case_name, buf_case.tag },
         );
         try common_test.saveComparisonArtifactsFromResult(

@@ -66,10 +66,9 @@ pub fn generate(allocator: std.mem.Allocator, io: std.Io) !void {
 
         var run_config = config;
         run_config.image_save_mode = if (bc.is_rgb) .rgb else .grey;
-        const bits: ?u8 = if (bc.is_u16) 16 else 8;
         run_config.image_save_opts = &[_]iio.ImageSaveOpts{
             .{ .format = .fimg, .bits = null, .scaling = .none },
-            .{ .format = .bmp, .bits = bits, .scaling = .auto },
+            .{ .format = .bmp, .bits = 8, .scaling = .auto },
         };
 
         const gold_dir = try std.fmt.allocPrint(

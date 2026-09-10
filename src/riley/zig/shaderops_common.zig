@@ -218,8 +218,8 @@ pub const SinusoidalParams = struct {
 pub const CheckerParams = struct {
     levels: [2]F = .{ 0.0, 1.0 },
     levels_rgb: [2][3]F = .{
-        .{ 0.0, 0.0, 1.0 },
-        .{ 0.0, 1.0, 0.0 },
+        .{ 0.0, 0.0, 0.0 },
+        .{ 1.0, 1.0, 1.0 },
     },
 };
 

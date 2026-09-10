@@ -156,7 +156,7 @@ fn runTilingCaseTest(
     ) catch |err| {
         const fail_dir_name = try std.fmt.allocPrint(
             aa,
-            "test_full_tiling/{s}",
+            "full_tiling/{s}",
             .{case_tag},
         );
         try common.saveComparisonArtifactsFromResult(

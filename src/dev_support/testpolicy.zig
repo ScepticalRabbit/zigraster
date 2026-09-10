@@ -67,14 +67,14 @@ pub fn suiteDirName(comptime suite: GoldSuite) []const u8 {
     return switch (suite) {
         .min => "min",
         .basic => "basic",
-        .full_shader => "test_full_shader",
-        .full_texture => "test_full_texture",
-        .full_dist_psf => "test_full_dist_psf",
-        .full_ssaa_pxmap => "test_full_ssaa_pxmap",
-        .full_hull => "test_full_hull",
-        .full_tiling => "test_full_tiling",
-        .full_scene_camera_threads => "test_full_scene_camera_threads",
-        .full_image_output => "test_full_image_output",
+        .full_shader => "full_shader",
+        .full_texture => "full_texture",
+        .full_dist_psf => "full_dist_psf",
+        .full_ssaa_pxmap => "full_ssaa_pxmap",
+        .full_hull => "full_hull",
+        .full_tiling => "full_tiling",
+        .full_scene_camera_threads => "full_scene_camera_threads",
+        .full_image_output => "full_image_output",
         .small => "small",
         .simple => "simple",
         .edge => "edge",
@@ -97,37 +97,37 @@ pub fn goldRoot(comptime suite: GoldSuite) []const u8 {
         .min => if (F == f64) "gold/min" else "gold/min_f32",
         .basic => if (F == f64) "gold/basic" else "gold/basic_f32",
         .full_shader => if (F == f64)
-            "gold/test_full_shader"
+            "gold/full_shader"
         else
-            "gold/test_full_shader_f32",
+            "gold/full_shader_f32",
         .full_texture => if (F == f64)
-            "gold/test_full_texture"
+            "gold/full_texture"
         else
-            "gold/test_full_texture_f32",
+            "gold/full_texture_f32",
         .full_dist_psf => if (F == f64)
-            "gold/test_full_dist_psf"
+            "gold/full_dist_psf"
         else
-            "gold/test_full_dist_psf_f32",
+            "gold/full_dist_psf_f32",
         .full_ssaa_pxmap => if (F == f64)
-            "gold/test_full_ssaa_pxmap"
+            "gold/full_ssaa_pxmap"
         else
-            "gold/test_full_ssaa_pxmap_f32",
+            "gold/full_ssaa_pxmap_f32",
         .full_hull => if (F == f64)
-            "gold/test_full_hull"
+            "gold/full_hull"
         else
-            "gold/test_full_hull_f32",
+            "gold/full_hull_f32",
         .full_tiling => if (F == f64)
-            "gold/test_full_tiling"
+            "gold/full_tiling"
         else
-            "gold/test_full_tiling_f32",
+            "gold/full_tiling_f32",
         .full_scene_camera_threads => if (F == f64)
-            "gold/test_full_scene_camera_threads"
+            "gold/full_scene_camera_threads"
         else
-            "gold/test_full_scene_camera_threads_f32",
+            "gold/full_scene_camera_threads_f32",
         .full_image_output => if (F == f64)
-            "gold/test_full_image_output"
+            "gold/full_image_output"
         else
-            "gold/test_full_image_output_f32",
+            "gold/full_image_output_f32",
         .small => if (F == f64) "gold/small" else "gold/small_f32",
         .simple => if (F == f64) "gold/simple" else "gold/simple_f32",
         .edge => if (F == f64) "gold/edge" else "gold/edge_f32",

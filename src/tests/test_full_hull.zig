@@ -180,7 +180,7 @@ fn runOneElemHullCaseTest(
         ) catch |err| {
             const fail_dir_name = try std.fmt.allocPrint(
                 aa,
-                "test_full_hull/{s}",
+                "full_hull/{s}",
                 .{case_dir_name},
             );
             try common.saveComparisonArtifactsFromResult(
@@ -301,7 +301,7 @@ fn runScene2HullCaseTest(
         ) catch |err| {
             const fail_dir_name = try std.fmt.allocPrint(
                 aa,
-                "test_full_hull/{s}",
+                "full_hull/{s}",
                 .{case_dir_name},
             );
             try common.saveComparisonArtifactsFromResult(

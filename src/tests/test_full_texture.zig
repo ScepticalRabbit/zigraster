@@ -120,7 +120,7 @@ pub fn runFullTexCaseTest(
             ) catch |err| {
                 const fail_dir_name = try std.fmt.allocPrint(
                     aa,
-                    "test_full_texture/{s}",
+                    "full_texture/{s}",
                     .{case_dir_name},
                 );
                 try common_test.saveComparisonArtifactsFromResult(

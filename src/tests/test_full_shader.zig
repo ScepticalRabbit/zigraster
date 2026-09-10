@@ -134,7 +134,7 @@ pub fn runFullShaderCaseTest(
             ) catch |err| {
                 const fail_dir_name = try std.fmt.allocPrint(
                     aa,
-                    "test_full_shader/{s}",
+                    "full_shader/{s}",
                     .{case_dir_name},
                 );
                 try common_test.saveComparisonArtifactsFromResult(
