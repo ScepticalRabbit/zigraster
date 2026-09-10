@@ -128,9 +128,10 @@ fn runBaseComparison(
 
     const expected_channels: usize = if (bc.is_rgb) 3 else 1;
     try std.testing.expectEqual(@as(usize, 1), render_result.dims[0]);
-    try std.testing.expectEqual(expected_channels, render_result.dims[1]);
-    try std.testing.expectEqual(@as(usize, 100), render_result.dims[2]);
-    try std.testing.expectEqual(@as(usize, 160), render_result.dims[3]);
+    try std.testing.expectEqual(@as(usize, 1), render_result.dims[1]);
+    try std.testing.expectEqual(expected_channels, render_result.dims[2]);
+    try std.testing.expectEqual(@as(usize, 100), render_result.dims[3]);
+    try std.testing.expectEqual(@as(usize, 160), render_result.dims[4]);
 
     const gold_path = try common.findGoldPath(
         aa,

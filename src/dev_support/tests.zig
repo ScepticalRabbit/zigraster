@@ -286,7 +286,7 @@ fn saveResultToFails(
     }
 }
 
-fn extractFrameImage(
+pub fn extractFrameImage(
     allocator: std.mem.Allocator,
     array: *const NDArray(F),
     camera_idx: usize,

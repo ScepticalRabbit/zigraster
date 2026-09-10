@@ -149,7 +149,7 @@ fn runRender(
         };
     }
 
-    return try riley.raster(
+    const result = try riley.raster(
         allocator,
         render_groups[0..thread_case.group_count],
         cameras,
@@ -157,6 +157,7 @@ fn runRender(
         run_config,
         null,
     );
+    return result orelse error.MissingRenderOutput;
 }
 
 fn assertImagesEqual(
@@ -210,6 +211,7 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
     var config = tcfg.getRasterConfig(.testing);
     config.save_strategy = .memory;
     config.image_save_mode = .grey;
+    config.background_value = 32767.5;
     config.image_save_opts = &[_]iio.ImageSaveOpts{
         .{ .format = .fimg, .bits = null, .scaling = .none },
         .{ .format = .bmp, .bits = 8, .scaling = .auto },
@@ -253,10 +255,21 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
     // ----------------------------------------------------------------------
     for (0..8) |cc| {
         for (0..4) |ff| {
-            const gold_path = try std.fmt.allocPrint(
+            const cam_dir = try std.fmt.allocPrint(
                 allocator,
-                "{s}/cam{d}/frame_{d}_field_0.fimg",
-                .{ gold_dir_root, cc, ff },
+                "{s}/cam{d}",
+                .{ gold_dir_root, cc },
+            );
+            defer allocator.free(cam_dir);
+
+            const gold_path = try common.findGoldPath(
+                allocator,
+                io,
+                cam_dir,
+                0,
+                ff,
+                0,
+                false,
             );
             defer allocator.free(gold_path);
 
@@ -267,7 +280,7 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
             );
             defer allocator.free(case_desc);
 
-            try common.compareNDArrayToGoldWithDiagnostics(
+            common.compareNDArrayToGold(
                 allocator,
                 io,
                 &ref_render,
@@ -278,9 +291,27 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
                 gold_path,
                 FULL_SCENE_CAMERA_REL_TOL,
                 FULL_SCENE_CAMERA_ABS_TOL,
-                "test_full_scene_camera_threads",
-                case_desc,
-            );
+            ) catch |err| {
+                const fail_dir_name = try std.fmt.allocPrint(
+                    allocator,
+                    "full_scene_camera_threads/{s}",
+                    .{case_desc},
+                );
+                defer allocator.free(fail_dir_name);
+                try common.saveComparisonArtifactsFromResult(
+                    allocator,
+                    io,
+                    common.default_fails_root,
+                    fail_dir_name,
+                    &ref_render,
+                    cc,
+                    ff,
+                    0,
+                    gold_path,
+                    1,
+                );
+                return err;
+            };
         }
     }
 
@@ -410,10 +441,14 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
         }
     }
 
-    const elapsed = Timestamp.now(io, .awake).durationSince(start_time);
+    const end_time = Timestamp.now(io, .awake);
+    const elapsed_s = @as(
+        f64,
+        @floatFromInt(start_time.durationTo(end_time).raw.nanoseconds),
+    ) / 1.0e9;
     std.debug.print(
         "scene_camera_threads suite took {d:.3} seconds.\n",
-        .{elapsed.asSeconds()},
+        .{elapsed_s},
     );
 }
 
