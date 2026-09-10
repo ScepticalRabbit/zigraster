@@ -238,8 +238,4 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
     }
 }
 
-test "full_dist_psf" {
-    const io = std.testing.io;
-    const allocator = std.testing.allocator;
-    try run(allocator, io);
-}
+

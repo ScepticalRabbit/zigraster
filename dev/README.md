@@ -1,59 +1,46 @@
 # Riley Developer Notes
-This document collects information for developers including: style guides and the heavier development workflows for regression testing, gold generation and performance benchmarking. 
+This document collects information for developers including style guides, testing architecture, benchmark executables, and performance regression workflows.
 
 ## Style Guide
-This project follow the Computer Aided Validation Laboratory style guides for python and Zig which can be found [here](https://github.com/Computer-Aided-Validation-Laboratory/styleguides). Riley is designed around three equally important principles:
+This project follows the Computer Aided Validation Laboratory style guides for Python and Zig which can be found [here](https://github.com/Computer-Aided-Validation-Laboratory/styleguides). Riley is designed around three equally important principles:
 
 1. **Make it correct.**
 2. **Make it fast.**
 3. **Make it simple for users.**
 
-## Extended Regression Test Suites
-Once the min suite passes, the next two regression suites are:
+## Testing Architecture & Core Packaged Suites
+Riley provides a layered testing architecture designed for fast routine verification, rigorous mathematical validation, and exhaustive factorial test coverage:
 
-- `all`: broader gold-regression coverage
-- `bench`: benchmark-style render regressions
-
-> NOTE: the combined `all` and `bench` gold renders take roughly 24 GB of disk space.
-
-Before generating gold for the larger benchmark cases, generate the bench mesh data:
-
+### Quick Commands
 ```shell
-python ./data/bench/gen_bench_data.py
+# 1. Analytic Verification Suite (Mathematical & Numerical Validation)
+zig build test-verif -Doptimize=ReleaseSafe
+
+# 2. Basic Test Suite (Fast Core Feature Coverage)
+zig build test-basic -Doptimize=ReleaseSafe
+
+# 3. Full Test Suite (Exhaustive Factorial System Coverage)
+zig build gen-gold-full -Doptimize=ReleaseSafe  # Generate Full gold (if needed)
+zig build test-full -Doptimize=ReleaseSafe
+
+# 4. Python Integration Suite
+.venv/bin/pytest src/riley/pytests/
 ```
 
-This populates `./data/bench/` with the larger meshes used by the benchmark oriented test cases.
+### Core Suites Summary
 
-Generate gold:
+| Suite Name | Command | Primary Role | Reference Data |
+| :--- | :--- | :--- | :--- |
+| **Verification Suite** | `zig build test-verif` | Inverse solver recovery, silhouette area/centroid, depth ordering, and camera distortion oracles | `gold/verif/` |
+| **Basic Suite** | `zig build test-basic` | Fast coverage across 1-element, 2-shape FE interaction, and feature zoo cases | `gold/basic/` |
+| **Full Suite** | `zig build test-full` | Exhaustive sweeps over shaders, textures, PSF/distortion, SSAA, hulls, tiling, scenes, threads, and outputs | `gold/full_*/` |
+| **Python Pytests** | `.venv/bin/pytest src/riley/pytests/` | Python/Cython API, mesh pipeline, Exodus conversion, and demo parity | Integrated / `gold/` |
 
-```shell
-zig run -O ReleaseSafe ./src/gen_gold_all.zig
-zig run -O ReleaseSafe ./src/gen_gold_min.zig
-```
-
-or with the build system:
-
-```shell
-zig build gen-gold -Doptimize=ReleaseSafe
-zig build gen-gold-min -Doptimize=ReleaseSafe
-```
-
-Run the broader regression suites:
-
-```shell
-zig test -O ReleaseSafe ./src/test_gold_all.zig
-zig test -O ReleaseSafe ./src/test_bench.zig
-```
-
-or with the build system:
-
-```shell
-zig build test-gold-all -Doptimize=ReleaseSafe
-zig build test-bench -Doptimize=ReleaseSafe
-```
+> [!NOTE]
+> For complete documentation of all 4 test scenes, 8 sub-suites, gold generation, tolerances, and design contracts, see [**`dev/TESTING.md`**](file:///home/lloydf/riley-raster/dev/TESTING.md).
 
 ## Precision and SIMD Build Matrix
-The `zig build` workflow supports direct control over precision, SIMD mode, Newton solver mode and SIMD vector width:
+The `zig build` workflow supports direct control over precision, SIMD mode, Newton solver mode, and SIMD vector width:
 
 ```shell
 zig build <STEP> -Dprecision=f64 -Dsimd=on -Doptimize=ReleaseSafe
@@ -67,37 +54,25 @@ zig build <STEP> -Dsimd-vector-width=8 -Doptimize=ReleaseSafe
 Suggested first-pass development checks on the main production path:
 
 ```shell
-zig build test-min -Dprecision=f64 -Dsimd=on -Doptimize=ReleaseSafe
-zig build test-gold-all -Dprecision=f64 -Dsimd=on -Doptimize=ReleaseSafe
-zig build test-bench -Dprecision=f64 -Dsimd=on -Doptimize=ReleaseSafe
+zig build test-verif -Dprecision=f64 -Dsimd=on -Doptimize=ReleaseSafe
+zig build test-basic -Dprecision=f64 -Dsimd=on -Doptimize=ReleaseSafe
+zig build test-full -Dprecision=f64 -Dsimd=on -Doptimize=ReleaseSafe
 ```
 
-You can run these in separate terminals in parallel.
-
-For a broader matrix:
+For broader matrix checks across precisions and SIMD modes:
 
 ```shell
-zig build test-min -Dprecision=f64 -Dsimd=on -Doptimize=ReleaseSafe
-zig build test-gold-all -Dprecision=f64 -Dsimd=on -Doptimize=ReleaseSafe
-zig build test-bench -Dprecision=f64 -Dsimd=on -Doptimize=ReleaseSafe
+zig build test-verif -Dprecision=f64 -Dsimd=on -Doptimize=ReleaseSafe
+zig build test-basic -Dprecision=f64 -Dsimd=on -Doptimize=ReleaseSafe
 
-zig build test-gold-all -Dprecision=f64 -Dsimd=off -Doptimize=ReleaseSafe
-zig build test-bench -Dprecision=f64 -Dsimd=off -Doptimize=ReleaseSafe
-
-zig build test-min -Dprecision=f32 -Dsimd=on -Doptimize=ReleaseSafe
-zig build test-gold-all -Dprecision=f32 -Dsimd=on -Doptimize=ReleaseSafe
-zig build test-bench -Dprecision=f32 -Dsimd=on -Doptimize=ReleaseSafe
-
-zig build test-gold-all -Dprecision=f32 -Dsimd=off -Doptimize=ReleaseSafe
-zig build test-bench -Dprecision=f32 -Dsimd=off -Doptimize=ReleaseSafe
+zig build test-basic -Dprecision=f64 -Dsimd=off -Doptimize=ReleaseSafe
+zig build test-basic -Dprecision=f32 -Dsimd=on -Doptimize=ReleaseSafe
+zig build test-basic -Dprecision=f32 -Dsimd=off -Doptimize=ReleaseSafe
 ```
-
-The min suite requires SIMD on. Scalar min orchestration is not implemented.
 
 ## Focused Verification Suite
 
-The focused verification suite checks independent analytic and numerical contracts rather
-than broad image-output stability. It currently covers:
+The focused verification suite checks independent analytic and numerical contracts rather than broad image-output stability. It currently covers:
 
 - inverse element-solver recovery from known parent coordinates;
 - undistorted silhouette area and centroid against Python-generated analytic references;

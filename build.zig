@@ -67,11 +67,6 @@ pub fn build(b: *std.Build) void {
             .source_path = "src/test_basic.zig",
         },
         .{
-            .step_name = "test-min",
-            .description = "Run the MIN test suite",
-            .source_path = "src/test_min.zig",
-        },
-        .{
             .step_name = "test-full",
             .description = "Run the FULL test suite",
             .source_path = "src/test_full.zig",
@@ -169,11 +164,6 @@ pub fn build(b: *std.Build) void {
             .step_name = "gen-gold-full",
             .description = "Generate the FULL gold datasets",
             .source_path = "src/gen_gold_full.zig",
-        },
-        .{
-            .step_name = "gen-gold-min",
-            .description = "Generate the MIN gold datasets",
-            .source_path = "src/gen_gold_min.zig",
         },
         .{
             .step_name = "gen-gold-verif-zig",

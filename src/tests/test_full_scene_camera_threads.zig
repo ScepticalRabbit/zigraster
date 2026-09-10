@@ -440,20 +440,6 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
             }
         }
     }
-
-    const end_time = Timestamp.now(io, .awake);
-    const elapsed_s = @as(
-        f64,
-        @floatFromInt(start_time.durationTo(end_time).raw.nanoseconds),
-    ) / 1.0e9;
-    std.debug.print(
-        "scene_camera_threads suite took {d:.3} seconds.\n",
-        .{elapsed_s},
-    );
 }
 
-test "full scene_camera_threads suite" {
-    const allocator = std.testing.allocator;
-    const io = std.testing.io;
-    try run(allocator, io);
-}
+
