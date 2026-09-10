@@ -48,12 +48,12 @@ const cases = [_]Case{
 };
 
 const mesh_centers = [cases.len][3]F{
-    .{ -0.0125, 0.0125, 0.0 },
-    .{ 0.0125, 0.0125, 0.0 },
-    .{ -0.0125, 0.0, 0.0 },
-    .{ 0.0125, 0.0, 0.0 },
-    .{ -0.0125, -0.0125, 0.0 },
-    .{ 0.0125, -0.0125, 0.0 },
+    .{ -0.015, 0.0075, 0.0 },
+    .{ 0.0, 0.0075, 0.0 },
+    .{ 0.015, 0.0075, 0.0 },
+    .{ -0.015, -0.0075, 0.0 },
+    .{ 0.0, -0.0075, 0.0 },
+    .{ 0.015, -0.0075, 0.0 },
 };
 
 fn sliceFieldToTwoFrames(
@@ -458,6 +458,18 @@ pub fn generateZooRgbGold(
     run_config.save_strategy = .disk;
     run_config.background_value = 127.5;
 
+    const rgb_save_opts = try aa.alloc(
+        iio.ImageSaveOpts,
+        config.image_save_opts.len,
+    );
+    for (config.image_save_opts, 0..) |opt, ii| {
+        rgb_save_opts[ii] = opt;
+        if (opt.format == .bmp or opt.format == .ppm) {
+            rgb_save_opts[ii].channels = 3;
+        }
+    }
+    run_config.image_save_opts = rgb_save_opts;
+
     const render_groups = [_]riley.RenderGroupSpec{
         .{ .io = io, .workers = @max(@as(u16, 1), run_config.total_threads) },
     };
@@ -517,7 +529,7 @@ pub fn main(init: std.process.Init) !void {
     config.save_strategy = .disk;
     config.image_save_opts = &[_]iio.ImageSaveOpts{
         .{ .format = .fimg, .bits = null, .scaling = .none },
-        .{ .format = .tiff, .bits = 8, .scaling = .auto },
+        .{ .format = .bmp, .bits = 8, .scaling = .auto },
     };
 
     std.debug.print("Generating Basic Suite: featurezoo cases...\n", .{});

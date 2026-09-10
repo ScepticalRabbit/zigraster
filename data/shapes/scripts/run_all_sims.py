@@ -795,8 +795,8 @@ Mesh 3;
 
 
 def _geo_sphere_hex(elem_order: int, second_order_incomp: int) -> str:
-    r_val = 0.005
-    a_val = 0.0018
+    r_val = 0.006
+    a_val = 0.00216
     d_val = r_val / np.sqrt(3)
     m_val = r_val / np.sqrt(2)
 
@@ -1124,7 +1124,7 @@ def _geo_sphere_tet(elem_order: int) -> str:
     return f"""SetFactory("OpenCASCADE");
 Mesh.MshFileVersion = 2.2;
 General.Terminal = 0;
-r = 0.005;
+r = 0.006;
 Sphere(1) = {{0, 0, 0, r}};
 p_top = newp; Point(p_top) = {{0, r, 0}};
 p_bot = newp; Point(p_bot) = {{0, -r, 0}};
@@ -1151,7 +1151,7 @@ plate_height = 12e-3;
 plate_diff = plate_height - plate_width;
 plate_thick = 0.5e-3;
 
-hole_rad = 0.5e-3;
+hole_rad = plate_width / 6;
 hole_loc_x = plate_width / 2;
 hole_loc_y = plate_height / 2;
 hole_circ = 2 * Pi * hole_rad;
@@ -1250,7 +1250,7 @@ General.Terminal = 0;
 plate_width = 0.010;
 plate_height = 0.012;
 plate_thick = 0.0005;
-hole_rad = 0.0005;
+hole_rad = plate_width / 6;
 hole_loc_x = plate_width / 2;
 hole_loc_y = plate_height / 2;
 
@@ -1291,7 +1291,7 @@ General.Terminal = 0;
 plate_width = 0.010;
 plate_height = 0.012;
 plate_diff = plate_height - plate_width;
-hole_rad = 0.0005;
+hole_rad = plate_width / 6;
 hole_loc_x = plate_width / 2;
 hole_loc_y = plate_height / 2;
 hole_circ = 2 * Pi * hole_rad;
@@ -1387,7 +1387,7 @@ def _geo_platewithhole2d_tri(elem_order: int) -> str:
 General.Terminal = 0;
 plate_width = 0.010;
 plate_height = 0.012;
-hole_rad = 0.0005;
+hole_rad = plate_width / 6;
 hole_loc_x = plate_width / 2;
 hole_loc_y = plate_height / 2;
 
@@ -1823,7 +1823,7 @@ def extract_surface_datasets(shapes_root: Path) -> None:
                 float(np.ptp(mesh.coords[:, 0])),
                 float(np.ptp(mesh.coords[:, 1])),
             )
-            uv_span_max = (extent_max * 2500.0) / 128.0
+            uv_span_max = (extent_max * 5000.0) / 128.0
             uvs = riley.project_uvs_planar_centered(
                 mesh.coords,
                 (128, 128),

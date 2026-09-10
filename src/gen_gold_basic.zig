@@ -22,7 +22,7 @@ pub fn main(init: std.process.Init) !void {
     defer arena.deinit();
     const aa = arena.allocator();
 
-    const texture_grey = try iio.loadImage(
+    const texture_u8_grey = try iio.loadImage(
         u8,
         1,
         aa,
@@ -30,7 +30,7 @@ pub fn main(init: std.process.Init) !void {
         "texture/speck128_mono_u8.bmp",
         .bmp,
     );
-    const texture_rgb = try iio.loadImage(
+    const texture_u8_rgb = try iio.loadImage(
         u8,
         3,
         aa,
@@ -38,12 +38,24 @@ pub fn main(init: std.process.Init) !void {
         "texture/speck128_rgb_u8.bmp",
         .bmp,
     );
+    const texture_u16_grey = try iio.loadImage(
+        u16,
+        1,
+        aa,
+        io,
+        "texture/speck128_mono_u16.tiff",
+        .tiff,
+    );
+    const texture_f64_grey = try gen_twoshapes.convertU16TexToF64(
+        aa,
+        texture_u16_grey,
+    );
 
     var config = tcfg.getRasterConfig(.gold_gen);
     config.save_strategy = .disk;
     config.image_save_opts = &[_]iio.ImageSaveOpts{
         .{ .format = .fimg, .bits = null, .scaling = .none },
-        .{ .format = .tiff, .bits = 8, .scaling = .auto },
+        .{ .format = .bmp, .bits = 8, .scaling = .auto },
     };
 
     const gold_dir = policy.goldRoot(.basic);
@@ -63,8 +75,10 @@ pub fn main(init: std.process.Init) !void {
     try gen_twoshapes.generateAllTwoShapesCases(
         aa,
         io,
-        texture_grey,
-        texture_rgb,
+        texture_u8_grey,
+        texture_u8_rgb,
+        texture_u16_grey,
+        texture_f64_grey,
         gold_dir,
         config,
     );
@@ -73,8 +87,8 @@ pub fn main(init: std.process.Init) !void {
     try gen_zoo.generateAllFeatureZooCases(
         aa,
         io,
-        texture_grey,
-        texture_rgb,
+        texture_u8_grey,
+        texture_u8_rgb,
         gold_dir,
         config,
     );

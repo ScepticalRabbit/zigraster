@@ -235,9 +235,9 @@ def _verify_feature_zoo_coverage(dir_path: Path) -> None:
         else:
             foreground = image != background
         coverage = np.count_nonzero(foreground) / foreground.size
-        assert coverage > 0.35, (
+        assert coverage > 0.25, (
             f"feature-zoo foreground coverage for {image_path} is "
-            f"{coverage:.2%}; expected more than 35%"
+            f"{coverage:.2%}; expected more than 25%"
         )
         assert not np.any(foreground[0])
         assert not np.any(foreground[-1])

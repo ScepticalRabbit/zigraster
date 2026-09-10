@@ -35,22 +35,39 @@ const focal_length_twoshapes: F = @floatCast(50.0e-3);
 
 pub const TwoShapesShaderKind = enum {
     nodal_grey,
-    tex_u8_linear,
-    tex_u8_cubic,
-    tex_u8_bspline,
-    func_checker,
-    func_eggbox,
     nodal_rgb,
-    tex_rgb_cubic,
-    func_rgb_checker,
+    tex_u8_mono_catmull_direct,
+    tex_u8_mono_catmull_lutlerp,
+    tex_u8_mono_linear_direct,
+    tex_u16_mono_catmull_direct,
+    tex_f64_mono_catmull_direct,
+    tex_u8_rgb_catmull_direct,
+    func_checker_uvs,
+    func_eggbox_worldc,
+    func_lambertian_normavg,
+    func_lambertian_normexact,
+    func_rgb_checker_uvs,
 
     pub fn isRgb(self: TwoShapesShaderKind) bool {
         return switch (self) {
-            .nodal_rgb, .tex_rgb_cubic, .func_rgb_checker => true,
+            .nodal_rgb, .tex_u8_rgb_catmull_direct, .func_rgb_checker_uvs => true,
             else => false,
         };
     }
 };
+
+pub fn convertU16TexToF64(
+    allocator: std.mem.Allocator,
+    tex_u16: texops.Tex(u16, 1),
+) !texops.Tex(F, 1) {
+    const rows_num = tex_u16.rows_num;
+    const cols_num = tex_u16.cols_num;
+    var tex_f = try texops.Tex(F, 1).init(allocator, rows_num, cols_num);
+    for (tex_u16.array.slice, 0..) |pixel_val, ii| {
+        tex_f.array.slice[ii] = @as(F, @floatFromInt(pixel_val)) / 65535.0;
+    }
+    return tex_f;
+}
 
 fn sliceFieldToSingleFrame(
     allocator: std.mem.Allocator,
@@ -94,8 +111,10 @@ fn loadShapeMesh(
     shape_dir_name: []const u8,
     mesh_type: gk.MeshType,
     shader_kind: TwoShapesShaderKind,
-    texture_grey: texops.Tex(u8, 1),
-    texture_rgb: texops.Tex(u8, 3),
+    texture_u8_grey: texops.Tex(u8, 1),
+    texture_u8_rgb: texops.Tex(u8, 3),
+    texture_u16_grey: texops.Tex(u16, 1),
+    texture_f64_grey: texops.Tex(F, 1),
 ) !MeshInput {
     const elem_str = @tagName(mesh_type);
     const dir = try std.fmt.allocPrint(
@@ -138,43 +157,74 @@ fn loadShapeMesh(
             .scale_over = .over_frames,
             .normal_type = .none,
         } },
-        .tex_u8_linear => .{ .tex_u8 = .{
+        .nodal_rgb => .{ .nodal = .{
+            .field = try buildRgbField(allocator, temp, disp),
+            .bits = 8,
+            .scaling = .auto,
+            .scale_over = .over_frames,
+            .normal_type = .none,
+        } },
+        .tex_u8_mono_catmull_direct => .{ .tex_u8 = .{
             .uvs = uvs.array,
-            .tex = texture_grey,
-            .samp_cfg = .{ .sample = .linear, .mode = .direct },
+            .tex = texture_u8_grey,
+            .samp_cfg = .{ .sample = .cubic_catmull_rom, .mode = .direct },
             .bits = 8,
             .scaling = .auto,
             .normal_type = .none,
         } },
-        .tex_u8_cubic => .{ .tex_u8 = .{
+        .tex_u8_mono_catmull_lutlerp => .{ .tex_u8 = .{
             .uvs = uvs.array,
-            .tex = texture_grey,
+            .tex = texture_u8_grey,
             .samp_cfg = .{ .sample = .cubic_catmull_rom, .mode = .lut_lerp },
             .bits = 8,
             .scaling = .auto,
             .normal_type = .none,
         } },
-        .tex_u8_bspline => .{ .tex_u8 = .{
+        .tex_u8_mono_linear_direct => .{ .tex_u8 = .{
             .uvs = uvs.array,
-            .tex = texture_grey,
-            .samp_cfg = .{ .sample = .cubic_bspline, .mode = .lut_lerp },
+            .tex = texture_u8_grey,
+            .samp_cfg = .{ .sample = .linear, .mode = .direct },
             .bits = 8,
             .scaling = .auto,
             .normal_type = .none,
         } },
-        .func_checker => .{ .func = .{
+        .tex_u16_mono_catmull_direct => .{ .tex_u16 = .{
             .uvs = uvs.array,
-            .coord_mode = .para,
+            .tex = texture_u16_grey,
+            .samp_cfg = .{ .sample = .cubic_catmull_rom, .mode = .direct },
+            .bits = 16,
+            .scaling = .auto,
+            .normal_type = .none,
+        } },
+        .tex_f64_mono_catmull_direct => .{ .tex_f = .{
+            .uvs = uvs.array,
+            .tex = texture_f64_grey,
+            .samp_cfg = .{ .sample = .cubic_catmull_rom, .mode = .direct },
+            .bits = 8,
+            .scaling = .auto,
+            .normal_type = .none,
+        } },
+        .tex_u8_rgb_catmull_direct => .{ .tex_rgb_u8 = .{
+            .uvs = uvs.array,
+            .tex = texture_u8_rgb,
+            .samp_cfg = .{ .sample = .cubic_catmull_rom, .mode = .direct },
+            .bits = 8,
+            .scaling = .auto,
+            .normal_type = .none,
+        } },
+        .func_checker_uvs => .{ .func = .{
+            .uvs = uvs.array,
+            .coord_mode = .uv,
             .builtin = .checker,
             .params = .{
-                .coord_scale = .{ 4.0, 4.0 },
+                .coord_scale = .{ 20.0, 20.0 },
                 .settings = .{ .checker = .{} },
             },
             .bits = 8,
             .scaling = .auto,
             .normal_type = .none,
         } },
-        .func_eggbox => .{ .func = .{
+        .func_eggbox_worldc => .{ .func = .{
             .coord_mode = .world_reference,
             .builtin = .eggbox,
             .params = .{
@@ -185,27 +235,32 @@ fn loadShapeMesh(
             .scaling = .auto,
             .normal_type = .none,
         } },
-        .nodal_rgb => .{ .nodal = .{
-            .field = try buildRgbField(allocator, temp, disp),
-            .bits = 8,
-            .scaling = .auto,
-            .scale_over = .over_frames,
-            .normal_type = .none,
-        } },
-        .tex_rgb_cubic => .{ .tex_rgb_u8 = .{
-            .uvs = uvs.array,
-            .tex = texture_rgb,
-            .samp_cfg = .{ .sample = .cubic_catmull_rom, .mode = .lut_lerp },
-            .bits = 8,
-            .scaling = .auto,
-            .normal_type = .none,
-        } },
-        .func_rgb_checker => .{ .func_rgb = .{
-            .uvs = uvs.array,
+        .func_lambertian_normavg => .{ .func = .{
             .coord_mode = .para,
+            .builtin = .lambertian_normal_z,
+            .params = .{
+                .settings = .{ .lambertian_normal_z = .{} },
+            },
+            .bits = 8,
+            .scaling = .auto,
+            .normal_type = .avg,
+        } },
+        .func_lambertian_normexact => .{ .func = .{
+            .coord_mode = .para,
+            .builtin = .lambertian_normal_z,
+            .params = .{
+                .settings = .{ .lambertian_normal_z = .{} },
+            },
+            .bits = 8,
+            .scaling = .auto,
+            .normal_type = .exact,
+        } },
+        .func_rgb_checker_uvs => .{ .func_rgb = .{
+            .uvs = uvs.array,
+            .coord_mode = .uv,
             .builtin = .checker,
             .params = .{
-                .coord_scale = .{ 4.0, 4.0 },
+                .coord_scale = .{ 20.0, 20.0 },
                 .settings = .{ .checker = .{} },
             },
             .bits = 8,
@@ -228,8 +283,10 @@ pub fn buildTwoShapesScene(
     io: std.Io,
     mesh_type: gk.MeshType,
     shader_kind: TwoShapesShaderKind,
-    texture_grey: texops.Tex(u8, 1),
-    texture_rgb: texops.Tex(u8, 3),
+    texture_u8_grey: texops.Tex(u8, 1),
+    texture_u8_rgb: texops.Tex(u8, 3),
+    texture_u16_grey: texops.Tex(u16, 1),
+    texture_f64_grey: texops.Tex(F, 1),
 ) ![]MeshInput {
     var meshes = try allocator.alloc(MeshInput, 2);
     meshes[0] = try loadShapeMesh(
@@ -238,8 +295,10 @@ pub fn buildTwoShapesScene(
         "cube_surf",
         mesh_type,
         shader_kind,
-        texture_grey,
-        texture_rgb,
+        texture_u8_grey,
+        texture_u8_rgb,
+        texture_u16_grey,
+        texture_f64_grey,
     );
     meshes[1] = try loadShapeMesh(
         allocator,
@@ -247,12 +306,14 @@ pub fn buildTwoShapesScene(
         "sphere_surf",
         mesh_type,
         shader_kind,
-        texture_grey,
-        texture_rgb,
+        texture_u8_grey,
+        texture_u8_rgb,
+        texture_u16_grey,
+        texture_f64_grey,
     );
 
-    // Sphere on left in front (z = 0.0), Cube on right further behind (z = -0.010)
-    // Overlap in X is 10% of 10mm (1.0mm)
+    // Sphere (12mm diam) on left in front (z = 0.0), Cube (10mm) on right behind (z = -0.010)
+    // Overlap in X is 20% of 10mm (2.0mm)
     const cube_center = [3]F{ 0.0045, 0.0, -0.010 };
     const sphere_center = [3]F{ -0.0045, 0.0, 0.0 };
 
@@ -275,8 +336,10 @@ pub fn generateTwoShapesCase(
     io: std.Io,
     mesh_type: gk.MeshType,
     shader_kind: TwoShapesShaderKind,
-    texture_grey: texops.Tex(u8, 1),
-    texture_rgb: texops.Tex(u8, 3),
+    texture_u8_grey: texops.Tex(u8, 1),
+    texture_u8_rgb: texops.Tex(u8, 3),
+    texture_u16_grey: texops.Tex(u16, 1),
+    texture_f64_grey: texops.Tex(F, 1),
     gold_dir_root: []const u8,
     config: rastcfg.RasterConfig,
 ) !void {
@@ -289,8 +352,10 @@ pub fn generateTwoShapesCase(
         io,
         mesh_type,
         shader_kind,
-        texture_grey,
-        texture_rgb,
+        texture_u8_grey,
+        texture_u8_rgb,
+        texture_u16_grey,
+        texture_f64_grey,
     );
 
     const case_dir_name = try std.fmt.allocPrint(
@@ -339,6 +404,20 @@ pub fn generateTwoShapesCase(
     run_config.save_strategy = .disk;
     run_config.background_value = 127.5;
 
+    if (shader_kind.isRgb()) {
+        const rgb_save_opts = try aa.alloc(
+            iio.ImageSaveOpts,
+            config.image_save_opts.len,
+        );
+        for (config.image_save_opts, 0..) |opt, ii| {
+            rgb_save_opts[ii] = opt;
+            if (opt.format == .bmp or opt.format == .ppm) {
+                rgb_save_opts[ii].channels = 3;
+            }
+        }
+        run_config.image_save_opts = rgb_save_opts;
+    }
+
     const render_groups = [_]riley.RenderGroupSpec{
         .{ .io = io, .workers = @max(@as(u16, 1), run_config.total_threads) },
     };
@@ -362,8 +441,10 @@ pub fn generateTwoShapesCase(
 pub fn generateAllTwoShapesCases(
     allocator: std.mem.Allocator,
     io: std.Io,
-    texture_grey: texops.Tex(u8, 1),
-    texture_rgb: texops.Tex(u8, 3),
+    texture_u8_grey: texops.Tex(u8, 1),
+    texture_u8_rgb: texops.Tex(u8, 3),
+    texture_u16_grey: texops.Tex(u16, 1),
+    texture_f64_grey: texops.Tex(F, 1),
     gold_dir_root: []const u8,
     config: rastcfg.RasterConfig,
 ) !void {
@@ -383,8 +464,10 @@ pub fn generateAllTwoShapesCases(
                 io,
                 mesh_type,
                 shader_kind,
-                texture_grey,
-                texture_rgb,
+                texture_u8_grey,
+                texture_u8_rgb,
+                texture_u16_grey,
+                texture_f64_grey,
                 gold_dir_root,
                 config,
             );
@@ -398,7 +481,7 @@ pub fn main(init: std.process.Init) !void {
     defer arena.deinit();
     const aa = arena.allocator();
 
-    const texture_grey = try iio.loadImage(
+    const texture_u8_grey = try iio.loadImage(
         u8,
         1,
         aa,
@@ -406,7 +489,7 @@ pub fn main(init: std.process.Init) !void {
         "texture/speck128_mono_u8.bmp",
         .bmp,
     );
-    const texture_rgb = try iio.loadImage(
+    const texture_u8_rgb = try iio.loadImage(
         u8,
         3,
         aa,
@@ -414,20 +497,31 @@ pub fn main(init: std.process.Init) !void {
         "texture/speck128_rgb_u8.bmp",
         .bmp,
     );
+    const texture_u16_grey = try iio.loadImage(
+        u16,
+        1,
+        aa,
+        io,
+        "texture/speck128_mono_u16.tiff",
+        .tiff,
+    );
+    const texture_f64_grey = try convertU16TexToF64(aa, texture_u16_grey);
 
     var config = tcfg.getRasterConfig(.gold_gen);
     config.save_strategy = .disk;
     config.image_save_opts = &[_]iio.ImageSaveOpts{
         .{ .format = .fimg, .bits = null, .scaling = .none },
-        .{ .format = .tiff, .bits = 8, .scaling = .auto },
+        .{ .format = .bmp, .bits = 8, .scaling = .auto },
     };
 
     std.debug.print("Generating Basic Suite: twoshapes cases...\n", .{});
     try generateAllTwoShapesCases(
         aa,
         io,
-        texture_grey,
-        texture_rgb,
+        texture_u8_grey,
+        texture_u8_rgb,
+        texture_u16_grey,
+        texture_f64_grey,
         policy.goldRoot(.basic),
         config,
     );

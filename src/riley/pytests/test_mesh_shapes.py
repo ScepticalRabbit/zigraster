@@ -203,11 +203,11 @@ def check_sphere_invariants(
     coords = mesh.coords
     r_sq = np.sum(coords**2, axis=1)
     r_max = np.sqrt(np.max(r_sq))
-    assert r_max <= 0.005 + 1e-5
+    assert r_max <= 0.006 + 1e-5
     if is_surface:
         normals, areas, centroids = compute_surface_geometry(mesh)
         total_area = np.sum(areas)
-        expected_area = 4.0 * np.pi * (0.005**2)
+        expected_area = 4.0 * np.pi * (0.006**2)
         assert np.isclose(total_area, expected_area, rtol=0.10)
         for ii in range(normals.shape[0]):
             c = centroids[ii]
@@ -228,15 +228,16 @@ def check_platewithhole_invariants(
     assert np.all(coords[:, 1] <= 0.012 + 1e-5)
     assert np.all(coords[:, 2] >= -1e-5)
     assert np.all(coords[:, 2] <= 0.0005 + 1e-5)
+    hole_rad = 0.010 / 6.0
     r_hole_sq = (coords[:, 0] - 0.005) ** 2 + (coords[:, 1] - 0.006) ** 2
-    assert np.all(r_hole_sq >= 0.0005**2 - 1e-6)
+    assert np.all(r_hole_sq >= (hole_rad**2) - 1e-6)
     if is_surface:
         normals, areas, centroids = compute_surface_geometry(mesh)
         total_area = np.sum(areas)
         expected = (
-            2.0 * (0.010 * 0.012 - np.pi * (0.0005**2))
+            2.0 * (0.010 * 0.012 - np.pi * (hole_rad**2))
             + 2.0 * (0.010 + 0.012) * 0.0005
-            + 2.0 * np.pi * 0.0005 * 0.0005
+            + 2.0 * np.pi * hole_rad * 0.0005
         )
         assert np.isclose(total_area, expected, rtol=0.10)
         for ii in range(mesh.connect.shape[0]):
@@ -262,7 +263,7 @@ def check_platewithhole_invariants(
                 dist_hole = np.sqrt(
                     (c[0] - 0.005) ** 2 + (c[1] - 0.006) ** 2
                 )
-                if dist_hole < 0.001:
+                if dist_hole < hole_rad + 0.0005:
                     u_hole = -np.array(
                         [
                             (c[0] - 0.005) / dist_hole,
@@ -582,7 +583,7 @@ def test_platewithhole2d_exodus_loading_and_invariants(
     assert np.all(np.abs(coords[:, 2]) <= 1e-12)
 
     hole_center = np.array([0.005, 0.006, 0.0])
-    hole_rad = 0.0005
+    hole_rad = 0.010 / 6.0
     dists = np.linalg.norm(coords - hole_center, axis=1)
     min_dist = np.min(dists)
     assert np.isclose(min_dist, hole_rad, atol=1e-4)

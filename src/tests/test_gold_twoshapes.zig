@@ -39,8 +39,10 @@ pub fn runTwoShapesCaseTest(
     io: std.Io,
     mesh_type: gk.MeshType,
     shader_kind: TwoShapesShaderKind,
-    texture_grey: texops.Tex(u8, 1),
-    texture_rgb: texops.Tex(u8, 3),
+    texture_u8_grey: texops.Tex(u8, 1),
+    texture_u8_rgb: texops.Tex(u8, 3),
+    texture_u16_grey: texops.Tex(u16, 1),
+    texture_f64_grey: texops.Tex(F, 1),
     gold_dir_root: []const u8,
     config: rastcfg.RasterConfig,
 ) !void {
@@ -53,8 +55,10 @@ pub fn runTwoShapesCaseTest(
         io,
         mesh_type,
         shader_kind,
-        texture_grey,
-        texture_rgb,
+        texture_u8_grey,
+        texture_u8_rgb,
+        texture_u16_grey,
+        texture_f64_grey,
     );
 
     const case_dir_name = try std.fmt.allocPrint(
@@ -180,7 +184,7 @@ test "Basic Suite: twoshapes cases" {
     const config = tcfg.getRasterConfig(.testing);
     const gold_dir_root = policy.goldRoot(.basic);
 
-    const texture_grey = try iio.loadImage(
+    const texture_u8_grey = try iio.loadImage(
         u8,
         1,
         allocator,
@@ -188,9 +192,9 @@ test "Basic Suite: twoshapes cases" {
         "texture/speck128_mono_u8.bmp",
         .bmp,
     );
-    defer texture_grey.deinit(allocator);
+    defer texture_u8_grey.deinit(allocator);
 
-    const texture_rgb = try iio.loadImage(
+    const texture_u8_rgb = try iio.loadImage(
         u8,
         3,
         allocator,
@@ -198,7 +202,23 @@ test "Basic Suite: twoshapes cases" {
         "texture/speck128_rgb_u8.bmp",
         .bmp,
     );
-    defer texture_rgb.deinit(allocator);
+    defer texture_u8_rgb.deinit(allocator);
+
+    const texture_u16_grey = try iio.loadImage(
+        u16,
+        1,
+        allocator,
+        io,
+        "texture/speck128_mono_u16.tiff",
+        .tiff,
+    );
+    defer texture_u16_grey.deinit(allocator);
+
+    var texture_f64_grey = try gengold_twoshapes.convertU16TexToF64(
+        allocator,
+        texture_u16_grey,
+    );
+    defer texture_f64_grey.deinit(allocator);
 
     const mesh_types = [_]gk.MeshType{
         .tri3,
@@ -216,8 +236,10 @@ test "Basic Suite: twoshapes cases" {
                 io,
                 mesh_type,
                 shader_kind,
-                texture_grey,
-                texture_rgb,
+                texture_u8_grey,
+                texture_u8_rgb,
+                texture_u16_grey,
+                texture_f64_grey,
                 gold_dir_root,
                 config,
             );
