@@ -64,6 +64,24 @@ CameraInput = Camera
 
 
 @dataclass(slots=True)
+class Speckle2DParams:
+    seed: int = 0xA511E9B3
+    cells_per_uv: tuple[float, float] = (192.0, 160.0)
+    uv_offset: tuple[float, float] = (0.0, 0.0)
+    occupancy: float = 0.9
+    radius_mean: float = 0.45
+    radius_jitter: float = 0.08
+    edge_softness: float = 0.035
+    perlin_coverage_threshold: float = 0.0
+    perlin_coverage_transition_width: float = 0.12
+    foreground: float = 0.0
+    background: float = 1.0
+
+    def to_func_shader_params(self) -> "FuncShaderParams":
+        return FuncShaderParams(speckle=self)
+
+
+@dataclass(slots=True)
 class FuncShaderParams:
     coord_scale: tuple[float, float] = (1.0, 1.0)
     coord_offset: tuple[float, float] = (0.0, 0.0)
@@ -123,6 +141,7 @@ class FuncShaderParams:
         0.0,
         0.0,
     )
+    speckle: Speckle2DParams = field(default_factory=Speckle2DParams)
 
 
 @dataclass(slots=True)
@@ -295,6 +314,7 @@ class FuncShaderBuiltin(IntEnum):
     checker_smooth = 6
     lambertian_normal_z = 7
     eggbox = 8
+    speckle = 9
 
 
 class FuncCoordMode(IntEnum):
@@ -545,6 +565,29 @@ def _make_raster_config(config: Any) -> cr.CRasterConfig:
 
 
 @cython.cfunc
+def _make_speckle_params(params_in: Any) -> cr.CSpeckle2DParams:
+    params_out: cr.CSpeckle2DParams
+    params_out.seed = int(params_in.seed)
+    params_out.cells_per_uv_0 = float(params_in.cells_per_uv[0])
+    params_out.cells_per_uv_1 = float(params_in.cells_per_uv[1])
+    params_out.uv_offset_0 = float(params_in.uv_offset[0])
+    params_out.uv_offset_1 = float(params_in.uv_offset[1])
+    params_out.occupancy = float(params_in.occupancy)
+    params_out.radius_mean = float(params_in.radius_mean)
+    params_out.radius_jitter = float(params_in.radius_jitter)
+    params_out.edge_softness = float(params_in.edge_softness)
+    params_out.perlin_coverage_threshold = float(
+        params_in.perlin_coverage_threshold,
+    )
+    params_out.perlin_coverage_transition_width = float(
+        params_in.perlin_coverage_transition_width,
+    )
+    params_out.foreground = float(params_in.foreground)
+    params_out.background = float(params_in.background)
+    return params_out
+
+
+@cython.cfunc
 def _make_func_params(params_in: Any) -> cr.CFuncShaderParams:
     params_out: cr.CFuncShaderParams
     params_out.coord_scale_0 = float(params_in.coord_scale[0])
@@ -690,6 +733,9 @@ def _make_func_params(params_in: Any) -> cr.CFuncShaderParams:
     params_out.extra_1 = float(params_in.extra[1])
     params_out.extra_2 = float(params_in.extra[2])
     params_out.extra_3 = float(params_in.extra[3])
+    params_out.speckle = _make_speckle_params(
+        getattr(params_in, "speckle", Speckle2DParams()),
+    )
     return params_out
 
 
@@ -1324,6 +1370,7 @@ __all__ = [
     "FuncShaderBuiltin",
     "FuncCoordMode",
     "FuncShaderParams",
+    "Speckle2DParams",
     "TextureSample",
     "TextureSampleMode",
     "PsfType",

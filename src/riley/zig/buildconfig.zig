@@ -8,17 +8,14 @@
 // --------------------------------------------------------------------------------------
 const std = @import("std");
 const root = @import("root");
+const buildconfig_override = @import("buildconfig_override.zig");
 
-const build_options = if (@hasDecl(root, "build_options"))
+const build_options = if (buildconfig_override.enabled)
+    buildconfig_override
+else if (@hasDecl(root, "build_options"))
     root.build_options
 else
-    struct {
-        pub const precision = "f64";
-        pub const simd = "on";
-        pub const newton_solver = "fast";
-        pub const simd_vec_width: comptime_int = 0;
-        pub const simd_vector_width: comptime_int = 0;
-    };
+    buildconfig_override;
 
 pub const comptime_eval_branch_quota: comptime_int = 50000;
 
@@ -48,6 +45,39 @@ pub const Scalar = Scal;
 pub const default_simd = parseSimd(build_options.simd);
 pub const default_newton_solver_mode =
     parseNewtonSolverMode(build_options.newton_solver);
+pub const speckle_boundary_blur = buildOptionsSpeckleBoundaryBlur();
+pub const speckle_neighbor_count = buildOptionsSpeckleNeighborCount();
+pub const speckle_mask_samples_per_cell = buildOptionsSpeckleMaskSamplesPerCell();
+pub const speckle_evaluator_name = buildOptionsSpeckleEvaluator();
+pub const speckle_evaluator = parseSpeckleEvaluator(speckle_evaluator_name);
+pub const speckle_shape = parseSpeckleShape(buildOptionsSpeckleShape());
+
+comptime {
+    if (speckle_evaluator == .mask_1bit and
+        (speckle_shape != .disk or speckle_boundary_blur))
+    {
+        @compileError(
+            "speckle evaluator mask-1bit requires disk shape and boundary blur false.",
+        );
+    }
+    if (speckle_evaluator == .classified_indexed and
+        (speckle_shape != .disk or speckle_boundary_blur or speckle_neighbor_count != 9))
+    {
+        @compileError(
+            "speckle evaluator classified-indexed requires disk shape, boundary blur false, and neighbor count 9.",
+        );
+    }
+    if (speckle_evaluator == .direct_fixed and
+        (speckle_shape != .disk or speckle_boundary_blur or speckle_neighbor_count != 1))
+    {
+        @compileError(
+            "speckle evaluator direct-fixed requires disk shape, boundary blur false, and neighbor count 1.",
+        );
+    }
+    if (speckle_shape == .perlin and speckle_evaluator != .mask_u8) {
+        @compileError("speckle shape perlin requires evaluator mask-u8.");
+    }
+}
 
 pub const config = configForPrecision(F);
 
@@ -67,6 +97,22 @@ pub const SimdMode = enum {
 pub const SimdTexInterpMode = enum {
     inner,
     over_pixels,
+};
+
+pub const SpeckleShape = enum {
+    disk,
+    gaussian,
+    perlin,
+};
+
+pub const SpeckleEvaluator = enum {
+    cell_hash,
+    list_naive,
+    list_indexed,
+    classified_indexed,
+    direct_fixed,
+    mask_1bit,
+    mask_u8,
 };
 
 pub const NewtonSolverMode = enum {
@@ -135,6 +181,67 @@ fn parsePrecision(comptime precision: []const u8) type {
         return f64;
     }
     @compileError("build_options.precision must be \"f32\" or \"f64\".");
+}
+
+fn buildOptionsSpeckleShape() []const u8 {
+    if (@hasDecl(build_options, "speckle_shape")) return build_options.speckle_shape;
+    return "disk";
+}
+
+fn parseSpeckleShape(comptime shape: []const u8) SpeckleShape {
+    if (std.mem.eql(u8, shape, "disk")) return .disk;
+    if (std.mem.eql(u8, shape, "gaussian")) return .gaussian;
+    if (std.mem.eql(u8, shape, "perlin")) return .perlin;
+    @compileError("build_options.speckle_shape must be disk, gaussian, or perlin.");
+}
+
+fn buildOptionsSpeckleEvaluator() []const u8 {
+    if (@hasDecl(build_options, "speckle_evaluator")) {
+        return build_options.speckle_evaluator;
+    }
+    return "mask-1bit";
+}
+
+fn parseSpeckleEvaluator(comptime evaluator: []const u8) SpeckleEvaluator {
+    if (std.mem.eql(u8, evaluator, "cell-hash")) return .cell_hash;
+    if (std.mem.eql(u8, evaluator, "list-naive")) return .list_naive;
+    if (std.mem.eql(u8, evaluator, "list-indexed")) return .list_indexed;
+    if (std.mem.eql(u8, evaluator, "classified-indexed")) return .classified_indexed;
+    if (std.mem.eql(u8, evaluator, "direct-fixed")) return .direct_fixed;
+    if (std.mem.eql(u8, evaluator, "mask-1bit")) return .mask_1bit;
+    if (std.mem.eql(u8, evaluator, "mask-u8")) return .mask_u8;
+    @compileError(
+        "build_options.speckle_evaluator must be cell-hash, list-naive, list-indexed, classified-indexed, direct-fixed, mask-1bit, or mask-u8.",
+    );
+}
+
+fn buildOptionsSpeckleNeighborCount() comptime_int {
+    const count = if (@hasDecl(build_options, "speckle_neighbor_count"))
+        build_options.speckle_neighbor_count
+    else
+        9;
+    if (count != 9 and count != 4 and count != 1) {
+        @compileError("build_options.speckle_neighbor_count must be 9, 4, or 1.");
+    }
+    return count;
+}
+
+fn buildOptionsSpeckleMaskSamplesPerCell() comptime_int {
+    const samples = if (@hasDecl(build_options, "speckle_mask_samples_per_cell"))
+        build_options.speckle_mask_samples_per_cell
+    else
+        12;
+    if (samples != 8 and samples != 12 and samples != 16) {
+        @compileError("build_options.speckle_mask_samples_per_cell must be 8, 12, or 16.");
+    }
+    return samples;
+}
+
+fn buildOptionsSpeckleBoundaryBlur() bool {
+    if (@hasDecl(build_options, "speckle_boundary_blur")) {
+        return build_options.speckle_boundary_blur;
+    }
+    return false;
 }
 
 fn buildOptionsSimdVecWidth() comptime_int {
