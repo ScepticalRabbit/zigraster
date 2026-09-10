@@ -181,8 +181,8 @@ test "Basic Suite: twoshapes cases" {
         1,
         allocator,
         io,
-        "texture/speckle_mono.tiff",
-        .tiff,
+        "texture/speck128_mono_u8.bmp",
+        .bmp,
     );
     defer texture_grey.deinit(allocator);
 
@@ -191,7 +191,7 @@ test "Basic Suite: twoshapes cases" {
         3,
         allocator,
         io,
-        "texture/speckle_rgb.bmp",
+        "texture/speck128_rgb_u8.bmp",
         .bmp,
     );
     defer texture_rgb.deinit(allocator);

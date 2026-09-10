@@ -27,15 +27,15 @@ pub fn main(init: std.process.Init) !void {
         1,
         aa,
         io,
-        "texture/speckle_mono.tiff",
-        .tiff,
+        "texture/speck128_mono_u8.bmp",
+        .bmp,
     );
     const texture_rgb = try iio.loadImage(
         u8,
         3,
         aa,
         io,
-        "texture/speckle_rgb.bmp",
+        "texture/speck128_rgb_u8.bmp",
         .bmp,
     );
 
