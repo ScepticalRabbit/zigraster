@@ -21,8 +21,11 @@ const TestEntry = struct {
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const precision = b.option([]const u8, "precision", "Floating point precision: f64 or f32") orelse
-        "f64";
+    const precision = b.option(
+        []const u8,
+        "precision",
+        "Floating point precision: f64 or f32",
+    ) orelse "f64";
     const simd = b.option([]const u8, "simd", "SIMD mode: on or off") orelse "on";
     const newton_solver = b.option(
         []const u8,
@@ -69,14 +72,9 @@ pub fn build(b: *std.Build) void {
             .source_path = "src/test_min.zig",
         },
         .{
-            .step_name = "test-gold-all",
-            .description = "Run the ALL gold regression test suite",
-            .source_path = "src/test_gold_all.zig",
-        },
-        .{
-            .step_name = "test-bench",
-            .description = "Run the benchmark regression test suite",
-            .source_path = "src/test_bench.zig",
+            .step_name = "test-full",
+            .description = "Run the FULL test suite",
+            .source_path = "src/test_full.zig",
         },
         .{
             .step_name = "test-verif",
@@ -168,9 +166,9 @@ pub fn build(b: *std.Build) void {
             .source_path = "src/gen_gold_basic.zig",
         },
         .{
-            .step_name = "gen-gold-all",
-            .description = "Generate the ALL gold datasets",
-            .source_path = "src/gen_gold_all.zig",
+            .step_name = "gen-gold-full",
+            .description = "Generate the FULL gold datasets",
+            .source_path = "src/gen_gold_full.zig",
         },
         .{
             .step_name = "gen-gold-min",
@@ -195,7 +193,7 @@ pub fn build(b: *std.Build) void {
             entry,
         );
         run_step.dependOn(&run_artifact.step);
-        if (std.mem.eql(u8, entry.step_name, "gen-gold-all")) {
+        if (std.mem.eql(u8, entry.step_name, "gen-gold-full")) {
             gold_step.dependOn(&run_artifact.step);
         }
     }
@@ -373,7 +371,8 @@ fn addTestRunStep(
         \\    sha256sum |
         \\    cut -d' ' -f1
         \\)"
-        \\tree_dir="${cache_root}/${step_name}_${precision}_${simd}_${newton_solver}_${opt}_${src_hash}"
+        \\tree_dir="${cache_root}/${step_name}_${precision}_${simd}_"
+        \\tree_dir="${tree_dir}${newton_solver}_${opt}_${src_hash}"
         \\if [ ! -d "$tree_dir" ]; then
         \\    lock_dir="${tree_dir}.lock"
         \\    while ! mkdir "$lock_dir" 2>/dev/null; do
@@ -394,7 +393,8 @@ fn addTestRunStep(
         \\            printf '    pub const precision = "%s";\n' "$precision"
         \\            printf '    pub const simd = "%s";\n' "$simd"
         \\            printf '    pub const newton_solver = "%s";\n' "$newton_solver"
-        \\            printf '    pub const simd_vector_width: comptime_int = %s;\n' "$simd_vector_width"
+        \\            printf '    pub const simd_vector_width: comptime_int = '
+        \\            printf '%s;\n' "$simd_vector_width"
         \\            printf '};\n\n'
         \\            cat "$src_orig"
         \\        } > "$src_file"

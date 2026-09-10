@@ -2,7 +2,7 @@ SetFactory("OpenCASCADE");
 General.Terminal = 0;
 plate_width = 0.010;
 plate_height = 0.012;
-plate_thick = 0.0005;
+plate_thick = 0.002;
 hole_rad = plate_width / 6;
 hole_loc_x = plate_width / 2;
 hole_loc_y = plate_height / 2;

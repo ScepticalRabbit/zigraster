@@ -3,7 +3,7 @@ General.Terminal = 0;
 plate_width = 10e-3;
 plate_height = 12e-3;
 plate_diff = plate_height - plate_width;
-plate_thick = 0.5e-3;
+plate_thick = 2.0e-3;
 
 hole_rad = plate_width / 6;
 hole_loc_x = plate_width / 2;

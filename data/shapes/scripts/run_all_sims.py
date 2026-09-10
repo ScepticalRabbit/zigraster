@@ -1149,7 +1149,7 @@ General.Terminal = 0;
 plate_width = 10e-3;
 plate_height = 12e-3;
 plate_diff = plate_height - plate_width;
-plate_thick = 0.5e-3;
+plate_thick = 2.0e-3;
 
 hole_rad = plate_width / 6;
 hole_loc_x = plate_width / 2;
@@ -1249,7 +1249,7 @@ def _geo_platehole_tet(elem_order: int) -> str:
 General.Terminal = 0;
 plate_width = 0.010;
 plate_height = 0.012;
-plate_thick = 0.0005;
+plate_thick = 0.002;
 hole_rad = plate_width / 6;
 hole_loc_x = plate_width / 2;
 hole_loc_y = plate_height / 2;
@@ -1872,8 +1872,16 @@ def extract_surface_datasets(shapes_root: Path) -> None:
 def run_all(
     shapes_root: Path,
     threads: int = 4,
+    shape_filter: str | None = None,
 ) -> None:
     cases = define_all_cases()
+    if shape_filter is not None:
+        cases = [
+            c
+            for c in cases
+            if shape_filter.lower() in c.shape.lower()
+            or shape_filter.lower() in c.shape_dir.lower()
+        ]
     results: list[dict[str, object]] = []
 
     total_start = time.perf_counter()
@@ -1960,10 +1968,16 @@ def main() -> None:
         default=4,
         help="Number of threads for Gmsh/MOOSE (default: 4)",
     )
+    parser.add_argument(
+        "--shape",
+        type=str,
+        default=None,
+        help="Optional filter to run only specific shape",
+    )
     args = parser.parse_args()
 
     shapes_root = Path(__file__).resolve().parents[1]
-    run_all(shapes_root, threads=args.threads)
+    run_all(shapes_root, threads=args.threads, shape_filter=args.shape)
 
 
 if __name__ == "__main__":

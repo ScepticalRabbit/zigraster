@@ -2,31 +2,39 @@
 
 ---
 
-## 1. Core Repository Packaged Test Suites & Execution
+## 1. Quickstart Guide
 
-Riley provides three core repository packaged test suites that are intended to be run during development, CI, and release verification:
+The recommended testing workflow for Riley is:
+
+```bash
+# Step 1: Run the core test suites (fast, repository-packaged references)
+zig build test-verif
+zig build test-basic
+.venv/bin/pytest src/riley/pytests/
+
+# Step 2: Generate reference gold data for the Full suite
+zig build gen-gold-full -Doptimize=ReleaseSafe
+
+# Step 3: Run the exhaustive Full test suite
+zig build test-full -Doptimize=ReleaseSafe
+```
+
+> [!NOTE]
+> Running `gen-gold-full` and `test-full` with `-Doptimize=ReleaseSafe` is strongly recommended for high throughput, generating and verifying thousands of cases in seconds while maintaining safety checks.
+
+---
+
+## 2. Core Repository Packaged Test Suites
+
+Riley provides three core repository-packaged test suites intended for routine development, CI pipelines, and release verification:
 
 | Suite Name | Execution Command | Source / Test Driver | Primary Role | Reference Data |
 | :--- | :--- | :--- | :--- | :--- |
-| **Verification Suite** | `zig build test-verif` | [`src/test_verif.zig`](file:///home/lloydf/riley-raster/src/test_verif.zig) | Exact mathematical validation against analytical Python oracles | `gold/verif/` |
-| **Basic Test Suite** | `zig build test-basic` | [`src/test_basic.zig`](file:///home/lloydf/riley-raster/src/test_basic.zig) | Fast, comprehensive coverage of all core rasteriser features and threading | `gold/basic/` |
+| **Verification Suite** | `zig build test-verif` | [`src/test_verif.zig`](file:///home/lloydf/riley-raster/src/test_verif.zig) | Mathematical validation against analytical Python oracles | `gold/verif/` |
+| **Basic Test Suite** | `zig build test-basic` | [`src/test_basic.zig`](file:///home/lloydf/riley-raster/src/test_basic.zig) | Fast, comprehensive coverage of core rasteriser features | `gold/basic/` |
 | **Python Pytest Suite** | `.venv/bin/pytest src/riley/pytests/` | [`src/riley/pytests/`](file:///home/lloydf/riley-raster/src/riley/pytests) | Python/Cython API, mesh pipeline, Exodus conversion, demo parity | Integrated / `gold/` |
 
-### Running the Core Test Suites
-
-```bash
-# 1. Run the analytic verification oracle suite
-zig build test-verif
-
-# 2. Run the primary Basic test suite (oneelem, twoshapes, featurezoo)
-zig build test-basic
-
-# 3. Run the full Python / Cython test suite
-.venv/bin/pytest src/riley/pytests/ -v
-```
-The Zig tests suites can also be run in `ReleaseSafe` with the compiler argument `-Doptimize=ReleaseSafe`.
-
-### Regenerating Reference Gold Data for the Core Suites
+### Regenerating Reference Gold for Core Suites
 
 ```bash
 # Regenerate reference data for the Basic test suite
@@ -39,118 +47,132 @@ python -m gengold.gengold_verif
 
 ---
 
-## 2. Verification Oracle Suite (`test_verif`)
+## 3. Test Scenes Overview
 
-- **Driver**: [`src/test_verif.zig`](file:///home/lloydf/riley-raster/src/test_verif.zig)
-- **Generator**: [`src/gengold/gengold_verif.py`](file:///home/lloydf/riley-raster/src/gengold/gengold_verif.py) & [`src/gen_gold_verif.zig`](file:///home/lloydf/riley-raster/src/gen_gold_verif.zig)
-- **Data Location**: `gold/verif/`
+The test suites leverage standardized benchmark scenes designed to exercise specific rasteriser subsystems:
 
-### What It Covers
-The **Verification Suite** rigorously verifies the core mathematical foundations of the Riley rasterisation engine against closed-form analytical equations and high-precision Python oracle solvers:
+### Scene 0: Multi-Body FE Interaction & Deformation
+- **Geometry**: Two interacting FE surface meshes:
+  - **Sphere**: $12\text{mm}$ diameter, positioned on the left in front ($Z = 0.0\text{ mm}$).
+  - **Cylinder**: $10\text{mm}$ diameter, positioned on the right behind ($Z = -10.0\text{ mm}$).
+  - **Arrangement**: $20\%$ horizontal overlap of the sphere diameter ($2.4\text{mm}$) along the $X$-axis.
+- **Mesh Elements**: Full support across all 5 finite element formulations (`tri3`, `tri6`, `quad4`, `quad8`, `quad9`).
+- **Dynamics**: 2-frame sequence with simultaneous nonlinear spatial displacement and scalar temperature fields.
+- **Camera View**: $160 \times 100\text{ px}$, $\text{SSAA} = 2$, oblique $+10^\circ$ yaw / $-10^\circ$ pitch orientation.
+- **Primary Use**: [`test_full_shader.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_shader.zig) and [`test_full_texture.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_texture.zig).
 
-1. **Newton-Raphson Shape Function Inversion**:
-   - Validates parametric coordinate $(u, v)$ convergence across linear and quadratic elements (`tri3`, `tri6`, `quad4`, `quad8`, `quad9`).
-   - Evaluates analytic Jacobian computations against exact analytical derivatives.
-2. **Ray-Intersection & Sub-Pixel Sampling**:
-   - Tests ray-plane and ray-quadric intersection precision across arbitrary 3D orientations.
-   - Evaluates sub-pixel sample box filtering, edge silhouette coverage, and conservative bounding hulls.
-3. **Geometric & Depth Boundaries**:
-   - Validates depth sorting ($Z$-buffering) and multi-mesh tie-breaking under exact floating-point tolerances without empirical heuristics.
+### Scene 1: Single Cube Surface & Optical Models
+- **Geometry**: Single undeformed cube surface mesh (`tri3`).
+- **Shader**: Procedural sharp checkerboard shader (`.builtin = .checker`, $24 \times 24$ density) with uniform grey background ($0.5$).
+- **Camera View**: $128 \times 128\text{ px}$, $95\%$ sensor frame fill factor ($5\%$ border margin), viewed obliquely from above at $+5^\circ$ yaw / $-5^\circ$ pitch orientation to inspect front, top, and side faces simultaneously.
+- **Primary Use**: [`test_full_dist_psf.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_dist_psf.zig) and [`test_full_ssaa_pxmap.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_ssaa_pxmap.zig).
 
 ---
 
-## 3. Basic Test Suite (`test_basic`)
+## 4. Verification Oracle Suite (`test_verif`)
+
+- **Driver**: [`src/test_verif.zig`](file:///home/lloydf/riley-raster/src/test_verif.zig)
+- **Generators**: [`src/gengold/gengold_verif.py`](file:///home/lloydf/riley-raster/src/gengold/gengold_verif.py) & [`src/gen_gold_verif.zig`](file:///home/lloydf/riley-raster/src/gen_gold_verif.zig)
+- **Data Location**: `gold/verif/`
+
+The **Verification Suite** validates the mathematical foundations of the Riley rasterisation engine against closed-form analytical equations and Python oracle solvers:
+
+1. **Newton-Raphson Shape Function Inversion**: Validates parametric coordinate $(u, v)$ convergence across linear and quadratic elements (`tri3`, `tri6`, `quad4`, `quad8`, `quad9`) and verifies analytical Jacobian derivatives.
+2. **Ray-Intersection & Sub-Pixel Sampling**: Validates ray-plane and ray-quadric intersection precision across arbitrary 3D orientations.
+3. **Geometric & Depth Boundaries**: Validates depth sorting ($Z$-buffering) and multi-mesh tie-breaking under exact floating-point tolerances.
+
+---
+
+## 5. Basic Test Suite (`test_basic`)
 
 - **Driver**: [`src/test_basic.zig`](file:///home/lloydf/riley-raster/src/test_basic.zig)
 - **Generator**: [`src/gen_gold_basic.zig`](file:///home/lloydf/riley-raster/src/gen_gold_basic.zig)
 - **Data Location**: `gold/basic/`
-- **Reference Formats**: Raw double-precision [`.fimg`](file:///home/lloydf/riley-raster/src/riley/zig/imageio.zig) for bit-accurate numerical testing and 24-bit RGB / 8-bit mono `.bmp` visualisations for inspection.
 
-The **Basic Suite** is the primary end-to-end regression suite packaged with the repository. It is structured into three specialized sub-suites:
+The **Basic Suite** is the primary regression suite packaged with the repository, structured into three sub-suites:
 
 ### A. Single Element Deformation & Edge Curvature (`test_oneelem`)
 - **Driver**: [`src/tests/test_gold_oneelem.zig`](file:///home/lloydf/riley-raster/src/tests/test_gold_oneelem.zig)
-- **Data Source**: [`data/edge/`](file:///home/lloydf/riley-raster/data/edge) (1-element meshes, $128 \times 128$)
-- **Coverage**:
-  - **10-Frame Continuous Deformation**: Rigid rotation (`distort_rot`), pure shear (`distort_shear`), and uniaxial stretch (`distort_stretch`) across all 5 element types (`tri3`, `tri6`, `quad4`, `quad8`, `quad9`).
-  - **10-Frame Midside Curvature**: Nonlinear midside node bulging (`distort_bulge`) and tangent displacements (`distort_tan`) across quadratic elements (`tri6`, `quad8`, `quad9`).
-  - **Extreme Inverted Curvature**: Extreme vertical bulging (`vertbulge`) and concave/convex rotation edge cases (`bulgein_rot`, `bulgeout_rot`) testing Newton solver robustness under severely distorted Jacobians.
-- **Total Cases**: 228 images ($\approx 29.9\text{ MB}$ raw `.fimg`).
+- **Coverage**: 10-frame continuous deformations (rotation, shear, stretch) and midside node bulging across `tri3`, `tri6`, `quad4`, `quad8`, and `quad9`, plus extreme inverted curvature edge cases.
 
 ### B. Multi-Mesh Occlusion & Shader Matrix (`test_twoshapes`)
 - **Driver**: [`src/tests/test_gold_twoshapes.zig`](file:///home/lloydf/riley-raster/src/tests/test_gold_twoshapes.zig)
-- **Data Source**: [`data/shapes/cube_surf/`](file:///home/lloydf/riley-raster/data/shapes/cube_surf) and [`data/shapes/sphere_surf/`](file:///home/lloydf/riley-raster/data/shapes/sphere_surf) ($160 \times 100$, SSAA = 2)
-- **Scene**: Multi-body occlusion between a $12\text{mm}$ diameter sphere on the left in front ($Z=0$) and a $10\text{mm}$ cube on the right behind ($Z=-10\text{mm}$), with a 20% horizontal overlap in $X$.
-- **Camera**: Oblique $+20^\circ$ yaw / $-20^\circ$ pitch camera angle probing 3D cube edges and sphere silhouettes.
-- **Shader Matrix**: 5 element types $\times$ 13 curated shaders:
-  - **Mono Shaders (10)**:
-    1. `nodal_grey`: Nodal scalar temperature field with auto-scaling across frames.
-    2. `tex_u8_mono_catmull_direct`: 8-bit mono texture with direct Catmull-Rom cubic filtering.
-    3. `tex_u8_mono_catmull_lutlerp`: 8-bit mono texture with LUT-interpolated Catmull-Rom cubic filtering.
-    4. `tex_u8_mono_linear_direct`: 8-bit mono texture with direct bilinear filtering.
-    5. `tex_u16_mono_catmull_direct`: 16-bit mono texture with direct Catmull-Rom cubic filtering.
-    6. `tex_f64_mono_catmull_direct`: 64-bit float mono texture with direct Catmull-Rom cubic filtering.
-    7. `func_checker_uvs`: Procedural checkerboard pattern probing `.coord_mode = .uv`.
-    8. `func_eggbox_worldc`: Procedural eggbox pattern probing `.coord_mode = .world_reference`.
-    9. `func_lambertian_normavg`: Lambertian lighting shader probing `.normal_type = .avg` (interpolated nodal normals).
-    10. `func_lambertian_normexact`: Lambertian lighting shader probing `.normal_type = .exact` (analytical Jacobian normals).
-  - **RGB Shaders (3)**:
-    11. `nodal_rgb`: 3-channel vector field (temperature, $u_x$, $u_y$).
-    12. `tex_u8_rgb_catmull_direct`: 3-channel 8-bit RGB texture with direct Catmull-Rom cubic filtering.
-    13. `func_rgb_checker_uvs`: 3-channel procedural RGB checker shader probing `.coord_mode = .uv`.
-- **Total Cases**: 65 test cases ($50\text{ Mono} + 15\text{ RGB} \to 95\text{ raw field } .fimg\text{ files}, \approx 12.16\text{ MB}$).
+- **Coverage**: Multi-body occlusion between a sphere and a cube across 5 element types $\times$ 13 curated mono and RGB shaders.
 
 ### C. Complete Feature Zoo (`test_featurezoo`)
 - **Driver**: [`src/tests/test_gold_featurezoo.zig`](file:///home/lloydf/riley-raster/src/tests/test_gold_featurezoo.zig)
-- **Data Source**: [`data/shapes/`](file:///home/lloydf/riley-raster/data/shapes) (Cube, Cylinder, Sphere, Plate with Hole)
-- **Scene Layout**: 2 rows $\times$ 3 columns of real FE simulation meshes arranged on a $15\text{mm}$ grid to match camera aspect ratios.
-- **Cameras & Optical Models** ($400 \times 250$ landscape & $250 \times 400$ portrait):
-  - **Cam 0**: Orthographic face-on view (`Rotation(0,0,0)`), Box PSF.
-  - **Cam 1**: Perspective tilt ($25^\circ$) with Brown-Conrady radial/tangential distortion ($k_1, k_2, p_1, p_2$).
-  - **Cam 2**: Off-axis portrait tilt ($-28^\circ$) with isotropic Gaussian PSF ($\sigma = 0.65\text{ px}$).
-  - **Cam 3**: Steep compound angle ($90^\circ, 25^\circ$) with Brown-Conrady distortion and Gaussian PSF.
-  - **Cam 4**: Tri-axial rotation ($18^\circ, 38^\circ, 26^\circ$) with Anisotropic Gaussian PSF ($\sigma_x, \sigma_y, \theta$).
-  - **Cam 5**: Reverse pitch and yaw with Brown-Conrady distortion.
-- **Threading & Buffer Mode Verification Matrix** (8 architectures verified for determinism):
-  1. `1grp_1geom_1rast`: 1 render group, 1 geom worker, 1 raster worker (`in_order`, `tile_local`).
-  2. `1grp_4geom_4rast`: 1 render group, 4 geom workers, 4 raster workers (`in_order`, `tile_local`).
-  3. `1grp_1geom_4rast_tilelocal`: 1 render group, 1 geom worker, 4 raster workers (`tile_local`).
-  4. `1grp_1geom_4rast_globalsubpx`: 1 render group, 1 geom worker, 4 raster workers (`global_subpx_full`).
-  5. `1grp_1geom_4rast_stripe`: 1 render group, 1 geom worker, 4 raster workers (`global_subpx_stripe`).
-  6. `2grp_1geom_2rast`: 2 render groups (2 workers each), 1 geom worker, 2 raster workers (`in_order`).
-  7. `4grp_1geom_1rast_inorder`: 4 render groups (1 worker each), 1 geom worker, 1 raster worker (`in_order`).
-  8. `4grp_1geom_1rast_offline`: 4 render groups (1 worker each), 1 geom worker, 1 raster worker (`offline`).
-- **Passes**: 12 Mono images ($6\text{ cams} \times 2\text{ frames}$) + 4 RGB images ($2\text{ cams} \times 2\text{ frames}$) verified across all 8 threading configurations.
+- **Coverage**: 2 rows $\times$ 3 columns of FE simulation meshes rendered under 6 distinct camera/distortion/PSF configurations across 8 parallel thread and buffer architectures (`tile_local`, `global_subpx_full`, `global_subpx_stripe`, multi-group `in_order` and `offline`).
 
 ---
 
-## 4. Python & Cython Test Suite (`pytest`)
+## 6. Full Test Suite (`test_full`)
+
+- **Driver**: [`src/test_full.zig`](file:///home/lloydf/riley-raster/src/test_full.zig)
+- **Generator**: [`src/gen_gold_full.zig`](file:///home/lloydf/riley-raster/src/gen_gold_full.zig)
+- **Data Location**: `gold/test_full_*/` (uncommitted, generated locally)
+
+The **Full Test Suite** is an exhaustive factorial regression suite replacing legacy benchmark and monolithic test runs. Gold reference images are generated locally on-demand and verified across 4 specialized sub-suites:
+
+```bash
+# Generate reference gold for all 4 sub-suites
+zig build gen-gold-full -Doptimize=ReleaseSafe
+
+# Run all 4 sub-suites against generated gold
+zig build test-full -Doptimize=ReleaseSafe
+```
+
+### Sub-Suite 1: Full Shader Suite (`test_full_shader`)
+- **Driver**: [`src/tests/test_full_shader.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_shader.zig)
+- **Scene**: Scene 0 (Sphere + Cylinder, 5 element types: `tri3`, `tri6`, `quad4`, `quad8`, `quad9`)
+- **Coverage** (1,260 cases + 252 `tri3opt` parity checks):
+  - **Nodal Shaders**: Mono & RGB scalar/vector fields, scaling strategies (`none`, `auto` within frames, `auto` over frames), normal lighting types (`none`, interpolated `.avg`, analytic `.exact`).
+  - **Texture Shaders**: Mono & RGB texture sampling across `u8`, `u16`, and `f64` precisions with normal lighting options.
+  - **Procedural Function Shaders**: 9 built-in functions (`constant`, `linear`, `quadratic`, `sinusoidal`, `sinusoidal_approx`, `checker`, `checker_smooth`, `lambertian_normal_z`, `eggbox`) evaluated across 4 coordinate spaces (`parametric`, `uv`, `world_reference`, `world_deformed`) with normal lighting options.
+  - **`tri3opt` Parity**: Verifies that the fixed-point subpixel snapped fast triangle pipeline matches standard `tri3` floating-point reference renders within tight tolerances.
+
+### Sub-Suite 2: Full Texture Sampling Suite (`test_full_texture`)
+- **Driver**: [`src/tests/test_full_texture.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_texture.zig)
+- **Scene**: Scene 0 (Sphere + Cylinder, 5 element types)
+- **Coverage** (600 cases):
+  - **Data Types & Channels**: `u8`, `u16`, `f64` in single-channel mono and 3-channel RGB.
+  - **Filter Kernels**: Direct Bilinear, Direct Catmull-Rom Cubic, and LUT-Interpolated Catmull-Rom Cubic.
+  - **Edge Addressing Modes**: `clamp`, `mirror`, `repeat`, and `border`.
+
+### Sub-Suite 3: Full Distortion & PSF Suite (`test_full_dist_psf`)
+- **Driver**: [`src/tests/test_full_dist_psf.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_dist_psf.zig)
+- **Scene**: Scene 1 (Cube `tri3`, high-density checkerboard, grey background)
+- **Coverage** (240 test cases):
+  - **SSAA Levels**: $1$ (direct pixel centers) and $4$ ($16$ subpixel samples/pixel).
+  - **Distortion Models (10)**: Baseline `none`, light barrel/pincushion ($k_1 = \pm 1000.0$), extreme barrel/pincushion ($k_1 = \pm 2500.0, k_2 = 1.0\times 10^7$) with Brown-Conrady and Brown-Conrady-Ext, and quadratic polynomial distortion combinations.
+  - **Point Spread Functions (4)**: Baseline pixel box (`off`), separable Gaussian ($\sigma = 1.5\text{ px}$), non-separable Gaussian ($\sigma = 1.5\text{ px}$), and anisotropic Gaussian ($\sigma_x = 1.5\text{ px}, \sigma_y = 0.1\text{ px}$).
+  - **Buffer Architectures (3)**: Verified for identical bit-accurate output across `tile_local`, `global_subpx_full`, and `global_subpx_stripe`.
+
+### Sub-Suite 4: Full SSAA & Pixel Center Mapping Suite (`test_full_ssaa_pxmap`)
+- **Driver**: [`src/tests/test_full_ssaa_pxmap.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_ssaa_pxmap.zig)
+- **Scene**: Scene 1 (Cube `tri3`)
+- **Coverage** (72 cases):
+  - **SSAA Levels**: $1, 2, 3, 4$ ($1, 4, 9, 16$ subpixels per pixel).
+  - **Subpixel Center Mapping Engines**: `full_in_mem` (precomputed global grid), `per_tile` (on-the-fly tile evaluation), and `affine_jac` (first-order Jacobian local approximation).
+  - **Distortion Models**: Brown-Conrady, Brown-Conrady-Ext, and Brown-Conrady-Polynomial.
+  - **PSFs & Halos**: Pixel box and Gaussian halo filtering ($\sigma = 1.5\text{ px}$, $5\text{ px}$ halo margin).
+
+### Automated Failure Diagnostics
+When any case in the Full Test Suite encounters a regression or discrepancy exceeding tolerance:
+- Failure artifacts are saved to `./fails/TEST_SUITE/TEST_CASE/`.
+- Saved artifacts include:
+  1. `*_actual.bmp` & `*_actual.csv`: The current render output.
+  2. `*_gold.bmp` & `*_gold.csv`: The reference gold image.
+  3. `*_diff.bmp`: A high-contrast visual difference map highlighting failing pixel locations.
+
+---
+
+## 7. Python & Cython Test Suite (`pytest`)
 
 - **Driver**: `.venv/bin/pytest src/riley/pytests/`
 - **Location**: [`src/riley/pytests/`](file:///home/lloydf/riley-raster/src/riley/pytests)
 
-### What It Covers
-The **Python Test Suite** provides 520+ automated test cases covering Python API bindings, data pipeline utilities, and Cython wrapper parity:
-
-1. **Mesh Pipeline & Conversions** ([`test_meshconv.py`](file:///home/lloydf/riley-raster/src/riley/pytests/test_meshconv.py), [`test_mesh_conversion.py`](file:///home/lloydf/riley-raster/src/riley/pytests/test_mesh_conversion.py)):
-   - Verifies finite element connectivity conventions (ABAQUS, Exodus II, Gmsh, Riley).
-   - Validates quadratic-to-linear order reduction (`reduce_mesh_order`) and polygon triangulation (`triangulate_mesh`).
-   - Tests automated 3D volume boundary surface extraction (`extract_surface`).
-2. **File I/O & Exodus Pipeline** ([`test_meshio.py`](file:///home/lloydf/riley-raster/src/riley/pytests/test_meshio.py), [`test_exodusio.py`](file:///home/lloydf/riley-raster/src/riley/pytests/test_exodusio.py)):
-   - Loads and parses multi-block Exodus II `.e` datasets, node coordinates, time-dependent displacement fields, and boundary condition sets.
-   - Tests structured CSV reading and writing for geometry, connectivity, UVs, and fields.
-3. **Texture & UV Tools** ([`test_textureio.py`](file:///home/lloydf/riley-raster/src/riley/pytests/test_textureio.py), [`test_uvtools.py`](file:///home/lloydf/riley-raster/src/riley/pytests/test_uvtools.py)):
-   - Tests image loading/saving for TIFF, BMP, and raw arrays across 8-bit, 16-bit, and float representations.
-   - Validates planar and centered UV map generation (`project_uvs_planar_centered`) for arbitrary 3D surfaces.
-4. **End-to-End Demo Parity** ([`test_riley.py`](file:///home/lloydf/riley-raster/src/riley/pytests/test_riley.py)):
-   - Executes standard Python demos (`demo0_quickstart` through `demo9_feature_zoo`) and validates pixel-exact parity against the corresponding Zig demo outputs.
-
----
-
-## 5. Extended & Legacy Test Suites
-
-For deep regression sweeps and benchmarking, Riley includes additional optional suites:
-
-- **Full Gold Suite (`zig build test-gold-all`)**: Exhaustive regression suite exercising all individual legacy test cases (`small`, `simple`, `edge`, `multimesh`, `multicamera`, `hull`, `fullscreen`, `texfunc`, `ssaa`, `psf`, `sphere`).
-- **Benchmark Suite (`zig build test-bench`)**: Regression suite verifying timing harness correctness, benchmark repeatability, and node/element throughput measurement across all standard benchmark meshes.
-- **Min Suite (`zig build test-min`)**: Legacy SIMD-only minimal regression suite verifying sphere200 and multimesh configurations across spline LUT filter combinations.
+The **Python Test Suite** provides 520+ automated test cases covering:
+1. **Mesh Pipeline & Conversions**: Element connectivity verification, quadratic-to-linear order reduction, surface extraction, and polygon triangulation.
+2. **File I/O & Exodus Pipeline**: Multi-block Exodus II `.e` and CSV file reading/writing.
+3. **Texture & UV Tools**: Image loading/saving (BMP, TIFF) and centered planar UV projection.
+4. **End-to-End Demo Parity**: Verification that Python demos produce identical pixel output to the corresponding Zig demo binaries.

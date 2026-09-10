@@ -21,6 +21,12 @@ pub const GoldModePolicy = enum {
 pub const GoldSuite = enum {
     min,
     basic,
+    full_shader,
+    full_texture,
+    full_dist_psf,
+    full_ssaa_pxmap,
+    full_hull,
+    full_tiling,
     small,
     simple,
     edge,
@@ -59,6 +65,12 @@ pub fn suiteDirName(comptime suite: GoldSuite) []const u8 {
     return switch (suite) {
         .min => "min",
         .basic => "basic",
+        .full_shader => "test_full_shader",
+        .full_texture => "test_full_texture",
+        .full_dist_psf => "test_full_dist_psf",
+        .full_ssaa_pxmap => "test_full_ssaa_pxmap",
+        .full_hull => "test_full_hull",
+        .full_tiling => "test_full_tiling",
         .small => "small",
         .simple => "simple",
         .edge => "edge",
@@ -80,6 +92,30 @@ pub fn goldRoot(comptime suite: GoldSuite) []const u8 {
     return switch (suite) {
         .min => if (F == f64) "gold/min" else "gold/min_f32",
         .basic => if (F == f64) "gold/basic" else "gold/basic_f32",
+        .full_shader => if (F == f64)
+            "gold/test_full_shader"
+        else
+            "gold/test_full_shader_f32",
+        .full_texture => if (F == f64)
+            "gold/test_full_texture"
+        else
+            "gold/test_full_texture_f32",
+        .full_dist_psf => if (F == f64)
+            "gold/test_full_dist_psf"
+        else
+            "gold/test_full_dist_psf_f32",
+        .full_ssaa_pxmap => if (F == f64)
+            "gold/test_full_ssaa_pxmap"
+        else
+            "gold/test_full_ssaa_pxmap_f32",
+        .full_hull => if (F == f64)
+            "gold/test_full_hull"
+        else
+            "gold/test_full_hull_f32",
+        .full_tiling => if (F == f64)
+            "gold/test_full_tiling"
+        else
+            "gold/test_full_tiling_f32",
         .small => if (F == f64) "gold/small" else "gold/small_f32",
         .simple => if (F == f64) "gold/simple" else "gold/simple_f32",
         .edge => if (F == f64) "gold/edge" else "gold/edge_f32",

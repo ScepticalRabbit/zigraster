@@ -177,10 +177,7 @@ pub fn runTwoShapesCaseTest(
     }
 }
 
-test "Basic Suite: twoshapes cases" {
-    const allocator = std.testing.allocator;
-    const io = std.testing.io;
-
+pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
     const config = tcfg.getRasterConfig(.testing);
     const gold_dir_root = policy.goldRoot(.basic);
 
