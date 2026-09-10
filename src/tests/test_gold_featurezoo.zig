@@ -26,9 +26,90 @@ const CameraInput = camera.CameraInput;
 const MeshInput = mo.MeshInput;
 const Timestamp = std.Io.Clock.Timestamp;
 
-pub fn runZooMonoTest(
+pub const ZooThreadingCase = struct {
+    name: []const u8,
+    render_mode: rastcfg.RenderMode = .in_order,
+    buffer_mode: rastcfg.BufferMode = .tile_local,
+    max_geom_workers_per_job: u16 = 1,
+    max_raster_workers_per_job: u16 = 1,
+    frame_batch_size_per_group: u16 = 1,
+    workers_per_group: []const u16,
+};
+
+pub const zoo_threading_cases = [_]ZooThreadingCase{
+    .{
+        .name = "1grp_1geom_1rast",
+        .workers_per_group = &.{1},
+        .max_geom_workers_per_job = 1,
+        .max_raster_workers_per_job = 1,
+        .buffer_mode = .tile_local,
+        .render_mode = .in_order,
+    },
+    .{
+        .name = "1grp_4geom_4rast",
+        .workers_per_group = &.{4},
+        .max_geom_workers_per_job = 4,
+        .max_raster_workers_per_job = 4,
+        .buffer_mode = .tile_local,
+        .render_mode = .in_order,
+    },
+    .{
+        .name = "1grp_1geom_4rast_tilelocal",
+        .workers_per_group = &.{4},
+        .max_geom_workers_per_job = 1,
+        .max_raster_workers_per_job = 4,
+        .buffer_mode = .tile_local,
+        .render_mode = .in_order,
+    },
+    .{
+        .name = "1grp_1geom_4rast_globalsubpx",
+        .workers_per_group = &.{4},
+        .max_geom_workers_per_job = 1,
+        .max_raster_workers_per_job = 4,
+        .buffer_mode = .global_subpx_full,
+        .render_mode = .in_order,
+    },
+    .{
+        .name = "1grp_1geom_4rast_stripe",
+        .workers_per_group = &.{4},
+        .max_geom_workers_per_job = 1,
+        .max_raster_workers_per_job = 4,
+        .buffer_mode = .global_subpx_stripe,
+        .render_mode = .in_order,
+    },
+    .{
+        .name = "2grp_1geom_2rast",
+        .workers_per_group = &.{ 2, 2 },
+        .max_geom_workers_per_job = 1,
+        .max_raster_workers_per_job = 2,
+        .frame_batch_size_per_group = 2,
+        .buffer_mode = .tile_local,
+        .render_mode = .in_order,
+    },
+    .{
+        .name = "4grp_1geom_1rast_inorder",
+        .workers_per_group = &.{ 1, 1, 1, 1 },
+        .max_geom_workers_per_job = 1,
+        .max_raster_workers_per_job = 1,
+        .frame_batch_size_per_group = 2,
+        .buffer_mode = .tile_local,
+        .render_mode = .in_order,
+    },
+    .{
+        .name = "4grp_1geom_1rast_offline",
+        .workers_per_group = &.{ 1, 1, 1, 1 },
+        .max_geom_workers_per_job = 1,
+        .max_raster_workers_per_job = 1,
+        .frame_batch_size_per_group = 2,
+        .buffer_mode = .tile_local,
+        .render_mode = .offline,
+    },
+};
+
+pub fn runZooMonoCaseTest(
     allocator: std.mem.Allocator,
     io: std.Io,
+    case: ZooThreadingCase,
     texture_grey: texops.Tex(u8, 1),
     gold_dir_root: []const u8,
     config: rastcfg.RasterConfig,
@@ -53,18 +134,31 @@ pub fn runZooMonoTest(
         .{gold_dir_root},
     );
 
+    var total_workers_count: u16 = 0;
+    for (case.workers_per_group) |workers_count| {
+        total_workers_count += workers_count;
+    }
+
     var run_config = config;
     run_config.save_strategy = .memory;
     run_config.background_value = 127.5;
+    run_config.render_mode = case.render_mode;
+    run_config.buffer_mode = case.buffer_mode;
+    run_config.total_threads = total_workers_count;
+    run_config.max_geom_workers_per_job = case.max_geom_workers_per_job;
+    run_config.max_raster_workers_per_job = case.max_raster_workers_per_job;
+    run_config.frame_batch_size_per_group = case.frame_batch_size_per_group;
+
+    var render_groups_buf: [8]riley.RenderGroupSpec = undefined;
+    for (case.workers_per_group, 0..) |workers_count, ii| {
+        render_groups_buf[ii] = .{ .io = io, .workers = workers_count };
+    }
+    const render_groups = render_groups_buf[0..case.workers_per_group.len];
 
     const start_time = Timestamp.now(io, .awake);
-    const render_groups = [_]riley.RenderGroupSpec{
-        .{ .io = io, .workers = @max(@as(u16, 1), run_config.total_threads) },
-    };
-
     const result = try riley.raster(
         aa,
-        &render_groups,
+        render_groups,
         &cameras,
         meshes,
         run_config,
@@ -109,8 +203,8 @@ pub fn runZooMonoTest(
             ) catch |err| {
                 if (tcfg.TEST_CASE_VERBOSE) {
                     std.debug.print(
-                        "FAIL featurezoo_mono cam {d} frame {d} ({d:.2} ms)\n",
-                        .{ cc, ff, duration_ms },
+                        "FAIL featurezoo_mono {s} cam {d} frame {d} ({d:.2} ms)\n",
+                        .{ case.name, cc, ff, duration_ms },
                     );
                 }
                 return err;
@@ -120,15 +214,16 @@ pub fn runZooMonoTest(
 
     if (tcfg.TEST_CASE_VERBOSE) {
         std.debug.print(
-            "PASS featurezoo_mono ({d:.2} ms, {d} cams x {d} frames)\n",
-            .{ duration_ms, cameras_num, frames_num },
+            "PASS featurezoo_mono {s} ({d:.2} ms, {d} cams x {d} frames)\n",
+            .{ case.name, duration_ms, cameras_num, frames_num },
         );
     }
 }
 
-pub fn runZooRgbTest(
+pub fn runZooRgbCaseTest(
     allocator: std.mem.Allocator,
     io: std.Io,
+    case: ZooThreadingCase,
     texture_rgb: texops.Tex(u8, 3),
     gold_dir_root: []const u8,
     config: rastcfg.RasterConfig,
@@ -154,18 +249,31 @@ pub fn runZooRgbTest(
         .{gold_dir_root},
     );
 
+    var total_workers_count: u16 = 0;
+    for (case.workers_per_group) |workers_count| {
+        total_workers_count += workers_count;
+    }
+
     var run_config = config;
     run_config.save_strategy = .memory;
     run_config.background_value = 127.5;
+    run_config.render_mode = case.render_mode;
+    run_config.buffer_mode = case.buffer_mode;
+    run_config.total_threads = total_workers_count;
+    run_config.max_geom_workers_per_job = case.max_geom_workers_per_job;
+    run_config.max_raster_workers_per_job = case.max_raster_workers_per_job;
+    run_config.frame_batch_size_per_group = case.frame_batch_size_per_group;
+
+    var render_groups_buf: [8]riley.RenderGroupSpec = undefined;
+    for (case.workers_per_group, 0..) |workers_count, ii| {
+        render_groups_buf[ii] = .{ .io = io, .workers = workers_count };
+    }
+    const render_groups = render_groups_buf[0..case.workers_per_group.len];
 
     const start_time = Timestamp.now(io, .awake);
-    const render_groups = [_]riley.RenderGroupSpec{
-        .{ .io = io, .workers = @max(@as(u16, 1), run_config.total_threads) },
-    };
-
     const result = try riley.raster(
         aa,
-        &render_groups,
+        render_groups,
         &rgb_cameras,
         meshes,
         run_config,
@@ -211,8 +319,8 @@ pub fn runZooRgbTest(
                 ) catch |err| {
                     if (tcfg.TEST_CASE_VERBOSE) {
                         std.debug.print(
-                            "FAIL featurezoo_rgb cam {d} frame {d} ch {d} ({d:.2} ms)\n",
-                            .{ cc, ff, ch, duration_ms },
+                            "FAIL featurezoo_rgb {s} cam {d} frame {d} ch {d} ({d:.2} ms)\n",
+                            .{ case.name, cc, ff, ch, duration_ms },
                         );
                     }
                     return err;
@@ -223,8 +331,46 @@ pub fn runZooRgbTest(
 
     if (tcfg.TEST_CASE_VERBOSE) {
         std.debug.print(
-            "PASS featurezoo_rgb ({d:.2} ms, {d} cams x {d} frames)\n",
-            .{ duration_ms, cameras_num, frames_num },
+            "PASS featurezoo_rgb {s} ({d:.2} ms, {d} cams x {d} frames)\n",
+            .{ case.name, duration_ms, cameras_num, frames_num },
+        );
+    }
+}
+
+pub fn runZooMonoTest(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    texture_grey: texops.Tex(u8, 1),
+    gold_dir_root: []const u8,
+    config: rastcfg.RasterConfig,
+) !void {
+    for (zoo_threading_cases) |case| {
+        try runZooMonoCaseTest(
+            allocator,
+            io,
+            case,
+            texture_grey,
+            gold_dir_root,
+            config,
+        );
+    }
+}
+
+pub fn runZooRgbTest(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    texture_rgb: texops.Tex(u8, 3),
+    gold_dir_root: []const u8,
+    config: rastcfg.RasterConfig,
+) !void {
+    for (zoo_threading_cases) |case| {
+        try runZooRgbCaseTest(
+            allocator,
+            io,
+            case,
+            texture_rgb,
+            gold_dir_root,
+            config,
         );
     }
 }

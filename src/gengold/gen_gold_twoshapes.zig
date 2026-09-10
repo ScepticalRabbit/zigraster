@@ -309,7 +309,11 @@ pub fn generateTwoShapesCase(
     out_dir.close(io);
 
     const target = sceneops.boundsCenterOverMeshes(meshes);
-    const rot = Rotation.init(0, 0, 0);
+    const rot = Rotation.init(
+        0,
+        std.math.degreesToRadians(20.0),
+        std.math.degreesToRadians(-20.0),
+    );
     const pos = cameraops.posFillFrameFromRotOverMeshesAndTarg(
         meshes,
         target,

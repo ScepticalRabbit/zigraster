@@ -56,7 +56,7 @@ The Basic Suite consists of three sub-suites:
 - **Driver**: [`src/tests/test_gold_twoshapes.zig`](file:///home/lloydf/riley-raster/src/tests/test_gold_twoshapes.zig)
 - **Generator**: [`src/gengold/gen_gold_twoshapes.zig`](file:///home/lloydf/riley-raster/src/gengold/gen_gold_twoshapes.zig)
 - **Data Source**: [`data/shapes/cube_surf/`](file:///home/lloydf/riley-raster/data/shapes/cube_surf) and [`data/shapes/sphere_surf/`](file:///home/lloydf/riley-raster/data/shapes/sphere_surf)
-- **Resolution**: $160 \times 100$, SSAA = 2, Camera 0 (Face-On, auto-zoomed to 90% bounds), Background = 127.5 (50% dynamic range mid-grey).
+- **Resolution**: $160 \times 100$, SSAA = 2, Camera 0 (Oblique $+20^\circ$ yaw / $-20^\circ$ pitch up and to the right, auto-zoomed to 90% bounds), Background = 127.5 (50% dynamic range mid-grey).
 - **Scene**: Two bodies — Sphere on the left in front ($Z=0$), Cube on the right behind ($Z=-10\text{mm}$, full shape depth offset), with a 10% overlap in X to test depth buffer sorting and boundary rasterisation.
 - **Shader Matrix**: 5 element types $\times$ 9 curated shaders:
   - **Mono Shaders (6)**:
@@ -85,10 +85,19 @@ The Basic Suite consists of three sub-suites:
   - **Cam 3**: Steep compound angle ($90^\circ, 25^\circ$) with Brown distortion and Gaussian PSF, SSAA = 2.
   - **Cam 4**: Tri-axial rotation ($18^\circ, 38^\circ, 26^\circ$) with Anisotropic Gaussian PSF, SSAA = 2.
   - **Cam 5**: Reverse pitch and yaw with Brown distortion, SSAA = 2.
+- **Threading & Buffer Mode Verification Matrix** (8 combinations tested against gold for both Mono & RGB):
+  1. `1grp_1geom_1rast`: 1 render group, 1 geom worker, 1 raster worker (`in_order`, `tile_local`).
+  2. `1grp_4geom_4rast`: 1 render group, 4 geom workers, 4 raster workers (`in_order`, `tile_local`).
+  3. `1grp_1geom_4rast_tilelocal`: 1 render group, 1 geom worker, 4 raster workers (`tile_local`).
+  4. `1grp_1geom_4rast_globalsubpx`: 1 render group, 1 geom worker, 4 raster workers (`global_subpx_full`).
+  5. `1grp_1geom_4rast_stripe`: 1 render group, 1 geom worker, 4 raster workers (`global_subpx_stripe`).
+  6. `2grp_1geom_2rast`: 2 render groups (2 workers each), 1 geom worker, 2 raster workers (`in_order`).
+  7. `4grp_1geom_1rast_inorder`: 4 render groups (1 worker each), 1 geom worker, 1 raster worker (`in_order`).
+  8. `4grp_1geom_1rast_offline`: 4 render groups (1 worker each), 1 geom worker, 1 raster worker (`offline`).
 - **Passes**:
-  - **Mono Pass**: All 6 cameras $\times$ 2 frames ($12\text{ images} \to 9.60\text{ MB}$).
-  - **RGB Pass**: 2 representative cameras (Cam 0 Face-On + Cam 1 Perspective) $\times$ 2 frames ($4\text{ images} \to 9.60\text{ MB}$).
-- **Total Tests / Images**: 16 images ($\approx 19.2\text{ MB}$ raw `.fimg`).
+  - **Mono Pass**: All 6 cameras $\times$ 2 frames ($12\text{ images} \to 9.60\text{ MB}$) across all 8 threading configurations.
+  - **RGB Pass**: 2 representative cameras (Cam 0 Face-On + Cam 1 Perspective) $\times$ 2 frames ($4\text{ images} \to 9.60\text{ MB}$) across all 8 threading configurations.
+- **Total Reference Images**: 16 images ($\approx 19.2\text{ MB}$ raw `.fimg`).
 
 ---
 
