@@ -63,19 +63,19 @@ The test suites leverage standardized benchmark scenes designed to exercise spec
 
 ### Scene 1: Single Cube Surface & Optical Models
 - **Geometry**: Single undeformed cube surface mesh (`tri3`).
-- **Shader**: Procedural sharp checkerboard shader (`.builtin = .checker`, $24 \times 24$ density) with uniform grey background ($0.5$).
+- **Shader**: Procedural sharp checkerboard shader (`.builtin = .checker`, $24 \times 24$ density) with uniform $50\%$ dynamic range grey background ($127.5$).
 - **Camera View**: $128 \times 128\text{ px}$, $95\%$ sensor frame fill factor ($5\%$ border margin), viewed obliquely from above at $+5^\circ$ yaw / $-5^\circ$ pitch orientation to inspect front, top, and side faces simultaneously.
 - **Primary Use**: [`test_full_dist_psf.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_dist_psf.zig) and [`test_full_ssaa_pxmap.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_ssaa_pxmap.zig).
 
-### Scene 2: Multi-Sphere Cropping & Edge Occlusion
+### Scene 2: Multi-Sphere Cropping, Occlusion & Image Formats
 - **Geometry**: Two interacting FE sphere surface meshes (`tri3`):
-  - **Sphere 1 (Front Left)**: Positioned in the foreground at $Z = 0.0\text{ mm}$, cropped tightly by the left, top, and bottom edges of the camera sensor frame.
-  - **Sphere 2 (Back Right)**: Positioned well behind the foreground sphere ($Z = -20.0\text{ mm}$), fully contained within the field of view with its top, right, and bottom edges visible while its inner edge is occluded by Sphere 1.
-- **Shaders**:
-  - **Sphere 1**: Procedural checkerboard shader.
-  - **Sphere 2**: Direct Catmull-Rom cubic texture map.
-- **Camera View**: Face-on camera view configured to crop Sphere 1 along sensor boundaries while keeping Sphere 2 uncropped.
-- **Primary Use**: [`test_full_tiling.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_tiling.zig).
+  - **Sphere 1 (Front Left)**: Positioned in the foreground at $X = -4.0\text{ mm}, Z = 0.0\text{ mm}$, cropped tightly by the left, top, and bottom edges of the camera sensor frame.
+  - **Sphere 2 (Back Right)**: Positioned behind the foreground sphere ($X = +5.0\text{ mm}, Z = -1.02\text{ m}$ at nominal double camera distance), fully contained within the sensor frame with its top, right, and bottom edges visible while its inner edge is occluded by Sphere 1 ($25\%$ horizontal diameter overlap).
+- **Background**: Uniform $50\%$ dynamic range grey ($127.5$).
+- **Shaders & Modalities**:
+  - **Monochrome Mode**: Sphere 1 with 5-transition checkerboard shader (`coord_scale = .{ 10.0, 10.0 }`); Sphere 2 with direct Catmull-Rom cubic texture map (`u8`/`u16`).
+  - **RGB Mode**: Sphere 1 with blue/green checkerboard function shader; Sphere 2 with RGB texture map (`u8`/`u16`).
+- **Primary Use**: [`test_full_tiling.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_tiling.zig) and [`test_full_image_output.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_image_output.zig).
 
 ### Scene 3: Multi-Shape FE Grid & Order Pairs
 - **Geometry**: 16 finite element surface meshes arranged in 2 rows $\times$ 4 shape pairs:
@@ -140,13 +140,13 @@ The **Basic Suite** is the primary regression suite packaged with the repository
 - **Generator**: [`src/gen_gold_full.zig`](file:///home/lloydf/riley-raster/src/gen_gold_full.zig)
 - **Data Location**: `gold/test_full_*/` (uncommitted, generated locally)
 
-The **Full Test Suite** is an exhaustive factorial regression suite replacing legacy benchmark and monolithic test runs. Gold reference images are generated locally on-demand and verified across 7 specialized sub-suites:
+The **Full Test Suite** is an exhaustive factorial regression suite replacing legacy benchmark and monolithic test runs. Gold reference images are generated locally on-demand and verified across 8 specialized sub-suites:
 
 ```bash
-# Generate reference gold for all 7 sub-suites
+# Generate reference gold for all 8 sub-suites
 zig build gen-gold-full -Doptimize=ReleaseSafe
 
-# Run all 7 sub-suites against generated gold
+# Run all 8 sub-suites against generated gold
 zig build test-full -Doptimize=ReleaseSafe
 ```
 
@@ -218,6 +218,18 @@ zig build test-full -Doptimize=ReleaseSafe
     - `cam7`: Oblique $+20^\circ$ yaw / $+20^\circ$ pitch ($256 \times 256$, $\text{SSAA} = 2$).
   - **Execution Configurations**: Evaluated across tile sizes ($16 \times 16, 32 \times 32, 64 \times 64$), buffer modes (`tile_local`, `global_subpx_full`, `global_subpx_stripe`), and thread counts ($1, 2, 4$ threads).
   - **Invariance Invariant**: Asserts identical bit-accurate output matching single-threaded reference gold images across all configurations.
+
+### Sub-Suite 8: Full Image Output & Factorial Export Suite (`test_full_image_output`)
+- **Driver**: [`src/tests/test_full_image_output.zig`](file:///home/lloydf/riley-raster/src/tests/test_full_image_output.zig)
+- **Scene**: Scene 2 (Mono/RGB, u8/u16, blue/green RGB checker shader on front sphere and colored texture map on back sphere, 1 undeformed frame).
+- **Camera**: $160 \times 100\text{ px}$, face-on, $\text{SSAA} = 2$, auto-zoomed with $1\%$ border margin (`fill_fov = 0.99`).
+- **Factorial Parameter Coverage**:
+  - **Save Strategies (4)**: `.memory`, `.disk`, `.both`, `.none`.
+  - **Output Modes (3)**: `.grey` (1 channel luminance/monochrome), `.rgb` (3 channel RGB), `.multifield` (raw pass-through).
+  - **File Formats (4)**: `.fimg` (raw floating point), `.csv` (comma-delimited numerical matrices), `.bmp` (8-bit and 16-bit bitmaps), `.tiff` (8-bit and 16-bit tagged images).
+  - **Dynamic Range Scaling**: `.none`, `.auto`, explicit fixed ranges (`.fixed = .{ 0.0, 255.0 }`), and fractional percentile boundaries (`.frac = .{ 0.05, 0.95 }`).
+  - **Diagnostic Reporting Modes**: `.off`, `.bench` (timing breakdown metrics), `.full_stats` (per-stage hardware and pipeline statistics).
+  - **Output Verification**: Asserts bit-level equivalence between memory buffer captures, reference gold data, and reloaded on-disk export images.
 
 ### Automated Failure Diagnostics
 When any case in the Full Test Suite encounters a regression or discrepancy exceeding tolerance:

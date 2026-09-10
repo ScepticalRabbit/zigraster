@@ -49,6 +49,7 @@ pub fn generate(allocator: std.mem.Allocator, io: std.Io) !void {
     var config = tcfg.getRasterConfig(.gold_gen);
     config.save_strategy = .disk;
     config.image_save_mode = .grey;
+    config.background_value = 127.5;
     config.image_save_opts = &[_]iio.ImageSaveOpts{
         .{ .format = .fimg, .bits = null, .scaling = .none },
         .{ .format = .bmp, .bits = 8, .scaling = .none },

@@ -17,6 +17,7 @@ pub const tiling_suite = @import("tests/test_full_tiling.zig");
 pub const scene_camera_threads_suite = @import(
     "tests/test_full_scene_camera_threads.zig",
 );
+pub const image_output_suite = @import("tests/test_full_image_output.zig");
 
 fn runSuite(
     comptime name: []const u8,
@@ -52,6 +53,12 @@ test "full test suite" {
         allocator,
         io,
         scene_camera_threads_suite.run,
+    );
+    try runSuite(
+        "image_output",
+        allocator,
+        io,
+        image_output_suite.run,
     );
 
     const end = std.Io.Clock.Timestamp.now(io, .awake);

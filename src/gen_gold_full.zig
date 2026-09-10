@@ -10,6 +10,7 @@ const std = @import("std");
 const buildconfig = @import("riley/zig/buildconfig.zig");
 const gen_dist_psf = @import("gengold/gen_gold_full_dist_psf.zig");
 const gen_hull = @import("gengold/gen_gold_full_hull.zig");
+const gen_image_output = @import("gengold/gen_gold_full_image_output.zig");
 const gen_sct = @import("gengold/gen_gold_full_scene_camera_threads.zig");
 const gen_shader = @import("gengold/gen_gold_full_shader.zig");
 const gen_ssaa_pxmap = @import("gengold/gen_gold_full_ssaa_pxmap.zig");
@@ -159,7 +160,7 @@ pub fn main(init: std.process.Init) !void {
     );
 
     std.debug.print(
-        "--- 7/7: Full Scene Camera Threads Cases ({s}) ---\n",
+        "--- 7/8: Full Scene Camera Threads Cases ({s}) ---\n",
         .{sct_gold_dir},
     );
     const start_sct = std.Io.Clock.Timestamp.now(io, .awake);
@@ -172,6 +173,23 @@ pub fn main(init: std.process.Init) !void {
     std.debug.print(
         "Scene Camera Threads gold generation took {d:.3} seconds.\n\n",
         .{sct_elapsed},
+    );
+
+    const io_gold_dir = policy.goldRoot(.full_image_output);
+    std.debug.print(
+        "--- 8/8: Full Image Output Cases ({s}) ---\n",
+        .{io_gold_dir},
+    );
+    const start_io = std.Io.Clock.Timestamp.now(io, .awake);
+    try gen_image_output.generate(aa, io);
+    const end_io = std.Io.Clock.Timestamp.now(io, .awake);
+    const io_elapsed = @as(
+        f64,
+        @floatFromInt(start_io.durationTo(end_io).raw.nanoseconds),
+    ) / 1.0e9;
+    std.debug.print(
+        "Image Output gold generation took {d:.3} seconds.\n\n",
+        .{io_elapsed},
     );
 
     const end_time = std.Io.Clock.Timestamp.now(io, .awake);

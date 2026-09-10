@@ -335,7 +335,8 @@ fn runScene2HullCaseTest(
 }
 
 pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
-    const config = tcfg.getRasterConfig(.testing);
+    var config = tcfg.getRasterConfig(.testing);
+    config.background_value = 127.5;
     const gold_dir_root = policy.goldRoot(.full_hull);
     const data_dir_root = "data/edge";
 

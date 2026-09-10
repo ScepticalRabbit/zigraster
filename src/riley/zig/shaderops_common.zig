@@ -217,6 +217,10 @@ pub const SinusoidalParams = struct {
 
 pub const CheckerParams = struct {
     levels: [2]F = .{ 0.0, 1.0 },
+    levels_rgb: [2][3]F = .{
+        .{ 0.0, 0.0, 1.0 },
+        .{ 0.0, 1.0, 0.0 },
+    },
 };
 
 pub const CheckerSmoothParams = struct {
@@ -666,11 +670,10 @@ pub inline fn evalFuncShaderBuiltinRGBNorm(
             const p = params.settings.checker;
             const cell_x: i64 = @intFromFloat(@floor(eval_coord.coord_0));
             const cell_y: i64 = @intFromFloat(@floor(eval_coord.coord_1));
-            const value = if (@mod(cell_x + cell_y, 2) == 0)
-                p.levels[0]
+            break :blk if (@mod(cell_x + cell_y, 2) == 0)
+                p.levels_rgb[0]
             else
-                p.levels[1];
-            break :blk .{ value, value, value };
+                p.levels_rgb[1];
         },
         .checker_smooth => blk: {
             const p = params.settings.checker_smooth;

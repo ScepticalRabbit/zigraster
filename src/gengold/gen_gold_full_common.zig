@@ -582,7 +582,7 @@ pub fn prepareScene0(
 pub const pixel_num_scene1 = [_]u32{ 128, 128 };
 pub const pixel_size_scene1 = [2]F{ @floatCast(5.3e-6), @floatCast(5.3e-6) };
 pub const focal_length_scene1: F = @floatCast(50.0e-3);
-pub const grey_background_scene1: F = 0.5;
+pub const grey_background_scene1: F = 127.5;
 
 pub const Scene1Prepared = struct {
     coords: meshio.Coords,
@@ -702,8 +702,8 @@ pub fn prepareScene1(
 // Scene 2: Two Spheres (Front Left Cropped, Back Right Occluded)
 // --------------------------------------------------------------------------
 
-pub const sphere1_center_scene2 = [3]F{ -0.0025, 0.0, 0.0 };
-pub const sphere2_center_scene2 = [3]F{ 0.0038, 0.0, -1.02 };
+pub const sphere1_center_scene2 = [3]F{ -0.0040, 0.0, 0.0 };
+pub const sphere2_center_scene2 = [3]F{ 0.0050, 0.0, -1.02 };
 
 pub const Scene2Prepared = struct {
     mesh_type: gk.MeshType,
@@ -755,7 +755,7 @@ pub fn buildScene2Meshes(
             .uvs = prep.sphere1_uvs.array,
             .builtin = .checker,
             .params = .{
-                .coord_scale = .{ 24.0, 24.0 },
+                .coord_scale = .{ 10.0, 10.0 },
                 .coord_offset = .{ 0.0, 0.0 },
                 .settings = .{ .checker = .{} },
             },
@@ -1444,6 +1444,148 @@ pub fn createScene3Cameras() [8]CameraInput {
     };
 
     return [_]CameraInput{ cam0, cam1, cam2, cam3, cam4, cam5, cam6, cam7 };
+}
+
+pub fn createScene2ImageOutputCamera(meshes: []const MeshInput) CameraInput {
+    const target = sceneops.boundsCenterOverMeshes(meshes);
+    const rot = Rotation.init(0.0, 0.0, 0.0);
+    const pos = cameraops.posFillFrameFromRotOverMeshesAndTarg(
+        meshes,
+        target,
+        pixel_num_scene0,
+        pixel_size_scene0,
+        focal_length_scene0,
+        rot,
+        0.99,
+    );
+
+    return .{
+        .pixels_num = pixel_num_scene0,
+        .pixels_size = pixel_size_scene0,
+        .pos_world = pos,
+        .rot_world = rot,
+        .roi_cent_world = target,
+        .focal_length = focal_length_scene0,
+        .sub_sample = 2,
+        .distortion = .none,
+    };
+}
+
+pub fn buildScene2ImageOutputMeshes(
+    prep: *const Scene2Prepared,
+    textures: *const FullTextures,
+    is_rgb: bool,
+    is_u16: bool,
+) [2]MeshInput {
+    const bits: ?u8 = if (is_u16) 16 else 8;
+    const sphere1_shader: shaderops.ShaderInput = if (is_rgb)
+        .{
+            .func_rgb = .{
+                .uvs = prep.sphere1_uvs.array,
+                .builtin = .checker,
+                .params = .{
+                    .coord_scale = .{ 10.0, 10.0 },
+                    .coord_offset = .{ 0.0, 0.0 },
+                    .settings = .{ .checker = .{} },
+                },
+                .coord_mode = .uv,
+                .bits = bits,
+                .scaling = .auto,
+                .normal_type = .none,
+            },
+        }
+    else
+        .{
+            .func = .{
+                .uvs = prep.sphere1_uvs.array,
+                .builtin = .checker,
+                .params = .{
+                    .coord_scale = .{ 10.0, 10.0 },
+                    .coord_offset = .{ 0.0, 0.0 },
+                    .settings = .{ .checker = .{} },
+                },
+                .coord_mode = .uv,
+                .bits = bits,
+                .scaling = .auto,
+                .normal_type = .none,
+            },
+        };
+
+    const sphere2_shader: shaderops.ShaderInput = if (is_rgb)
+        (if (is_u16)
+            .{
+                .tex_rgb_u16 = .{
+                    .uvs = prep.sphere2_uvs.array,
+                    .tex = textures.tex_u16_rgb,
+                    .samp_cfg = .{
+                        .sample = .cubic_catmull_rom,
+                        .mode = .direct,
+                    },
+                    .bits = 16,
+                    .scaling = .auto,
+                    .normal_type = .none,
+                },
+            }
+        else
+            .{
+                .tex_rgb_u8 = .{
+                    .uvs = prep.sphere2_uvs.array,
+                    .tex = textures.tex_u8_rgb,
+                    .samp_cfg = .{
+                        .sample = .cubic_catmull_rom,
+                        .mode = .direct,
+                    },
+                    .bits = 8,
+                    .scaling = .auto,
+                    .normal_type = .none,
+                },
+            })
+    else
+        (if (is_u16)
+            .{
+                .tex_u16 = .{
+                    .uvs = prep.sphere2_uvs.array,
+                    .tex = textures.tex_u16_mono,
+                    .samp_cfg = .{
+                        .sample = .cubic_catmull_rom,
+                        .mode = .direct,
+                    },
+                    .bits = 16,
+                    .scaling = .auto,
+                    .normal_type = .none,
+                },
+            }
+        else
+            .{
+                .tex_u8 = .{
+                    .uvs = prep.sphere2_uvs.array,
+                    .tex = textures.tex_u8_mono,
+                    .samp_cfg = .{
+                        .sample = .cubic_catmull_rom,
+                        .mode = .direct,
+                    },
+                    .bits = 8,
+                    .scaling = .auto,
+                    .normal_type = .none,
+                },
+            });
+
+    return [_]MeshInput{
+        .{
+            .mesh_type = prep.mesh_type,
+            .coords = prep.sphere1_coords,
+            .connect = prep.sphere1_connect,
+            .disp = null,
+            .shader = sphere1_shader,
+        },
+        .{
+            .mesh_type = prep.mesh_type,
+            .coords = prep.sphere2_coords,
+            .connect = prep.sphere2_connect,
+            .disp = null,
+            .shader = sphere2_shader,
+        },
+    };
 }
 
 
