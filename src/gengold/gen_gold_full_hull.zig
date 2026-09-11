@@ -36,6 +36,12 @@ pub const HullPsfCase = struct {
     psf: camera.PointSpreadFunc,
 };
 
+pub const NewtonSeedCase = struct {
+    tag: []const u8,
+    seed_mode: rastcfg.NewtonSeedMode,
+    seed_reuse: rastcfg.NewtonSeedReuse,
+};
+
 pub const hull_status_cases = [_]HullStatusCase{
     .{ .tag = "hull_off", .mode = .off },
     .{ .tag = "hull_onnofallback", .mode = .on_no_fallback },
@@ -56,19 +62,33 @@ pub const hull_psf_cases = [_]HullPsfCase{
     },
 };
 
+pub const newton_seed_cases = [_]NewtonSeedCase{
+    .{ .tag = "seed_centroid", .seed_mode = .centroid, .seed_reuse = .off },
+    .{ .tag = "seed_hull", .seed_mode = .hull, .seed_reuse = .off },
+    .{ .tag = "seed_centroid_reuse", .seed_mode = .centroid, .seed_reuse = .last_conv },
+    .{ .tag = "seed_hull_reuse", .seed_mode = .hull, .seed_reuse = .last_conv },
+};
+
 pub const pixel_num_hull = [_]u32{ 128, 128 };
 
-fn formatCaseDirName(
+pub fn formatCaseDirName(
     allocator: std.mem.Allocator,
     case_name: []const u8,
     mesh_type: gk.MeshType,
     hull_case: HullStatusCase,
     psf_case: HullPsfCase,
+    seed_case: NewtonSeedCase,
 ) ![]const u8 {
     return std.fmt.allocPrint(
         allocator,
-        "{s}_{s}_{s}_{s}",
-        .{ case_name, @tagName(mesh_type), hull_case.tag, psf_case.tag },
+        "{s}_{s}_{s}_{s}_{s}",
+        .{
+            case_name,
+            @tagName(mesh_type),
+            hull_case.tag,
+            psf_case.tag,
+            seed_case.tag,
+        },
     );
 }
 
@@ -80,6 +100,7 @@ fn runOneElemHullCase(
     is_offscreen: bool,
     hull_case: HullStatusCase,
     psf_case: HullPsfCase,
+    seed_case: NewtonSeedCase,
     gold_dir_root: []const u8,
     data_dir_root: []const u8,
     config: rastcfg.RasterConfig,
@@ -156,6 +177,7 @@ fn runOneElemHullCase(
         mesh_type,
         hull_case,
         psf_case,
+        seed_case,
     );
     const gold_dir = try std.fmt.allocPrint(
         aa,
@@ -169,6 +191,8 @@ fn runOneElemHullCase(
     var run_config = config;
     run_config.save_strategy = .disk;
     run_config.hull_mode = hull_case.mode;
+    run_config.newton_seed_mode = seed_case.seed_mode;
+    run_config.newton_seed_reuse = seed_case.seed_reuse;
 
     const render_groups = [_]riley.RenderGroupSpec{
         .{ .io = io, .workers = @max(@as(u16, 1), run_config.total_threads) },
@@ -192,6 +216,7 @@ fn runScene2HullCase(
     textures: *const common.FullTextures,
     hull_case: HullStatusCase,
     psf_case: HullPsfCase,
+    seed_case: NewtonSeedCase,
     gold_dir_root: []const u8,
     config: rastcfg.RasterConfig,
 ) !void {
@@ -210,6 +235,7 @@ fn runScene2HullCase(
         mesh_type,
         hull_case,
         psf_case,
+        seed_case,
     );
     const gold_dir = try std.fmt.allocPrint(
         aa,
@@ -223,6 +249,8 @@ fn runScene2HullCase(
     var run_config = config;
     run_config.save_strategy = .disk;
     run_config.hull_mode = hull_case.mode;
+    run_config.newton_seed_mode = seed_case.seed_mode;
+    run_config.newton_seed_reuse = seed_case.seed_reuse;
 
     const render_groups = [_]riley.RenderGroupSpec{
         .{ .io = io, .workers = @max(@as(u16, 1), run_config.total_threads) },
@@ -300,18 +328,21 @@ pub fn generate(allocator: std.mem.Allocator, io: std.Io) !void {
         for (elem_case.mesh_types) |mesh_type| {
             for (hull_status_cases) |hull_case| {
                 for (hull_psf_cases) |psf_case| {
-                    try runOneElemHullCase(
-                        allocator,
-                        io,
-                        elem_case.name,
-                        mesh_type,
-                        elem_case.is_offscreen,
-                        hull_case,
-                        psf_case,
-                        gold_dir_root,
-                        data_dir_root,
-                        config,
-                    );
+                    for (newton_seed_cases) |seed_case| {
+                        try runOneElemHullCase(
+                            allocator,
+                            io,
+                            elem_case.name,
+                            mesh_type,
+                            elem_case.is_offscreen,
+                            hull_case,
+                            psf_case,
+                            seed_case,
+                            gold_dir_root,
+                            data_dir_root,
+                            config,
+                        );
+                    }
                 }
             }
         }
@@ -324,17 +355,20 @@ pub fn generate(allocator: std.mem.Allocator, io: std.Io) !void {
 
         for (hull_status_cases) |hull_case| {
             for (hull_psf_cases) |psf_case| {
-                try runScene2HullCase(
-                    allocator,
-                    io,
-                    mesh_type,
-                    &prep2,
-                    &textures,
-                    hull_case,
-                    psf_case,
-                    gold_dir_root,
-                    config,
-                );
+                for (newton_seed_cases) |seed_case| {
+                    try runScene2HullCase(
+                        allocator,
+                        io,
+                        mesh_type,
+                        &prep2,
+                        &textures,
+                        hull_case,
+                        psf_case,
+                        seed_case,
+                        gold_dir_root,
+                        config,
+                    );
+                }
             }
         }
     }

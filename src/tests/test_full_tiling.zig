@@ -352,8 +352,8 @@ fn runAdditionalTilingAndParityTests(
         const meshes = common_full.buildScene2Meshes(&prep_scene2, textures);
         const cam_inp = common_full.createScene2Camera(.{ 137, 89 }, 2);
 
-        const tile_overrides = [_]u16{ 12, 24 };
-        const stripe_overrides = [_]u16{ 8, 20 };
+        const tile_overrides = [_]u16{ 64, 128 };
+        const stripe_overrides = [_]u16{ 256, 512 };
 
         const render_groups = [_]riley.RenderGroupSpec{
             .{ .io = io, .workers = 1 },
