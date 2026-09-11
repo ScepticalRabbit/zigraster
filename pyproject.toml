@@ -43,3 +43,7 @@ riley = [
   "data/**/__pycache__/*",
   "data/**/.DS_Store",
 ]
+
+[tool.pytest.ini_options]
+testpaths = ["src/riley/pytests"]
+

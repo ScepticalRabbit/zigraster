@@ -227,7 +227,7 @@ def check_platewithhole_invariants(
     assert np.all(coords[:, 1] >= -1e-5)
     assert np.all(coords[:, 1] <= 0.012 + 1e-5)
     assert np.all(coords[:, 2] >= -1e-5)
-    assert np.all(coords[:, 2] <= 0.0005 + 1e-5)
+    assert np.all(coords[:, 2] <= 0.002 + 1e-5)
     hole_rad = 0.010 / 6.0
     r_hole_sq = (coords[:, 0] - 0.005) ** 2 + (coords[:, 1] - 0.006) ** 2
     assert np.all(r_hole_sq >= (hole_rad**2) - 1e-6)
@@ -236,8 +236,8 @@ def check_platewithhole_invariants(
         total_area = np.sum(areas)
         expected = (
             2.0 * (0.010 * 0.012 - np.pi * (hole_rad**2))
-            + 2.0 * (0.010 + 0.012) * 0.0005
-            + 2.0 * np.pi * hole_rad * 0.0005
+            + 2.0 * (0.010 + 0.012) * 0.002
+            + 2.0 * np.pi * hole_rad * 0.002
         )
         assert np.isclose(total_area, expected, rtol=0.10)
         for ii in range(mesh.connect.shape[0]):
@@ -249,7 +249,7 @@ def check_platewithhole_invariants(
             c = centroids[ii]
             if np.allclose(z_vals, 0.0, atol=1e-5):
                 assert np.dot(n, [0.0, 0.0, -1.0]) > 0.95
-            elif np.allclose(z_vals, 0.0005, atol=1e-5):
+            elif np.allclose(z_vals, 0.002, atol=1e-5):
                 assert np.dot(n, [0.0, 0.0, 1.0]) > 0.95
             elif np.allclose(x_vals, 0.0, atol=1e-5):
                 assert np.dot(n, [-1.0, 0.0, 0.0]) > 0.95
