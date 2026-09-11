@@ -170,50 +170,6 @@ pub fn buildRgbFieldTwoFrames(
     return field;
 }
 
-pub fn loadShapeMeshScene0(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    shape_dir_name: []const u8,
-    mesh_type: gk.MeshType,
-    shader_input: shaderops.ShaderInput,
-) !MeshInput {
-    const elem_str = switch (mesh_type) {
-        .tri3opt => "tri3",
-        else => @tagName(mesh_type),
-    };
-    const dir = try std.fmt.allocPrint(
-        allocator,
-        "data/shapes/{s}/{s}/",
-        .{ shape_dir_name, elem_str },
-    );
-    const temp_files = &[_][]const u8{
-        try std.fmt.allocPrint(allocator, "{s}temperature.csv", .{dir}),
-    };
-    const disp_files = &[_][]const u8{
-        try std.fmt.allocPrint(allocator, "{s}disp_x.csv", .{dir}),
-        try std.fmt.allocPrint(allocator, "{s}disp_y.csv", .{dir}),
-        try std.fmt.allocPrint(allocator, "{s}disp_z.csv", .{dir}),
-    };
-    const sim = try meshio.loadSimData(
-        allocator,
-        io,
-        try std.fmt.allocPrint(allocator, "{s}coords.csv", .{dir}),
-        try std.fmt.allocPrint(allocator, "{s}connect.csv", .{dir}),
-        temp_files,
-        disp_files,
-    );
-    const raw_disp = sim.disp orelse return error.MissingDisplacement;
-    const disp_2f = try sliceFieldToTwoFrames(allocator, raw_disp);
-
-    return .{
-        .mesh_type = mesh_type,
-        .coords = sim.coords,
-        .connect = sim.connect,
-        .disp = disp_2f,
-        .shader = shader_input,
-    };
-}
-
 pub fn loadShapeUVs(
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -231,82 +187,6 @@ pub fn loadShapeUVs(
     );
     defer allocator.free(path);
     return uvio.loadUVMap(allocator, io, path);
-}
-
-pub fn loadShapeTempField(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    shape_dir_name: []const u8,
-    mesh_type: gk.MeshType,
-) !meshio.Field {
-    const elem_str = switch (mesh_type) {
-        .tri3opt => "tri3",
-        else => @tagName(mesh_type),
-    };
-    const path = try std.fmt.allocPrint(
-        allocator,
-        "data/shapes/{s}/{s}/temperature.csv",
-        .{ shape_dir_name, elem_str },
-    );
-    defer allocator.free(path);
-    var raw_temp = try meshio.loadFieldCsv(allocator, io, path);
-    defer raw_temp.deinit(allocator);
-    return sliceFieldToTwoFrames(allocator, raw_temp);
-}
-
-pub fn loadShapeDispField(
-    allocator: std.mem.Allocator,
-    io: std.Io,
-    shape_dir_name: []const u8,
-    mesh_type: gk.MeshType,
-) !meshio.Field {
-    const elem_str = switch (mesh_type) {
-        .tri3opt => "tri3",
-        else => @tagName(mesh_type),
-    };
-    const dir = try std.fmt.allocPrint(
-        allocator,
-        "data/shapes/{s}/{s}/",
-        .{ shape_dir_name, elem_str },
-    );
-    defer allocator.free(dir);
-    const dispx = try std.fmt.allocPrint(allocator, "{s}disp_x.csv", .{dir});
-    defer allocator.free(dispx);
-    const dispy = try std.fmt.allocPrint(allocator, "{s}disp_y.csv", .{dir});
-    defer allocator.free(dispy);
-    const dispz = try std.fmt.allocPrint(allocator, "{s}disp_z.csv", .{dir});
-    defer allocator.free(dispz);
-    const disp_files = &[_][]const u8{
-        dispx,
-        dispy,
-        dispz,
-    };
-    var raw_disp = try meshio.loadDispCsv(allocator, io, disp_files);
-    defer raw_disp.deinit(allocator);
-    return sliceFieldToTwoFrames(allocator, raw_disp);
-}
-
-pub fn buildScene0Meshes(
-    allocator: std.mem.Allocator,
-    sphere_mesh: MeshInput,
-    cylinder_mesh: MeshInput,
-) ![]MeshInput {
-    var meshes = try allocator.alloc(MeshInput, 2);
-    meshes[0] = sphere_mesh;
-    meshes[1] = cylinder_mesh;
-
-    sceneops.centerMeshGroupAt(
-        meshes,
-        sceneops.meshGroupSingle(0),
-        sphere_center_scene0,
-    );
-    sceneops.centerMeshGroupAt(
-        meshes,
-        sceneops.meshGroupSingle(1),
-        cylinder_center_scene0,
-    );
-
-    return meshes;
 }
 
 pub fn createScene0Camera(meshes: []const MeshInput) CameraInput {

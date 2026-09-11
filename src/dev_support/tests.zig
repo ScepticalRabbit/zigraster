@@ -53,6 +53,104 @@ pub fn isApproxEqual(v1: F, v2: F, rel_tol: F, abs_tol: F) bool {
     return (diff / largest) <= rel_tol;
 }
 
+pub fn calculateMaxAbsDifference(arr_a: *const NDArray(F), arr_b: *const NDArray(F)) !F {
+    if (arr_a.slice.len != arr_b.slice.len) return error.ArrayDimensionMismatch;
+    if (arr_a.dims.len != arr_b.dims.len) return error.ArrayDimensionMismatch;
+    for (arr_a.dims, arr_b.dims) |dim_a, dim_b| {
+        if (dim_a != dim_b) return error.ArrayDimensionMismatch;
+    }
+
+    var max_diff: F = 0.0;
+    for (arr_a.slice, arr_b.slice) |val_a, val_b| {
+        const diff = @abs(val_a - val_b);
+        if (diff > max_diff) {
+            max_diff = diff;
+        }
+    }
+    return max_diff;
+}
+
+pub fn expectImagesEquivalent(
+    arr_a: *const NDArray(F),
+    arr_b: *const NDArray(F),
+    rel_tol: F,
+    abs_tol: F,
+) !void {
+    if (arr_a.slice.len != arr_b.slice.len) return error.ArrayDimensionMismatch;
+    if (arr_a.dims.len != arr_b.dims.len) return error.ArrayDimensionMismatch;
+    for (arr_a.dims, arr_b.dims) |dim_a, dim_b| {
+        if (dim_a != dim_b) return error.ArrayDimensionMismatch;
+    }
+
+    for (arr_a.slice, arr_b.slice, 0..) |val_a, val_b, flat_idx| {
+        if (!isApproxEqual(val_a, val_b, rel_tol, abs_tol)) {
+            const diff = @abs(val_a - val_b);
+            std.debug.print(
+                "\nImage equivalence mismatch at flat index {d}: val_a={d}, val_b={d}, " ++
+                    "diff={e} (tol={e})\n",
+                .{ flat_idx, val_a, val_b, diff, abs_tol },
+            );
+            return error.PixelMismatch;
+        }
+    }
+}
+
+pub fn expectImagesDifferent(
+    arr_a: *const NDArray(F),
+    arr_b: *const NDArray(F),
+    min_abs_diff: F,
+) !void {
+    if (arr_a.slice.len != arr_b.slice.len) return error.ArrayDimensionMismatch;
+    if (arr_a.dims.len != arr_b.dims.len) return error.ArrayDimensionMismatch;
+    for (arr_a.dims, arr_b.dims) |dim_a, dim_b| {
+        if (dim_a != dim_b) return error.ArrayDimensionMismatch;
+    }
+
+    var max_diff: F = 0.0;
+    for (arr_a.slice, arr_b.slice) |val_a, val_b| {
+        const diff = @abs(val_a - val_b);
+        if (diff > max_diff) {
+            max_diff = diff;
+        }
+    }
+
+    if (max_diff < min_abs_diff) {
+        std.debug.print(
+            "\nExpected images to differ by at least {e}, but max diff was only {e}\n",
+            .{ min_abs_diff, max_diff },
+        );
+        return error.ImagesTooSimilar;
+    }
+}
+
+pub fn renderMemoryCase(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    cam_inps: []const CameraInput,
+    mesh_inps: []const MeshInput,
+    config: rastcfg.RasterConfig,
+) !NDArray(F) {
+    var mem_config = config;
+    mem_config.save_strategy = .memory;
+
+    const render_groups = [_]riley.RenderGroupSpec{.{
+        .io = io,
+        .workers = mem_config.total_threads,
+    }};
+
+    const result = try riley.rasterReport(
+        allocator,
+        &render_groups,
+        cam_inps,
+        mesh_inps,
+        mem_config,
+        null,
+        null,
+    );
+
+    return result orelse error.RenderReturnedNull;
+}
+
 fn getGoldValue(
     gold: *const NDArray(F),
     path_is_fimg: bool,

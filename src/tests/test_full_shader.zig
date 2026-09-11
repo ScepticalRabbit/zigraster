@@ -13,16 +13,13 @@ const common_test = @import("../dev_support/tests.zig");
 const common_full = @import("../gengold/gen_gold_full_common.zig");
 const gengold_shader = @import("../gengold/gen_gold_full_shader.zig");
 const gk = @import("../riley/zig/geometrykernels.zig");
-const iio = @import("../riley/zig/imageio.zig");
 const imageops = @import("../riley/zig/imageops.zig");
-const meshio = @import("../riley/zig/meshio.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
 const policy = @import("../dev_support/testpolicy.zig");
 const rastcfg = @import("../riley/zig/rasterconfig.zig");
 const riley = @import("../riley/zig/riley.zig");
 const shaderops = @import("../riley/zig/shaderops_common.zig");
 const tcfg = @import("../dev_support/testconfig.zig");
-const texops = @import("../riley/zig/textureops.zig");
 
 const F = buildconfig.F;
 const CameraInput = camera.CameraInput;

@@ -14,6 +14,19 @@ const HullMode = rastcfg.HullMode;
 
 pub const REL_TOL: F = if (F == f32) 1.0e-3 else 1e-6;
 pub const ABS_TOL: F = if (F == f32) 1.0e-3 else 1e-6;
+
+// Full-suite gold comparison tolerances
+pub const FULL_GOLD_REL_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
+pub const FULL_GOLD_ABS_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
+
+// tri3opt parity tolerances against baseline tri3
+pub const TRI3OPT_PARITY_REL_TOL: F = 1.0e-3;
+pub const TRI3OPT_PARITY_ABS_TOL: F = 1.0e-3;
+
+// Equivalence comparison tolerances (multi-threading / multi-camera / buffer modes)
+pub const EQUIV_REL_TOL: F = if (F == f32) 1.0e-4 else 1.0e-6;
+pub const EQUIV_ABS_TOL: F = if (F == f32) 1.0e-4 else 1.0e-6;
+
 pub const RENDER_MODE: RenderMode = .in_order;
 pub const HULL_MODE: HullMode = .on_no_fallback;
 // Includes the caller thread. TOTAL_THREADS = 3 means caller + 2 helpers.
