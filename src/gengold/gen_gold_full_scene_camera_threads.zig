@@ -7,10 +7,8 @@
 // Authors: scepticalrabbit (Lloyd Fletcher)
 // --------------------------------------------------------------------------
 const std = @import("std");
-const buildconfig = @import("../riley/zig/buildconfig.zig");
 const camera = @import("../riley/zig/camera.zig");
-const common = @import("gen_gold_full_common.zig");
-const gk = @import("../riley/zig/geometrykernels.zig");
+const fullfixtures = @import("../dev_support/fullfixtures.zig");
 const iio = @import("../riley/zig/imageio.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
 const orch = @import("../dev_support/orchestration.zig");
@@ -19,10 +17,8 @@ const rastcfg = @import("../riley/zig/rasterconfig.zig");
 const riley = @import("../riley/zig/riley.zig");
 const tcfg = @import("../dev_support/testconfig.zig");
 
-const F = buildconfig.F;
 const CameraInput = camera.CameraInput;
 const MeshInput = mo.MeshInput;
-const Timestamp = std.Io.Clock.Timestamp;
 
 pub fn generate(allocator: std.mem.Allocator, io: std.Io) !void {
     var config = tcfg.getRasterConfig(.gold_gen);
@@ -37,14 +33,14 @@ pub fn generate(allocator: std.mem.Allocator, io: std.Io) !void {
 
     const gold_dir_root = policy.goldRoot(.full_scene_camera_threads);
 
-    var textures = try common.FullTextures.init(allocator, io);
+    var textures = try fullfixtures.FullTextures.init(allocator, io);
     defer textures.deinit(allocator);
 
-    var prep = try common.prepareScene3(allocator, io);
+    var prep = try fullfixtures.prepareScene3(allocator, io);
     defer prep.deinit(allocator);
 
-    const meshes = common.buildScene3Meshes(&prep, &textures);
-    const cameras = common.createScene3Cameras();
+    const meshes = fullfixtures.buildScene3Meshes(&prep, &textures);
+    const cameras = fullfixtures.createScene3Cameras();
 
     for (cameras, 0..) |cam_inp, cc| {
         const cam_dir_name = try std.fmt.allocPrint(

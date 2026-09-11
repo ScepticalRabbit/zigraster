@@ -11,8 +11,8 @@ const buildconfig = @import("../riley/zig/buildconfig.zig");
 const camera = @import("../riley/zig/camera.zig");
 const cameraops = @import("../riley/zig/cameraops.zig");
 const common = @import("../dev_support/tests.zig");
-const common_full = @import("../gengold/gen_gold_full_common.zig");
-const gengold_hull = @import("../gengold/gen_gold_full_hull.zig");
+const common_full = @import("../dev_support/fullfixtures.zig");
+const fullcase_hull = @import("fullcase_hull.zig");
 const gk = @import("../riley/zig/geometrykernels.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
 const orch = @import("../dev_support/orchestration.zig");
@@ -27,12 +27,9 @@ const CameraInput = camera.CameraInput;
 const MeshInput = mo.MeshInput;
 const Timestamp = std.Io.Clock.Timestamp;
 
-const HullStatusCase = gengold_hull.HullStatusCase;
-const HullPsfCase = gengold_hull.HullPsfCase;
-const NewtonSeedCase = gengold_hull.NewtonSeedCase;
-
-pub const FULL_HULL_REL_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
-pub const FULL_HULL_ABS_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
+const HullStatusCase = fullcase_hull.HullStatusCase;
+const HullPsfCase = fullcase_hull.HullPsfCase;
+const NewtonSeedCase = fullcase_hull.NewtonSeedCase;
 
 fn runOneElemHullCaseTest(
     allocator: std.mem.Allocator,
@@ -64,7 +61,7 @@ fn runOneElemHullCaseTest(
         io,
         base_case_name,
         mesh_type,
-        gengold_hull.pixel_num_hull,
+        fullcase_hull.pixel_num_hull,
         1.15,
         data_dir_root,
     );
@@ -113,7 +110,7 @@ fn runOneElemHullCaseTest(
         },
     };
 
-    const case_dir_name = try gengold_hull.formatCaseDirName(
+    const case_dir_name = try fullcase_hull.formatCaseDirName(
         aa,
         case_name,
         mesh_type,
@@ -181,8 +178,8 @@ fn runOneElemHullCaseTest(
             0,
             1,
             gold_path,
-            FULL_HULL_REL_TOL,
-            FULL_HULL_ABS_TOL,
+            tcfg.FULL_GOLD_REL_TOL,
+            tcfg.FULL_GOLD_ABS_TOL,
         ) catch |err| {
             const fail_dir_name = try std.fmt.allocPrint(
                 aa,
@@ -235,12 +232,12 @@ fn runScene2HullCaseTest(
     defer arena.deinit();
     const aa = arena.allocator();
 
-    var cam_inp = common_full.createScene2Camera(gengold_hull.pixel_num_hull, 2);
+    var cam_inp = common_full.createScene2Camera(fullcase_hull.pixel_num_hull, 2);
     cam_inp.psf = psf_case.psf;
 
     const meshes = common_full.buildScene2Meshes(prep, textures);
 
-    const case_dir_name = try gengold_hull.formatCaseDirName(
+    const case_dir_name = try fullcase_hull.formatCaseDirName(
         aa,
         "scene2",
         mesh_type,
@@ -308,8 +305,8 @@ fn runScene2HullCaseTest(
             0,
             1,
             gold_path,
-            FULL_HULL_REL_TOL,
-            FULL_HULL_ABS_TOL,
+            tcfg.FULL_GOLD_REL_TOL,
+            tcfg.FULL_GOLD_ABS_TOL,
         ) catch |err| {
             const fail_dir_name = try std.fmt.allocPrint(
                 aa,
@@ -398,9 +395,9 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
 
     for (oneelem_cases) |elem_case| {
         for (elem_case.mesh_types) |mesh_type| {
-            for (gengold_hull.hull_status_cases) |hull_case| {
-                for (gengold_hull.hull_psf_cases) |psf_case| {
-                    for (gengold_hull.newton_seed_cases) |seed_case| {
+            for (fullcase_hull.hull_status_cases) |hull_case| {
+                for (fullcase_hull.hull_psf_cases) |psf_case| {
+                    for (fullcase_hull.newton_seed_cases) |seed_case| {
                         try runOneElemHullCaseTest(
                             allocator,
                             io,
@@ -424,9 +421,9 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
         var prep2 = try common_full.prepareScene2(allocator, io, mesh_type);
         defer prep2.deinit(allocator);
 
-        for (gengold_hull.hull_status_cases) |hull_case| {
-            for (gengold_hull.hull_psf_cases) |psf_case| {
-                for (gengold_hull.newton_seed_cases) |seed_case| {
+        for (fullcase_hull.hull_status_cases) |hull_case| {
+            for (fullcase_hull.hull_psf_cases) |psf_case| {
+                for (fullcase_hull.newton_seed_cases) |seed_case| {
                     try runScene2HullCaseTest(
                         allocator,
                         io,
@@ -473,7 +470,7 @@ fn runNewtonSeedMatrixTests(
 
         const meshes = common_full.buildScene2Meshes(&prep2, textures);
         const cam_inp = common_full.createScene2Camera(
-            gengold_hull.pixel_num_hull,
+            fullcase_hull.pixel_num_hull,
             2,
         );
 
@@ -542,4 +539,3 @@ fn runNewtonSeedMatrixTests(
         }
     }
 }
-

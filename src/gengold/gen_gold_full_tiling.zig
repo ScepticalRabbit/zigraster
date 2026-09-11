@@ -7,10 +7,8 @@
 // Authors: scepticalrabbit (Lloyd Fletcher)
 // --------------------------------------------------------------------------
 const std = @import("std");
-const buildconfig = @import("../riley/zig/buildconfig.zig");
 const camera = @import("../riley/zig/camera.zig");
-const common = @import("gen_gold_full_common.zig");
-const gk = @import("../riley/zig/geometrykernels.zig");
+const fullfixtures = @import("../dev_support/fullfixtures.zig");
 const iio = @import("../riley/zig/imageio.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
 const orch = @import("../dev_support/orchestration.zig");
@@ -19,10 +17,8 @@ const rastcfg = @import("../riley/zig/rasterconfig.zig");
 const riley = @import("../riley/zig/riley.zig");
 const tcfg = @import("../dev_support/testconfig.zig");
 
-const F = buildconfig.F;
 const CameraInput = camera.CameraInput;
 const MeshInput = mo.MeshInput;
-const Timestamp = std.Io.Clock.Timestamp;
 
 pub const resolutions = [_][2]u32{
     .{ 31, 19 },
@@ -57,23 +53,22 @@ pub fn generate(allocator: std.mem.Allocator, io: std.Io) !void {
 
     const gold_dir_root = policy.goldRoot(.full_tiling);
 
-    var textures = try common.FullTextures.init(allocator, io);
+    var textures = try fullfixtures.FullTextures.init(allocator, io);
     defer textures.deinit(allocator);
 
-    var prep2 = try common.prepareScene2(allocator, io, .tri3);
-    defer prep2.deinit(allocator);
+    var prep = try fullfixtures.prepareScene2(allocator, io, .tri3);
+    defer prep.deinit(allocator);
 
-    const meshes = common.buildScene2Meshes(&prep2, &textures);
+    const meshes = fullfixtures.buildScene2Meshes(&prep, &textures);
 
-    for (resolutions) |res| {
+    for (resolutions) |pixel_num| {
         for (ssaa_values) |ssaa| {
             var arena = std.heap.ArenaAllocator.init(allocator);
             defer arena.deinit();
             const aa = arena.allocator();
 
-            const cam_inp = common.createScene2Camera(res, ssaa);
-
-            const case_dir_name = try formatTilingGoldDirName(aa, res, ssaa);
+            const cam_inp = fullfixtures.createScene2Camera(pixel_num, ssaa);
+            const case_dir_name = try formatTilingGoldDirName(aa, pixel_num, ssaa);
             const gold_dir = try std.fmt.allocPrint(
                 aa,
                 "{s}/{s}",

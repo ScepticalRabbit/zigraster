@@ -9,9 +9,9 @@
 const std = @import("std");
 const buildconfig = @import("../riley/zig/buildconfig.zig");
 const camera = @import("../riley/zig/camera.zig");
-const common_full = @import("../gengold/gen_gold_full_common.zig");
+const common_full = @import("../dev_support/fullfixtures.zig");
 const common_test = @import("../dev_support/tests.zig");
-const gengold_dist_psf = @import("../gengold/gen_gold_full_dist_psf.zig");
+const fullcase_dist_psf = @import("fullcase_dist_psf.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
 const policy = @import("../dev_support/testpolicy.zig");
 const rastcfg = @import("../riley/zig/rasterconfig.zig");
@@ -22,9 +22,6 @@ const F = buildconfig.F;
 const CameraInput = camera.CameraInput;
 const MeshInput = mo.MeshInput;
 const Timestamp = std.Io.Clock.Timestamp;
-
-pub const FULL_REL_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
-pub const FULL_ABS_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
 
 pub const BufferModeCase = struct {
     tag: []const u8,
@@ -42,8 +39,8 @@ pub fn runFullDistPsfCaseTest(
     io: std.Io,
     prep: *const common_full.Scene1Prepared,
     ssaa: u32,
-    dist_case: gengold_dist_psf.DistCase,
-    psf_case: gengold_dist_psf.PsfCase,
+    dist_case: fullcase_dist_psf.DistCase,
+    psf_case: fullcase_dist_psf.PsfCase,
     buf_case: BufferModeCase,
     gold_dir_root: []const u8,
     config: rastcfg.RasterConfig,
@@ -52,7 +49,7 @@ pub fn runFullDistPsfCaseTest(
     defer arena.deinit();
     const aa = arena.allocator();
 
-    const case_name = try gengold_dist_psf.formatDistPsfCaseName(
+    const case_name = try fullcase_dist_psf.formatDistPsfCaseName(
         aa,
         ssaa,
         dist_case.tag,
@@ -64,7 +61,7 @@ pub fn runFullDistPsfCaseTest(
         .{ gold_dir_root, case_name },
     );
 
-    const mesh = gengold_dist_psf.buildScene1Mesh(prep);
+    const mesh = fullcase_dist_psf.buildScene1Mesh(prep);
     const meshes = [_]MeshInput{mesh};
 
     var camera_input = prep.camera_input;
@@ -119,8 +116,8 @@ pub fn runFullDistPsfCaseTest(
         0,
         1,
         gold_path,
-        FULL_REL_TOL,
-        FULL_ABS_TOL,
+        tcfg.FULL_GOLD_REL_TOL,
+        tcfg.FULL_GOLD_ABS_TOL,
     ) catch |err| {
         const fail_dir_name = try std.fmt.allocPrint(
             aa,
@@ -152,7 +149,7 @@ pub fn runFullDistPsfCaseTest(
     const is_base_case = std.mem.eql(u8, dist_case.tag, "dist_none") and
         std.mem.eql(u8, psf_case.tag, "psf_box");
     if (!is_base_case) {
-        const base_case_name = try gengold_dist_psf.formatDistPsfCaseName(
+        const base_case_name = try fullcase_dist_psf.formatDistPsfCaseName(
             aa,
             ssaa,
             "dist_none",
@@ -217,9 +214,9 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
     var prep = try common_full.prepareScene1(allocator, io);
     defer prep.deinit(allocator);
 
-    for (gengold_dist_psf.ssaa_levels) |ssaa| {
-        for (gengold_dist_psf.dist_cases) |dist_case| {
-            for (gengold_dist_psf.psf_cases) |psf_case| {
+    for (fullcase_dist_psf.ssaa_levels) |ssaa| {
+        for (fullcase_dist_psf.dist_cases) |dist_case| {
+            for (fullcase_dist_psf.psf_cases) |psf_case| {
                 for (buffer_mode_cases) |buf_case| {
                     try runFullDistPsfCaseTest(
                         allocator,
@@ -246,7 +243,7 @@ fn runAdditionalDistPsfTests(
     prep: *const common_full.Scene1Prepared,
     config: rastcfg.RasterConfig,
 ) !void {
-    const mesh = gengold_dist_psf.buildScene1Mesh(prep);
+    const mesh = fullcase_dist_psf.buildScene1Mesh(prep);
     const meshes = [_]MeshInput{mesh};
 
     const extra_dist_cases = [_]struct {
@@ -357,7 +354,7 @@ fn runAdditionalDistPsfTests(
 
         try std.testing.expectEqualSlices(usize, img_tile.dims, img_global.dims);
         for (img_tile.slice, img_global.slice) |val_tile, val_global| {
-            try std.testing.expect(@abs(val_tile - val_global) <= FULL_ABS_TOL);
+            try std.testing.expect(@abs(val_tile - val_global) <= tcfg.FULL_GOLD_ABS_TOL);
         }
     }
 
@@ -406,10 +403,7 @@ fn runAdditionalDistPsfTests(
 
         try std.testing.expectEqualSlices(usize, img_tile.dims, img_global.dims);
         for (img_tile.slice, img_global.slice) |val_tile, val_global| {
-            try std.testing.expect(@abs(val_tile - val_global) <= FULL_ABS_TOL);
+            try std.testing.expect(@abs(val_tile - val_global) <= tcfg.FULL_GOLD_ABS_TOL);
         }
     }
 }
-
-
-

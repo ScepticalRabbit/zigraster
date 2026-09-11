@@ -10,7 +10,7 @@ const std = @import("std");
 const buildconfig = @import("../riley/zig/buildconfig.zig");
 const camera = @import("../riley/zig/camera.zig");
 const common = @import("../dev_support/tests.zig");
-const common_full = @import("../gengold/gen_gold_full_common.zig");
+const common_full = @import("../dev_support/fullfixtures.zig");
 const iio = @import("../riley/zig/imageio.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
 const ndarray = @import("../riley/zig/ndarray.zig");
@@ -23,12 +23,6 @@ const F = buildconfig.F;
 const CameraInput = camera.CameraInput;
 const MeshInput = mo.MeshInput;
 const NDArray = ndarray.NDArray;
-
-pub const FULL_SCENE_CAMERA_REL_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
-pub const FULL_SCENE_CAMERA_ABS_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
-
-pub const EQUIV_REL_TOL: F = if (F == f32) 1.0e-4 else 1.0e-6;
-pub const EQUIV_ABS_TOL: F = if (F == f32) 1.0e-4 else 1.0e-6;
 
 pub const ThreadingCase = struct {
     tag: []const u8,
@@ -283,8 +277,8 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
                 0,
                 1,
                 gold_path,
-                FULL_SCENE_CAMERA_REL_TOL,
-                FULL_SCENE_CAMERA_ABS_TOL,
+                tcfg.FULL_GOLD_REL_TOL,
+                tcfg.FULL_GOLD_ABS_TOL,
             ) catch |err| {
                 const fail_dir_name = try std.fmt.allocPrint(
                     allocator,
@@ -325,7 +319,12 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
             cam1_img.deinit(allocator);
         }
 
-        try assertImagesEqual(&cam0_img, &cam1_img, EQUIV_REL_TOL, EQUIV_ABS_TOL);
+        try assertImagesEqual(
+            &cam0_img,
+            &cam1_img,
+            tcfg.EQUIV_REL_TOL,
+            tcfg.EQUIV_ABS_TOL,
+        );
     }
 
     // ----------------------------------------------------------------------
@@ -428,8 +427,8 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
                 try assertImagesEqual(
                     &actual_f0,
                     &ref_cam0,
-                    EQUIV_REL_TOL,
-                    EQUIV_ABS_TOL,
+                    tcfg.EQUIV_REL_TOL,
+                    tcfg.EQUIV_ABS_TOL,
                 );
             }
         }
@@ -575,6 +574,3 @@ fn runAdditionalSceneCameraThreadTests(
         try std.testing.expect(img.slice.len > 0);
     }
 }
-
-
-

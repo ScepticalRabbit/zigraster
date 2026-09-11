@@ -456,9 +456,19 @@ fn runCase(
         const front_occupied = front_val > 0.0;
         const back_occupied = back_val > 0.0;
         const expected = if (front_occupied) front_val else back_val;
-        try std.testing.expectApproxEqAbs(expected, both_val, tcfg.VERIF_TOL.depth_value_abs);
-        try std.testing.expectApproxEqAbs(expected, reverse_val, tcfg.VERIF_TOL.depth_value_abs);
-        if (front_occupied and back_occupied) overlap_count += 1;
+        try std.testing.expectApproxEqAbs(
+            expected,
+            both_val,
+            tcfg.VERIF_TOL.depth_value_abs,
+        );
+        try std.testing.expectApproxEqAbs(
+            expected,
+            reverse_val,
+            tcfg.VERIF_TOL.depth_value_abs,
+        );
+        if (front_occupied and back_occupied) {
+            overlap_count += 1;
+        }
     }
     if (front_count == 0) {
         const front_min = std.mem.min(F, frontonly_image.slice);

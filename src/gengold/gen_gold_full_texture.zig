@@ -9,213 +9,30 @@
 const std = @import("std");
 const buildconfig = @import("../riley/zig/buildconfig.zig");
 const camera = @import("../riley/zig/camera.zig");
-const common = @import("gen_gold_full_common.zig");
+const fullcase_tex = @import("../tests/fullcase_texture.zig");
+const fullfixtures = @import("../dev_support/fullfixtures.zig");
 const gk = @import("../riley/zig/geometrykernels.zig");
 const iio = @import("../riley/zig/imageio.zig");
-const meshio = @import("../riley/zig/meshio.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
 const orch = @import("../dev_support/orchestration.zig");
 const policy = @import("../dev_support/testpolicy.zig");
 const rastcfg = @import("../riley/zig/rasterconfig.zig");
 const riley = @import("../riley/zig/riley.zig");
-const shaderops = @import("../riley/zig/shaderops_common.zig");
 const tcfg = @import("../dev_support/testconfig.zig");
-const texops = @import("../riley/zig/textureops.zig");
 
 const F = buildconfig.F;
 const CameraInput = camera.CameraInput;
 const MeshInput = mo.MeshInput;
 
-pub const FullTexSamplingCase = struct {
-    is_rgb: bool,
-    dtype: enum { u8, u16, f64 },
-    samp_cfg: texops.TexSampConfig,
-
-    pub fn formatDirName(
-        self: FullTexSamplingCase,
-        allocator: std.mem.Allocator,
-        elem: gk.MeshType,
-    ) ![]const u8 {
-        const elem_str = switch (elem) {
-            .tri3opt => "tri3",
-            else => @tagName(elem),
-        };
-        const colour_str = if (self.is_rgb) "rgb" else "mono";
-        const dtype_str = @tagName(self.dtype);
-        const sampler_str = @tagName(self.samp_cfg.sample);
-        const mode_str = @tagName(self.samp_cfg.mode);
-
-        return std.fmt.allocPrint(
-            allocator,
-            "scene0_{s}_tex_{s}_{s}_{s}_{s}",
-            .{ elem_str, colour_str, dtype_str, sampler_str, mode_str },
-        );
-    }
-};
-
-pub const all_tex_samp_configs = [_]texops.TexSampConfig{
-    .{ .sample = .nearest, .mode = .direct },
-    .{ .sample = .linear, .mode = .direct },
-    .{ .sample = .cubic_catmull_rom, .mode = .direct },
-    .{ .sample = .cubic_catmull_rom, .mode = .lut },
-    .{ .sample = .cubic_catmull_rom, .mode = .lut_lerp },
-    .{ .sample = .cubic_mitchell_netravali, .mode = .direct },
-    .{ .sample = .cubic_mitchell_netravali, .mode = .lut },
-    .{ .sample = .cubic_mitchell_netravali, .mode = .lut_lerp },
-    .{ .sample = .lanczos3, .mode = .direct },
-    .{ .sample = .lanczos3, .mode = .lut },
-    .{ .sample = .lanczos3, .mode = .lut_lerp },
-    .{ .sample = .cubic_bspline, .mode = .direct },
-    .{ .sample = .cubic_bspline, .mode = .lut },
-    .{ .sample = .cubic_bspline, .mode = .lut_lerp },
-    .{ .sample = .quintic_bspline, .mode = .direct },
-    .{ .sample = .quintic_bspline, .mode = .lut },
-    .{ .sample = .quintic_bspline, .mode = .lut_lerp },
-    .{ .sample = .lanczos2, .mode = .direct },
-    .{ .sample = .lanczos2, .mode = .lut },
-    .{ .sample = .lanczos2, .mode = .lut_lerp },
-};
-
-pub fn buildTexSamplingCaseMeshes(
-    mesh_type: gk.MeshType,
-    prep: *const common.Scene0Prepared,
-    textures: *const common.FullTextures,
-    case: FullTexSamplingCase,
-) [2]MeshInput {
-    const sphere_shader: shaderops.ShaderInput = if (case.is_rgb)
-        switch (case.dtype) {
-            .u8 => .{
-                .tex_rgb_u8 = .{
-                    .uvs = prep.sphere_uvs.array,
-                    .tex = textures.tex_u8_rgb,
-                    .samp_cfg = case.samp_cfg,
-                    .normal_type = .none,
-                },
-            },
-            .u16 => .{
-                .tex_rgb_u16 = .{
-                    .uvs = prep.sphere_uvs.array,
-                    .tex = textures.tex_u16_rgb,
-                    .samp_cfg = case.samp_cfg,
-                    .normal_type = .none,
-                },
-            },
-            .f64 => .{
-                .tex_rgb_f = .{
-                    .uvs = prep.sphere_uvs.array,
-                    .tex = textures.tex_f64_rgb,
-                    .samp_cfg = case.samp_cfg,
-                    .normal_type = .none,
-                },
-            },
-        }
-    else
-        switch (case.dtype) {
-            .u8 => .{
-                .tex_u8 = .{
-                    .uvs = prep.sphere_uvs.array,
-                    .tex = textures.tex_u8_mono,
-                    .samp_cfg = case.samp_cfg,
-                    .normal_type = .none,
-                },
-            },
-            .u16 => .{
-                .tex_u16 = .{
-                    .uvs = prep.sphere_uvs.array,
-                    .tex = textures.tex_u16_mono,
-                    .samp_cfg = case.samp_cfg,
-                    .normal_type = .none,
-                },
-            },
-            .f64 => .{
-                .tex_f = .{
-                    .uvs = prep.sphere_uvs.array,
-                    .tex = textures.tex_f64_mono,
-                    .samp_cfg = case.samp_cfg,
-                    .normal_type = .none,
-                },
-            },
-        };
-
-    const cyl_shader: shaderops.ShaderInput = if (case.is_rgb)
-        switch (case.dtype) {
-            .u8 => .{
-                .tex_rgb_u8 = .{
-                    .uvs = prep.cylinder_uvs.array,
-                    .tex = textures.tex_u8_rgb,
-                    .samp_cfg = case.samp_cfg,
-                    .normal_type = .none,
-                },
-            },
-            .u16 => .{
-                .tex_rgb_u16 = .{
-                    .uvs = prep.cylinder_uvs.array,
-                    .tex = textures.tex_u16_rgb,
-                    .samp_cfg = case.samp_cfg,
-                    .normal_type = .none,
-                },
-            },
-            .f64 => .{
-                .tex_rgb_f = .{
-                    .uvs = prep.cylinder_uvs.array,
-                    .tex = textures.tex_f64_rgb,
-                    .samp_cfg = case.samp_cfg,
-                    .normal_type = .none,
-                },
-            },
-        }
-    else
-        switch (case.dtype) {
-            .u8 => .{
-                .tex_u8 = .{
-                    .uvs = prep.cylinder_uvs.array,
-                    .tex = textures.tex_u8_mono,
-                    .samp_cfg = case.samp_cfg,
-                    .normal_type = .none,
-                },
-            },
-            .u16 => .{
-                .tex_u16 = .{
-                    .uvs = prep.cylinder_uvs.array,
-                    .tex = textures.tex_u16_mono,
-                    .samp_cfg = case.samp_cfg,
-                    .normal_type = .none,
-                },
-            },
-            .f64 => .{
-                .tex_f = .{
-                    .uvs = prep.cylinder_uvs.array,
-                    .tex = textures.tex_f64_mono,
-                    .samp_cfg = case.samp_cfg,
-                    .normal_type = .none,
-                },
-            },
-        };
-
-    return [_]MeshInput{
-        .{
-            .mesh_type = mesh_type,
-            .coords = prep.sphere_coords,
-            .connect = prep.sphere_connect,
-            .disp = prep.sphere_disp,
-            .shader = sphere_shader,
-        },
-        .{
-            .mesh_type = mesh_type,
-            .coords = prep.cylinder_coords,
-            .connect = prep.cylinder_connect,
-            .disp = prep.cylinder_disp,
-            .shader = cyl_shader,
-        },
-    };
-}
+pub const FullTexSamplingCase = fullcase_tex.FullTexSamplingCase;
+pub const all_tex_samp_configs = fullcase_tex.all_tex_samp_configs;
 
 pub fn generateFullTexCase(
     allocator: std.mem.Allocator,
     io: std.Io,
     mesh_type: gk.MeshType,
-    prep: *const common.Scene0Prepared,
-    textures: *const common.FullTextures,
+    prep: *const fullfixtures.Scene0Prepared,
+    textures: *const fullfixtures.FullTextures,
     case: FullTexSamplingCase,
     gold_dir_root: []const u8,
     config: rastcfg.RasterConfig,
@@ -233,7 +50,12 @@ pub fn generateFullTexCase(
     var out_dir = try orch.openDirEnsured(io, out_dir_path);
     out_dir.close(io);
 
-    const meshes = buildTexSamplingCaseMeshes(mesh_type, prep, textures, case);
+    const meshes = fullcase_tex.buildTexSamplingCaseMeshes(
+        mesh_type,
+        prep,
+        textures,
+        case,
+    );
 
     const render_groups = [_]riley.RenderGroupSpec{
         .{ .io = io, .workers = @max(@as(u16, 1), config.total_threads) },
@@ -259,7 +81,7 @@ pub fn generateAllFullTextureCases(
     gold_dir_root: []const u8,
     config: rastcfg.RasterConfig,
 ) !void {
-    var textures = try common.FullTextures.init(allocator, io);
+    var textures = try fullfixtures.FullTextures.init(allocator, io);
     defer textures.deinit(allocator);
 
     const mesh_types = [_]gk.MeshType{
@@ -277,7 +99,7 @@ pub fn generateAllFullTextureCases(
     };
 
     for (mesh_types) |mesh_type| {
-        var prep = try common.prepareScene0(allocator, io, mesh_type);
+        var prep = try fullfixtures.prepareScene0(allocator, io, mesh_type);
         defer prep.deinit(allocator);
 
         for (bool_values) |is_rgb| {
@@ -317,7 +139,10 @@ pub fn main(init: std.process.Init) !void {
     };
 
     const gold_dir_root = policy.goldRoot(.full_texture);
-    std.debug.print("Generating Full Suite: texture cases in {s}...\n", .{gold_dir_root});
+    std.debug.print(
+        "Generating Full Suite: texture cases in {s}...\n",
+        .{gold_dir_root},
+    );
     try generateAllFullTextureCases(
         allocator,
         io,

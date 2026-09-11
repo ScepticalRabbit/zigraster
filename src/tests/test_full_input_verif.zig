@@ -9,7 +9,7 @@
 const std = @import("std");
 const buildconfig = @import("../riley/zig/buildconfig.zig");
 const camera = @import("../riley/zig/camera.zig");
-const common_full = @import("../gengold/gen_gold_full_common.zig");
+const common_full = @import("../dev_support/fullfixtures.zig");
 const gk = @import("../riley/zig/geometrykernels.zig");
 const iio = @import("../riley/zig/imageio.zig");
 const matslice = @import("../riley/zig/matslice.zig");
@@ -77,6 +77,51 @@ fn runRender(
     );
 }
 
+fn expectConfigError(
+    io: std.Io,
+    fixture: *const BaselineFixture,
+    config: RasterConfig,
+    expected_error: anyerror,
+) !void {
+    const cam_inps = common_full.createScene3Cameras();
+    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+    try std.testing.expectError(
+        expected_error,
+        runRender(&render_groups, &cam_inps, &mesh_inps, config),
+    );
+}
+
+fn expectCameraError(
+    io: std.Io,
+    fixture: *const BaselineFixture,
+    cam_inps: []const CameraInput,
+    expected_error: anyerror,
+) !void {
+    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+    try std.testing.expectError(
+        expected_error,
+        runRender(&render_groups, cam_inps, &mesh_inps, fixture.config),
+    );
+}
+
+fn expectRenderInputError(
+    io: std.Io,
+    fixture: *const BaselineFixture,
+    mesh_inps: []const MeshInput,
+    config: ?RasterConfig,
+    expected_error: anyerror,
+) !void {
+    const cam_inps = common_full.createScene3Cameras();
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+    const active_config = config orelse fixture.config;
+    try std.testing.expectError(
+        expected_error,
+        runRender(&render_groups, &cam_inps, mesh_inps, active_config),
+    );
+}
+
 // --------------------------------------------------------------------------
 // Validation Mode Tests
 // --------------------------------------------------------------------------
@@ -91,7 +136,7 @@ fn testValidateInputModes(
     const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
 
     // Default configuration has validate_input = .fast
-    var default_config = fixture.config;
+    const default_config = fixture.config;
     try std.testing.expectEqual(rastcfg.ValidateInput.fast, default_config.validate_input);
 
     // .off mode succeeds on valid input
@@ -251,17 +296,9 @@ fn testInvalidTotalThreads(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.total_threads = 0;
-
-    try std.testing.expectError(
-        error.InvalidTotalThreads,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidTotalThreads);
 }
 
 fn testInvalidFrameBatchSize(
@@ -270,17 +307,9 @@ fn testInvalidFrameBatchSize(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.frame_batch_size_per_group = 0;
-
-    try std.testing.expectError(
-        error.InvalidFrameBatchSize,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidFrameBatchSize);
 }
 
 fn testInvalidGeomJobsInFlight(
@@ -289,17 +318,9 @@ fn testInvalidGeomJobsInFlight(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.max_geom_jobs_in_flight_per_group = 0;
-
-    try std.testing.expectError(
-        error.InvalidGeomJobsInFlight,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidGeomJobsInFlight);
 }
 
 fn testInvalidGeomWorkersPerJob(
@@ -308,17 +329,9 @@ fn testInvalidGeomWorkersPerJob(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.max_geom_workers_per_job = 0;
-
-    try std.testing.expectError(
-        error.InvalidGeomWorkersPerJob,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidGeomWorkersPerJob);
 }
 
 fn testInvalidRasterWorkersPerJob(
@@ -327,17 +340,9 @@ fn testInvalidRasterWorkersPerJob(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.max_raster_workers_per_job = 0;
-
-    try std.testing.expectError(
-        error.InvalidRasterWorkersPerJob,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidRasterWorkersPerJob);
 }
 
 // --------------------------------------------------------------------------
@@ -350,17 +355,9 @@ fn testInvalidTileSizeMin(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.tile_size_min = 0;
-
-    try std.testing.expectError(
-        error.InvalidTileSizeMin,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidTileSizeMin);
 }
 
 fn testInvalidTileSizeMax(
@@ -369,17 +366,9 @@ fn testInvalidTileSizeMax(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.tile_size_max = 0;
-
-    try std.testing.expectError(
-        error.InvalidTileSizeMax,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidTileSizeMax);
 }
 
 fn testInvalidTileSizeRange(
@@ -388,18 +377,10 @@ fn testInvalidTileSizeRange(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.tile_size_min = 64;
     config.tile_size_max = 32;
-
-    try std.testing.expectError(
-        error.InvalidTileSizeRange,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidTileSizeRange);
 }
 
 fn testInvalidTileSizeOverride(
@@ -408,19 +389,11 @@ fn testInvalidTileSizeOverride(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.tile_size_min = 16;
     config.tile_size_max = 64;
     config.tile_size_override = 128;
-
-    try std.testing.expectError(
-        error.InvalidTileSizeOverride,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidTileSizeOverride);
 }
 
 fn testInvalidGlobalSubpxTileSizeMin(
@@ -429,17 +402,9 @@ fn testInvalidGlobalSubpxTileSizeMin(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.global_subpx_tile_size_min = 0;
-
-    try std.testing.expectError(
-        error.InvalidGlobalSubpxTileSizeMin,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidGlobalSubpxTileSizeMin);
 }
 
 fn testInvalidGlobalSubpxTileSizeMax(
@@ -448,17 +413,9 @@ fn testInvalidGlobalSubpxTileSizeMax(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.global_subpx_tile_size_max = 0;
-
-    try std.testing.expectError(
-        error.InvalidGlobalSubpxTileSizeMax,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidGlobalSubpxTileSizeMax);
 }
 
 fn testInvalidGlobalSubpxTileSizeRange(
@@ -467,18 +424,10 @@ fn testInvalidGlobalSubpxTileSizeRange(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.global_subpx_tile_size_min = 128;
     config.global_subpx_tile_size_max = 64;
-
-    try std.testing.expectError(
-        error.InvalidGlobalSubpxTileSizeRange,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidGlobalSubpxTileSizeRange);
 }
 
 fn testInvalidGlobalSubpxTileSizeOverride(
@@ -487,19 +436,11 @@ fn testInvalidGlobalSubpxTileSizeOverride(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.global_subpx_tile_size_min = 16;
     config.global_subpx_tile_size_max = 64;
     config.global_subpx_tile_size_override = 128;
-
-    try std.testing.expectError(
-        error.InvalidGlobalSubpxTileSizeOverride,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidGlobalSubpxTileSizeOverride);
 }
 
 fn testInvalidGlobalSubpxStripeSizeMin(
@@ -508,17 +449,9 @@ fn testInvalidGlobalSubpxStripeSizeMin(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.global_subpx_stripe_size_min = 0;
-
-    try std.testing.expectError(
-        error.InvalidGlobalSubpxStripeSizeMin,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidGlobalSubpxStripeSizeMin);
 }
 
 fn testInvalidGlobalSubpxStripeSizeMax(
@@ -527,17 +460,9 @@ fn testInvalidGlobalSubpxStripeSizeMax(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.global_subpx_stripe_size_max = 0;
-
-    try std.testing.expectError(
-        error.InvalidGlobalSubpxStripeSizeMax,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidGlobalSubpxStripeSizeMax);
 }
 
 fn testInvalidGlobalSubpxStripeSizeRange(
@@ -546,18 +471,10 @@ fn testInvalidGlobalSubpxStripeSizeRange(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.global_subpx_stripe_size_min = 128;
     config.global_subpx_stripe_size_max = 64;
-
-    try std.testing.expectError(
-        error.InvalidGlobalSubpxStripeSizeRange,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidGlobalSubpxStripeSizeRange);
 }
 
 fn testInvalidGlobalSubpxStripeSizeOverride(
@@ -566,19 +483,11 @@ fn testInvalidGlobalSubpxStripeSizeOverride(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.global_subpx_stripe_size_min = 16;
     config.global_subpx_stripe_size_max = 64;
     config.global_subpx_stripe_size_override = 128;
-
-    try std.testing.expectError(
-        error.InvalidGlobalSubpxStripeSizeOverride,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidGlobalSubpxStripeSizeOverride);
 }
 
 // --------------------------------------------------------------------------
@@ -591,17 +500,9 @@ fn testInvalidBackgroundValue(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.background_value = std.math.nan(F);
-
-    try std.testing.expectError(
-        error.InvalidBackgroundValue,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidBackgroundValue);
 }
 
 fn testInvalidSaveFrameBuffCount(
@@ -610,17 +511,9 @@ fn testInvalidSaveFrameBuffCount(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.save_frame_buff_count = 0;
-
-    try std.testing.expectError(
-        error.InvalidSaveFrameBuffCount,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidSaveFrameBuffCount);
 }
 
 fn testInvalidImageSaveOpts(
@@ -629,18 +522,10 @@ fn testInvalidImageSaveOpts(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.save_strategy = .disk;
     config.image_save_opts = &[_]iio.ImageSaveOpts{};
-
-    try std.testing.expectError(
-        error.InvalidImageSaveOpts,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidImageSaveOpts);
 }
 
 fn testInvalidFullStatsFormats(
@@ -649,19 +534,11 @@ fn testInvalidFullStatsFormats(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.report = .full_stats;
     config.max_raster_workers_per_job = 1;
     config.full_stats_opts.formats = &[_]iio.ImageSaveOpts{};
-
-    try std.testing.expectError(
-        error.InvalidFullStatsFormats,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidFullStatsFormats);
 }
 
 // --------------------------------------------------------------------------
@@ -676,13 +553,7 @@ fn testInvalidCameraPixels(
     _ = allocator;
     var cam_inps = common_full.createScene3Cameras();
     cam_inps[0].pixels_num = [2]u32{ 0, 100 };
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
-    try std.testing.expectError(
-        error.InvalidCameraPixels,
-        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
-    );
+    try expectCameraError(io, fixture, &cam_inps, error.InvalidCameraPixels);
 }
 
 fn testInvalidCameraPixelSize(
@@ -693,13 +564,7 @@ fn testInvalidCameraPixelSize(
     _ = allocator;
     var cam_inps = common_full.createScene3Cameras();
     cam_inps[0].pixels_size = [2]F{ -1.0, 5.3e-6 };
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
-    try std.testing.expectError(
-        error.InvalidCameraPixelSize,
-        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
-    );
+    try expectCameraError(io, fixture, &cam_inps, error.InvalidCameraPixelSize);
 }
 
 fn testInvalidCameraFocalLength(
@@ -710,13 +575,7 @@ fn testInvalidCameraFocalLength(
     _ = allocator;
     var cam_inps = common_full.createScene3Cameras();
     cam_inps[0].focal_length = 0.0;
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
-    try std.testing.expectError(
-        error.InvalidCameraFocalLength,
-        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
-    );
+    try expectCameraError(io, fixture, &cam_inps, error.InvalidCameraFocalLength);
 }
 
 fn testInvalidCameraSubSample(
@@ -727,13 +586,7 @@ fn testInvalidCameraSubSample(
     _ = allocator;
     var cam_inps = common_full.createScene3Cameras();
     cam_inps[0].sub_sample = 0;
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
-    try std.testing.expectError(
-        error.InvalidCameraSubSample,
-        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
-    );
+    try expectCameraError(io, fixture, &cam_inps, error.InvalidCameraSubSample);
 }
 
 fn testInvalidCameraRoi(
@@ -744,13 +597,7 @@ fn testInvalidCameraRoi(
     _ = allocator;
     var cam_inps = common_full.createScene3Cameras();
     cam_inps[0].pos_world.slice[0] = std.math.nan(F);
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
-    try std.testing.expectError(
-        error.InvalidCameraRoi,
-        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
-    );
+    try expectCameraError(io, fixture, &cam_inps, error.InvalidCameraRoi);
 }
 
 fn testInvalidCameraRotation(
@@ -761,13 +608,7 @@ fn testInvalidCameraRotation(
     _ = allocator;
     var cam_inps = common_full.createScene3Cameras();
     cam_inps[0].rot_world.matrix.set(0, 0, 2.0);
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
-    try std.testing.expectError(
-        error.InvalidCameraRotation,
-        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
-    );
+    try expectCameraError(io, fixture, &cam_inps, error.InvalidCameraRotation);
 }
 
 fn testInvalidCameraDistortion(
@@ -786,13 +627,7 @@ fn testInvalidCameraDistortion(
             .p2 = 0.0,
         },
     };
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
-    try std.testing.expectError(
-        error.InvalidCameraDistortion,
-        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
-    );
+    try expectCameraError(io, fixture, &cam_inps, error.InvalidCameraDistortion);
 }
 
 fn testInvalidCameraPsf(
@@ -808,13 +643,7 @@ fn testInvalidCameraPsf(
             .supp_rad_px = 2.0,
         },
     };
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
-    try std.testing.expectError(
-        error.InvalidCameraPsf,
-        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
-    );
+    try expectCameraError(io, fixture, &cam_inps, error.InvalidCameraPsf);
 }
 
 // --------------------------------------------------------------------------
@@ -827,15 +656,9 @@ fn testZeroCoordinateCount(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
     var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
     mesh_inps[0].coords.mat.rows_num = 0;
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
-    try std.testing.expectError(
-        error.ZeroCoordinateCount,
-        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
-    );
+    try expectRenderInputError(io, fixture, &mesh_inps, null, error.ZeroCoordinateCount);
 }
 
 fn testInvalidCoordinateDimensions(
@@ -844,14 +667,14 @@ fn testInvalidCoordinateDimensions(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
     var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
     mesh_inps[0].coords.mat.cols_num = 2;
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
-    try std.testing.expectError(
+    try expectRenderInputError(
+        io,
+        fixture,
+        &mesh_inps,
+        null,
         error.InvalidCoordinateDimensions,
-        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
     );
 }
 
@@ -861,15 +684,9 @@ fn testZeroElementCount(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
     var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
     mesh_inps[0].connect.table.rows_num = 0;
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
-    try std.testing.expectError(
-        error.ZeroElementCount,
-        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
-    );
+    try expectRenderInputError(io, fixture, &mesh_inps, null, error.ZeroElementCount);
 }
 
 fn testInvalidConnectivityDimensions(
@@ -878,14 +695,14 @@ fn testInvalidConnectivityDimensions(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
     var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
     mesh_inps[0].connect.table.cols_num = 2;
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
-    try std.testing.expectError(
+    try expectRenderInputError(
+        io,
+        fixture,
+        &mesh_inps,
+        null,
         error.InvalidConnectivityDimensions,
-        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
     );
 }
 
@@ -895,17 +712,20 @@ fn testInvalidDisplacementDimensions(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
     var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
     if (mesh_inps[0].disp) |*disp_field| {
+        const orig_dim = disp_field.array.dims[2];
         disp_field.array.dims[2] = 2;
-    }
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+        defer disp_field.array.dims[2] = orig_dim;
 
-    try std.testing.expectError(
-        error.InvalidDisplacementDimensions,
-        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
-    );
+        try expectRenderInputError(
+            io,
+            fixture,
+            &mesh_inps,
+            null,
+            error.InvalidDisplacementDimensions,
+        );
+    }
 }
 
 fn testInvalidNodalFieldDimensions(
@@ -914,20 +734,23 @@ fn testInvalidNodalFieldDimensions(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
     var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
     switch (mesh_inps[0].shader) {
         .nodal => |*nodal_shader| {
+            const orig_dim = nodal_shader.field.array.dims[1];
             nodal_shader.field.array.dims[1] = 1;
+            defer nodal_shader.field.array.dims[1] = orig_dim;
+
+            try expectRenderInputError(
+                io,
+                fixture,
+                &mesh_inps,
+                null,
+                error.InvalidNodalFieldDimensions,
+            );
         },
         else => {},
     }
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
-    try std.testing.expectError(
-        error.InvalidNodalFieldDimensions,
-        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
-    );
 }
 
 fn testInvalidTexSampleConfig(
@@ -936,20 +759,22 @@ fn testInvalidTexSampleConfig(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
     var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
     switch (mesh_inps[2].shader) {
         .tex_u8 => |*tex_shader| {
-            tex_shader.samp_cfg.mode = .gradient;
-            tex_shader.samp_cfg.sample = .nearest_neighbour;
+            tex_shader.samp_cfg = .{
+                .sample = .nearest,
+                .mode = .lut,
+            };
         },
         else => {},
     }
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
-    try std.testing.expectError(
+    try expectRenderInputError(
+        io,
+        fixture,
+        &mesh_inps,
+        null,
         error.InvalidTexSampleConfig,
-        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
     );
 }
 
@@ -959,7 +784,6 @@ fn testInvalidShaderBitDepth(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
     var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
     switch (mesh_inps[0].shader) {
         .nodal => |*nodal_shader| {
@@ -967,11 +791,12 @@ fn testInvalidShaderBitDepth(
         },
         else => {},
     }
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
-    try std.testing.expectError(
+    try expectRenderInputError(
+        io,
+        fixture,
+        &mesh_inps,
+        null,
         error.InvalidShaderBitDepth,
-        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
     );
 }
 
@@ -981,19 +806,19 @@ fn testInvalidScalingBounds(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
     var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
     switch (mesh_inps[0].shader) {
         .nodal => |*nodal_shader| {
-            nodal_shader.scaling = .{ .manual = .{ 10.0, 5.0 } };
+            nodal_shader.scaling = .{ .fixed = .{ 10.0, 5.0 } };
         },
         else => {},
     }
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
-    try std.testing.expectError(
+    try expectRenderInputError(
+        io,
+        fixture,
+        &mesh_inps,
+        null,
         error.InvalidScalingBounds,
-        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
     );
 }
 
@@ -1003,7 +828,6 @@ fn testInvalidFuncShaderParams(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
     var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
     switch (mesh_inps[1].shader) {
         .func => |*func_shader| {
@@ -1011,11 +835,12 @@ fn testInvalidFuncShaderParams(
         },
         else => {},
     }
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
-    try std.testing.expectError(
+    try expectRenderInputError(
+        io,
+        fixture,
+        &mesh_inps,
+        null,
         error.InvalidFuncShaderParams,
-        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
     );
 }
 
@@ -1205,9 +1030,7 @@ fn testInvalidConnectivityIndex(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
     var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
 
     var full_config = fixture.config;
     full_config.validate_input = .full;
@@ -1216,9 +1039,12 @@ fn testInvalidConnectivityIndex(
     mesh_inps[0].connect.table_mem[0] = mesh_inps[0].coords.mat.rows_num + 100;
     defer mesh_inps[0].connect.table_mem[0] = orig_idx;
 
-    try std.testing.expectError(
+    try expectRenderInputError(
+        io,
+        fixture,
+        &mesh_inps,
+        full_config,
         error.InvalidConnectivityIndex,
-        runRender(&render_groups, &cam_inps, &mesh_inps, full_config),
     );
 }
 
@@ -1228,9 +1054,7 @@ fn testDegenerateElementIndices(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
     var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
 
     var full_config = fixture.config;
     full_config.validate_input = .full;
@@ -1239,9 +1063,12 @@ fn testDegenerateElementIndices(
     mesh_inps[0].connect.table_mem[1] = mesh_inps[0].connect.table_mem[0];
     defer mesh_inps[0].connect.table_mem[1] = orig_idx1;
 
-    try std.testing.expectError(
+    try expectRenderInputError(
+        io,
+        fixture,
+        &mesh_inps,
+        full_config,
         error.DegenerateElementIndices,
-        runRender(&render_groups, &cam_inps, &mesh_inps, full_config),
     );
 }
 
@@ -1251,9 +1078,7 @@ fn testNonFiniteCoordinates(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
     var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
 
     var full_config = fixture.config;
     full_config.validate_input = .full;
@@ -1262,9 +1087,12 @@ fn testNonFiniteCoordinates(
     mesh_inps[0].coords.mem[0] = std.math.nan(F);
     defer mesh_inps[0].coords.mem[0] = orig_coord;
 
-    try std.testing.expectError(
+    try expectRenderInputError(
+        io,
+        fixture,
+        &mesh_inps,
+        full_config,
         error.NonFiniteCoordinates,
-        runRender(&render_groups, &cam_inps, &mesh_inps, full_config),
     );
 }
 
@@ -1274,9 +1102,7 @@ fn testNonFiniteDisplacements(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
     var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
 
     var full_config = fixture.config;
     full_config.validate_input = .full;
@@ -1286,9 +1112,12 @@ fn testNonFiniteDisplacements(
         disp_field.array_mem[0] = std.math.nan(F);
         defer disp_field.array_mem[0] = orig_disp;
 
-        try std.testing.expectError(
+        try expectRenderInputError(
+            io,
+            fixture,
+            &mesh_inps,
+            full_config,
             error.NonFiniteDisplacements,
-            runRender(&render_groups, &cam_inps, &mesh_inps, full_config),
         );
     }
 }
@@ -1299,9 +1128,7 @@ fn testNonFiniteNodalFields(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
     var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
 
     var full_config = fixture.config;
     full_config.validate_input = .full;
@@ -1312,9 +1139,12 @@ fn testNonFiniteNodalFields(
             nodal_shader.field.array_mem[0] = std.math.nan(F);
             defer nodal_shader.field.array_mem[0] = orig_val;
 
-            try std.testing.expectError(
+            try expectRenderInputError(
+                io,
+                fixture,
+                &mesh_inps,
+                full_config,
                 error.NonFiniteNodalFields,
-                runRender(&render_groups, &cam_inps, &mesh_inps, full_config),
             );
         },
         else => {},
@@ -1327,9 +1157,7 @@ fn testNonFiniteUvs(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
     var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
 
     var full_config = fixture.config;
     full_config.validate_input = .full;
@@ -1341,9 +1169,12 @@ fn testNonFiniteUvs(
                 uvs.slice[0] = std.math.nan(F);
                 defer uvs.slice[0] = orig_uv;
 
-                try std.testing.expectError(
+                try expectRenderInputError(
+                    io,
+                    fixture,
+                    &mesh_inps,
+                    full_config,
                     error.NonFiniteUvs,
-                    runRender(&render_groups, &cam_inps, &mesh_inps, full_config),
                 );
             }
         },
@@ -1356,16 +1187,13 @@ fn testNonFiniteTexels(
     io: std.Io,
     fixture: *const BaselineFixture,
 ) !void {
-    _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
     var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
 
     var full_config = fixture.config;
     full_config.validate_input = .full;
 
     var float_tex_data = [_]F{ 0.1, 0.2, 0.3, 0.4 };
-    const float_tex_dims = [_]usize{ 2, 2, 1 };
+    const float_tex_dims = [_]usize{ 1, 2, 2 };
     var float_tex_arr = try NDArray.initFlat(allocator, float_tex_dims[0..]);
     defer {
         allocator.free(float_tex_arr.slice);
@@ -1376,9 +1204,13 @@ fn testNonFiniteTexels(
     mesh_inps[2].shader = .{
         .tex_f = .{
             .uvs = fixture.prep.meshes[2].uvs.array,
-            .tex = .{ .array = float_tex_arr },
+            .tex = .{
+                .array = float_tex_arr,
+                .rows_num = 2,
+                .cols_num = 2,
+            },
             .samp_cfg = .{
-                .sample = .bilinear,
+                .sample = .linear,
                 .mode = .direct,
             },
             .bits = 16,
@@ -1389,9 +1221,12 @@ fn testNonFiniteTexels(
 
     float_tex_arr.slice[0] = std.math.nan(F);
 
-    try std.testing.expectError(
+    try expectRenderInputError(
+        io,
+        fixture,
+        &mesh_inps,
+        full_config,
         error.NonFiniteTexels,
-        runRender(&render_groups, &cam_inps, &mesh_inps, full_config),
     );
 }
 
@@ -1443,20 +1278,13 @@ fn testMixedCaseMultipleConfigErrors(
     fixture: *const BaselineFixture,
 ) !void {
     _ = allocator;
-    const cam_inps = common_full.createScene3Cameras();
-    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
-    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
-
     var config = fixture.config;
     config.total_threads = 0;
     config.tile_size_min = 0;
     config.background_value = std.math.nan(F);
 
     // Should return the first validation error encountered
-    try std.testing.expectError(
-        error.InvalidTotalThreads,
-        runRender(&render_groups, &cam_inps, &mesh_inps, config),
-    );
+    try expectConfigError(io, fixture, config, error.InvalidTotalThreads);
 }
 
 fn testMixedCaseCameraAndConfigErrors(

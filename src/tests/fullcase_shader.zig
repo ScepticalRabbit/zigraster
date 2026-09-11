@@ -9,7 +9,7 @@
 const std = @import("std");
 const buildconfig = @import("../riley/zig/buildconfig.zig");
 const camera = @import("../riley/zig/camera.zig");
-const common_full = @import("../gengold/gen_gold_full_common.zig");
+const common_full = @import("../dev_support/fullfixtures.zig");
 const gk = @import("../riley/zig/geometrykernels.zig");
 const imageops = @import("../riley/zig/imageops.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
@@ -208,33 +208,32 @@ pub fn buildShaderCaseMeshes(
                         },
                     },
                 }
-            else
-                switch (t.dtype) {
-                    .u8 => .{
-                        .tex_u8 = .{
-                            .uvs = prep.sphere_uvs.array,
-                            .tex = textures.tex_u8_mono,
-                            .samp_cfg = samp_cfg,
-                            .normal_type = t.normal_type,
-                        },
+            else switch (t.dtype) {
+                .u8 => .{
+                    .tex_u8 = .{
+                        .uvs = prep.sphere_uvs.array,
+                        .tex = textures.tex_u8_mono,
+                        .samp_cfg = samp_cfg,
+                        .normal_type = t.normal_type,
                     },
-                    .u16 => .{
-                        .tex_u16 = .{
-                            .uvs = prep.sphere_uvs.array,
-                            .tex = textures.tex_u16_mono,
-                            .samp_cfg = samp_cfg,
-                            .normal_type = t.normal_type,
-                        },
+                },
+                .u16 => .{
+                    .tex_u16 = .{
+                        .uvs = prep.sphere_uvs.array,
+                        .tex = textures.tex_u16_mono,
+                        .samp_cfg = samp_cfg,
+                        .normal_type = t.normal_type,
                     },
-                    .f64 => .{
-                        .tex_f = .{
-                            .uvs = prep.sphere_uvs.array,
-                            .tex = textures.tex_f64_mono,
-                            .samp_cfg = samp_cfg,
-                            .normal_type = t.normal_type,
-                        },
+                },
+                .f64 => .{
+                    .tex_f = .{
+                        .uvs = prep.sphere_uvs.array,
+                        .tex = textures.tex_f64_mono,
+                        .samp_cfg = samp_cfg,
+                        .normal_type = t.normal_type,
                     },
-                };
+                },
+            };
 
             const cyl_shader: shaderops.ShaderInput = if (t.is_rgb)
                 switch (t.dtype) {
@@ -263,33 +262,32 @@ pub fn buildShaderCaseMeshes(
                         },
                     },
                 }
-            else
-                switch (t.dtype) {
-                    .u8 => .{
-                        .tex_u8 = .{
-                            .uvs = prep.cylinder_uvs.array,
-                            .tex = textures.tex_u8_mono,
-                            .samp_cfg = samp_cfg,
-                            .normal_type = t.normal_type,
-                        },
+            else switch (t.dtype) {
+                .u8 => .{
+                    .tex_u8 = .{
+                        .uvs = prep.cylinder_uvs.array,
+                        .tex = textures.tex_u8_mono,
+                        .samp_cfg = samp_cfg,
+                        .normal_type = t.normal_type,
                     },
-                    .u16 => .{
-                        .tex_u16 = .{
-                            .uvs = prep.cylinder_uvs.array,
-                            .tex = textures.tex_u16_mono,
-                            .samp_cfg = samp_cfg,
-                            .normal_type = t.normal_type,
-                        },
+                },
+                .u16 => .{
+                    .tex_u16 = .{
+                        .uvs = prep.cylinder_uvs.array,
+                        .tex = textures.tex_u16_mono,
+                        .samp_cfg = samp_cfg,
+                        .normal_type = t.normal_type,
                     },
-                    .f64 => .{
-                        .tex_f = .{
-                            .uvs = prep.cylinder_uvs.array,
-                            .tex = textures.tex_f64_mono,
-                            .samp_cfg = samp_cfg,
-                            .normal_type = t.normal_type,
-                        },
+                },
+                .f64 => .{
+                    .tex_f = .{
+                        .uvs = prep.cylinder_uvs.array,
+                        .tex = textures.tex_f64_mono,
+                        .samp_cfg = samp_cfg,
+                        .normal_type = t.normal_type,
                     },
-                };
+                },
+            };
 
             return [_]MeshInput{
                 .{

@@ -48,7 +48,9 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
             try std.testing.expect(record.converged);
             try std.testing.expect(record.in_bounds);
             try std.testing.expect(record.err_dist <= tcfg.VERIF_TOL.distortion_abs_px);
-            try std.testing.expect(record.observed_reproj_err <= tcfg.VERIF_TOL.distortion_abs_px);
+            try std.testing.expect(
+                record.observed_reproj_err <= tcfg.VERIF_TOL.distortion_abs_px,
+            );
         }
     }
 }

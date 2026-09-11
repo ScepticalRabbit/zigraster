@@ -9,9 +9,9 @@
 const std = @import("std");
 const buildconfig = @import("../riley/zig/buildconfig.zig");
 const camera = @import("../riley/zig/camera.zig");
+const common_full = @import("../dev_support/fullfixtures.zig");
 const common_test = @import("../dev_support/tests.zig");
-const common_full = @import("../gengold/gen_gold_full_common.zig");
-const gengold_shader = @import("../gengold/gen_gold_full_shader.zig");
+const fullcase_shader = @import("fullcase_shader.zig");
 const gk = @import("../riley/zig/geometrykernels.zig");
 const imageops = @import("../riley/zig/imageops.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
@@ -25,15 +25,10 @@ const F = buildconfig.F;
 const CameraInput = camera.CameraInput;
 const MeshInput = mo.MeshInput;
 const Timestamp = std.Io.Clock.Timestamp;
-const FullShaderCase = gengold_shader.FullShaderCase;
-const FullNodalCase = gengold_shader.FullNodalCase;
-const FullTexCase = gengold_shader.FullTexCase;
-const FullFuncCase = gengold_shader.FullFuncCase;
-
-pub const FULL_REL_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
-pub const FULL_ABS_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
-pub const TRI3OPT_PARITY_REL_TOL: F = 1.0e-3;
-pub const TRI3OPT_PARITY_ABS_TOL: F = 1.0e-3;
+const FullShaderCase = fullcase_shader.FullShaderCase;
+const FullNodalCase = fullcase_shader.FullNodalCase;
+const FullTexCase = fullcase_shader.FullTexCase;
+const FullFuncCase = fullcase_shader.FullFuncCase;
 
 pub fn runFullShaderCaseTest(
     allocator: std.mem.Allocator,
@@ -56,7 +51,7 @@ pub fn runFullShaderCaseTest(
         .{ gold_dir_root, case_dir_name },
     );
 
-    const meshes = gengold_shader.buildShaderCaseMeshes(
+    const meshes = fullcase_shader.buildShaderCaseMeshes(
         mesh_type,
         prep,
         textures,
@@ -97,13 +92,13 @@ pub fn runFullShaderCaseTest(
     const channels_num: usize = if (is_rgb) 3 else 1;
 
     const rel_tol: F = if (mesh_type == .tri3opt)
-        TRI3OPT_PARITY_REL_TOL
+        tcfg.TRI3OPT_PARITY_REL_TOL
     else
-        FULL_REL_TOL;
+        tcfg.FULL_GOLD_REL_TOL;
     const abs_tol: F = if (mesh_type == .tri3opt)
-        TRI3OPT_PARITY_ABS_TOL
+        tcfg.TRI3OPT_PARITY_ABS_TOL
     else
-        FULL_ABS_TOL;
+        tcfg.FULL_GOLD_ABS_TOL;
 
     for (0..frames_num) |ff| {
         for (0..channels_num) |ch| {
@@ -382,7 +377,7 @@ fn runNodalScalingTests(
             defer arena.deinit();
             const aa = arena.allocator();
 
-            const meshes = gengold_shader.buildShaderCaseMeshes(
+            const meshes = fullcase_shader.buildShaderCaseMeshes(
                 .tri3,
                 &prep,
                 &textures,
@@ -421,4 +416,3 @@ fn runNodalScalingTests(
         }
     }
 }
-

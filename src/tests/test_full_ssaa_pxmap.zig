@@ -9,9 +9,9 @@
 const std = @import("std");
 const buildconfig = @import("../riley/zig/buildconfig.zig");
 const camera = @import("../riley/zig/camera.zig");
-const common_full = @import("../gengold/gen_gold_full_common.zig");
+const common_full = @import("../dev_support/fullfixtures.zig");
 const common_test = @import("../dev_support/tests.zig");
-const gengold_ssaa_pxmap = @import("../gengold/gen_gold_full_ssaa_pxmap.zig");
+const fullcase_ssaa_pxmap = @import("fullcase_ssaa_pxmap.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
 const ndarray = @import("../riley/zig/ndarray.zig");
 const policy = @import("../dev_support/testpolicy.zig");
@@ -24,17 +24,14 @@ const CameraInput = camera.CameraInput;
 const MeshInput = mo.MeshInput;
 const Timestamp = std.Io.Clock.Timestamp;
 
-pub const FULL_REL_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
-pub const FULL_ABS_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
-
 pub fn runFullSsaaPxmapCaseTest(
     allocator: std.mem.Allocator,
     io: std.Io,
     prep: *const common_full.Scene1Prepared,
     ssaa: u32,
-    dist_case: gengold_ssaa_pxmap.DistCase,
-    psf_case: gengold_ssaa_pxmap.PsfCase,
-    pxmap_case: gengold_ssaa_pxmap.PxMapCase,
+    dist_case: fullcase_ssaa_pxmap.DistCase,
+    psf_case: fullcase_ssaa_pxmap.PsfCase,
+    pxmap_case: fullcase_ssaa_pxmap.PxMapCase,
     gold_dir_root: []const u8,
     config: rastcfg.RasterConfig,
 ) !void {
@@ -42,7 +39,7 @@ pub fn runFullSsaaPxmapCaseTest(
     defer arena.deinit();
     const aa = arena.allocator();
 
-    const case_name = try gengold_ssaa_pxmap.formatSsaaPxmapCaseName(
+    const case_name = try fullcase_ssaa_pxmap.formatSsaaPxmapCaseName(
         aa,
         ssaa,
         dist_case.tag,
@@ -55,7 +52,7 @@ pub fn runFullSsaaPxmapCaseTest(
         .{ gold_dir_root, case_name },
     );
 
-    const mesh = gengold_ssaa_pxmap.buildScene1Mesh(prep);
+    const mesh = fullcase_ssaa_pxmap.buildScene1Mesh(prep);
     const meshes = [_]MeshInput{mesh};
 
     var camera_input = prep.camera_input;
@@ -110,8 +107,8 @@ pub fn runFullSsaaPxmapCaseTest(
         0,
         1,
         gold_path,
-        FULL_REL_TOL,
-        FULL_ABS_TOL,
+        tcfg.FULL_GOLD_REL_TOL,
+        tcfg.FULL_GOLD_ABS_TOL,
     ) catch |err| {
         const fail_dir_name = try std.fmt.allocPrint(
             aa,
@@ -154,10 +151,10 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
     var prep = try common_full.prepareScene1(allocator, io);
     defer prep.deinit(allocator);
 
-    for (gengold_ssaa_pxmap.ssaa_levels) |ssaa| {
-        for (gengold_ssaa_pxmap.dist_cases) |dist_case| {
-            for (gengold_ssaa_pxmap.psf_cases) |psf_case| {
-                for (gengold_ssaa_pxmap.pxmap_cases) |pxmap_case| {
+    for (fullcase_ssaa_pxmap.ssaa_levels) |ssaa| {
+        for (fullcase_ssaa_pxmap.dist_cases) |dist_case| {
+            for (fullcase_ssaa_pxmap.psf_cases) |psf_case| {
+                for (fullcase_ssaa_pxmap.pxmap_cases) |pxmap_case| {
                     try runFullSsaaPxmapCaseTest(
                         allocator,
                         io,
@@ -183,7 +180,7 @@ fn runPxmapEquivalenceTests(
     prep: *const common_full.Scene1Prepared,
     config: rastcfg.RasterConfig,
 ) !void {
-    const mesh = gengold_ssaa_pxmap.buildScene1Mesh(prep);
+    const mesh = fullcase_ssaa_pxmap.buildScene1Mesh(prep);
     const meshes = [_]MeshInput{mesh};
 
     // 1. No-distortion control: full_in_mem, per_tile, and affine_jac must match exactly
@@ -236,10 +233,7 @@ fn runPxmapEquivalenceTests(
         const test_img = base_renders[ii] orelse return error.NoResult;
         try std.testing.expectEqualSlices(usize, ref_img.dims, test_img.dims);
         for (ref_img.slice, test_img.slice) |ref_val, test_val| {
-            try std.testing.expect(@abs(ref_val - test_val) <= FULL_ABS_TOL);
+            try std.testing.expect(@abs(ref_val - test_val) <= tcfg.FULL_GOLD_ABS_TOL);
         }
     }
 }
-
-
-

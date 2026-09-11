@@ -10,7 +10,7 @@ const std = @import("std");
 const buildconfig = @import("../riley/zig/buildconfig.zig");
 const camera = @import("../riley/zig/camera.zig");
 const common = @import("../dev_support/tests.zig");
-const common_full = @import("../gengold/gen_gold_full_common.zig");
+const common_full = @import("../dev_support/fullfixtures.zig");
 const gengold_io = @import("../gengold/gen_gold_full_image_output.zig");
 const gk = @import("../riley/zig/geometrykernels.zig");
 const iio = @import("../riley/zig/imageio.zig");
@@ -29,9 +29,6 @@ const CameraInput = camera.CameraInput;
 const MeshInput = mo.MeshInput;
 const NDArray = ndarray.NDArray(F);
 const Timestamp = std.Io.Clock.Timestamp;
-
-pub const FULL_IMAGE_OUTPUT_REL_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
-pub const FULL_IMAGE_OUTPUT_ABS_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
 
 const save_strategies = [_]rastcfg.SaveStrategy{
     .memory,
@@ -155,8 +152,8 @@ fn runBaseComparison(
         0,
         expected_channels,
         gold_path,
-        FULL_IMAGE_OUTPUT_REL_TOL,
-        FULL_IMAGE_OUTPUT_ABS_TOL,
+        tcfg.FULL_GOLD_REL_TOL,
+        tcfg.FULL_GOLD_ABS_TOL,
     ) catch |err| {
         const fail_dir_name = try std.fmt.allocPrint(
             aa,
@@ -666,4 +663,3 @@ fn runAdditionalImageOutputTests(
         try std.testing.expectEqual(@as(usize, 1), img_reduced.dims[2]);
     }
 }
-

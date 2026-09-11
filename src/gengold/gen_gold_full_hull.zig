@@ -10,7 +10,8 @@ const std = @import("std");
 const buildconfig = @import("../riley/zig/buildconfig.zig");
 const camera = @import("../riley/zig/camera.zig");
 const cameraops = @import("../riley/zig/cameraops.zig");
-const common = @import("gen_gold_full_common.zig");
+const fullcase_hull = @import("../tests/fullcase_hull.zig");
+const fullfixtures = @import("../dev_support/fullfixtures.zig");
 const gk = @import("../riley/zig/geometrykernels.zig");
 const iio = @import("../riley/zig/imageio.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
@@ -26,71 +27,14 @@ const CameraInput = camera.CameraInput;
 const MeshInput = mo.MeshInput;
 const Timestamp = std.Io.Clock.Timestamp;
 
-pub const HullStatusCase = struct {
-    tag: []const u8,
-    mode: rastcfg.HullMode,
-};
-
-pub const HullPsfCase = struct {
-    tag: []const u8,
-    psf: camera.PointSpreadFunc,
-};
-
-pub const NewtonSeedCase = struct {
-    tag: []const u8,
-    seed_mode: rastcfg.NewtonSeedMode,
-    seed_reuse: rastcfg.NewtonSeedReuse,
-};
-
-pub const hull_status_cases = [_]HullStatusCase{
-    .{ .tag = "hull_off", .mode = .off },
-    .{ .tag = "hull_onnofallback", .mode = .on_no_fallback },
-    .{ .tag = "hull_onfallback", .mode = .on_convex_fallback },
-};
-
-pub const hull_psf_cases = [_]HullPsfCase{
-    .{ .tag = "psf_none", .psf = .{ .pixel_box = .{} } },
-    .{
-        .tag = "psf_gauss",
-        .psf = .{
-            .gaussian = .{
-                .sigma_px = 1.5,
-                .supp_rad_px = 4.5,
-                .separable = .yes,
-            },
-        },
-    },
-};
-
-pub const newton_seed_cases = [_]NewtonSeedCase{
-    .{ .tag = "seed_centroid", .seed_mode = .centroid, .seed_reuse = .off },
-    .{ .tag = "seed_hull", .seed_mode = .hull, .seed_reuse = .off },
-    .{ .tag = "seed_centroid_reuse", .seed_mode = .centroid, .seed_reuse = .last_conv },
-    .{ .tag = "seed_hull_reuse", .seed_mode = .hull, .seed_reuse = .last_conv },
-};
-
-pub const pixel_num_hull = [_]u32{ 128, 128 };
-
-pub fn formatCaseDirName(
-    allocator: std.mem.Allocator,
-    case_name: []const u8,
-    mesh_type: gk.MeshType,
-    hull_case: HullStatusCase,
-    psf_case: HullPsfCase,
-    seed_case: NewtonSeedCase,
-) ![]const u8 {
-    return std.fmt.allocPrint(
-        allocator,
-        "{s}_{s}_{s}_{s}_{s}",
-        .{
-            case_name,
-            @tagName(mesh_type),
-            hull_case.tag,
-            psf_case.tag,
-            seed_case.tag,
-        },
-    );
-}
+pub const HullStatusCase = fullcase_hull.HullStatusCase;
+pub const HullPsfCase = fullcase_hull.HullPsfCase;
+pub const NewtonSeedCase = fullcase_hull.NewtonSeedCase;
+pub const hull_status_cases = fullcase_hull.hull_status_cases;
+pub const hull_psf_cases = fullcase_hull.hull_psf_cases;
+pub const newton_seed_cases = fullcase_hull.newton_seed_cases;
+pub const pixel_num_hull = fullcase_hull.pixel_num_hull;
+pub const formatCaseDirName = fullcase_hull.formatCaseDirName;
 
 fn runOneElemHullCase(
     allocator: std.mem.Allocator,
@@ -212,8 +156,8 @@ fn runScene2HullCase(
     allocator: std.mem.Allocator,
     io: std.Io,
     mesh_type: gk.MeshType,
-    prep: *const common.Scene2Prepared,
-    textures: *const common.FullTextures,
+    prep: *const fullfixtures.Scene2Prepared,
+    textures: *const fullfixtures.FullTextures,
     hull_case: HullStatusCase,
     psf_case: HullPsfCase,
     seed_case: NewtonSeedCase,
@@ -224,10 +168,10 @@ fn runScene2HullCase(
     defer arena.deinit();
     const aa = arena.allocator();
 
-    var cam_inp = common.createScene2Camera(pixel_num_hull, 2);
+    var cam_inp = fullfixtures.createScene2Camera(pixel_num_hull, 2);
     cam_inp.psf = psf_case.psf;
 
-    const meshes = common.buildScene2Meshes(prep, textures);
+    const meshes = fullfixtures.buildScene2Meshes(prep, textures);
 
     const case_dir_name = try formatCaseDirName(
         aa,
@@ -279,7 +223,7 @@ pub fn generate(allocator: std.mem.Allocator, io: std.Io) !void {
     const gold_dir_root = policy.goldRoot(.full_hull);
     const data_dir_root = "data/edge";
 
-    var textures = try common.FullTextures.init(allocator, io);
+    var textures = try fullfixtures.FullTextures.init(allocator, io);
     defer textures.deinit(allocator);
 
     const newton_mesh_types = [_]gk.MeshType{
@@ -350,7 +294,7 @@ pub fn generate(allocator: std.mem.Allocator, io: std.Io) !void {
 
     // 2. Scene 2 cases
     for (newton_mesh_types) |mesh_type| {
-        var prep2 = try common.prepareScene2(allocator, io, mesh_type);
+        var prep2 = try fullfixtures.prepareScene2(allocator, io, mesh_type);
         defer prep2.deinit(allocator);
 
         for (hull_status_cases) |hull_case| {

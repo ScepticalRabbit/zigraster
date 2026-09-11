@@ -9,17 +9,14 @@
 const std = @import("std");
 const buildconfig = @import("../riley/zig/buildconfig.zig");
 const camera = @import("../riley/zig/camera.zig");
+const common_full = @import("../dev_support/fullfixtures.zig");
 const common_test = @import("../dev_support/tests.zig");
-const common_full = @import("../gengold/gen_gold_full_common.zig");
-const gengold_tex = @import("../gengold/gen_gold_full_texture.zig");
+const fullcase_tex = @import("fullcase_texture.zig");
 const gk = @import("../riley/zig/geometrykernels.zig");
-const iio = @import("../riley/zig/imageio.zig");
-const meshio = @import("../riley/zig/meshio.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
 const policy = @import("../dev_support/testpolicy.zig");
 const rastcfg = @import("../riley/zig/rasterconfig.zig");
 const riley = @import("../riley/zig/riley.zig");
-const shaderops = @import("../riley/zig/shaderops_common.zig");
 const tcfg = @import("../dev_support/testconfig.zig");
 const texops = @import("../riley/zig/textureops.zig");
 
@@ -27,11 +24,8 @@ const F = buildconfig.F;
 const CameraInput = camera.CameraInput;
 const MeshInput = mo.MeshInput;
 const Timestamp = std.Io.Clock.Timestamp;
-const FullTexSamplingCase = gengold_tex.FullTexSamplingCase;
-const all_tex_samp_configs = gengold_tex.all_tex_samp_configs;
-
-pub const FULL_REL_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
-pub const FULL_ABS_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
+const FullTexSamplingCase = fullcase_tex.FullTexSamplingCase;
+const all_tex_samp_configs = fullcase_tex.all_tex_samp_configs;
 
 pub fn runFullTexCaseTest(
     allocator: std.mem.Allocator,
@@ -54,7 +48,7 @@ pub fn runFullTexCaseTest(
         .{ gold_dir_root, case_dir_name },
     );
 
-    const meshes = gengold_tex.buildTexSamplingCaseMeshes(
+    const meshes = fullcase_tex.buildTexSamplingCaseMeshes(
         mesh_type,
         prep,
         textures,
@@ -115,8 +109,8 @@ pub fn runFullTexCaseTest(
                 ch,
                 1,
                 gold_path,
-                FULL_REL_TOL,
-                FULL_ABS_TOL,
+                tcfg.FULL_GOLD_REL_TOL,
+                tcfg.FULL_GOLD_ABS_TOL,
             ) catch |err| {
                 const fail_dir_name = try std.fmt.allocPrint(
                     aa,
@@ -257,4 +251,3 @@ fn runTexSampConfigContractTests() !void {
         try std.testing.expectEqual(cfg_valid.sample, sanitized.sample);
     }
 }
-

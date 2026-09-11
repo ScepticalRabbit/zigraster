@@ -9,7 +9,7 @@
 const std = @import("std");
 const buildconfig = @import("../riley/zig/buildconfig.zig");
 const camera = @import("../riley/zig/camera.zig");
-const common = @import("gen_gold_full_common.zig");
+const fullfixtures = @import("../dev_support/fullfixtures.zig");
 const gk = @import("../riley/zig/geometrykernels.zig");
 const iio = @import("../riley/zig/imageio.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
@@ -45,10 +45,10 @@ pub fn generate(allocator: std.mem.Allocator, io: std.Io) !void {
 
     const gold_dir_root = policy.goldRoot(.full_image_output);
 
-    var textures = try common.FullTextures.init(allocator, io);
+    var textures = try fullfixtures.FullTextures.init(allocator, io);
     defer textures.deinit(allocator);
 
-    var prep = try common.prepareScene2(allocator, io, .tri3);
+    var prep = try fullfixtures.prepareScene2(allocator, io, .tri3);
     defer prep.deinit(allocator);
 
     for (base_cases) |bc| {
@@ -56,13 +56,13 @@ pub fn generate(allocator: std.mem.Allocator, io: std.Io) !void {
         defer arena.deinit();
         const aa = arena.allocator();
 
-        const meshes = common.buildScene2ImageOutputMeshes(
+        const meshes = fullfixtures.buildScene2ImageOutputMeshes(
             &prep,
             &textures,
             bc.is_rgb,
             bc.is_u16,
         );
-        const cam_inp = common.createScene2ImageOutputCamera(&meshes);
+        const cam_inp = fullfixtures.createScene2ImageOutputCamera(&meshes);
 
         var run_config = config;
         run_config.image_save_mode = if (bc.is_rgb) .rgb else .grey;

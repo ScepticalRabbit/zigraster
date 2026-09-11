@@ -10,7 +10,7 @@ const std = @import("std");
 const buildconfig = @import("../riley/zig/buildconfig.zig");
 const camera = @import("../riley/zig/camera.zig");
 const common = @import("../dev_support/tests.zig");
-const common_full = @import("../gengold/gen_gold_full_common.zig");
+const common_full = @import("../dev_support/fullfixtures.zig");
 const gengold_tiling = @import("../gengold/gen_gold_full_tiling.zig");
 const gk = @import("../riley/zig/geometrykernels.zig");
 const iio = @import("../riley/zig/imageio.zig");
@@ -26,9 +26,6 @@ const F = buildconfig.F;
 const CameraInput = camera.CameraInput;
 const MeshInput = mo.MeshInput;
 const Timestamp = std.Io.Clock.Timestamp;
-
-pub const FULL_TILING_REL_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
-pub const FULL_TILING_ABS_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
 
 const tile_sizes = [_]?u16{ null, 8, 16, 32 };
 const buffer_modes = [_]rastcfg.BufferMode{
@@ -152,8 +149,8 @@ fn runTilingCaseTest(
         0,
         1,
         gold_path,
-        FULL_TILING_REL_TOL,
-        FULL_TILING_ABS_TOL,
+        tcfg.FULL_GOLD_REL_TOL,
+        tcfg.FULL_GOLD_ABS_TOL,
     ) catch |err| {
         const fail_dir_name = try std.fmt.allocPrint(
             aa,
@@ -341,7 +338,7 @@ fn runAdditionalTilingAndParityTests(
 
         try std.testing.expectEqualSlices(usize, img_tile.dims, img_global.dims);
         for (img_tile.slice, img_global.slice) |v_t, v_g| {
-            try std.testing.expect(@abs(v_t - v_g) <= FULL_TILING_ABS_TOL);
+            try std.testing.expect(@abs(v_t - v_g) <= tcfg.FULL_GOLD_ABS_TOL);
         }
     }
 
@@ -404,4 +401,3 @@ fn runAdditionalTilingAndParityTests(
         }
     }
 }
-

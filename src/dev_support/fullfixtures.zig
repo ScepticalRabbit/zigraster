@@ -14,13 +14,9 @@ const gk = @import("../riley/zig/geometrykernels.zig");
 const iio = @import("../riley/zig/imageio.zig");
 const meshio = @import("../riley/zig/meshio.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
-const orch = @import("../dev_support/orchestration.zig");
-const rastcfg = @import("../riley/zig/rasterconfig.zig");
-const riley = @import("../riley/zig/riley.zig");
 const Rotation = @import("../riley/zig/rotation.zig").Rotation;
 const sceneops = @import("../riley/zig/sceneops.zig");
 const shaderops = @import("../riley/zig/shaderops_common.zig");
-const tcfg = @import("../dev_support/testconfig.zig");
 const texops = @import("../riley/zig/textureops.zig");
 const uvio = @import("../riley/zig/uvio.zig");
 const vec = @import("../riley/zig/vecstack.zig");
@@ -1472,5 +1468,3 @@ pub fn buildScene2ImageOutputMeshes(
         },
     };
 }
-
-
