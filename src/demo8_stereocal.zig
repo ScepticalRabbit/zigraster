@@ -18,6 +18,7 @@ const iio = @import("riley/zig/imageio.zig");
 const mo = @import("riley/zig/meshpipeline.zig");
 const MeshInput = mo.MeshInput;
 const camera_mod = @import("riley/zig/camera.zig");
+const CameraInput = camera_mod.CameraInput;
 const cameraio = @import("riley/zig/cameraio.zig");
 const cameraops = @import("riley/zig/cameraops.zig");
 const sceneops = @import("riley/zig/sceneops.zig");
