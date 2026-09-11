@@ -168,6 +168,7 @@ fn makeFieldMeshInput(
                     checker_squares_per_axis,
                     checker_squares_per_axis,
                 },
+                .settings = .{ .checker = .{} },
             },
             .bits = 8,
             .scaling = .auto,

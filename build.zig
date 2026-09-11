@@ -62,6 +62,11 @@ pub fn build(b: *std.Build) void {
 
     const tests = [_]TestEntry{
         .{
+            .step_name = "test-verif-basic",
+            .description = "Run the verification and BASIC test suites in one build",
+            .source_path = "src/test_verif_basic.zig",
+        },
+        .{
             .step_name = "test-basic",
             .description = "Run the BASIC test suite",
             .source_path = "src/test_basic.zig",

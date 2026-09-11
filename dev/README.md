@@ -13,17 +13,20 @@ Riley provides a layered testing architecture designed for fast routine verifica
 
 ### Quick Commands
 ```shell
-# 1. Analytic Verification Suite (Mathematical & Numerical Validation)
+# 1. Combined Verification and Basic Suites (preferred routine/CI command)
+zig build test-verif-basic -Doptimize=ReleaseSafe
+
+# 2. Analytic Verification Suite (Mathematical & Numerical Validation)
 zig build test-verif -Doptimize=ReleaseSafe
 
-# 2. Basic Test Suite (Fast Core Feature Coverage)
+# 3. Basic Test Suite (Fast Core Feature Coverage)
 zig build test-basic -Doptimize=ReleaseSafe
 
-# 3. Full Test Suite (Exhaustive Factorial System Coverage)
+# 4. Full Test Suite (Exhaustive Factorial System Coverage)
 zig build gen-gold-full -Doptimize=ReleaseSafe  # Generate Full gold (if needed)
 zig build test-full -Doptimize=ReleaseSafe
 
-# 4. Python Integration Suite
+# 5. Python Integration Suite
 .venv/bin/pytest src/riley/pytests/
 ```
 
@@ -31,6 +34,7 @@ zig build test-full -Doptimize=ReleaseSafe
 
 | Suite Name | Command | Primary Role | Reference Data |
 | :--- | :--- | :--- | :--- |
+| **Combined Core Suite** | `zig build test-verif-basic` | Compiles and runs Verification and Basic together to avoid duplicate CI compile work | `gold/verif/`, `gold/basic/` |
 | **Verification Suite** | `zig build test-verif` | Inverse solver recovery, silhouette area/centroid, depth ordering, and camera distortion oracles | `gold/verif/` |
 | **Basic Suite** | `zig build test-basic` | Fast coverage across 1-element, 2-shape FE interaction, and feature zoo cases | `gold/basic/` |
 | **Full Suite** | `zig build test-full` | Exhaustive sweeps over shaders, textures, PSF/distortion, SSAA, hulls, tiling, scenes, threads, and outputs | `gold/full_*/` |
