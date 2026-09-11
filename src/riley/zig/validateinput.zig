@@ -72,14 +72,30 @@ pub fn checkRenderInpsErr(
         }
     }
 
-    if (config.total_threads == 0) return error.InvalidTotalThreads;
-    if (config.frame_batch_size_per_group == 0) return error.InvalidFrameBatchSize;
-    if (config.max_geom_jobs_in_flight_per_group == 0) return error.InvalidGeomJobsInFlight;
-    if (config.max_geom_workers_per_job == 0) return error.InvalidGeomWorkersPerJob;
-    if (config.max_raster_workers_per_job == 0) return error.InvalidRasterWorkersPerJob;
-    if (config.tile_size_min == 0) return error.InvalidTileSizeMin;
-    if (config.tile_size_max == 0) return error.InvalidTileSizeMax;
-    if (config.tile_size_min > config.tile_size_max) return error.InvalidTileSizeRange;
+    if (config.total_threads == 0) {
+        return error.InvalidTotalThreads;
+    }
+    if (config.frame_batch_size_per_group == 0) {
+        return error.InvalidFrameBatchSize;
+    }
+    if (config.max_geom_jobs_in_flight_per_group == 0) {
+        return error.InvalidGeomJobsInFlight;
+    }
+    if (config.max_geom_workers_per_job == 0) {
+        return error.InvalidGeomWorkersPerJob;
+    }
+    if (config.max_raster_workers_per_job == 0) {
+        return error.InvalidRasterWorkersPerJob;
+    }
+    if (config.tile_size_min == 0) {
+        return error.InvalidTileSizeMin;
+    }
+    if (config.tile_size_max == 0) {
+        return error.InvalidTileSizeMax;
+    }
+    if (config.tile_size_min > config.tile_size_max) {
+        return error.InvalidTileSizeRange;
+    }
     if (config.tile_size_override) |tile_size_override| {
         if (tile_size_override < config.tile_size_min or
             tile_size_override > config.tile_size_max)
@@ -178,102 +194,7 @@ pub fn checkRenderInpsErr(
     };
 }
 
-pub fn checkRenderInpsAssert(
-    render_groups: anytype,
-    cam_inps: []const cam.CameraInput,
-    meshes: []const mo.MeshInput,
-    config: rastcfg.RasterConfig,
-    imgs_arr: ?*ndarray.NDArray(F),
-    require_out_buff: bool,
-    bench_capt: ?[]report.FrameBenchCapture,
-) ValidSummary {
-    std.debug.assert(render_groups.len > 0);
-    std.debug.assert(cam_inps.len > 0);
-    std.debug.assert(meshes.len > 0);
-    for (render_groups) |render_group| {
-        std.debug.assert(render_group.workers > 0);
-        if (config.report == .full_stats) {
-            std.debug.assert(@min(
-                render_group.workers,
-                config.max_raster_workers_per_job,
-            ) == 1);
-        }
-    }
-
-    std.debug.assert(config.total_threads > 0);
-    std.debug.assert(config.frame_batch_size_per_group > 0);
-    std.debug.assert(config.max_geom_jobs_in_flight_per_group > 0);
-    std.debug.assert(config.max_geom_workers_per_job > 0);
-    std.debug.assert(config.max_raster_workers_per_job > 0);
-    std.debug.assert(config.tile_size_min > 0);
-    std.debug.assert(config.tile_size_max > 0);
-    std.debug.assert(config.tile_size_min <= config.tile_size_max);
-    if (config.tile_size_override) |tile_size_override| {
-        std.debug.assert(tile_size_override >= config.tile_size_min);
-        std.debug.assert(tile_size_override <= config.tile_size_max);
-    }
-    std.debug.assert(config.global_subpx_tile_size_min > 0);
-    std.debug.assert(config.global_subpx_tile_size_max > 0);
-    std.debug.assert(
-        config.global_subpx_tile_size_min <= config.global_subpx_tile_size_max,
-    );
-    if (config.global_subpx_tile_size_override) |tile_size_override| {
-        std.debug.assert(tile_size_override >= config.global_subpx_tile_size_min);
-        std.debug.assert(tile_size_override <= config.global_subpx_tile_size_max);
-    }
-    std.debug.assert(config.global_subpx_stripe_size_min > 0);
-    std.debug.assert(config.global_subpx_stripe_size_max > 0);
-    std.debug.assert(
-        config.global_subpx_stripe_size_min <=
-            config.global_subpx_stripe_size_max,
-    );
-    if (config.global_subpx_stripe_size_override) |stripe_size_override| {
-        std.debug.assert(
-            stripe_size_override >= config.global_subpx_stripe_size_min,
-        );
-        std.debug.assert(
-            stripe_size_override <= config.global_subpx_stripe_size_max,
-        );
-    }
-    std.debug.assert(std.math.isFinite(config.background_value));
-    if (config.save_strategy == .disk or config.save_strategy == .both) {
-        std.debug.assert(config.image_save_opts.len > 0);
-    }
-    if (config.report == .full_stats) {
-        std.debug.assert(config.full_stats_opts.formats.len > 0);
-    }
-
-    for (cam_inps) |cam_inp| {
-        checkCamInpAssert(cam_inp);
-        checkGlobalSubpxAlignment(config, cam_inp.sub_sample) catch unreachable;
-    }
-
-    const num_time = mo.countFrames(meshes);
-    const raw_num_fields = mo.countOutputFields(meshes);
-    const out_num_fields = calcOutFieldsForImgSaveMode(
-        config.image_save_mode,
-        raw_num_fields,
-    ) catch unreachable;
-    const img_dims = calcAllFramesImgDims(
-        cam_inps,
-        num_time,
-        out_num_fields,
-    );
-    std.debug.assert(num_time > 0);
-    std.debug.assert(raw_num_fields > 0);
-
-    if (bench_capt) |capt| {
-        std.debug.assert(capt.len == cam_inps.len * num_time);
-    }
-    validOutBuffAssert(config, imgs_arr, require_out_buff, img_dims);
-
-    return .{
-        .num_time = num_time,
-        .raw_num_fields = raw_num_fields,
-        .out_num_fields = out_num_fields,
-        .img_dims = img_dims,
-    };
-}
+pub const checkRenderInps = checkRenderInpsErr;
 
 fn checkGlobalSubpxAlignment(
     config: rastcfg.RasterConfig,
@@ -352,23 +273,6 @@ fn validOutBuffErr(
         }
     } else if (imgs_arr != null) {
         return error.InvalidOutputBuff;
-    }
-}
-
-fn validOutBuffAssert(
-    config: rastcfg.RasterConfig,
-    imgs_arr: ?*ndarray.NDArray(F),
-    require_out_buff: bool,
-    exp_dims: [5]usize,
-) void {
-    if (config.save_strategy == .memory or config.save_strategy == .both) {
-        if (imgs_arr) |imgs_arr_req| {
-            validAllFramesBuff(imgs_arr_req, exp_dims) catch unreachable;
-        } else {
-            std.debug.assert(!require_out_buff);
-        }
-    } else {
-        std.debug.assert(imgs_arr == null);
     }
 }
 
@@ -518,23 +422,3 @@ fn checkCamInpErr(cam_inp: cam.CameraInput) !void {
     }
 }
 
-fn checkCamInpAssert(cam_inp: cam.CameraInput) void {
-    std.debug.assert(cam_inp.pixels_num[0] > 0);
-    std.debug.assert(cam_inp.pixels_num[1] > 0);
-    std.debug.assert(isFiniteSlice(&cam_inp.pixels_size));
-    std.debug.assert(cam_inp.pixels_size[0] > 0.0);
-    std.debug.assert(cam_inp.pixels_size[1] > 0.0);
-    std.debug.assert(std.math.isFinite(cam_inp.focal_length));
-    std.debug.assert(cam_inp.focal_length > 0.0);
-    std.debug.assert(cam_inp.sub_sample > 0);
-    std.debug.assert(isFiniteVec3(cam_inp.pos_world));
-    std.debug.assert(isFiniteVec3(cam_inp.roi_cent_world));
-    std.debug.assert(isFiniteSlice(&[_]F{
-        cam_inp.rot_world.alpha_z,
-        cam_inp.rot_world.beta_y,
-        cam_inp.rot_world.gamma_x,
-    }));
-    std.debug.assert(isFiniteSlice(cam_inp.rot_world.matrix.slice[0..]));
-    std.debug.assert(isValidDistortion(cam_inp.distortion));
-    std.debug.assert(isValidPsf(cam_inp.psf));
-}

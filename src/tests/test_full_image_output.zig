@@ -16,15 +16,18 @@ const gk = @import("../riley/zig/geometrykernels.zig");
 const iio = @import("../riley/zig/imageio.zig");
 const imageops = @import("../riley/zig/imageops.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
+const ndarray = @import("../riley/zig/ndarray.zig");
 const orch = @import("../dev_support/orchestration.zig");
 const policy = @import("../dev_support/testpolicy.zig");
 const rastcfg = @import("../riley/zig/rasterconfig.zig");
+const report = @import("../riley/zig/report.zig");
 const riley = @import("../riley/zig/riley.zig");
 const tcfg = @import("../dev_support/testconfig.zig");
 
 const F = buildconfig.F;
 const CameraInput = camera.CameraInput;
 const MeshInput = mo.MeshInput;
+const NDArray = ndarray.NDArray(F);
 const Timestamp = std.Io.Clock.Timestamp;
 
 pub const FULL_IMAGE_OUTPUT_REL_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
@@ -379,6 +382,111 @@ fn runFactorialScalingAndReports(
     }
 }
 
+fn runEntryPointEquivalence(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    prep: *const common_full.Scene2Prepared,
+    textures: *const common_full.FullTextures,
+    config: rastcfg.RasterConfig,
+) !void {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const aa = arena.allocator();
+
+    const meshes = common_full.buildScene2ImageOutputMeshes(
+        prep,
+        textures,
+        false,
+        false,
+    );
+    const cam_inp = common_full.createScene2ImageOutputCamera(&meshes);
+    const cam_inps = [_]CameraInput{cam_inp};
+
+    var run_config = config;
+    run_config.save_strategy = .memory;
+    run_config.image_save_mode = .grey;
+
+    const render_groups = [_]riley.RenderGroupSpec{
+        .{ .io = io, .workers = 1 },
+    };
+
+    // 1. raster (allocates output array)
+    const result_raster = try riley.raster(
+        aa,
+        &render_groups,
+        &cam_inps,
+        &meshes,
+        run_config,
+        null,
+    );
+    const img_raster = result_raster orelse return error.NoResult;
+
+    // 2. rasterReport (allocates output array, captures bench)
+    var bench_capt = [_]report.FrameBenchCapture{
+        std.mem.zeroes(report.FrameBenchCapture),
+    };
+    const result_report = try riley.rasterReport(
+        aa,
+        &render_groups,
+        &cam_inps,
+        &meshes,
+        run_config,
+        null,
+        bench_capt[0..],
+    );
+    const img_report = result_report orelse return error.NoResult;
+
+    // 3. rasterInto (renders into pre-allocated output array)
+    const dims = try riley.calcAllFramesImageDims(
+        &cam_inps,
+        &meshes,
+        run_config,
+    );
+    var img_into = try NDArray.initFlat(aa, dims[0..]);
+    try riley.rasterInto(
+        aa,
+        &render_groups,
+        &cam_inps,
+        &meshes,
+        run_config,
+        null,
+        &img_into,
+    );
+
+    // 4. rasterReportInto (renders into pre-allocated array, captures bench)
+    var bench_capt_into = [_]report.FrameBenchCapture{
+        std.mem.zeroes(report.FrameBenchCapture),
+    };
+    var img_report_into = try NDArray.initFlat(aa, dims[0..]);
+    try riley.rasterReportInto(
+        aa,
+        &render_groups,
+        &cam_inps,
+        &meshes,
+        run_config,
+        null,
+        &img_report_into,
+        bench_capt_into[0..],
+    );
+
+    // Assert exact identical outputs across all four entry points
+    try std.testing.expectEqualSlices(usize, img_raster.dims, img_report.dims);
+    try std.testing.expectEqualSlices(usize, img_raster.dims, img_into.dims);
+    try std.testing.expectEqualSlices(
+        usize,
+        img_raster.dims,
+        img_report_into.dims,
+    );
+
+    try std.testing.expectEqualSlices(F, img_raster.slice, img_report.slice);
+    try std.testing.expectEqualSlices(F, img_raster.slice, img_into.slice);
+    try std.testing.expectEqualSlices(
+        F,
+        img_raster.slice,
+        img_report_into.slice,
+    );
+}
+
 pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
     var config = tcfg.getRasterConfig(.testing);
     config.background_value = 127.5;
@@ -405,4 +513,5 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
     try runFactorialSaveStrategy(allocator, io, &prep, &textures, config);
     try runFactorialFormatsAndModes(allocator, io, &prep, &textures, config);
     try runFactorialScalingAndReports(allocator, io, &prep, &textures, config);
+    try runEntryPointEquivalence(allocator, io, &prep, &textures, config);
 }

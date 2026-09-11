@@ -8,6 +8,7 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 
+pub const input_verif_suite = @import("tests/test_full_input_verif.zig");
 pub const shader_suite = @import("tests/test_full_shader.zig");
 pub const texture_suite = @import("tests/test_full_texture.zig");
 pub const dist_psf_suite = @import("tests/test_full_dist_psf.zig");
@@ -42,6 +43,7 @@ test "full test suite" {
     const start = std.Io.Clock.Timestamp.now(io, .awake);
 
     std.debug.print("\nRunning full test suite.\n\n", .{});
+    try runSuite("input_verif", allocator, io, input_verif_suite.run);
     try runSuite("shader", allocator, io, shader_suite.run);
     try runSuite("texture", allocator, io, texture_suite.run);
     try runSuite("dist_psf", allocator, io, dist_psf_suite.run);
