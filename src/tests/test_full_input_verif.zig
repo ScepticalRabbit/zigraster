@@ -12,12 +12,15 @@ const camera = @import("../riley/zig/camera.zig");
 const common_full = @import("../gengold/gen_gold_full_common.zig");
 const gk = @import("../riley/zig/geometrykernels.zig");
 const iio = @import("../riley/zig/imageio.zig");
+const matslice = @import("../riley/zig/matslice.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
 const ndarray = @import("../riley/zig/ndarray.zig");
 const rastcfg = @import("../riley/zig/rasterconfig.zig");
 const report = @import("../riley/zig/report.zig");
 const riley = @import("../riley/zig/riley.zig");
+const shaderops = @import("../riley/zig/shaderops_common.zig");
 const tcfg = @import("../dev_support/testconfig.zig");
+const valarr = @import("../riley/zig/validatearrays.zig");
 const valinp = @import("../riley/zig/validateinput.zig");
 
 const F = buildconfig.F;
@@ -72,6 +75,51 @@ fn runRender(
         null,
         null,
     );
+}
+
+// --------------------------------------------------------------------------
+// Validation Mode Tests
+// --------------------------------------------------------------------------
+
+fn testValidateInputModes(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    const cam_inps = common_full.createScene3Cameras();
+    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    // Default configuration has validate_input = .fast
+    var default_config = fixture.config;
+    try std.testing.expectEqual(rastcfg.ValidateInput.fast, default_config.validate_input);
+
+    // .off mode succeeds on valid input
+    var off_config = fixture.config;
+    off_config.validate_input = .off;
+    const off_result = try runRender(&render_groups, &cam_inps, &mesh_inps, off_config);
+    if (off_result) |*arr| {
+        allocator.free(arr.slice);
+        arr.deinit(allocator);
+    }
+
+    // .fast mode succeeds on valid input
+    var fast_config = fixture.config;
+    fast_config.validate_input = .fast;
+    const fast_result = try runRender(&render_groups, &cam_inps, &mesh_inps, fast_config);
+    if (fast_result) |*arr| {
+        allocator.free(arr.slice);
+        arr.deinit(allocator);
+    }
+
+    // .full mode succeeds on valid input
+    var full_config = fixture.config;
+    full_config.validate_input = .full;
+    const full_result = try runRender(&render_groups, &cam_inps, &mesh_inps, full_config);
+    if (full_result) |*arr| {
+        allocator.free(arr.slice);
+        arr.deinit(allocator);
+    }
 }
 
 // --------------------------------------------------------------------------
@@ -556,6 +604,25 @@ fn testInvalidBackgroundValue(
     );
 }
 
+fn testInvalidSaveFrameBuffCount(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    var config = fixture.config;
+    config.save_frame_buff_count = 0;
+
+    try std.testing.expectError(
+        error.InvalidSaveFrameBuffCount,
+        runRender(&render_groups, &cam_inps, &mesh_inps, config),
+    );
+}
+
 fn testInvalidImageSaveOpts(
     allocator: std.mem.Allocator,
     io: std.Io,
@@ -669,7 +736,7 @@ fn testInvalidCameraSubSample(
     );
 }
 
-fn testNonFiniteCameraInput(
+fn testInvalidCameraRoi(
     allocator: std.mem.Allocator,
     io: std.Io,
     fixture: *const BaselineFixture,
@@ -681,7 +748,24 @@ fn testNonFiniteCameraInput(
     const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
 
     try std.testing.expectError(
-        error.NonFiniteCameraInput,
+        error.InvalidCameraRoi,
+        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
+    );
+}
+
+fn testInvalidCameraRotation(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    var cam_inps = common_full.createScene3Cameras();
+    cam_inps[0].rot_world.matrix.set(0, 0, 2.0);
+    const mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    try std.testing.expectError(
+        error.InvalidCameraRotation,
         runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
     );
 }
@@ -729,6 +813,208 @@ fn testInvalidCameraPsf(
 
     try std.testing.expectError(
         error.InvalidCameraPsf,
+        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
+    );
+}
+
+// --------------------------------------------------------------------------
+// Mesh & Shader Structural Verification Tests
+// --------------------------------------------------------------------------
+
+fn testZeroCoordinateCount(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    mesh_inps[0].coords.mat.rows_num = 0;
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    try std.testing.expectError(
+        error.ZeroCoordinateCount,
+        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
+    );
+}
+
+fn testInvalidCoordinateDimensions(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    mesh_inps[0].coords.mat.cols_num = 2;
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    try std.testing.expectError(
+        error.InvalidCoordinateDimensions,
+        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
+    );
+}
+
+fn testZeroElementCount(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    mesh_inps[0].connect.table.rows_num = 0;
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    try std.testing.expectError(
+        error.ZeroElementCount,
+        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
+    );
+}
+
+fn testInvalidConnectivityDimensions(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    mesh_inps[0].connect.table.cols_num = 2;
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    try std.testing.expectError(
+        error.InvalidConnectivityDimensions,
+        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
+    );
+}
+
+fn testInvalidDisplacementDimensions(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    if (mesh_inps[0].disp) |*disp_field| {
+        disp_field.array.dims[2] = 2;
+    }
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    try std.testing.expectError(
+        error.InvalidDisplacementDimensions,
+        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
+    );
+}
+
+fn testInvalidNodalFieldDimensions(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    switch (mesh_inps[0].shader) {
+        .nodal => |*nodal_shader| {
+            nodal_shader.field.array.dims[1] = 1;
+        },
+        else => {},
+    }
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    try std.testing.expectError(
+        error.InvalidNodalFieldDimensions,
+        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
+    );
+}
+
+fn testInvalidTexSampleConfig(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    switch (mesh_inps[2].shader) {
+        .tex_u8 => |*tex_shader| {
+            tex_shader.samp_cfg.mode = .gradient;
+            tex_shader.samp_cfg.sample = .nearest_neighbour;
+        },
+        else => {},
+    }
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    try std.testing.expectError(
+        error.InvalidTexSampleConfig,
+        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
+    );
+}
+
+fn testInvalidShaderBitDepth(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    switch (mesh_inps[0].shader) {
+        .nodal => |*nodal_shader| {
+            nodal_shader.bits = 7;
+        },
+        else => {},
+    }
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    try std.testing.expectError(
+        error.InvalidShaderBitDepth,
+        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
+    );
+}
+
+fn testInvalidScalingBounds(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    switch (mesh_inps[0].shader) {
+        .nodal => |*nodal_shader| {
+            nodal_shader.scaling = .{ .manual = .{ 10.0, 5.0 } };
+        },
+        else => {},
+    }
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    try std.testing.expectError(
+        error.InvalidScalingBounds,
+        runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
+    );
+}
+
+fn testInvalidFuncShaderParams(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    switch (mesh_inps[1].shader) {
+        .func => |*func_shader| {
+            func_shader.params.coord_scale[0] = 0.0;
+        },
+        else => {},
+    }
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    try std.testing.expectError(
+        error.InvalidFuncShaderParams,
         runRender(&render_groups, &cam_inps, &mesh_inps, fixture.config),
     );
 }
@@ -910,6 +1196,244 @@ fn testInvalidOutputBuff(
 }
 
 // --------------------------------------------------------------------------
+// Full Payload Scan Verification Tests (validate_input = .full)
+// --------------------------------------------------------------------------
+
+fn testInvalidConnectivityIndex(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    var full_config = fixture.config;
+    full_config.validate_input = .full;
+
+    const orig_idx = mesh_inps[0].connect.table_mem[0];
+    mesh_inps[0].connect.table_mem[0] = mesh_inps[0].coords.mat.rows_num + 100;
+    defer mesh_inps[0].connect.table_mem[0] = orig_idx;
+
+    try std.testing.expectError(
+        error.InvalidConnectivityIndex,
+        runRender(&render_groups, &cam_inps, &mesh_inps, full_config),
+    );
+}
+
+fn testDegenerateElementIndices(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    var full_config = fixture.config;
+    full_config.validate_input = .full;
+
+    const orig_idx1 = mesh_inps[0].connect.table_mem[1];
+    mesh_inps[0].connect.table_mem[1] = mesh_inps[0].connect.table_mem[0];
+    defer mesh_inps[0].connect.table_mem[1] = orig_idx1;
+
+    try std.testing.expectError(
+        error.DegenerateElementIndices,
+        runRender(&render_groups, &cam_inps, &mesh_inps, full_config),
+    );
+}
+
+fn testNonFiniteCoordinates(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    var full_config = fixture.config;
+    full_config.validate_input = .full;
+
+    const orig_coord = mesh_inps[0].coords.mem[0];
+    mesh_inps[0].coords.mem[0] = std.math.nan(F);
+    defer mesh_inps[0].coords.mem[0] = orig_coord;
+
+    try std.testing.expectError(
+        error.NonFiniteCoordinates,
+        runRender(&render_groups, &cam_inps, &mesh_inps, full_config),
+    );
+}
+
+fn testNonFiniteDisplacements(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    var full_config = fixture.config;
+    full_config.validate_input = .full;
+
+    if (mesh_inps[0].disp) |*disp_field| {
+        const orig_disp = disp_field.array_mem[0];
+        disp_field.array_mem[0] = std.math.nan(F);
+        defer disp_field.array_mem[0] = orig_disp;
+
+        try std.testing.expectError(
+            error.NonFiniteDisplacements,
+            runRender(&render_groups, &cam_inps, &mesh_inps, full_config),
+        );
+    }
+}
+
+fn testNonFiniteNodalFields(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    var full_config = fixture.config;
+    full_config.validate_input = .full;
+
+    switch (mesh_inps[0].shader) {
+        .nodal => |*nodal_shader| {
+            const orig_val = nodal_shader.field.array_mem[0];
+            nodal_shader.field.array_mem[0] = std.math.nan(F);
+            defer nodal_shader.field.array_mem[0] = orig_val;
+
+            try std.testing.expectError(
+                error.NonFiniteNodalFields,
+                runRender(&render_groups, &cam_inps, &mesh_inps, full_config),
+            );
+        },
+        else => {},
+    }
+}
+
+fn testNonFiniteUvs(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    var full_config = fixture.config;
+    full_config.validate_input = .full;
+
+    switch (mesh_inps[1].shader) {
+        .func => |*func_shader| {
+            if (func_shader.uvs) |uvs| {
+                const orig_uv = uvs.slice[0];
+                uvs.slice[0] = std.math.nan(F);
+                defer uvs.slice[0] = orig_uv;
+
+                try std.testing.expectError(
+                    error.NonFiniteUvs,
+                    runRender(&render_groups, &cam_inps, &mesh_inps, full_config),
+                );
+            }
+        },
+        else => {},
+    }
+}
+
+fn testNonFiniteTexels(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    var full_config = fixture.config;
+    full_config.validate_input = .full;
+
+    var float_tex_data = [_]F{ 0.1, 0.2, 0.3, 0.4 };
+    const float_tex_dims = [_]usize{ 2, 2, 1 };
+    var float_tex_arr = try NDArray.initFlat(allocator, float_tex_dims[0..]);
+    defer {
+        allocator.free(float_tex_arr.slice);
+        float_tex_arr.deinit(allocator);
+    }
+    @memcpy(float_tex_arr.slice, float_tex_data[0..]);
+
+    mesh_inps[2].shader = .{
+        .tex_f = .{
+            .uvs = fixture.prep.meshes[2].uvs.array,
+            .tex = .{ .array = float_tex_arr },
+            .samp_cfg = .{
+                .sample = .bilinear,
+                .mode = .direct,
+            },
+            .bits = 16,
+            .scaling = .auto,
+            .normal_type = .none,
+        },
+    };
+
+    float_tex_arr.slice[0] = std.math.nan(F);
+
+    try std.testing.expectError(
+        error.NonFiniteTexels,
+        runRender(&render_groups, &cam_inps, &mesh_inps, full_config),
+    );
+}
+
+// --------------------------------------------------------------------------
+// Cross-Mode Validation Behavior Tests
+// --------------------------------------------------------------------------
+
+fn testCrossModeValidation(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    fixture: *const BaselineFixture,
+) !void {
+    _ = allocator;
+    const cam_inps = common_full.createScene3Cameras();
+    var mesh_inps = common_full.buildScene3Meshes(&fixture.prep, &fixture.textures);
+    const render_groups = [_]RenderGroupSpec{.{ .io = io, .workers = 1 }};
+
+    const orig_idx = mesh_inps[0].connect.table_mem[0];
+    mesh_inps[0].connect.table_mem[0] = mesh_inps[0].coords.mat.rows_num + 50;
+    defer mesh_inps[0].connect.table_mem[0] = orig_idx;
+
+    var fast_config = fixture.config;
+    fast_config.validate_input = .fast;
+    _ = try valinp.checkRenderInps(
+        &render_groups,
+        &cam_inps,
+        &mesh_inps,
+        fast_config,
+        null,
+        false,
+        null,
+    );
+
+    var full_config = fixture.config;
+    full_config.validate_input = .full;
+    try std.testing.expectError(
+        error.InvalidConnectivityIndex,
+        valarr.checkRenderArrs(&mesh_inps),
+    );
+}
+
+// --------------------------------------------------------------------------
 // Mixed / Multiple Error Precedence Tests
 // --------------------------------------------------------------------------
 
@@ -983,6 +1507,9 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
     var fixture = try BaselineFixture.init(allocator, io);
     defer fixture.deinit(allocator);
 
+    // Validation modes
+    try testValidateInputModes(allocator, io, &fixture);
+
     // Cardinality
     try testNoRenderGroups(allocator, io, &fixture);
     try testNoCameras(allocator, io, &fixture);
@@ -1016,6 +1543,7 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
 
     // Config options
     try testInvalidBackgroundValue(allocator, io, &fixture);
+    try testInvalidSaveFrameBuffCount(allocator, io, &fixture);
     try testInvalidImageSaveOpts(allocator, io, &fixture);
     try testInvalidFullStatsFormats(allocator, io, &fixture);
 
@@ -1024,9 +1552,22 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
     try testInvalidCameraPixelSize(allocator, io, &fixture);
     try testInvalidCameraFocalLength(allocator, io, &fixture);
     try testInvalidCameraSubSample(allocator, io, &fixture);
-    try testNonFiniteCameraInput(allocator, io, &fixture);
+    try testInvalidCameraRoi(allocator, io, &fixture);
+    try testInvalidCameraRotation(allocator, io, &fixture);
     try testInvalidCameraDistortion(allocator, io, &fixture);
     try testInvalidCameraPsf(allocator, io, &fixture);
+
+    // Mesh and shader structural parameters
+    try testZeroCoordinateCount(allocator, io, &fixture);
+    try testInvalidCoordinateDimensions(allocator, io, &fixture);
+    try testZeroElementCount(allocator, io, &fixture);
+    try testInvalidConnectivityDimensions(allocator, io, &fixture);
+    try testInvalidDisplacementDimensions(allocator, io, &fixture);
+    try testInvalidNodalFieldDimensions(allocator, io, &fixture);
+    try testInvalidTexSampleConfig(allocator, io, &fixture);
+    try testInvalidShaderBitDepth(allocator, io, &fixture);
+    try testInvalidScalingBounds(allocator, io, &fixture);
+    try testInvalidFuncShaderParams(allocator, io, &fixture);
 
     // Alignment
     try testGlobalSubpxTileSizeNotAligned(allocator, io, &fixture);
@@ -1036,6 +1577,18 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
     try testInvalidBenchCaptureBuff(allocator, io, &fixture);
     try testUnsuppedImageModeFieldCount(allocator, io, &fixture);
     try testInvalidOutputBuff(allocator, io, &fixture);
+
+    // Full payload scan tests
+    try testInvalidConnectivityIndex(allocator, io, &fixture);
+    try testDegenerateElementIndices(allocator, io, &fixture);
+    try testNonFiniteCoordinates(allocator, io, &fixture);
+    try testNonFiniteDisplacements(allocator, io, &fixture);
+    try testNonFiniteNodalFields(allocator, io, &fixture);
+    try testNonFiniteUvs(allocator, io, &fixture);
+    try testNonFiniteTexels(allocator, io, &fixture);
+
+    // Cross-mode validation tests
+    try testCrossModeValidation(allocator, io, &fixture);
 
     // Mixed error cases
     try testMixedCaseMultipleConfigErrors(allocator, io, &fixture);

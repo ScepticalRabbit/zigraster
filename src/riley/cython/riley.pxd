@@ -226,6 +226,7 @@ cdef extern from "riley.h":
         uint32_t hull_mode
         uint32_t newton_seed_mode
         uint32_t newton_seed_reuse
+        uint32_t validate_input
         uint32_t report
         uint16_t tile_size_min
         uint16_t tile_size_max

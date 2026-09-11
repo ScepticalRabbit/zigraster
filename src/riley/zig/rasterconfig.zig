@@ -73,9 +73,16 @@ pub const RasterConfig = struct {
     hull_mode: HullMode = .on_no_fallback,
     newton_seed_mode: NewtonSeedMode = .centroid,
     newton_seed_reuse: NewtonSeedReuse = .off,
+    validate_input: ValidateInput = .fast,
     report: ReportMode = .bench,
     full_stats_opts: FullStatsOpts = .{},
     save_frame_buff_count: usize = buildconfig.SaveFrameBuffCount,
+};
+
+pub const ValidateInput = enum(u32) {
+    off = 0,
+    fast = 1,
+    full = 2,
 };
 
 pub const BufferMode = enum {
