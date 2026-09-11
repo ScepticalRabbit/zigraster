@@ -42,6 +42,8 @@ const shadekerns = @import("shaderkernels.zig");
 // --------------------------------------------------------------------------------------
 
 pub const SubpxScratchBuffs = struct {
+    pub const exclusive_subpx_target = false;
+
     stride_subpx: usize,
     inv_z: []F,
     image: MatSlice(F),
@@ -49,6 +51,13 @@ pub const SubpxScratchBuffs = struct {
     touched_min_x: []usize,
     touched_max_x: []usize,
     ideal_pix_cent: []F,
+
+    pub inline fn imageIndex(
+        _: *const SubpxScratchBuffs,
+        local_idx: usize,
+    ) usize {
+        return local_idx;
+    }
 };
 
 // --------------------------------------------------------------------------------------
@@ -144,6 +153,15 @@ pub fn RasterEngine(
     comptime ShaderKern: type,
     comptime ShaderData: type,
 ) type {
+    return RasterEngineFor(SubpxScratchBuffs, Geom, ShaderKern, ShaderData);
+}
+
+pub fn RasterEngineFor(
+    comptime ScratchBuffs: type,
+    comptime Geom: type,
+    comptime ShaderKern: type,
+    comptime ShaderData: type,
+) type {
     return struct {
         pub fn render(
             comptime report_mode: ReportMode,
@@ -155,7 +173,7 @@ pub fn RasterEngine(
             raster_hull: ?*const NDArray(F),
             shader: *const ShaderData,
             shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-            subpx_scratch: *SubpxScratchBuffs,
+            subpx_scratch: *ScratchBuffs,
         ) !u64 {
             const sub_samp_u: usize = @intCast(ctx_rast.camera.sub_sample);
             const sub_samp_f: F = @as(F, @floatFromInt(ctx_rast.camera.sub_sample));
@@ -223,10 +241,11 @@ pub fn RasterEngine(
             nodes_coords: Vec3Slices(F),
             shader: *const ShaderData,
             shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-            subpx_scratch: *SubpxScratchBuffs,
+            subpx_scratch: *ScratchBuffs,
         ) !u64 {
             if (comptime Geom == geomkerns.Tri3OptKernel()) {
                 return rasterSteppedScal(
+                    ScratchBuffs,
                     Geom,
                     ShaderKern,
                     ShaderData,
@@ -246,6 +265,7 @@ pub fn RasterEngine(
             }
             if (comptime Geom.solver_kind != .newton) {
                 return rasterDirectImpl(
+                    ScratchBuffs,
                     Geom,
                     ShaderKern,
                     ShaderData,
@@ -265,6 +285,7 @@ pub fn RasterEngine(
             }
 
             return rasterNewtonImpl(
+                ScratchBuffs,
                 Geom,
                 ShaderKern,
                 ShaderData,
@@ -295,9 +316,10 @@ pub fn RasterEngine(
             nodes_coords: Vec3Slices(F),
             shader: *const ShaderData,
             shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-            subpx_scratch: *SubpxScratchBuffs,
+            subpx_scratch: *ScratchBuffs,
         ) !u64 {
             return rasterNewtonImpl(
+                ScratchBuffs,
                 Geom,
                 ShaderKern,
                 ShaderData,
@@ -319,6 +341,7 @@ pub fn RasterEngine(
 }
 
 fn rasterDirectImpl(
+    comptime ScratchBuffs: type,
     comptime Geom: type,
     comptime ShaderKern: type,
     comptime ShaderData: type,
@@ -333,7 +356,7 @@ fn rasterDirectImpl(
     nodes_coords: Vec3Slices(F),
     shader: *const ShaderData,
     shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-    subpx_scratch: *SubpxScratchBuffs,
+    subpx_scratch: *ScratchBuffs,
 ) !u64 {
     std.debug.assert(subpx_scratch.image.rows_num <= std.math.maxInt(u8));
     const fields_num: u8 = @intCast(subpx_scratch.image.rows_num);
@@ -343,7 +366,7 @@ fn rasterDirectImpl(
         ShaderKern,
         ShaderData,
         report_mode,
-        SubpxScratchBuffs,
+        ScratchBuffs,
         ctx_rast,
         ctx_report,
         tile,
@@ -359,6 +382,7 @@ fn rasterDirectImpl(
 }
 
 fn rasterNewtonImpl(
+    comptime ScratchBuffs: type,
     comptime Geom: type,
     comptime ShaderKern: type,
     comptime ShaderData: type,
@@ -373,7 +397,7 @@ fn rasterNewtonImpl(
     nodes_coords: Vec3Slices(F),
     shader: *const ShaderData,
     shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-    subpx_scratch: *SubpxScratchBuffs,
+    subpx_scratch: *ScratchBuffs,
 ) !u64 {
     comptime {
         if (Geom.solver_kind != .newton) {
@@ -620,8 +644,14 @@ fn rasterNewtonImpl(
                     global_subx,
                     global_suby,
                     result.iters,
-                    tile.scratch_x_px_min + scratch_x / sub_samp,
-                    tile.scratch_y_px_min + scratch_y / sub_samp,
+                    @intCast(@max(0, tile.scratch_x_px_min + @as(
+                        i32,
+                        @intCast(scratch_x / sub_samp),
+                    ))),
+                    @intCast(@max(0, tile.scratch_y_px_min + @as(
+                        i32,
+                        @intCast(scratch_y / sub_samp),
+                    ))),
                 );
             }
 
@@ -630,7 +660,7 @@ fn rasterNewtonImpl(
                 .elem_idx = overlap.elem_idx,
                 .fields_num = fields_num,
                 .actual_fields = fields_num,
-                .scratch_idx = scratch_idx,
+                .scratch_idx = subpx_scratch.imageIndex(scratch_idx),
                 .global_subx = global_subx,
                 .global_suby = global_suby,
             };
@@ -657,6 +687,7 @@ fn rasterNewtonImpl(
 }
 
 fn rasterSteppedScal(
+    comptime ScratchBuffs: type,
     comptime Geom: type,
     comptime ShaderKern: type,
     comptime ShaderData: type,
@@ -671,7 +702,7 @@ fn rasterSteppedScal(
     nodes_coords: Vec3Slices(F),
     shader: *const ShaderData,
     shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-    subpx_scratch: *SubpxScratchBuffs,
+    subpx_scratch: *ScratchBuffs,
 ) !u64 {
     const sub_samp: usize = @intCast(ctx_rast.camera.sub_sample);
     const tile_subpx_x = @as(isize, tile.scratch_x_px_min) *
@@ -694,6 +725,7 @@ fn rasterSteppedScal(
         max_y_steps,
     )) |fixed| {
         return rasterSteppedScalFixP(
+            ScratchBuffs,
             Geom,
             ShaderKern,
             ShaderData,
@@ -714,6 +746,7 @@ fn rasterSteppedScal(
     }
 
     return rasterSteppedScalFloat(
+        ScratchBuffs,
         Geom,
         ShaderKern,
         ShaderData,
@@ -733,6 +766,7 @@ fn rasterSteppedScal(
 }
 
 fn rasterSteppedScalFixP(
+    comptime ScratchBuffs: type,
     comptime Geom: type,
     comptime ShaderKern: type,
     comptime ShaderData: type,
@@ -747,7 +781,7 @@ fn rasterSteppedScalFixP(
     nodes_coords: Vec3Slices(F),
     shader: *const ShaderData,
     shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-    subpx_scratch: *SubpxScratchBuffs,
+    subpx_scratch: *ScratchBuffs,
     fixed: comm.Tri3FixedEdges,
 ) !u64 {
     const N = Geom.nodes_num;
@@ -850,8 +884,14 @@ fn rasterSteppedScalFixP(
                             global_subx,
                             global_suby,
                             1,
-                            tile.scratch_x_px_min + scratch_x_u / sub_samp,
-                            tile.scratch_y_px_min + scratch_y_u / sub_samp,
+                            @intCast(@max(0, tile.scratch_x_px_min + @as(
+                                i32,
+                                @intCast(scratch_x_u / sub_samp),
+                            ))),
+                            @intCast(@max(0, tile.scratch_y_px_min + @as(
+                                i32,
+                                @intCast(scratch_y_u / sub_samp),
+                            ))),
                         );
                     }
 
@@ -882,7 +922,7 @@ fn rasterSteppedScalFixP(
                         .elem_idx = overlap.elem_idx,
                         .fields_num = fields_num,
                         .actual_fields = fields_num,
-                        .scratch_idx = scratch_idx,
+                        .scratch_idx = subpx_scratch.imageIndex(scratch_idx),
                         .global_subx = global_subx,
                         .global_suby = global_suby,
                     };
@@ -930,6 +970,7 @@ fn rasterSteppedScalFixP(
 }
 
 fn rasterSteppedScalFloat(
+    comptime ScratchBuffs: type,
     comptime Geom: type,
     comptime ShaderKern: type,
     comptime ShaderData: type,
@@ -944,7 +985,7 @@ fn rasterSteppedScalFloat(
     nodes_coords: Vec3Slices(F),
     shader: *const ShaderData,
     shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-    subpx_scratch: *SubpxScratchBuffs,
+    subpx_scratch: *ScratchBuffs,
 ) !u64 {
     const N = Geom.nodes_num;
     var shaded_px: u64 = 0;
@@ -1089,8 +1130,14 @@ fn rasterSteppedScalFloat(
                             global_subx,
                             global_suby,
                             1,
-                            tile.scratch_x_px_min + scratch_x_u / sub_samp,
-                            tile.scratch_y_px_min + scratch_y_u / sub_samp,
+                            @intCast(@max(0, tile.scratch_x_px_min + @as(
+                                i32,
+                                @intCast(scratch_x_u / sub_samp),
+                            ))),
+                            @intCast(@max(0, tile.scratch_y_px_min + @as(
+                                i32,
+                                @intCast(scratch_y_u / sub_samp),
+                            ))),
                         );
                     }
 
@@ -1121,7 +1168,7 @@ fn rasterSteppedScalFloat(
                         .elem_idx = overlap.elem_idx,
                         .fields_num = fields_num,
                         .actual_fields = fields_num,
-                        .scratch_idx = scratch_idx,
+                        .scratch_idx = subpx_scratch.imageIndex(scratch_idx),
                         .global_subx = global_subx,
                         .global_suby = global_suby,
                     };

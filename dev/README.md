@@ -1,5 +1,12 @@
 # Riley Developer Notes
-This document collects the heavier development workflows for regression testing, gold generation and performance benchmarking. The top-level `README.md` keeps the quick-start path and the min test suite; this file is for the deeper day-to-day developer workflows.
+This document collects information for developers including: style guides and the heavier development workflows for regression testing, gold generation and performance benchmarking. 
+
+## Style Guide
+This project follow the Computer Aided Validation Laboratory style guides for python and Zig which can be found [here](https://github.com/Computer-Aided-Validation-Laboratory/styleguides). Riley is designed around three equally important principles:
+
+1. **Make it correct.**
+2. **Make it fast.**
+3. **Make it simple for users.**
 
 ## Extended Regression Test Suites
 Once the min suite passes, the next two regression suites are:
@@ -222,14 +229,17 @@ python ./pyscripts/test_riley.py --force-zig-render
 Run a packaged Python demo directly with:
 
 ```shell
-python -m riley demo_sphere200
-python -m riley demo_rabbits
-python -m riley demo_dicuq
-python -m riley demo_dic_from_exodus
-python -m riley demo_stereocal
+python -m riley demo0_quickstart
+python -m riley demo1_sphere200
+python -m riley demo2_psf
+python -m riley demo3_rabbits
+python -m riley demo6_dicuq
+python -m riley demo7_dic_from_exodus
+python -m riley demo8_stereocal
+python -m riley demo9_feature_zoo
 ```
 
-Python demo output is written to `Path.cwd() / "out-riley-py" / "<demo-name>"`.
+Python demo output is written to `Path.cwd() / "out_riley_py" / "<demo-name>"`.
 
 ## Notes
 - Plain `zig run` and `zig test` under `./src/` still use the default Riley path of `f64` with SIMD enabled.

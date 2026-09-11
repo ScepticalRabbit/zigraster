@@ -8,7 +8,7 @@ include scripts/python_package_data.toml
 recursive-include src/riley *.py *.pxd *.h *.zig
 
 prune src/riley/__pycache__
-prune src/riley/cyth/__pycache__
+prune src/riley/cython/__pycache__
 prune src/riley/zig/__pycache__
 prune src/riley_raster.egg-info
 prune src/riley.egg-info

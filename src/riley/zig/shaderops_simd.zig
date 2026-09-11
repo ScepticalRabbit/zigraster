@@ -30,6 +30,32 @@ const simdops = @import("simdops.zig");
 pub const fillNodalClipScal = scal.fillNodalClipScal;
 pub const fillNodalPerspScal = scal.fillNodalPerspScal;
 
+inline fn storeShadeSIMD(
+    subpx_vals: []F,
+    start_u: usize,
+    ctx_shade: comm.ShadeContext,
+    v_mask_active: VecSB,
+    v_vals: VecSF,
+) void {
+    if (!ctx_shade.exclusive_subpx_target) {
+        simdops.storeMaskedVecSF(
+            subpx_vals,
+            start_u,
+            v_mask_active,
+            v_vals,
+        );
+        return;
+    }
+
+    const mask_arr: [S]bool = v_mask_active;
+    const vals_arr: [S]F = v_vals;
+    inline for (0..S) |lane| {
+        if (mask_arr[lane]) {
+            subpx_vals[start_u + lane] = vals_arr[lane];
+        }
+    }
+}
+
 pub inline fn fillNodalClipSIMD(
     comptime N: usize,
     ctx_shade: comm.ShadeContext,
@@ -54,9 +80,10 @@ pub inline fn fillNodalClipSIMD(
 
         const v_final = v_weighted_sum * v_splat_mul + v_splat_add;
         const flat_idx = ff * px_stride + ctx_shade.scratch_idx;
-        simdops.storeMaskedVecSF(
+        storeShadeSIMD(
             spx_image_scratch.slice,
             flat_idx,
+            ctx_shade,
             ctx_shade.v_mask_active.?,
             v_final,
         );
@@ -90,9 +117,10 @@ pub inline fn fillNodalPerspSIMD(
         const v_final = (v_weighted_sum * v_subpx_z) * v_splat_mul + v_splat_add;
         const flat_idx = ff * px_stride + ctx_shade.scratch_idx;
 
-        simdops.storeMaskedVecSF(
+        storeShadeSIMD(
             spx_image_scratch.slice,
             flat_idx,
+            ctx_shade,
             ctx_shade.v_mask_active.?,
             v_final,
         );
@@ -162,9 +190,10 @@ pub inline fn fillTexClipSIMD(
 
         const flat_idx = ch * px_stride + ctx_shade.scratch_idx;
 
-        simdops.storeMaskedVecSF(
+        storeShadeSIMD(
             spx_image_scratch.slice,
             flat_idx,
+            ctx_shade,
             v_mask_active,
             v_final,
         );
@@ -236,9 +265,10 @@ pub inline fn fillTexPerspSIMD(
     inline for (0..C) |ch| {
         const v_final = sampled_vecs[ch] * v_splat_mul + v_splat_add;
         const flat_idx = ch * px_stride + ctx_shade.scratch_idx;
-        simdops.storeMaskedVecSF(
+        storeShadeSIMD(
             spx_image_scratch.slice,
             flat_idx,
+            ctx_shade,
             v_mask_active,
             v_final,
         );
@@ -625,9 +655,10 @@ pub inline fn fillFuncClipSIMD(
 
         const flat_idx = scratch_idx;
 
-        simdops.storeMaskedVecSF(
+        storeShadeSIMD(
             spx_image_scratch.slice,
             flat_idx,
+            ctx_shade,
             v_mask_active,
             v_final,
         );
@@ -646,9 +677,10 @@ pub inline fn fillFuncClipSIMD(
         const v_final = v_vals[ch] * v_mul + v_add;
         const flat_idx = ch * px_stride + scratch_idx;
 
-        simdops.storeMaskedVecSF(
+        storeShadeSIMD(
             spx_image_scratch.slice,
             flat_idx,
+            ctx_shade,
             v_mask_active,
             v_final,
         );
@@ -717,9 +749,10 @@ pub inline fn fillFuncPerspSIMD(
         const v_final = v_eval * v_mul + v_add;
 
         const flat_idx = scratch_idx;
-        simdops.storeMaskedVecSF(
+        storeShadeSIMD(
             spx_image_scratch.slice,
             flat_idx,
+            ctx_shade,
             v_mask_active,
             v_final,
         );
@@ -736,9 +769,10 @@ pub inline fn fillFuncPerspSIMD(
         const v_add = @as(VecSF, @splat(shader.scale_add));
         const v_final = v_vals[ch] * v_mul + v_add;
         const flat_idx = ch * px_stride + scratch_idx;
-        simdops.storeMaskedVecSF(
+        storeShadeSIMD(
             spx_image_scratch.slice,
             flat_idx,
+            ctx_shade,
             v_mask_active,
             v_final,
         );

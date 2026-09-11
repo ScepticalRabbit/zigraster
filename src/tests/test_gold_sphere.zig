@@ -146,7 +146,7 @@ test "Sphere Gold Tests" {
                         defer allocator.free(gold_case_name);
 
                         // 1. Run benchmark
-                        var r_config = tcfg.getRasterConfig(.bench);
+                        var r_config = tcfg.getRasterConfig(.testing);
                         r_config.save_strategy = if (c.out.len > 0) .both else .memory;
 
                         const test_dir_case = try std.fs.path.join(

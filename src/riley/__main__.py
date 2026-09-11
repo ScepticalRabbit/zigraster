@@ -14,11 +14,14 @@ import sys
 
 
 _DEMO_FUNCS = {
-    "demo_sphere200": "riley.pydemos.demo_sphere200",
-    "demo_rabbits": "riley.pydemos.demo_rabbits",
-    "demo_dicuq": "riley.pydemos.demo_dicuq",
-    "demo_dic_from_exodus": "riley.pydemos.demo_dic_from_exodus",
-    "demo_stereocal": "riley.pydemos.demo_stereocal",
+    "demo0_quickstart": "riley.pydemos.demo0_quickstart",
+    "demo1_sphere200": "riley.pydemos.demo1_sphere200",
+    "demo2_psf": "riley.pydemos.demo2_psf",
+    "demo3_rabbits": "riley.pydemos.demo3_rabbits",
+    "demo6_dicuq": "riley.pydemos.demo6_dicuq",
+    "demo7_dic_from_exodus": "riley.pydemos.demo7_dic_from_exodus",
+    "demo8_stereocal": "riley.pydemos.demo8_stereocal",
+    "demo9_feature_zoo": "riley.pydemos.demo9_feature_zoo",
 }
 
 
@@ -33,7 +36,7 @@ def main() -> None:
 
     if args.command is None:
         parser.error(
-            "expected a command such as 'demo_dicuq' or 'test'. "
+            "expected a command such as 'demo0_quickstart' or 'test'. "
             f"Available demos: {', '.join(sorted(_DEMO_FUNCS))}.",
         )
 

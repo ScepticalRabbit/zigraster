@@ -8,6 +8,8 @@ file-out/
 .zig-cache/
 zig-out/
 out/
+out_riley_py/
+out-riley-py/
 bin/
 .*
 !.gitignore
@@ -47,6 +49,19 @@ refs/
 # Keep the min test suite to ship with the repo
 !data/min/
 !data/min/**/*.csv
+!data/cubes/
+!data/cubes/**/*.csv
+!data/cubes/*/cube_out.e
+!data/shapes/**/*.csv
+!src/riley/data/feature_zoo/
+!src/riley/data/feature_zoo/**/*.csv
+!src/riley/data/feature_zoo/
+!src/riley/data/feature_zoo/**/*.csv
+!src/riley/data/feature_zoo/**/*.fimg
+!data/shapes/**/*.msh
+!data/shapes/**/*.e
+!data/feature_zoo/**/*.csv
+!data/feature_zoo/*.fimg
 !gold/min/
 !gold/min/**/*.fimg
 !gold/min/**/*.bmp
@@ -97,8 +112,8 @@ uv.lock
 
 # Cython
 *.html
-src/riley/cyth/riley.c
-src/riley/cyth/riley.html
+src/riley/cython/riley.c
+src/riley/cython/riley.html
 
 # Windows :(
 *.dll

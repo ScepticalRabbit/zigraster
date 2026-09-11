@@ -41,7 +41,6 @@ PyQt6_sip==13.10.2
 pytest==8.4.0
 python-dateutil==2.9.0.post0
 pytz==2025.2
--e git+ssh://git@github.com/Computer-Aided-Validation-Laboratory/pyvale.git@acf8b92b911306fc1c7d0b73c3677361d68310bb#egg=pyvale
 pyvista==0.45.2
 PyYAML==6.0.2
 requests==2.32.3

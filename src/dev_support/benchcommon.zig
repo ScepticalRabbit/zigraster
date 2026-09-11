@@ -131,7 +131,7 @@ pub fn calcMetrics(
     frame_times: report.FrameTimes,
     bench_log: report.BenchLog,
 ) CalculatedMetrics {
-    const raster_sec = frame_times.raster_loop / 1e9;
+    const raster_sec = report.rasterStageTime(frame_times) / 1e9;
     const geom_tiling_sec = (frame_times.geometry_prep + frame_times.tile_overlap) / 1e9;
     const active_sec = frame_times.active_time / 1e9;
 
@@ -1060,10 +1060,7 @@ fn runBenchmarkInternal(
     }
 
     var bench_capture_storage: [1]report.FrameBenchCapture = undefined;
-    const bench_capture: ?[]report.FrameBenchCapture = if (report_mode == .bench)
-        bench_capture_storage[0..]
-    else
-        null;
+    const bench_capture: ?[]report.FrameBenchCapture = bench_capture_storage[0..];
 
     const needs_images_arr = config_run.save_strategy == .memory or
         config_run.save_strategy == .both;
@@ -1105,7 +1102,7 @@ fn runBenchmarkInternal(
     else
         0.0;
     const raster_ms = if (report_mode == .bench)
-        bench_capture_storage[0].bench_log.frame_times.raster_loop / 1e6
+        report.rasterStageTime(bench_capture_storage[0].bench_log.frame_times) / 1e6
     else
         0.0;
     const metrics = if (report_mode == .bench)
@@ -1148,10 +1145,7 @@ fn runBenchmarkInternal(
         images_mut.deinit(outer_alloc);
     }
 
-    const pipeline_times = if (report_mode == .bench)
-        bench_capture_storage[0].bench_log.frame_times
-    else
-        report.FrameTimes{};
+    const pipeline_times = bench_capture_storage[0].bench_log.frame_times;
 
     return .{
         .e2e_ms = e2e_ms,

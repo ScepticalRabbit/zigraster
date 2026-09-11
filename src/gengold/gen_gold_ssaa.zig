@@ -80,6 +80,19 @@ pub fn main(init: std.process.Init) !void {
                             .channels = 1,
                         },
                     );
+                    try iio.saveImage(
+                        io,
+                        out_dir,
+                        "cam0_frame0_field0",
+                        &image,
+                        0,
+                        .{
+                            .format = .tiff,
+                            .bits = 8,
+                            .scaling = .auto,
+                            .channels = 1,
+                        },
+                    );
                 }
             }
         }

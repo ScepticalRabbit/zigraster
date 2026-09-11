@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+from riley.python import meshconv
 
 import main_gen_calplate as base
 
@@ -15,7 +16,7 @@ SHORT_DIM = base.SHORT_DIM
 THICKNESS = SHORT_DIM / 10.0
 
 
-@dataclass(frozen=True)
+@dataclass(slots=True)
 class PlateGeometry:
     corners: np.ndarray
     faces: list[tuple[int, int, int, int]]
@@ -83,7 +84,10 @@ class NodeBuilder:
         return self.add(coord)
 
     def add_face_center(self, indices: tuple[int, int, int, int]) -> int:
-        coord = sum((self.coords[ii] for ii in indices), np.zeros(3, dtype=np.float64)) / 4.0
+        coord = np.zeros(3, dtype=np.float64)
+        for ii in indices:
+            coord += self.coords[ii]
+        coord = coord / 4.0
         return self.add(coord)
 
     def arrays(self) -> tuple[np.ndarray, np.ndarray]:
@@ -187,8 +191,23 @@ def mesh_cases() -> dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]]:
 
 def main() -> None:
     states = base.selected_motion_states()
+    element_types = {
+        "tri3_calplate3d": meshconv.EElementType.TRI3,
+        "tri6_calplate3d": meshconv.EElementType.TRI6,
+        "quad4_calplate3d": meshconv.EElementType.QUAD4,
+        "quad8_calplate3d": meshconv.EElementType.QUAD8,
+        "quad9_calplate3d": meshconv.EElementType.QUAD9,
+    }
     for case_name, (coords, connect, uvs) in mesh_cases().items():
-        base.write_case(case_name, coords, connect, uvs, states)
+        base.write_case(
+            case_name,
+            element_types[case_name],
+            coords,
+            connect,
+            uvs,
+            states,
+            None,
+        )
 
     print(f"Generated 3D calplate mesh cases in {BASE_DIR}")
     print(f"Thickness: {THICKNESS:.10f} m")

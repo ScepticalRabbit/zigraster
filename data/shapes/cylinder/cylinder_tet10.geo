@@ -1,0 +1,18 @@
+SetFactory("OpenCASCADE");
+General.Terminal = 0;
+r = 0.005;
+diam = 2 * r;
+h = 1.2 * diam;
+v1 = newv;
+Cylinder(v1) = {0, 0, 0, 0, h, 0, r, 2*Pi};
+MeshSize{ PointsOf{ Volume{v1}; } } = 0.004;
+tol = 1e-4;
+ps_bot() = Surface In BoundingBox{-r-tol, -tol, -r-tol, r+tol, tol, r+tol};
+Physical Surface("bc-bot") = {ps_bot()};
+ps_top() = Surface In BoundingBox{-r-tol, h-tol, -r-tol, r+tol, h+tol, r+tol};
+Physical Surface("bc-top") = {ps_top()};
+Physical Volume("vol") = {v1};
+Mesh.ElementOrder = 2;
+Mesh.SecondOrderLinear = 0;
+Mesh.HighOrderOptimize = 1;
+Mesh 3;

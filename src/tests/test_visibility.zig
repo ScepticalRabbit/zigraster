@@ -35,7 +35,7 @@ test "MIN multi-cull render is unchanged by a halo-only bypass" {
     );
     defer texture_rgb.deinit(allocator);
 
-    var config_base = tcfg.getRasterConfig(.bench);
+    var config_base = tcfg.getRasterConfig(.testing);
     config_base.save_strategy = .memory;
     config_base.image_save_opts = &[_]iio.ImageSaveOpts{};
     var config_halo = config_base;

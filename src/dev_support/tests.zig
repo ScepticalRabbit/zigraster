@@ -598,6 +598,10 @@ pub fn saveComparisonArtifactsFromResult(
 
     try saveImageArtifacts(allocator, io, out_dir, base_name, &actual);
 
+    const ref_name = try std.fmt.allocPrint(allocator, "{s}_ref", .{base_name});
+    defer allocator.free(ref_name);
+    try saveImageArtifacts(allocator, io, out_dir, ref_name, &gold);
+
     const diff_name = try std.fmt.allocPrint(allocator, "{s}_diff", .{base_name});
     defer allocator.free(diff_name);
     try saveImageArtifacts(allocator, io, out_dir, diff_name, &diff);
@@ -630,6 +634,7 @@ pub fn saveComparisonArtifactsFromImages(
     }
 
     try saveImageArtifacts(allocator, io, out_dir, "cam0_frame0_field0", actual);
+    try saveImageArtifacts(allocator, io, out_dir, "cam0_frame0_field0_ref", gold);
     try saveImageArtifacts(allocator, io, out_dir, "cam0_frame0_field0_diff", &diff);
 }
 
@@ -1039,6 +1044,7 @@ pub fn runMultimeshTest(
         .{ 1200, 800 },
         rel_tol,
         abs_tol,
+        .tile_local,
     );
 }
 
@@ -1050,6 +1056,7 @@ pub fn runMultimeshTestExt(
     pixel_num: [2]u32,
     rel_tol: F,
     abs_tol: F,
+    buffer_mode: rastcfg.BufferMode,
 ) !void {
     var arena = std.heap.ArenaAllocator.init(outer_alloc);
     defer arena.deinit();
@@ -1076,6 +1083,7 @@ pub fn runMultimeshTestExt(
         defer camera.deinit(aa);
 
         var config = tcfg.getRasterConfig(.testing);
+        config.buffer_mode = buffer_mode;
         config.save_strategy = .memory;
         config.image_save_opts = &[_]iio.ImageSaveOpts{
             .{ .format = .csv, .bits = null, .scaling = .none },
@@ -1185,6 +1193,7 @@ pub fn runMultimeshMixedTest(
         .{ 1600, 800 },
         rel_tol,
         abs_tol,
+        .tile_local,
     );
 }
 
@@ -1196,6 +1205,7 @@ pub fn runMultimeshMixedTestExt(
     pixel_num: [2]u32,
     rel_tol: F,
     abs_tol: F,
+    buffer_mode: rastcfg.BufferMode,
 ) !void {
     var arena = std.heap.ArenaAllocator.init(outer_alloc);
     defer arena.deinit();
@@ -1227,6 +1237,7 @@ pub fn runMultimeshMixedTestExt(
     defer camera.deinit(aa);
 
     var config = tcfg.getRasterConfig(.testing);
+    config.buffer_mode = buffer_mode;
     config.save_strategy = .memory;
     config.image_save_opts = &[_]iio.ImageSaveOpts{
         .{ .format = .csv, .bits = null, .scaling = .none },
@@ -1314,6 +1325,7 @@ pub fn runMultimeshMixedRGBTest(
         .{ 1200, 800 },
         rel_tol,
         abs_tol,
+        .tile_local,
     );
 }
 
@@ -1325,6 +1337,7 @@ pub fn runMultimeshMixedRGBTestExt(
     pixel_num: [2]u32,
     rel_tol: F,
     abs_tol: F,
+    buffer_mode: rastcfg.BufferMode,
 ) !void {
     var arena = std.heap.ArenaAllocator.init(outer_alloc);
     defer arena.deinit();
@@ -1356,6 +1369,7 @@ pub fn runMultimeshMixedRGBTestExt(
     defer camera.deinit(aa);
 
     var config_rgb = tcfg.getRasterConfig(.testing);
+    config_rgb.buffer_mode = buffer_mode;
     config_rgb.save_strategy = .memory;
     config_rgb.image_save_opts = &[_]iio.ImageSaveOpts{
         .{ .format = .csv, .bits = null, .scaling = .none, .channels = 3 },

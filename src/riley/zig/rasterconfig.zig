@@ -59,6 +59,13 @@ pub const RasterConfig = struct {
     tile_size_override: ?u16 = null,
     tile_size_min: u16 = 1,
     tile_size_max: u16 = 256,
+    buffer_mode: BufferMode = .tile_local,
+    global_subpx_tile_size_override: ?u16 = null,
+    global_subpx_tile_size_min: u16 = 64,
+    global_subpx_tile_size_max: u16 = 1024,
+    global_subpx_stripe_size_override: ?u16 = null,
+    global_subpx_stripe_size_min: u16 = 256,
+    global_subpx_stripe_size_max: u16 = 4096,
     // Test/development override for exercising the extended raster domain
     // without changing the camera PSF or resolve operation.
     raster_halo_px_override: ?u16 = null,
@@ -69,6 +76,12 @@ pub const RasterConfig = struct {
     report: ReportMode = .bench,
     full_stats_opts: FullStatsOpts = .{},
     save_frame_buff_count: usize = buildconfig.SaveFrameBuffCount,
+};
+
+pub const BufferMode = enum {
+    tile_local,
+    global_subpx_full,
+    global_subpx_stripe,
 };
 
 pub const RenderMode = enum {

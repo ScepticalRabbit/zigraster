@@ -166,7 +166,7 @@ fn generateCases(
                                     .channels = 3,
                                 },
                                 .{
-                                    .format = .bmp,
+                                    .format = .tiff,
                                     .bits = 8,
                                     .scaling = .auto,
                                     .channels = 3,
@@ -180,7 +180,7 @@ fn generateCases(
                                     .scaling = .none,
                                 },
                                 .{
-                                    .format = .bmp,
+                                    .format = .tiff,
                                     .bits = 8,
                                     .scaling = .auto,
                                 },

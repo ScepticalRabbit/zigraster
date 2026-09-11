@@ -145,11 +145,11 @@ pub fn mainWithOutputRoot(
         .lambertian_normal_z,
     };
     const coord_modes = [_]CoordMode{ .uv, .param };
-    var config = tcfg.getRasterConfig(.gold);
+    var config = tcfg.getRasterConfig(.gold_gen);
     config.save_strategy = .disk;
     config.image_save_opts = &[_]iio.ImageSaveOpts{
         .{ .format = .fimg, .bits = null, .scaling = .none },
-        .{ .format = .bmp, .bits = 8, .scaling = .auto },
+        .{ .format = .tiff, .bits = 8, .scaling = .auto },
     };
 
     for (mesh_types) |mesh_type| {

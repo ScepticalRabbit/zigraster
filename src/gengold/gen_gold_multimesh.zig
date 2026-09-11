@@ -18,11 +18,11 @@ pub fn main(init: std.process.Init) !void {
     defer arena.deinit();
     const aa = arena.allocator();
 
-    var config = tcfg.getRasterConfig(.gold);
+    var config = tcfg.getRasterConfig(.gold_gen);
     config.save_strategy = .disk;
     config.image_save_opts = &[_]iio.ImageSaveOpts{
         .{ .format = .fimg, .bits = null, .scaling = .none },
-        .{ .format = .bmp, .bits = 8, .scaling = .auto },
+        .{ .format = .tiff, .bits = 8, .scaling = .auto },
     };
 
     std.debug.print("Generating Multimesh Gold Data...\n", .{});

@@ -8,6 +8,8 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 from scipy.stats import qmc
 
+from riley.python import meshconv
+
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -441,15 +443,27 @@ def save_csv_matrix(file_path: Path, data: np.ndarray, fmt: str) -> None:
 
 def write_case(
     case_name: str,
+    elem_type: meshconv.EElementType,
     coords: np.ndarray,
     connect: np.ndarray,
     uvs: np.ndarray,
     states: list[MotionState],
+    material_normal_hint: tuple[float, float, float] | None,
 ) -> None:
     out_dir = BASE_DIR / case_name
     out_dir.mkdir(parents=True, exist_ok=True)
 
     disp_x, disp_y, disp_z = displacement_fields(coords, states)
+    convention = meshconv.ConnectConvention(
+        elem_type,
+        meshconv.EConnectAxis.ROW,
+        0,
+        node_order=meshconv.ENodeOrder.RILEY,
+        material_normal_hint=material_normal_hint,
+    )
+    mesh = meshconv.convert_mesh(coords, connect, convention)
+    meshconv.verify_mesh(mesh)
+    connect = mesh.connect
 
     save_csv_matrix(out_dir / "coords.csv", coords, "%.10f")
     save_csv_matrix(out_dir / "connect.csv", connect, "%d")
@@ -476,9 +490,24 @@ def write_case(
 def main() -> None:
     states = selected_motion_states()
     cases = mesh_cases()
+    element_types = {
+        "tri3_calplate": meshconv.EElementType.TRI3,
+        "tri6_calplate": meshconv.EElementType.TRI6,
+        "quad4_calplate": meshconv.EElementType.QUAD4,
+        "quad8_calplate": meshconv.EElementType.QUAD8,
+        "quad9_calplate": meshconv.EElementType.QUAD9,
+    }
 
     for case_name, (coords, connect, uvs) in cases.items():
-        write_case(case_name, coords, connect, uvs, states)
+        write_case(
+            case_name,
+            element_types[case_name],
+            coords,
+            connect,
+            uvs,
+            states,
+            (0.0, 0.0, 1.0),
+        )
 
     print(f"Generated {len(cases)} calplate mesh cases in {BASE_DIR}")
     print(f"Mode: {CAL_MODE}")

@@ -529,6 +529,16 @@ pub const ActiveTile = struct {
     scratch_y_px_min: i32,
     scratch_x_px_max: i32,
     scratch_y_px_max: i32,
+    // Global sub-pixel modes populate these exact target ownership bounds.
+    // Tile-local modes do not use them.
+    core_subx_min: i32 = 0,
+    core_suby_min: i32 = 0,
+    core_subx_max: i32 = 0,
+    core_suby_max: i32 = 0,
+    scratch_subx_min: i32 = 0,
+    scratch_suby_min: i32 = 0,
+    scratch_subx_max: i32 = 0,
+    scratch_suby_max: i32 = 0,
 };
 
 pub const TilingOverlaps = struct {

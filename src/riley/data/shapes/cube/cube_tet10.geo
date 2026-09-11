@@ -1,0 +1,14 @@
+SetFactory("OpenCASCADE");
+General.Terminal = 0;
+L = 0.01;
+Box(1) = {0, 0, 0, L, L, L};
+MeshSize{ PointsOf{ Volume{1}; } } = 0.006;
+tol = 1e-4;
+ps_bot() = Surface In BoundingBox{-tol, -tol, -tol, L+tol, tol, L+tol};
+Physical Surface("bc-bot") = {ps_bot()};
+ps_top() = Surface In BoundingBox{-tol, L-tol, -tol, L+tol, L+tol, L+tol};
+Physical Surface("bc-top") = {ps_top()};
+Physical Volume("vol") = {1};
+Mesh.ElementOrder = 2;
+Mesh.SecondOrderLinear = 0;
+Mesh 3;

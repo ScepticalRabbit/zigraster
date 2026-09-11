@@ -1,21 +1,14 @@
 from pathlib import Path
-import sys
+
 import numpy as np
 import pyvale.mooseherder as mh
 
+import riley
+from riley.python import meshconv
+
 from extract_surface_mesh import extract_surf_mesh
 
-SRC_ROOT = Path(__file__).resolve().parents[2] / "src"
-if str(SRC_ROOT) not in sys.path:
-    sys.path.insert(0, str(SRC_ROOT))
-
-import riley
-
 def main() -> None:
-    #---------------------------------------------------------------------------
-    # NOTE: exodus connectivity starts at 1 - need to subtract 1!
-    #---------------------------------------------------------------------------
-
     base_dir = Path(__file__).resolve().parent
     num_meshes = 7
     frame_counts = (1, 63)
@@ -31,13 +24,19 @@ def main() -> None:
                 save_path.mkdir(parents=True, exist_ok=True)
 
             sim_data = mh.ExodusLoader(sim_file).load_all_sim_data()
-            mesh_world = extract_surf_mesh(sim_data)
+            source_convention = meshconv.ConnectConvention(
+                meshconv.EElementType.HEX20,
+                meshconv.EConnectAxis.COLUMN,
+                1,
+                node_order=meshconv.ENodeOrder.EXODUS,
+            )
+            mesh_world = extract_surf_mesh(sim_data, source_convention)
 
             uvs = riley.project_uvs_planar_centered(
                 mesh_world.coords,
                 (2464, 2056),
                 uv_span_max=0.8,
-                projection_plane=(
+                proj_plane=(
                     np.array((0.0, 0.0, -1.0), dtype=np.float64),
                     np.array((0.0, 0.0, 0.0), dtype=np.float64),
                 ),
@@ -75,7 +74,12 @@ def main() -> None:
             print(80 * "-")
 
             np.savetxt(save_path / 'coords.csv', mesh_world.coords, delimiter=',')
-            np.savetxt(save_path / 'connect.csv', connect, delimiter=',')
+            np.savetxt(
+                save_path / "connect.csv",
+                connect,
+                delimiter=",",
+                fmt="%d",
+            )
             np.savetxt(save_path / 'field_disp_x.csv',
                         mesh_world.node_vars['disp_x'], delimiter=',')
             np.savetxt(save_path / 'field_disp_y.csv',

@@ -2,6 +2,8 @@ from pathlib import Path
 
 import numpy as np
 
+from riley.python import meshconv
+
 
 EDGE_LENG = 10.0
 ELEM_ROT = 20.0
@@ -21,6 +23,7 @@ ROT_TIME_STEPS = 13
 def save_case(
     base_dir,
     name,
+    elem_type,
     coords,
     connect,
     disp_x,
@@ -37,6 +40,19 @@ def save_case(
         disp_z,
         ELEM_ROT,
     )
+    mesh = meshconv.convert_mesh(
+        coords,
+        connect,
+        meshconv.ConnectConvention(
+            elem_type,
+            meshconv.EConnectAxis.ROW,
+            0,
+            node_order=meshconv.ENodeOrder.RILEY,
+            material_normal_hint=(0.0, 0.0, 1.0),
+        ),
+    )
+    meshconv.verify_mesh(mesh)
+    connect = mesh.connect
     np.savetxt(out_dir / "coords.csv", coords, delimiter=",")
     np.savetxt(
         out_dir / "connect.csv",
@@ -211,7 +227,14 @@ def rotate_points(points, angle_deg, center):
     return np.array([rot_mat @ (pp - center) + center for pp in points])
 
 
-def generate_case(base_dir, name, coords_initial, coords_final, connect):
+def generate_case(
+    base_dir,
+    name,
+    elem_type,
+    coords_initial,
+    coords_final,
+    connect,
+):
     disp_x, disp_y, disp_z = build_disp_fields_to_target(
         coords_initial,
         coords_final,
@@ -220,6 +243,7 @@ def generate_case(base_dir, name, coords_initial, coords_final, connect):
     save_case(
         base_dir,
         name,
+        elem_type,
         coords_initial,
         connect,
         disp_x,
@@ -307,6 +331,7 @@ def generate_tri3_stretch(base_dir, edge_length, stretch_ratio):
     generate_case(
         base_dir,
         "tri3_distort_stretch",
+        meshconv.EElementType.TRI3,
         coords_initial,
         coords_final,
         np.array([[0, 1, 2]]),
@@ -324,6 +349,7 @@ def generate_tri6_stretch(base_dir, edge_length, stretch_ratio):
     generate_case(
         base_dir,
         "tri6_distort_stretch",
+        meshconv.EElementType.TRI6,
         coords_initial,
         coords_final,
         np.array([[0, 1, 2, 3, 4, 5]]),
@@ -336,6 +362,7 @@ def generate_quad4_stretch(base_dir, edge_length, stretch_ratio):
     generate_case(
         base_dir,
         "quad4_distort_stretch",
+        meshconv.EElementType.QUAD4,
         coords_initial,
         coords_final,
         np.array([[0, 1, 2, 3]]),
@@ -353,6 +380,7 @@ def generate_quad8_stretch(base_dir, edge_length, stretch_ratio):
     generate_case(
         base_dir,
         "quad8_distort_stretch",
+        meshconv.EElementType.QUAD8,
         coords_initial,
         coords_final,
         np.array([[0, 1, 2, 3, 4, 5, 6, 7]]),
@@ -372,6 +400,7 @@ def generate_quad9_stretch(base_dir, edge_length, stretch_ratio):
     generate_case(
         base_dir,
         "quad9_distort_stretch",
+        meshconv.EElementType.QUAD9,
         coords_initial,
         coords_final,
         np.array([[0, 1, 2, 3, 4, 5, 6, 7, 8]]),
@@ -384,6 +413,7 @@ def generate_tri3_shear(base_dir, edge_length, shear_ratio):
     generate_case(
         base_dir,
         "tri3_distort_shear",
+        meshconv.EElementType.TRI3,
         coords_initial,
         coords_final,
         np.array([[0, 1, 2]]),
@@ -401,6 +431,7 @@ def generate_tri6_shear(base_dir, edge_length, shear_ratio):
     generate_case(
         base_dir,
         "tri6_distort_shear",
+        meshconv.EElementType.TRI6,
         coords_initial,
         coords_final,
         np.array([[0, 1, 2, 3, 4, 5]]),
@@ -413,6 +444,7 @@ def generate_quad4_shear(base_dir, edge_length, shear_ratio):
     generate_case(
         base_dir,
         "quad4_distort_shear",
+        meshconv.EElementType.QUAD4,
         coords_initial,
         coords_final,
         np.array([[0, 1, 2, 3]]),
@@ -430,6 +462,7 @@ def generate_quad8_shear(base_dir, edge_length, shear_ratio):
     generate_case(
         base_dir,
         "quad8_distort_shear",
+        meshconv.EElementType.QUAD8,
         coords_initial,
         coords_final,
         np.array([[0, 1, 2, 3, 4, 5, 6, 7]]),
@@ -449,6 +482,7 @@ def generate_quad9_shear(base_dir, edge_length, shear_ratio):
     generate_case(
         base_dir,
         "quad9_distort_shear",
+        meshconv.EElementType.QUAD9,
         coords_initial,
         coords_final,
         np.array([[0, 1, 2, 3, 4, 5, 6, 7, 8]]),
@@ -496,6 +530,7 @@ def generate_tri6_bulge(base_dir, edge_length, time_steps):
     save_case(
         base_dir,
         "tri6_distort_bulge",
+        meshconv.EElementType.TRI6,
         coords,
         np.array([[0, 1, 2, 3, 4, 5]]),
         disp_x,
@@ -546,6 +581,7 @@ def generate_tri6_tan(base_dir, edge_length, time_steps, tan_offset_factor):
     save_case(
         base_dir,
         "tri6_distort_tan",
+        meshconv.EElementType.TRI6,
         coords,
         np.array([[0, 1, 2, 3, 4, 5]]),
         disp_x,
@@ -600,6 +636,11 @@ def generate_quad_bulge(base_dir, edge_length, time_steps, include_center):
     save_case(
         base_dir,
         mesh_name,
+        (
+            meshconv.EElementType.QUAD9
+            if include_center
+            else meshconv.EElementType.QUAD8
+        ),
         coords,
         connect,
         disp_x,
@@ -655,6 +696,11 @@ def generate_quad_tan(base_dir, edge_length, time_steps, tan_offset_factor, incl
     save_case(
         base_dir,
         mesh_name,
+        (
+            meshconv.EElementType.QUAD9
+            if include_center
+            else meshconv.EElementType.QUAD8
+        ),
         coords,
         connect,
         disp_x,
@@ -673,6 +719,7 @@ def generate_tri3_rot(base_dir, edge_length, time_steps):
     save_case(
         base_dir,
         "tri3_distort_rot",
+        meshconv.EElementType.TRI3,
         coords,
         np.array([[0, 1, 2]]),
         disp_x,
@@ -694,6 +741,7 @@ def generate_tri6_rot(base_dir, edge_length, time_steps):
     save_case(
         base_dir,
         "tri6_distort_rot",
+        meshconv.EElementType.TRI6,
         coords,
         np.array([[0, 1, 2, 3, 4, 5]]),
         disp_x,
@@ -721,6 +769,11 @@ def generate_quad_rot(base_dir, edge_length, time_steps, include_center):
     save_case(
         base_dir,
         mesh_name,
+        (
+            meshconv.EElementType.QUAD9
+            if include_center
+            else meshconv.EElementType.QUAD8
+        ),
         coords,
         connect,
         disp_x,
@@ -739,6 +792,7 @@ def generate_quad4_rot(base_dir, edge_length, time_steps):
     save_case(
         base_dir,
         "quad4_distort_rot",
+        meshconv.EElementType.QUAD4,
         coords,
         np.array([[0, 1, 2, 3]]),
         disp_x,

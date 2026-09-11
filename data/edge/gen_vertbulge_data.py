@@ -1,6 +1,8 @@
 import os
 import numpy as np
 
+from riley.python import meshconv
+
 def generate_vertbulge_data():
     path = "data/edge/tri6_vertbulge"
     os.makedirs(path, exist_ok=True)
@@ -19,6 +21,21 @@ def generate_vertbulge_data():
     m20 = np.array([0.0, 5.0, 0.0])
     
     nodes = [v0, v1, v2, m01, m12, m20]
+    coords = np.asarray(nodes, dtype=np.float64)
+    convention = meshconv.ConnectConvention(
+        meshconv.EElementType.TRI6,
+        meshconv.EConnectAxis.ROW,
+        0,
+        node_order=meshconv.ENodeOrder.RILEY,
+        material_normal_hint=(0.0, 0.0, 1.0),
+    )
+    mesh = meshconv.convert_mesh(
+        coords,
+        np.array([[0, 1, 2, 3, 4, 5]], dtype=np.int64),
+        convention,
+    )
+    meshconv.verify_mesh(mesh)
+    connect = mesh.connect
     
     # coords.csv
     with open(f"{path}/coords.csv", "w") as f:
@@ -27,7 +44,7 @@ def generate_vertbulge_data():
             
     # connectivity.csv
     with open(f"{path}/connectivity.csv", "w") as f:
-        f.write("0,1,2,3,4,5\n")
+        np.savetxt(f, connect, delimiter=",", fmt="%d")
         
     # uvs.csv (center them)
     with open(f"{path}/uvs.csv", "w") as f:

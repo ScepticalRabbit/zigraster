@@ -1,10 +1,17 @@
-[[copy]]
-source = "texture/speckle.bmp"
-dest = "textures/speckle.bmp"
+[[copy_tree]]
+source = "texture"
+dest = "textures"
+patterns = ["*.bmp", "*.png", "*.tiff"]
 
-[[copy]]
-source = "texture/cal_target-simple.tiff"
-dest = "textures/cal_target-simple.tiff"
+[[copy_tree]]
+source = "data/shapes"
+dest = "shapes"
+patterns = ["*.csv", "*.e", "*.msh"]
+
+[[copy_tree]]
+source = "data/feature_zoo"
+dest = "feature_zoo"
+patterns = ["*.csv"]
 
 [[copy]]
 source = "data/FE/platehole3d_2mr_63f.e"
@@ -25,6 +32,70 @@ dest = "min/tri6_sphere200/field.csv"
 [[copy]]
 source = "data/min/tri6_sphere200/uvs.csv"
 dest = "min/tri6_sphere200/uvs.csv"
+
+[[copy]]
+source = "data/min/tri3_sphere200/connect.csv"
+dest = "min/tri3_sphere200/connect.csv"
+
+[[copy]]
+source = "data/min/tri3_sphere200/coords.csv"
+dest = "min/tri3_sphere200/coords.csv"
+
+[[copy]]
+source = "data/min/tri3_sphere200/field.csv"
+dest = "min/tri3_sphere200/field.csv"
+
+[[copy]]
+source = "data/min/tri3_sphere200/uvs.csv"
+dest = "min/tri3_sphere200/uvs.csv"
+
+[[copy]]
+source = "data/min/quad4newton_sphere200/connect.csv"
+dest = "min/quad4newton_sphere200/connect.csv"
+
+[[copy]]
+source = "data/min/quad4newton_sphere200/coords.csv"
+dest = "min/quad4newton_sphere200/coords.csv"
+
+[[copy]]
+source = "data/min/quad4newton_sphere200/field.csv"
+dest = "min/quad4newton_sphere200/field.csv"
+
+[[copy]]
+source = "data/min/quad4newton_sphere200/uvs.csv"
+dest = "min/quad4newton_sphere200/uvs.csv"
+
+[[copy]]
+source = "data/min/quad8_sphere200/connect.csv"
+dest = "min/quad8_sphere200/connect.csv"
+
+[[copy]]
+source = "data/min/quad8_sphere200/coords.csv"
+dest = "min/quad8_sphere200/coords.csv"
+
+[[copy]]
+source = "data/min/quad8_sphere200/field.csv"
+dest = "min/quad8_sphere200/field.csv"
+
+[[copy]]
+source = "data/min/quad8_sphere200/uvs.csv"
+dest = "min/quad8_sphere200/uvs.csv"
+
+[[copy]]
+source = "data/min/quad9_sphere200/connect.csv"
+dest = "min/quad9_sphere200/connect.csv"
+
+[[copy]]
+source = "data/min/quad9_sphere200/coords.csv"
+dest = "min/quad9_sphere200/coords.csv"
+
+[[copy]]
+source = "data/min/quad9_sphere200/field.csv"
+dest = "min/quad9_sphere200/field.csv"
+
+[[copy]]
+source = "data/min/quad9_sphere200/uvs.csv"
+dest = "min/quad9_sphere200/uvs.csv"
 
 [[copy]]
 source = "data/FE/platehole3d_2mr_63f/connect.csv"

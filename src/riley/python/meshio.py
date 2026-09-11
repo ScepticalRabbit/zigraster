@@ -1,220 +1,578 @@
-# --------------------------------------------------------------------------
-# Riley: A High Performance Rasteriser for DIC UQ
-#
-# Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
-# Licensed under the MIT License (see LICENSE file for details)
-#
-# Authors: scepticalrabbit (Lloyd Fletcher)
-# --------------------------------------------------------------------------
+
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
 
 import numpy as np
+import numpy.typing as npt
 
-from riley.python.enums import (
-    ConnectCsvOrientation,
-    ConnectIndexing,
-    CoordCsvOrientation,
-    FieldCsvOrientation,
+from riley.cython.riley import (
+    FunctionShader,
+    Mesh,
+    MeshType,
+    NodalShader,
+    RileyShader,
+    TextureShader,
+)
+from riley.python.meshconst import (
+    ELEM_FAMILY_MAP,
+    ELEM_ORDER_MAP,
+    RILEY_MESH_ELEM_TYPE_MAP,
+    RILEY_VOL_SURF_TYPE_MAP,
+)
+from riley.python.meshconv import (
+    ConnectConvention,
+    EElemType,
+    MeshError,
+    MeshGeometry,
+    _extract_surface_with_node_idxs,
+    _reduce_elem_order_with_node_idxs,
+    _triangulate_with_node_idxs,
+    convert_mesh,
 )
 
 
-def _load_csv_matrix(path: str | Path, skip_rows: int) -> np.ndarray:
-    matrix = np.loadtxt(
-        Path(path),
-        delimiter=",",
-        dtype=np.float64,
-        ndmin=2,
-        skiprows=skip_rows,
+@dataclass(frozen=True, slots=True)
+class MeshConversion:
+    """Geometry converted for one Riley renderer mesh type.
+
+    Attributes
+    ----------
+    mesh_type : MeshType
+        Requested Riley renderer implementation.
+    geometry : MeshGeometry
+        Canonical, renderer-compatible surface geometry.
+    source_node_indices : numpy.ndarray
+        Array of shape ``(K,)`` mapping converted nodes to rows in the source
+        coordinate and nodal-attribute arrays.
+    source_node_count : int
+        Number of nodes in the source coordinate array.
+    """
+
+    mesh_type: MeshType
+    geometry: MeshGeometry
+    source_node_indices: np.ndarray
+    source_node_count: int
+
+def load_csv(
+    path: str | Path,
+    dtype: npt.DTypeLike = np.float64,
+    skip_rows: int = 0,
+) -> np.ndarray:
+    """Load a 2D numerical table from a comma-separated CSV file.
+
+    Parameters
+    ----------
+    path : str or pathlib.Path
+        Path to the CSV file on disk.
+    dtype : numpy.typing.DTypeLike, default=np.float64
+        Target NumPy data type for the parsed array.
+    skip_rows : int, default=0
+        Number of initial header rows to skip.
+
+    Returns
+    -------
+    numpy.ndarray
+        Contiguous array of shape `(R, C)` matching `dtype`, where `R` is
+        the number of rows and `C` is the number of columns.
+
+    Raises
+    ------
+    ValueError
+        If `skip_rows < 0`, or the table contains non-finite values or
+        values incompatible with `dtype`.
+    """
+    if skip_rows < 0:
+        raise ValueError("skip_rows must be non-negative.")
+
+    dtype_out = np.dtype(dtype)
+
+    if np.issubdtype(dtype_out, np.integer):
+        array = np.loadtxt(
+            path, delimiter=",", dtype=np.float64, ndmin=2,
+            skiprows=skip_rows,
+        )
+
+        if not np.all(np.isfinite(array)) or not np.all(
+            array == array.astype(dtype_out)
+        ):
+            raise ValueError(
+                f"CSV table '{path}' contains non-integer values."
+            )
+
+        return np.ascontiguousarray(array.astype(dtype_out))
+
+    array = np.loadtxt(
+        path, delimiter=",", dtype=dtype_out, ndmin=2, skiprows=skip_rows,
     )
-    return np.asarray(matrix, dtype=np.float64)
+
+    if np.issubdtype(dtype_out, np.floating) and not np.all(
+        np.isfinite(array)
+    ):
+        raise ValueError(f"CSV table '{path}' contains non-finite values.")
+
+    return np.ascontiguousarray(array)
 
 
-def _ensure_contiguous_f64(array_in: np.ndarray) -> np.ndarray:
-    return np.ascontiguousarray(array_in, dtype=np.float64)
-
-
-def _infer_one_based(connect: np.ndarray) -> bool:
-    if connect.size == 0:
-        return False
-    if np.any(connect == 0):
-        return False
-    return bool(np.min(connect) >= 1)
-
-
-def _normalise_point_table(
-    matrix: np.ndarray,
-    orientation: CoordCsvOrientation,
-    output_dims: int,
+def _prepare_component(
+    values: np.ndarray,
+    nodes_num: int,
+    name: str,
 ) -> np.ndarray:
-    points = matrix
-    if orientation == CoordCsvOrientation.coord_major:
-        points = points.T
-    if points.ndim != 2:
-        raise ValueError(f"Expected a 2D point table, got shape {points.shape}.")
-    if points.shape[1] > output_dims:
-        raise ValueError(
-            f"Point table has {points.shape[1]} columns, expected at most "
-            f"{output_dims}.",
-        )
+    """Validate and format a nodal vector field component across timesteps.
 
-    points_out = np.zeros((points.shape[0], output_dims), dtype=np.float64)
-    points_out[:, :points.shape[1]] = points
-    return _ensure_contiguous_f64(points_out)
+    Parameters
+    ----------
+    values : numpy.ndarray
+        Array of shape `(N,)` or `(N, T)` with floating dtype, where `N` is
+        the number of nodes and `T` is the number of time frames.
+    nodes_num : int
+        Expected node count `N`.
+    name : str
+        Field name identifier for error reporting.
 
+    Returns
+    -------
+    numpy.ndarray
+        Contiguous array of shape `(N, T)` and dtype `np.float64`.
 
-def load_coord_csv(
-    path: str | Path,
-    *,
-    skip_rows: int = 0,
-    orientation: CoordCsvOrientation = CoordCsvOrientation.node_major,
-) -> np.ndarray:
-    coords_raw = _load_csv_matrix(path, skip_rows)
-    return _normalise_point_table(coords_raw, orientation, 3)
+    Raises
+    ------
+    TypeError
+        If `values` does not have a floating-point dtype.
+    ValueError
+        If array shape does not match `(N, T)` or contains non-finite values.
+    """
+    array = np.asarray(values)
 
+    if array.ndim == 1:
+        array = array[:, None]
 
-def load_connect_csv(
-    path: str | Path,
-    *,
-    skip_rows: int = 0,
-    orientation: ConnectCsvOrientation = ConnectCsvOrientation.elem_major,
-    indexing: ConnectIndexing = ConnectIndexing.auto,
-) -> np.ndarray:
-    connect_raw = _load_csv_matrix(path, skip_rows)
-    if orientation == ConnectCsvOrientation.node_major:
-        connect_raw = connect_raw.T
+    if array.ndim != 2 or array.shape[0] != nodes_num:
+        raise ValueError(f"{name} must have shape (nodes, time).")
 
-    connect = np.rint(connect_raw).astype(np.int64, copy=False)
-    if indexing == ConnectIndexing.one_based:
-        connect = connect - 1
-    elif indexing == ConnectIndexing.auto and _infer_one_based(connect):
-        connect = connect - 1
+    if not np.issubdtype(array.dtype, np.floating):
+        raise TypeError(f"{name} must have a floating-point dtype.")
 
-    if np.any(connect < 0):
-        raise ValueError("Connectivity contains negative node indices.")
+    if not np.all(np.isfinite(array)):
+        raise ValueError(f"{name} must contain only finite values.")
 
-    return np.ascontiguousarray(connect, dtype=np.uintp)
+    return np.ascontiguousarray(array, dtype=np.float64)
 
 
-def load_field_csv(
-    path: str | Path,
-    *,
-    skip_rows: int = 0,
-    orientation: FieldCsvOrientation = FieldCsvOrientation.node_major,
-) -> np.ndarray:
-    field_raw = _load_csv_matrix(path, skip_rows)
-    if orientation == FieldCsvOrientation.node_major:
-        field_raw = field_raw.T
-    return _ensure_contiguous_f64(field_raw)
-
-
-def load_field_csvs(
-    field_paths: Mapping[str, str | Path],
-    *,
-    skip_rows: int = 0,
-    orientation: FieldCsvOrientation = FieldCsvOrientation.node_major,
-) -> dict[str, np.ndarray]:
-    fields_out: dict[str, np.ndarray] = {}
-    for field_name, field_path in field_paths.items():
-        fields_out[field_name] = load_field_csv(
-            field_path,
-            skip_rows=skip_rows,
-            orientation=orientation,
-        )
-    return fields_out
-
-
-def load_disp_csvs(
-    path_x: str | Path | None,
-    path_y: str | Path | None,
-    path_z: str | Path | None,
-    *,
-    skip_rows: int = 0,
-    orientation: FieldCsvOrientation = FieldCsvOrientation.node_major,
+def _prepare_disp(
+    disp: tuple[np.ndarray, np.ndarray, np.ndarray] | None,
+    nodes_num: int,
+    source_node_idxs: np.ndarray,
 ) -> np.ndarray | None:
-    disp_paths = {
-        axis_name: axis_path
-        for axis_name, axis_path in (
-            ("x", path_x),
-            ("y", path_y),
-            ("z", path_z),
-        )
-        if axis_path is not None and Path(axis_path).is_file()
-    }
-    if not disp_paths:
+    """Format and reorder displacement components into time-major array.
+
+    Parameters
+    ----------
+    disp : tuple of numpy.ndarray or None
+        Tuple `(disp_x, disp_y, disp_z)` where each component has shape
+        `(N,)` or `(N, T)` and floating dtype.
+    nodes_num : int
+        Expected original node count `N`.
+    source_node_idxs : numpy.ndarray
+        Array of shape `(K,)` and dtype `np.uintp` indexing retained nodes.
+
+    Returns
+    -------
+    numpy.ndarray or None
+        Time-major displacement array of shape `(T, K, 3)` and dtype
+        `np.float64`, where `T` is time frames, `K` is retained nodes,
+        and dimension 2 represents `(dx, dy, dz)`. Returns None if `disp`
+        is None.
+
+    Raises
+    ------
+    TypeError or ValueError
+        If `disp` structure, component shapes, or values are invalid.
+    """
+    if disp is None:
         return None
 
-    disp_fields = load_field_csvs(
-        disp_paths,
-        skip_rows=skip_rows,
-        orientation=orientation,
+    if not isinstance(disp, tuple) or len(disp) != 3:
+        raise TypeError("disp must be a tuple of (disp_x, disp_y, disp_z).")
+
+    components_out = []
+    for value, axis in zip(disp, "xyz", strict=True):
+        component = _prepare_component(value, nodes_num, f"disp_{axis}")
+        components_out.append(component)
+
+    components = tuple(components_out)
+
+    for item in components[1:]:
+        if item.shape != components[0].shape:
+            raise ValueError("Displacement components must have equal shapes.")
+
+    stacked = np.stack(components, axis=2)
+
+    return np.ascontiguousarray(
+        stacked[source_node_idxs].transpose(1, 0, 2)
     )
-    disp_shape = next(iter(disp_fields.values())).shape
-    disp = np.zeros((disp_shape[0], disp_shape[1], 3), dtype=np.float64)
-
-    axis_inds = {"x": 0, "y": 1, "z": 2}
-    for axis_name, values in disp_fields.items():
-        if values.shape != disp_shape:
-            raise ValueError("All displacement CSVs must have the same shape.")
-        disp[:, :, axis_inds[axis_name]] = values
-
-    return _ensure_contiguous_f64(disp)
 
 
-def load_sim_csvs(
-    data_dir: str | Path,
+def _prepare_uvs(
+    values: np.ndarray,
+    nodes_num: int,
+    source_node_idxs: np.ndarray,
+) -> np.ndarray:
+    """Validate UV coordinates and subset them for retained nodes.
+
+    Parameters
+    ----------
+    values : numpy.ndarray
+        Array of shape `(N, 2)` and floating dtype, where `N` is the number
+        of nodes and columns represent normalized UV coordinates `(u, v)`.
+    nodes_num : int
+        Expected node count `N`.
+    source_node_idxs : numpy.ndarray
+        Array of shape `(K,)` and dtype `np.uintp` indexing retained nodes.
+
+    Returns
+    -------
+    numpy.ndarray
+        Contiguous array of shape `(K, 2)` and dtype `np.float64`.
+
+    Raises
+    ------
+    TypeError or ValueError
+        If array shape is not `(N, 2)` or contains non-finite values.
+    """
+    array = np.asarray(values)
+
+    if array.shape != (nodes_num, 2):
+        raise ValueError(f"uvs must have shape ({nodes_num}, 2).")
+
+    if not np.issubdtype(array.dtype, np.floating):
+        raise TypeError("uvs must have a floating-point dtype.")
+
+    if not np.all(np.isfinite(array)):
+        raise ValueError("uvs must contain only finite values.")
+
+    return np.ascontiguousarray(array[source_node_idxs], dtype=np.float64)
+
+
+def _prepare_shader(
+    shader: RileyShader,
+    nodes_num: int,
+    source_node_idxs: np.ndarray,
+) -> RileyShader:
+    """Subset shader attributes and format field data for retained nodes.
+
+    Parameters
+    ----------
+    shader : RileyShader
+        Input texture, nodal, or function shader.
+    nodes_num : int
+        Expected original node count `N`.
+    source_node_idxs : numpy.ndarray
+        Array of shape `(K,)` and dtype `np.uintp` indexing retained nodes.
+
+    Returns
+    -------
+    RileyShader
+        Configured shader targeting the retained surface nodes.
+
+    Raises
+    ------
+    TypeError or ValueError
+        If shader properties or field array shapes/dtypes are invalid.
+    """
+    match shader:
+        case TextureShader():
+            texture = np.asarray(shader.texture)
+
+            valid_dtype = texture.dtype in (
+                np.dtype(np.uint8), np.dtype(np.uint16),
+                np.dtype(np.float32), np.dtype(np.float64),
+            )
+
+            valid_shape = texture.ndim == 3 and texture.shape[0] in (1, 3)
+
+            if not valid_shape or not valid_dtype:
+                raise ValueError(
+                    "texture must be a supported dtype with 1 or 3 channels."
+                )
+
+            if np.issubdtype(texture.dtype, np.floating):
+                if not np.all(np.isfinite(texture)):
+                    raise ValueError(
+                        "floating texture must contain finite values."
+                    )
+                texture = np.ascontiguousarray(texture, dtype=np.float64)
+
+            uvs = _prepare_uvs(shader.uvs, nodes_num, source_node_idxs)
+
+            return TextureShader(
+                uvs, np.ascontiguousarray(texture), shader.sample,
+                shader.sample_mode, shader.bits, shader.scaling_type,
+                shader.scaling_min, shader.scaling_max, shader.normal_type,
+            )
+
+        case NodalShader():
+            values = np.asarray(shader.field)
+
+            if values.ndim == 2:
+                values = values[:, :, None]
+
+            if values.ndim != 3 or values.shape[0] != nodes_num:
+                raise ValueError(
+                    "nodal field must have shape (nodes, time[, fields])."
+                )
+
+            if values.shape[2] not in (1, 3):
+                raise ValueError(
+                    "nodal field must contain one or three fields."
+                )
+
+            if not np.issubdtype(values.dtype, np.floating):
+                raise TypeError("nodal field must have a floating-point dtype.")
+
+            if not np.all(np.isfinite(values)):
+                raise ValueError("nodal field must contain only finite values.")
+
+            # Riley expects field data to be time-major so we convert:
+            # (nodes, time, fields) → (time, nodes, fields)
+            field_out = np.ascontiguousarray(
+                values[source_node_idxs].transpose(1, 0, 2), dtype=np.float64,
+            )
+
+            return NodalShader(
+                field=field_out,
+                bits=shader.bits,
+                scaling_type=shader.scaling_type,
+                scaling_min=shader.scaling_min,
+                scaling_max=shader.scaling_max,
+                scale_over=shader.scale_over,
+                normal_type=shader.normal_type,
+            )
+
+        case FunctionShader():
+
+            if shader.channels not in (1, 3):
+                raise ValueError(
+                    "FunctionShader.channels must be one or three."
+                )
+
+            uvs_out = None
+            if shader.uvs is not None:
+                uvs_out = _prepare_uvs(
+                    shader.uvs, nodes_num, source_node_idxs
+                )
+
+            return FunctionShader(
+                builtin=shader.builtin,
+                coord_mode=shader.coord_mode,
+                params=shader.params,
+                uvs=uvs_out,
+                channels=shader.channels,
+                bits=shader.bits,
+                scaling_type=shader.scaling_type,
+                scaling_min=shader.scaling_min,
+                scaling_max=shader.scaling_max,
+                normal_type=shader.normal_type,
+            )
+
+        case _:
+            raise TypeError("shader must be a Riley shader object.")
+
+
+def remap_nodal_data(
+    conversion: MeshConversion,
+    values: np.ndarray,
     *,
-    coords_name: str = "coords.csv",
-    connect_name: str = "connect.csv",
-    uvs_name: str = "uvs.csv",
-    disp_x_name: str = "field_disp_x.csv",
-    disp_y_name: str = "field_disp_y.csv",
-    disp_z_name: str = "field_disp_z.csv",
-    skip_rows: int = 0,
-    coord_orientation: CoordCsvOrientation = CoordCsvOrientation.node_major,
-    connect_orientation: ConnectCsvOrientation = ConnectCsvOrientation.elem_major,
-    connect_indexing: ConnectIndexing = ConnectIndexing.auto,
-    uv_orientation: CoordCsvOrientation = CoordCsvOrientation.node_major,
-    field_orientation: FieldCsvOrientation = FieldCsvOrientation.node_major,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray | None, np.ndarray | None]:
-    data_path = Path(data_dir)
+    node_axis: int = 0,
+) -> np.ndarray:
+    """Remap source nodal data onto converted mesh nodes."""
+    if not isinstance(conversion, MeshConversion):
+        raise TypeError("conversion must be a MeshConversion.")
 
-    coords = load_coord_csv(
-        data_path / coords_name,
-        skip_rows=skip_rows,
-        orientation=coord_orientation,
-    )
-    connect = load_connect_csv(
-        data_path / connect_name,
-        skip_rows=skip_rows,
-        orientation=connect_orientation,
-        indexing=connect_indexing,
+    array = np.asarray(values)
+    if array.ndim == 0:
+        raise ValueError("values must have at least one dimension.")
+
+    axis = node_axis
+    if axis < 0:
+        axis += array.ndim
+    if axis < 0 or axis >= array.ndim:
+        raise ValueError("node_axis is outside the values dimensions.")
+    if array.shape[axis] != conversion.source_node_count:
+        raise ValueError(
+            "Nodal data axis length must match the source node count."
+        )
+
+    return np.ascontiguousarray(
+        np.take(array, conversion.source_node_indices, axis=axis)
     )
 
-    uvs: np.ndarray | None = None
-    uvs_path = data_path / uvs_name
-    if uvs_path.is_file():
-        uvs_raw = _load_csv_matrix(uvs_path, skip_rows)
-        uvs = _normalise_point_table(uvs_raw, uv_orientation, 2)[:, :2]
 
-    disp = load_disp_csvs(
-        data_path / disp_x_name,
-        data_path / disp_y_name,
-        data_path / disp_z_name,
-        skip_rows=skip_rows,
-        orientation=field_orientation,
+def convert_mesh_for_render(
+    convention: ConnectConvention,
+    mesh_type: MeshType,
+    coords: np.ndarray,
+    connect: np.ndarray,
+) -> MeshConversion:
+    """Convert raw geometry for a Riley renderer and retain node provenance."""
+    if not isinstance(convention, ConnectConvention):
+        raise TypeError("convention must be a ConnectConvention.")
+
+    if not isinstance(mesh_type, MeshType):
+        raise TypeError("mesh_type must be a MeshType member.")
+
+    source_elem = convention.elem_type
+    target_elem = RILEY_MESH_ELEM_TYPE_MAP[mesh_type]
+    surf_elem = RILEY_VOL_SURF_TYPE_MAP.get(source_elem, source_elem)
+
+    if target_elem is not EElemType.TRI3:
+        if ELEM_FAMILY_MAP[surf_elem] != ELEM_FAMILY_MAP[target_elem]:
+            raise MeshError(
+                f"Cannot change {source_elem.value} into {target_elem.value}."
+            )
+        if ELEM_ORDER_MAP[target_elem] > ELEM_ORDER_MAP[surf_elem]:
+            raise MeshError(
+                f"Cannot convert {source_elem.value} to {target_elem.value}."
+            )
+
+    coords_array = np.asarray(coords)
+    source_node_count = (
+        coords_array.shape[0] if coords_array.ndim == 2 else 0
+    )
+    mesh = convert_mesh(coords, connect, convention)
+    source_node_indices = np.arange(mesh.coords.shape[0], dtype=np.uintp)
+
+    if ELEM_FAMILY_MAP[source_elem] in ("tet", "hex"):
+        mesh, source_node_indices = _extract_surface_with_node_idxs(mesh)
+
+    if target_elem is EElemType.TRI3:
+        if mesh.elem_type is not EElemType.TRI3:
+            mesh, source_node_indices = _triangulate_with_node_idxs(
+                mesh, source_node_indices, mesh.elem_type
+            )
+    elif mesh.elem_type is not target_elem:
+        mesh, source_node_indices = _reduce_elem_order_with_node_idxs(
+            mesh, source_node_indices, target_elem
+        )
+
+    return MeshConversion(
+        mesh_type=mesh_type,
+        geometry=mesh,
+        source_node_indices=np.ascontiguousarray(
+            source_node_indices, dtype=np.uintp
+        ),
+        source_node_count=source_node_count,
     )
 
-    return coords, connect, uvs, disp
+
+def create_mesh_from_conversion(
+    conversion: MeshConversion,
+    shader: RileyShader,
+    disp: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
+) -> Mesh:
+    """Create a Riley mesh from source-indexed nodal attributes."""
+    if not isinstance(conversion, MeshConversion):
+        raise TypeError("conversion must be a MeshConversion.")
+    if not isinstance(shader, RileyShader):
+        raise TypeError("shader must be a Riley supported shader.")
+
+    geometry = conversion.geometry
+    return Mesh(
+        conversion.mesh_type,
+        geometry.coords,
+        np.ascontiguousarray(geometry.connect, dtype=np.uintp),
+        _prepare_disp(
+            disp,
+            conversion.source_node_count,
+            conversion.source_node_indices,
+        ),
+        _prepare_shader(
+            shader,
+            conversion.source_node_count,
+            conversion.source_node_indices,
+        ),
+    )
+
+
+def create_mesh_from_prepared(
+    conversion: MeshConversion,
+    shader: RileyShader,
+    disp: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
+) -> Mesh:
+    """Create a Riley mesh from attributes indexed by converted mesh nodes."""
+    if not isinstance(conversion, MeshConversion):
+        raise TypeError("conversion must be a MeshConversion.")
+
+    nodes_num = conversion.geometry.coords.shape[0]
+    identity = np.arange(nodes_num, dtype=np.uintp)
+    geometry = conversion.geometry
+    return Mesh(
+        conversion.mesh_type,
+        geometry.coords,
+        np.ascontiguousarray(geometry.connect, dtype=np.uintp),
+        _prepare_disp(disp, nodes_num, identity),
+        _prepare_shader(shader, nodes_num, identity),
+    )
+
+
+def create_mesh(
+    convention: ConnectConvention,
+    mesh_type: MeshType,
+    coords: np.ndarray,
+    connect: np.ndarray,
+    shader: RileyShader,
+    disp: tuple[np.ndarray, np.ndarray, np.ndarray] | None = None,
+) -> Mesh:
+    """Build a renderable Riley Mesh from raw coordinates and connectivity.
+
+    Standardizes raw mesh connectivity, extracts boundary surfaces for 3D
+    volume meshes, performs required topological conversions or order
+    reductions, and bundles shader and displacement fields into a Riley
+    Cython `Mesh`.
+
+    Parameters
+    ----------
+    convention : ConnectConvention
+        Conventions describing the input connectivity table format.
+    mesh_type : MeshType
+        Target Riley rasteriser mesh representation.
+    coords : numpy.ndarray
+        Array of node coordinates of shape `(N, 3)` and dtype `np.float64`,
+        where `N` is the number of nodes and columns represent `(x, y, z)`.
+    connect : numpy.ndarray
+        Connectivity table of shape `(E, M)` or `(M, E)` with integer dtype,
+        where `E` is elements and `M` is nodes per element.
+    shader : RileyShader
+        Configured texture, nodal, or procedural function shader.
+    disp : tuple of numpy.ndarray or None, default=None
+        Optional displacement field tuple `(disp_x, disp_y, disp_z)`, where
+        each component has shape `(N,)` or `(N, T)` with floating dtype.
+
+    Returns
+    -------
+    Mesh
+        Compiled Riley Cython mesh instance ready for rasterisation.
+
+    Raises
+    ------
+    TypeError or MeshError or ValueError
+        If inputs are incompatible, topology conversion fails, or array
+        dimensions/dtypes do not meet requirements.
+    """
+    conversion = convert_mesh_for_render(
+        convention, mesh_type, coords, connect
+    )
+    return create_mesh_from_conversion(conversion, shader, disp)
 
 
 __all__ = [
-    "load_connect_csv",
-    "load_coord_csv",
-    "load_disp_csvs",
-    "load_field_csv",
-    "load_field_csvs",
-    "load_sim_csvs",
+    "MeshConversion",
+    "convert_mesh_for_render",
+    "create_mesh",
+    "create_mesh_from_conversion",
+    "create_mesh_from_prepared",
+    "load_csv",
+    "remap_nodal_data",
 ]

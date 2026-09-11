@@ -24,6 +24,7 @@ const rops = @import("rasterops.zig");
 const newton = @import("newton.zig");
 const pce = @import("parachunkexec.zig");
 const scratchresolve = @import("scratchresolve.zig");
+const subpxframe = @import("subpxframe.zig");
 const scalingpolicy = @import("scalingpolicy.zig");
 const mo = @import("meshpipeline.zig");
 const MeshPrepared = mo.MeshPrepared;
@@ -225,7 +226,7 @@ pub fn rasterDirectScalComm(
                     .elem_idx = overlap.elem_idx,
                     .fields_num = fields_num,
                     .actual_fields = fields_num,
-                    .scratch_idx = scratch_idx,
+                    .scratch_idx = subpx_scratch.imageIndex(scratch_idx),
                     .global_subx = global_subx,
                     .global_suby = global_suby,
                 },
@@ -295,6 +296,7 @@ pub fn rasterSceneComm(
                     &worker_state.subpx_scratch,
                     tile_rng_ctx.fields_num,
                     tile_rng_ctx.subpx_tile_size,
+                    true,
                 );
             }
         }
@@ -356,6 +358,138 @@ pub fn rasterSceneComm(
             }
         }
     }
+}
+
+pub fn rasterSceneGlobalComm(
+    comptime RasterBackend: type,
+    comptime report_mode: ReportMode,
+    outer_alloc: std.mem.Allocator,
+    io: std.Io,
+    ctx_rast: rops.RasterContext,
+    ctx_report: report.ReportContext(report_mode),
+    requested_workers: u16,
+    tiling: rops.TilingOverlaps,
+    meshes: []const MeshPrepared,
+    raster_hulls: []const ?NDArray(F),
+    target: *subpxframe.SubpxTarget,
+    image_out_arr: *NDArray(F),
+) !usize {
+    if (tiling.active_tiles.len == 0) return 0;
+
+    const WorkerState = comptime ThreadState(RasterBackend, report_mode);
+    const GlobalTileRangeCtx = struct {
+        io: std.Io,
+        ctx_rast: rops.RasterContext,
+        shared_log: *report.LogType(report_mode),
+        tiling: rops.TilingOverlaps,
+        meshes: []const MeshPrepared,
+        raster_hulls: []const ?NDArray(F),
+        target: *subpxframe.SubpxTarget,
+        image_out_arr: *NDArray(F),
+        worker_states: []WorkerState,
+        fields_num: u8,
+        subpx_tile_size: usize,
+    };
+    const TileRangeWorkerAdapter = struct {
+        fn run(
+            ctx_ptr: *anyopaque,
+            worker_idx: usize,
+            range_start: usize,
+            range_end: usize,
+        ) anyerror!void {
+            const tile_rng_ctx: *GlobalTileRangeCtx = @ptrCast(@alignCast(ctx_ptr));
+            const worker_state = &tile_rng_ctx.worker_states[worker_idx];
+            const ctx_report_task = report.ReportContext(report_mode){
+                .log = if (comptime report_mode == .full_stats)
+                    tile_rng_ctx.shared_log
+                else
+                    &worker_state.log,
+            };
+
+            for (range_start..range_end) |tile_idx| {
+                const tile = tile_rng_ctx.tiling.active_tiles[tile_idx];
+                RasterBackend.configureTarget(
+                    &worker_state.subpx_scratch,
+                    tile_rng_ctx.target,
+                    tile,
+                );
+                try rasterTileRaw(
+                    RasterBackend,
+                    report_mode,
+                    tile_rng_ctx.io,
+                    tile_rng_ctx.ctx_rast,
+                    ctx_report_task,
+                    tile,
+                    tile_rng_ctx.tiling.overlaps,
+                    tile_rng_ctx.meshes,
+                    tile_rng_ctx.raster_hulls,
+                    tile_rng_ctx.image_out_arr,
+                    &worker_state.subpx_scratch,
+                    tile_rng_ctx.fields_num,
+                    tile_rng_ctx.subpx_tile_size,
+                );
+                worker_state.rasterized_tiles += 1;
+            }
+        }
+    };
+
+    const workers_num = scalingpolicy.rasterWorkers(
+        requested_workers,
+        tiling.active_tiles.len,
+    );
+    var chunk_exec = pce.ParaChunkExecutor.init(io, @intCast(workers_num));
+    var arena = std.heap.ArenaAllocator.init(outer_alloc);
+    defer arena.deinit();
+    const arena_alloc = arena.allocator();
+
+    const worker_states = try arena_alloc.alloc(WorkerState, workers_num);
+    var initialized_num: usize = 0;
+    errdefer for (worker_states[0..initialized_num]) |*worker_state| {
+        worker_state.deinit();
+    };
+    for (worker_states) |*worker_state| {
+        worker_state.* = try WorkerState.init(
+            arena_alloc,
+            ctx_rast,
+            image_out_arr.dims[0],
+            tileScratchSubpxSize(ctx_rast),
+        );
+        initialized_num += 1;
+    }
+    defer for (worker_states) |*worker_state| worker_state.deinit();
+
+    var tile_range_ctx = GlobalTileRangeCtx{
+        .io = io,
+        .ctx_rast = ctx_rast,
+        .shared_log = ctx_report.log,
+        .tiling = tiling,
+        .meshes = meshes,
+        .raster_hulls = raster_hulls,
+        .target = target,
+        .image_out_arr = image_out_arr,
+        .worker_states = worker_states,
+        .fields_num = @intCast(image_out_arr.dims[0]),
+        .subpx_tile_size = tileScratchSubpxSize(ctx_rast),
+    };
+    try chunk_exec.runDynRangeWithWorkerErr(
+        &tile_range_ctx,
+        TileRangeWorkerAdapter.run,
+        tiling.active_tiles.len,
+        scalingpolicy.rasterGrainSize(tiling.active_tiles.len, workers_num),
+    );
+
+    if (comptime report_mode == .bench) {
+        if (report.getBenchLog(report_mode, ctx_report.log)) |bench_log| {
+            for (worker_states) |*worker_state| {
+                report.reduceBenchLog(bench_log, &worker_state.log);
+            }
+        }
+    }
+    var workers_used: usize = 0;
+    for (worker_states) |worker_state| {
+        if (worker_state.rasterized_tiles > 0) workers_used += 1;
+    }
+    return workers_used;
 }
 
 //------------------------------------------------------------------------------------------
@@ -612,6 +746,7 @@ fn rasterTileComm(
     subpx_scratch: *RasterBackend.SubpxScratchBuffs,
     fields_num: u8,
     subpx_tile_size: usize,
+    resolve_tile: bool,
 ) !void {
     const tile_scope: ?rasterreport.TileScope =
         if (comptime report_mode == .full_stats)
@@ -1031,7 +1166,9 @@ fn rasterTileComm(
         else
             null;
 
-    if (ctx_rast.camera.prep_psf.hasFilter()) {
+    if (!resolve_tile) {
+        // Global paths resolve frame or stripe storage after all raster tiles complete.
+    } else if (ctx_rast.camera.prep_psf.hasFilter()) {
         scratchresolve.resolveTileWithPSF(
             tile,
             sub_samp,
@@ -1104,6 +1241,39 @@ fn rasterTileComm(
     );
 }
 
+pub fn rasterTileRaw(
+    comptime RasterBackend: type,
+    comptime report_mode: ReportMode,
+    io: std.Io,
+    ctx_rast: rops.RasterContext,
+    ctx_report: report.ReportContext(report_mode),
+    tile: rops.ActiveTile,
+    overlaps_all: []const rops.OverlapBBox,
+    meshes: []const MeshPrepared,
+    raster_hulls: []const ?NDArray(F),
+    image_out_arr: *NDArray(F),
+    subpx_scratch: *RasterBackend.SubpxScratchBuffs,
+    fields_num: u8,
+    subpx_tile_size: usize,
+) !void {
+    try rasterTileComm(
+        RasterBackend,
+        report_mode,
+        io,
+        ctx_rast,
+        ctx_report,
+        tile,
+        overlaps_all,
+        meshes,
+        raster_hulls,
+        image_out_arr,
+        subpx_scratch,
+        fields_num,
+        subpx_tile_size,
+        false,
+    );
+}
+
 //------------------------------------------------------------------------------------------
 // Scene Raster Execution Helpers
 //------------------------------------------------------------------------------------------
@@ -1128,6 +1298,7 @@ fn ThreadState(
         arena: std.heap.ArenaAllocator,
         subpx_scratch: RasterBackend.SubpxScratchBuffs,
         log: report.LogType(report_mode),
+        rasterized_tiles: usize = 0,
 
         fn init(
             outer_alloc: std.mem.Allocator,

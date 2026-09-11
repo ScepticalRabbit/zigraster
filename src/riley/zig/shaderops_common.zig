@@ -380,6 +380,10 @@ pub const ShadeContext = struct {
     global_subx: usize,
     global_suby: usize,
     v_mask_active: ?buildconfig.VecSB = null,
+    // Global sub-pixel tiles own disjoint target samples. Their final SIMD
+    // vector may straddle a tile edge, so inactive lanes must not perform a
+    // read-modify-write against the neighbouring tile's target samples.
+    exclusive_subpx_target: bool = false,
 };
 
 pub fn InterpData(comptime N: usize) type {

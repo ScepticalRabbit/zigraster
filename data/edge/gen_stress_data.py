@@ -1,6 +1,8 @@
 import os
 import numpy as np
 
+from riley.python import meshconv
+
 def generate_stress_data():
     path = "data/edge/tri6_stress"
     os.makedirs(path, exist_ok=True)
@@ -43,6 +45,21 @@ def generate_stress_data():
     m30_new = move_away(m30, c2, 1.0)
     
     nodes = [v0, v1, v2, v3, m01_new, m12_new, m20_new, m13_new, m30_new]
+    coords = np.asarray(nodes, dtype=np.float64)
+    connect_raw = np.array(
+        [[0, 1, 2, 4, 5, 6], [1, 0, 3, 4, 8, 7]],
+        dtype=np.int64,
+    )
+    convention = meshconv.ConnectConvention(
+        meshconv.EElementType.TRI6,
+        meshconv.EConnectAxis.ROW,
+        0,
+        node_order=meshconv.ENodeOrder.RILEY,
+        material_normal_hint=(0.0, 0.0, 1.0),
+    )
+    mesh = meshconv.convert_mesh(coords, connect_raw, convention)
+    meshconv.verify_mesh(mesh)
+    connect = mesh.connect
     
     # coords.csv
     with open(f"{path}/coords.csv", "w") as f:
@@ -52,8 +69,7 @@ def generate_stress_data():
     # connectivity.csv
     # Tri6: 0,1,2 corners, 3,4,5 midsides (0-1, 1-2, 2-0)
     with open(f"{path}/connectivity.csv", "w") as f:
-        f.write("0,1,2,4,5,6\n") # Tri 1
-        f.write("1,0,3,4,8,7\n") # Tri 2
+        np.savetxt(f, connect, delimiter=",", fmt="%d")
         
     # uvs.csv (rescale to be between 0.3 and 0.7)
     with open(f"{path}/uvs.csv", "w") as f:

@@ -191,7 +191,7 @@ fn baseRasterConfig(
     image_save_opts: []const iio.ImageSaveOpts,
     background_value: F,
 ) rastcfg.RasterConfig {
-    var config = tcfg.getRasterConfig(.gold);
+    var config = tcfg.getRasterConfig(.testing);
     config.save_strategy = save_strategy;
     config.tile_size_override = tile_size_override;
     config.background_value = background_value;
@@ -221,6 +221,41 @@ pub fn renderCaseWithRasterHalo(
     tile_size_override: ?u16,
     raster_halo_px_override: ?u16,
 ) !NDArray(F) {
+    return renderCaseWithOptions(
+        outer_alloc,
+        io,
+        render_case,
+        tile_size_override,
+        raster_halo_px_override,
+        .tile_local,
+    );
+}
+
+pub fn renderCaseWithBufferMode(
+    outer_alloc: std.mem.Allocator,
+    io: std.Io,
+    render_case: RenderCase,
+    tile_size_override: ?u16,
+    buffer_mode: rastcfg.BufferMode,
+) !NDArray(F) {
+    return renderCaseWithOptions(
+        outer_alloc,
+        io,
+        render_case,
+        tile_size_override,
+        null,
+        buffer_mode,
+    );
+}
+
+fn renderCaseWithOptions(
+    outer_alloc: std.mem.Allocator,
+    io: std.Io,
+    render_case: RenderCase,
+    tile_size_override: ?u16,
+    raster_halo_px_override: ?u16,
+    buffer_mode: rastcfg.BufferMode,
+) !NDArray(F) {
     var arena = std.heap.ArenaAllocator.init(outer_alloc);
     defer arena.deinit();
     const aa = arena.allocator();
@@ -246,6 +281,7 @@ pub fn renderCaseWithRasterHalo(
         render_case.shader_case.background_value,
     );
     config.raster_halo_px_override = raster_halo_px_override;
+    config.buffer_mode = buffer_mode;
     const render_groups = [_]riley.RenderGroupSpec{
         .{ .io = io, .workers = @max(@as(u16, 1), config.total_threads) },
     };
