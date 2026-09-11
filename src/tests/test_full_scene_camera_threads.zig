@@ -438,6 +438,147 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
             }
         }
     }
+
+    try runAdditionalSceneCameraThreadTests(allocator, io, &textures, config);
 }
+
+fn runAdditionalSceneCameraThreadTests(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    textures: *const common_full.FullTextures,
+    config: rastcfg.RasterConfig,
+) !void {
+    var prep = try common_full.prepareScene3(allocator, io);
+    defer prep.deinit(allocator);
+
+    const meshes = common_full.buildScene3Meshes(&prep, textures);
+    const cameras = common_full.createScene3Cameras();
+    const cam_inp = cameras[0];
+
+    // 1. Frame batch size per group sweeps (1, 2, 4) in offline and in_order modes
+    const batch_sizes = [_]u16{ 1, 2, 4 };
+    for (batch_sizes) |batch_size| {
+        for ([_]rastcfg.RenderMode{ .in_order, .offline }) |render_mode| {
+            var arena = std.heap.ArenaAllocator.init(allocator);
+            defer arena.deinit();
+            const aa = arena.allocator();
+
+            var run_config = config;
+            run_config.save_strategy = .memory;
+            run_config.render_mode = render_mode;
+            run_config.frame_batch_size_per_group = batch_size;
+
+            const render_groups = [_]riley.RenderGroupSpec{
+                .{ .io = io, .workers = 2 },
+            };
+
+            const result = try riley.raster(
+                aa,
+                &render_groups,
+                &[_]CameraInput{cam_inp},
+                &meshes,
+                run_config,
+                null,
+            );
+            const img = result orelse return error.NoResult;
+            try std.testing.expect(img.slice.len > 0);
+        }
+    }
+
+    // 2. Geometry scheduling mode & jobs in flight sweep
+    const geom_sched_modes = [_]rastcfg.GeometrySchedulingMode{
+        .auto,
+        .pack,
+        .spread,
+    };
+    const geom_jobs_in_flight = [_]u16{ 1, 2 };
+
+    for (geom_sched_modes) |sched_mode| {
+        for (geom_jobs_in_flight) |jobs_in_flight| {
+            var arena = std.heap.ArenaAllocator.init(allocator);
+            defer arena.deinit();
+            const aa = arena.allocator();
+
+            var run_config = config;
+            run_config.save_strategy = .memory;
+            run_config.geom_scheduling_mode = sched_mode;
+            run_config.max_geom_jobs_in_flight_per_group = jobs_in_flight;
+
+            const render_groups = [_]riley.RenderGroupSpec{
+                .{ .io = io, .workers = 2 },
+            };
+
+            const result = try riley.raster(
+                aa,
+                &render_groups,
+                &[_]CameraInput{cam_inp},
+                &meshes,
+                run_config,
+                null,
+            );
+            const img = result orelse return error.NoResult;
+            try std.testing.expect(img.slice.len > 0);
+        }
+    }
+
+    // 3. Mixed-resolution multicamera call (camera 0 and camera 1)
+    {
+        var cam0 = cam_inp;
+        cam0.pixels_num = .{ 160, 100 };
+        var cam1 = cam_inp;
+        cam1.pixels_num = .{ 128, 80 };
+
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        const aa = arena.allocator();
+
+        var run_config = config;
+        run_config.save_strategy = .memory;
+
+        const render_groups = [_]riley.RenderGroupSpec{
+            .{ .io = io, .workers = 2 },
+        };
+
+        const result = try riley.raster(
+            aa,
+            &render_groups,
+            &[_]CameraInput{ cam0, cam1 },
+            &meshes,
+            run_config,
+            null,
+        );
+        const img = result orelse return error.NoResult;
+        try std.testing.expect(img.slice.len > 0);
+    }
+
+    // 4. OpenGL vs OpenCV coordinate systems parity
+    for ([_]camera.CameraCoordSys{ .opengl, .opencv }) |coord_sys| {
+        var cam_test = cam_inp;
+        cam_test.coord_sys = coord_sys;
+
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        const aa = arena.allocator();
+
+        var run_config = config;
+        run_config.save_strategy = .memory;
+
+        const render_groups = [_]riley.RenderGroupSpec{
+            .{ .io = io, .workers = 1 },
+        };
+
+        const result = try riley.raster(
+            aa,
+            &render_groups,
+            &[_]CameraInput{cam_test},
+            &meshes,
+            run_config,
+            null,
+        );
+        const img = result orelse return error.NoResult;
+        try std.testing.expect(img.slice.len > 0);
+    }
+}
+
 
 

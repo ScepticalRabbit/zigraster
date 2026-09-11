@@ -221,4 +221,40 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
             }
         }
     }
+
+    try runTexSampConfigContractTests();
 }
+
+fn runTexSampConfigContractTests() !void {
+    const invalid_configs = [_]texops.TexSampConfig{
+        .{ .sample = .nearest, .mode = .lut },
+        .{ .sample = .nearest, .mode = .lut_lerp },
+        .{ .sample = .linear, .mode = .lut },
+        .{ .sample = .linear, .mode = .lut_lerp },
+    };
+
+    for (invalid_configs) |cfg_invalid| {
+        try std.testing.expect(!cfg_invalid.isValid());
+        const sanitized = cfg_invalid.sanitize();
+        try std.testing.expect(sanitized.isValid());
+        try std.testing.expectEqual(texops.TexSampMode.direct, sanitized.mode);
+        try std.testing.expectEqual(cfg_invalid.sample, sanitized.sample);
+    }
+
+    const valid_configs = [_]texops.TexSampConfig{
+        .{ .sample = .nearest, .mode = .direct },
+        .{ .sample = .linear, .mode = .direct },
+        .{ .sample = .cubic_catmull_rom, .mode = .direct },
+        .{ .sample = .cubic_catmull_rom, .mode = .lut },
+        .{ .sample = .cubic_catmull_rom, .mode = .lut_lerp },
+        .{ .sample = .lanczos3, .mode = .lut },
+    };
+
+    for (valid_configs) |cfg_valid| {
+        try std.testing.expect(cfg_valid.isValid());
+        const sanitized = cfg_valid.sanitize();
+        try std.testing.expectEqual(cfg_valid.mode, sanitized.mode);
+        try std.testing.expectEqual(cfg_valid.sample, sanitized.sample);
+    }
+}
+

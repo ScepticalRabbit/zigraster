@@ -236,6 +236,180 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
             }
         }
     }
+
+    try runAdditionalDistPsfTests(allocator, io, &prep, config);
 }
+
+fn runAdditionalDistPsfTests(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    prep: *const common_full.Scene1Prepared,
+    config: rastcfg.RasterConfig,
+) !void {
+    const mesh = gengold_dist_psf.buildScene1Mesh(prep);
+    const meshes = [_]MeshInput{mesh};
+
+    const extra_dist_cases = [_]struct {
+        tag: []const u8,
+        distortion: camera.DistortionModel,
+    }{
+        .{
+            .tag = "standalone_polynomial",
+            .distortion = .{
+                .polynomial = .{
+                    .forward_map = common_full.getRepresentativePolynomialMap(),
+                },
+            },
+        },
+        .{
+            .tag = "brown_conrady_ext_polynomial",
+            .distortion = .{
+                .brown_conrady_ext_polynomial = .{
+                    .brown_conrady_ext = .{
+                        .k1 = -1000.0,
+                        .k4 = 200.0,
+                    },
+                    .polynomial = .{
+                        .forward_map = common_full.getRepresentativePolynomialMap(),
+                    },
+                },
+            },
+        },
+        .{
+            .tag = "mixed_tangential_bc",
+            .distortion = .{
+                .brown_conrady = .{
+                    .k1 = -1000.0,
+                    .p1 = 0.02,
+                    .p2 = -0.02,
+                },
+            },
+        },
+    };
+
+    const extra_psf_cases = [_]struct {
+        tag: []const u8,
+        psf: camera.PointSpreadFunc,
+    }{
+        .{
+            .tag = "rotated_anisotropic_gaussian",
+            .psf = .{
+                .anisotropic_gaussian = .{
+                    .sigma_x_px = 1.5,
+                    .sigma_y_px = 0.8,
+                    .theta_rad = std.math.pi / 6.0,
+                    .supp_rad_px = 3.5,
+                },
+            },
+        },
+        .{
+            .tag = "filtered_pixel_box",
+            .psf = .{
+                .pixel_box = .{
+                    .supp_rad_px = 0.75,
+                },
+            },
+        },
+    };
+
+    // Test distortion cases with in-memory buffer mode equivalence
+    for (extra_dist_cases) |dist_case| {
+        var cam_tile = prep.camera_input;
+        cam_tile.sub_sample = 2;
+        cam_tile.distortion = dist_case.distortion;
+        cam_tile.psf = .{ .pixel_box = .{} };
+
+        var config_tile = config;
+        config_tile.save_strategy = .memory;
+        config_tile.buffer_mode = .tile_local;
+        config_tile.background_value = common_full.grey_background_scene1;
+
+        var config_global = config_tile;
+        config_global.buffer_mode = .global_subpx_full;
+
+        const render_groups = [_]riley.RenderGroupSpec{
+            .{ .io = io, .workers = 1 },
+        };
+
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        const aa = arena.allocator();
+
+        const result_tile = try riley.raster(
+            aa,
+            &render_groups,
+            &[_]CameraInput{cam_tile},
+            &meshes,
+            config_tile,
+            null,
+        );
+        const img_tile = result_tile orelse return error.NoResult;
+
+        const result_global = try riley.raster(
+            aa,
+            &render_groups,
+            &[_]CameraInput{cam_tile},
+            &meshes,
+            config_global,
+            null,
+        );
+        const img_global = result_global orelse return error.NoResult;
+
+        try std.testing.expectEqualSlices(usize, img_tile.dims, img_global.dims);
+        for (img_tile.slice, img_global.slice) |val_tile, val_global| {
+            try std.testing.expect(@abs(val_tile - val_global) <= FULL_ABS_TOL);
+        }
+    }
+
+    // Test PSF cases with in-memory buffer mode equivalence
+    for (extra_psf_cases) |psf_case| {
+        var cam_tile = prep.camera_input;
+        cam_tile.sub_sample = 2;
+        cam_tile.distortion = .none;
+        cam_tile.psf = psf_case.psf;
+
+        var config_tile = config;
+        config_tile.save_strategy = .memory;
+        config_tile.buffer_mode = .tile_local;
+        config_tile.background_value = common_full.grey_background_scene1;
+
+        var config_global = config_tile;
+        config_global.buffer_mode = .global_subpx_full;
+
+        const render_groups = [_]riley.RenderGroupSpec{
+            .{ .io = io, .workers = 1 },
+        };
+
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        const aa = arena.allocator();
+
+        const result_tile = try riley.raster(
+            aa,
+            &render_groups,
+            &[_]CameraInput{cam_tile},
+            &meshes,
+            config_tile,
+            null,
+        );
+        const img_tile = result_tile orelse return error.NoResult;
+
+        const result_global = try riley.raster(
+            aa,
+            &render_groups,
+            &[_]CameraInput{cam_tile},
+            &meshes,
+            config_global,
+            null,
+        );
+        const img_global = result_global orelse return error.NoResult;
+
+        try std.testing.expectEqualSlices(usize, img_tile.dims, img_global.dims);
+        for (img_tile.slice, img_global.slice) |val_tile, val_global| {
+            try std.testing.expect(@abs(val_tile - val_global) <= FULL_ABS_TOL);
+        }
+    }
+}
+
 
 

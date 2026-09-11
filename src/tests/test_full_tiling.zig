@@ -15,6 +15,7 @@ const gengold_tiling = @import("../gengold/gen_gold_full_tiling.zig");
 const gk = @import("../riley/zig/geometrykernels.zig");
 const iio = @import("../riley/zig/imageio.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
+const ndarray = @import("../riley/zig/ndarray.zig");
 const orch = @import("../dev_support/orchestration.zig");
 const policy = @import("../dev_support/testpolicy.zig");
 const rastcfg = @import("../riley/zig/rasterconfig.zig");
@@ -223,4 +224,184 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
             }
         }
     }
+
+    try runAdditionalTilingAndParityTests(allocator, io, &textures, config);
 }
+
+fn runAdditionalTilingAndParityTests(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    textures: *const common_full.FullTextures,
+    config: rastcfg.RasterConfig,
+) !void {
+    // 1. tri3 vs tri3opt parity across irregular sensor sizes
+    const irregular_resolutions = [_][2]u32{
+        .{ 153, 97 },
+        .{ 117, 83 },
+    };
+
+    for (irregular_resolutions) |res| {
+        var prep_tri3 = try common_full.prepareScene2(allocator, io, .tri3);
+        defer prep_tri3.deinit(allocator);
+
+        var prep_tri3opt = try common_full.prepareScene2(allocator, io, .tri3opt);
+        defer prep_tri3opt.deinit(allocator);
+
+        const meshes_tri3 = common_full.buildScene2Meshes(&prep_tri3, textures);
+        const meshes_tri3opt = common_full.buildScene2Meshes(&prep_tri3opt, textures);
+
+        const cam_inp = common_full.createScene2Camera(res, 2);
+
+        var run_config = config;
+        run_config.save_strategy = .memory;
+
+        const render_groups = [_]riley.RenderGroupSpec{
+            .{ .io = io, .workers = 1 },
+        };
+
+        var arena_tri3 = std.heap.ArenaAllocator.init(allocator);
+        defer arena_tri3.deinit();
+        const aa_tri3 = arena_tri3.allocator();
+
+        const result_tri3 = try riley.raster(
+            aa_tri3,
+            &render_groups,
+            &[_]CameraInput{cam_inp},
+            &meshes_tri3,
+            run_config,
+            null,
+        );
+        const img_tri3 = result_tri3 orelse return error.NoResult;
+
+        var arena_opt = std.heap.ArenaAllocator.init(allocator);
+        defer arena_opt.deinit();
+        const aa_opt = arena_opt.allocator();
+
+        const result_opt = try riley.raster(
+            aa_opt,
+            &render_groups,
+            &[_]CameraInput{cam_inp},
+            &meshes_tri3opt,
+            run_config,
+            null,
+        );
+        const img_opt = result_opt orelse return error.NoResult;
+
+        try std.testing.expectEqualSlices(usize, img_tri3.dims, img_opt.dims);
+        for (img_tri3.slice, img_opt.slice) |v_tri3, v_opt| {
+            try std.testing.expect(@abs(v_tri3 - v_opt) <= 1.0e-3);
+        }
+    }
+
+    // 2. SSAA=8 in-memory equivalence between tile_local and global_subpx_full
+    {
+        var prep_scene2 = try common_full.prepareScene2(allocator, io, .tri3);
+        defer prep_scene2.deinit(allocator);
+        const meshes = common_full.buildScene2Meshes(&prep_scene2, textures);
+        const cam_inp = common_full.createScene2Camera(.{ 128, 80 }, 8);
+
+        var config_tile = config;
+        config_tile.save_strategy = .memory;
+        config_tile.buffer_mode = .tile_local;
+
+        var config_global = config_tile;
+        config_global.buffer_mode = .global_subpx_full;
+
+        const render_groups = [_]riley.RenderGroupSpec{
+            .{ .io = io, .workers = 1 },
+        };
+
+        var arena_tile = std.heap.ArenaAllocator.init(allocator);
+        defer arena_tile.deinit();
+        const aa_tile = arena_tile.allocator();
+
+        const res_tile = try riley.raster(
+            aa_tile,
+            &render_groups,
+            &[_]CameraInput{cam_inp},
+            &meshes,
+            config_tile,
+            null,
+        );
+        const img_tile = res_tile orelse return error.NoResult;
+
+        var arena_global = std.heap.ArenaAllocator.init(allocator);
+        defer arena_global.deinit();
+        const aa_global = arena_global.allocator();
+
+        const res_global = try riley.raster(
+            aa_global,
+            &render_groups,
+            &[_]CameraInput{cam_inp},
+            &meshes,
+            config_global,
+            null,
+        );
+        const img_global = res_global orelse return error.NoResult;
+
+        try std.testing.expectEqualSlices(usize, img_tile.dims, img_global.dims);
+        for (img_tile.slice, img_global.slice) |v_t, v_g| {
+            try std.testing.expect(@abs(v_t - v_g) <= FULL_TILING_ABS_TOL);
+        }
+    }
+
+    // 3. Tile / Stripe override sweeps with partial boundary regions
+    {
+        var prep_scene2 = try common_full.prepareScene2(allocator, io, .tri3);
+        defer prep_scene2.deinit(allocator);
+        const meshes = common_full.buildScene2Meshes(&prep_scene2, textures);
+        const cam_inp = common_full.createScene2Camera(.{ 137, 89 }, 2);
+
+        const tile_overrides = [_]u16{ 12, 24 };
+        const stripe_overrides = [_]u16{ 8, 20 };
+
+        const render_groups = [_]riley.RenderGroupSpec{
+            .{ .io = io, .workers = 1 },
+        };
+
+        for (tile_overrides) |to_val| {
+            var arena = std.heap.ArenaAllocator.init(allocator);
+            defer arena.deinit();
+            const aa = arena.allocator();
+
+            var run_config = config;
+            run_config.save_strategy = .memory;
+            run_config.buffer_mode = .global_subpx_full;
+            run_config.global_subpx_tile_size_override = to_val;
+
+            const res = try riley.raster(
+                aa,
+                &render_groups,
+                &[_]CameraInput{cam_inp},
+                &meshes,
+                run_config,
+                null,
+            );
+            const img = res orelse return error.NoResult;
+            try std.testing.expect(img.slice.len > 0);
+        }
+
+        for (stripe_overrides) |so_val| {
+            var arena = std.heap.ArenaAllocator.init(allocator);
+            defer arena.deinit();
+            const aa = arena.allocator();
+
+            var run_config = config;
+            run_config.save_strategy = .memory;
+            run_config.buffer_mode = .global_subpx_stripe;
+            run_config.global_subpx_stripe_size_override = so_val;
+
+            const res = try riley.raster(
+                aa,
+                &render_groups,
+                &[_]CameraInput{cam_inp},
+                &meshes,
+                run_config,
+                null,
+            );
+            const img = res orelse return error.NoResult;
+            try std.testing.expect(img.slice.len > 0);
+        }
+    }
+}
+

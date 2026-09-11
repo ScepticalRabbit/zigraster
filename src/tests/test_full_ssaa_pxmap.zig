@@ -13,6 +13,7 @@ const common_full = @import("../gengold/gen_gold_full_common.zig");
 const common_test = @import("../dev_support/tests.zig");
 const gengold_ssaa_pxmap = @import("../gengold/gen_gold_full_ssaa_pxmap.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
+const ndarray = @import("../riley/zig/ndarray.zig");
 const policy = @import("../dev_support/testpolicy.zig");
 const rastcfg = @import("../riley/zig/rasterconfig.zig");
 const riley = @import("../riley/zig/riley.zig");
@@ -172,6 +173,73 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
             }
         }
     }
+
+    try runPxmapEquivalenceTests(allocator, io, &prep, config);
 }
+
+fn runPxmapEquivalenceTests(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    prep: *const common_full.Scene1Prepared,
+    config: rastcfg.RasterConfig,
+) !void {
+    const mesh = gengold_ssaa_pxmap.buildScene1Mesh(prep);
+    const meshes = [_]MeshInput{mesh};
+
+    // 1. No-distortion control: full_in_mem, per_tile, and affine_jac must match exactly
+    const pxmap_modes = [_]camera.SubPixelCenterMap{
+        .full_in_mem,
+        .per_tile,
+        .affine_jac,
+    };
+
+    var base_renders: [3]?ndarray.NDArray(F) = [_]?ndarray.NDArray(F){ null, null, null };
+    var arenas: [3]std.heap.ArenaAllocator = undefined;
+    defer {
+        for (0..3) |ii| {
+            if (base_renders[ii]) |_| arenas[ii].deinit();
+        }
+    }
+
+    for (pxmap_modes, 0..) |mode, ii| {
+        arenas[ii] = std.heap.ArenaAllocator.init(allocator);
+        const aa = arenas[ii].allocator();
+
+        var cam_input = prep.camera_input;
+        cam_input.sub_sample = 2;
+        cam_input.distortion = .none;
+        cam_input.psf = .{ .pixel_box = .{} };
+        cam_input.subpixel_center_map = mode;
+
+        var run_config = config;
+        run_config.save_strategy = .memory;
+        run_config.background_value = common_full.grey_background_scene1;
+
+        const render_groups = [_]riley.RenderGroupSpec{
+            .{ .io = io, .workers = 1 },
+        };
+
+        const result = try riley.raster(
+            aa,
+            &render_groups,
+            &[_]CameraInput{cam_input},
+            &meshes,
+            run_config,
+            null,
+        );
+
+        base_renders[ii] = result;
+    }
+
+    const ref_img = base_renders[0] orelse return error.NoResult;
+    for (1..3) |ii| {
+        const test_img = base_renders[ii] orelse return error.NoResult;
+        try std.testing.expectEqualSlices(usize, ref_img.dims, test_img.dims);
+        for (ref_img.slice, test_img.slice) |ref_val, test_val| {
+            try std.testing.expect(@abs(ref_val - test_val) <= FULL_ABS_TOL);
+        }
+    }
+}
+
 
 

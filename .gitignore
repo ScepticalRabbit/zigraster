@@ -12,6 +12,7 @@ out_riley_py/
 out-riley-py/
 bin/
 .*
+.*/
 !.gitignore
 !.github/
 

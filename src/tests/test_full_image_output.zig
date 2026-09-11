@@ -514,4 +514,156 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
     try runFactorialFormatsAndModes(allocator, io, &prep, &textures, config);
     try runFactorialScalingAndReports(allocator, io, &prep, &textures, config);
     try runEntryPointEquivalence(allocator, io, &prep, &textures, config);
+    try runAdditionalImageOutputTests(allocator, io, &prep, &textures, config);
 }
+
+fn runAdditionalImageOutputTests(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    prep: *const common_full.Scene2Prepared,
+    textures: *const common_full.FullTextures,
+    config: rastcfg.RasterConfig,
+) !void {
+    const temp_dir_base = "temp-tests/image_output_additional";
+    var dir = try orch.openDirEnsured(io, temp_dir_base);
+    dir.close(io);
+
+    const meshes_mono = common_full.buildScene2ImageOutputMeshes(
+        prep,
+        textures,
+        false,
+        false,
+    );
+    const meshes_rgb = common_full.buildScene2ImageOutputMeshes(
+        prep,
+        textures,
+        true,
+        false,
+    );
+    const cam_inp = common_full.createScene2ImageOutputCamera(&meshes_mono);
+
+    // 1. Disk vs Memory output reload round-trip
+    {
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        const aa = arena.allocator();
+
+        const out_subdir = try std.fmt.allocPrint(
+            aa,
+            "{s}/reload_roundtrip",
+            .{temp_dir_base},
+        );
+        var sub_dir = try orch.openDirEnsured(io, out_subdir);
+        sub_dir.close(io);
+
+        var run_config = config;
+        run_config.save_strategy = .both;
+        run_config.image_save_mode = .grey;
+        run_config.image_save_opts = &[_]iio.ImageSaveOpts{
+            .{ .format = .fimg, .bits = null, .scaling = .none },
+        };
+
+        const render_groups = [_]riley.RenderGroupSpec{
+            .{ .io = io, .workers = 1 },
+        };
+
+        const result = try riley.raster(
+            aa,
+            &render_groups,
+            &[_]CameraInput{cam_inp},
+            &meshes_mono,
+            run_config,
+            out_subdir,
+        );
+        const mem_img = result orelse return error.NoResult;
+
+        const fimg_path = try std.fmt.allocPrint(
+            aa,
+            "{s}/cam0_frame0_field0.fimg",
+            .{out_subdir},
+        );
+        var disk_img = try iio.loadFIMG(aa, io, fimg_path);
+        defer {
+            aa.free(disk_img.slice);
+            disk_img.deinit(aa);
+        }
+
+        const rows_n = mem_img.dims[3];
+        const cols_n = mem_img.dims[4];
+        for (0..rows_n) |rr| {
+            for (0..cols_n) |cc| {
+                const mem_val = mem_img.get(&[_]usize{ 0, 0, 0, rr, cc });
+                const disk_val = disk_img.get(&[_]usize{ 0, rr, cc });
+                try std.testing.expectEqual(mem_val, disk_val);
+            }
+        }
+    }
+
+    // 2. save_frame_buff_count sweep
+    const buff_counts = [_]usize{ 1, 2, 4 };
+    for (buff_counts) |bc_val| {
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        const aa = arena.allocator();
+
+        var run_config = config;
+        run_config.save_strategy = .memory;
+        run_config.save_frame_buff_count = bc_val;
+
+        const render_groups = [_]riley.RenderGroupSpec{
+            .{ .io = io, .workers = 1 },
+        };
+
+        const result = try riley.raster(
+            aa,
+            &render_groups,
+            &[_]CameraInput{cam_inp},
+            &meshes_mono,
+            run_config,
+            null,
+        );
+        const img = result orelse return error.NoResult;
+        try std.testing.expect(img.slice.len > 0);
+    }
+
+    // 3. Field conversions: 1-field expanded RGB, 3-field reduced grey
+    {
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        const aa = arena.allocator();
+
+        var run_config = config;
+        run_config.save_strategy = .memory;
+        run_config.image_save_mode = .rgb;
+
+        const render_groups = [_]riley.RenderGroupSpec{
+            .{ .io = io, .workers = 1 },
+        };
+
+        // 1-field mono mesh -> rgb output
+        const res_expanded = try riley.raster(
+            aa,
+            &render_groups,
+            &[_]CameraInput{cam_inp},
+            &meshes_mono,
+            run_config,
+            null,
+        );
+        const img_expanded = res_expanded orelse return error.NoResult;
+        try std.testing.expectEqual(@as(usize, 3), img_expanded.dims[2]);
+
+        // 3-field rgb mesh -> grey output
+        run_config.image_save_mode = .grey;
+        const res_reduced = try riley.raster(
+            aa,
+            &render_groups,
+            &[_]CameraInput{cam_inp},
+            &meshes_rgb,
+            run_config,
+            null,
+        );
+        const img_reduced = res_reduced orelse return error.NoResult;
+        try std.testing.expectEqual(@as(usize, 1), img_reduced.dims[2]);
+    }
+}
+

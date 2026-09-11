@@ -16,6 +16,7 @@ const gengold_hull = @import("../gengold/gen_gold_full_hull.zig");
 const gk = @import("../riley/zig/geometrykernels.zig");
 const iio = @import("../riley/zig/imageio.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
+const ndarray = @import("../riley/zig/ndarray.zig");
 const orch = @import("../dev_support/orchestration.zig");
 const policy = @import("../dev_support/testpolicy.zig");
 const rastcfg = @import("../riley/zig/rasterconfig.zig");
@@ -425,4 +426,95 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
             }
         }
     }
+
+    try runNewtonSeedMatrixTests(allocator, io, &textures, config);
 }
+
+fn runNewtonSeedMatrixTests(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    textures: *const common_full.FullTextures,
+    config: rastcfg.RasterConfig,
+) !void {
+    const curved_mesh_types = [_]gk.MeshType{
+        .tri6,
+        .quad8,
+        .quad9,
+    };
+    const seed_modes = [_]rastcfg.NewtonSeedMode{
+        .centroid,
+        .hull,
+    };
+    const seed_reuses = [_]rastcfg.NewtonSeedReuse{
+        .off,
+        .last_conv,
+    };
+
+    for (curved_mesh_types) |mesh_type| {
+        var prep2 = try common_full.prepareScene2(allocator, io, mesh_type);
+        defer prep2.deinit(allocator);
+
+        const meshes = common_full.buildScene2Meshes(&prep2, textures);
+        const cam_inp = common_full.createScene2Camera(
+            gengold_hull.pixel_num_hull,
+            2,
+        );
+
+        var baseline_slice_opt: ?[]F = null;
+        var baseline_dims_opt: ?[]usize = null;
+        var baseline_arena = std.heap.ArenaAllocator.init(allocator);
+        defer baseline_arena.deinit();
+
+        for (seed_modes) |seed_mode| {
+            for (seed_reuses) |seed_reuse| {
+                var arena = std.heap.ArenaAllocator.init(allocator);
+                defer arena.deinit();
+                const aa = arena.allocator();
+
+                var run_config = config;
+                run_config.save_strategy = .memory;
+                run_config.hull_mode = .on_no_fallback;
+                run_config.newton_seed_mode = seed_mode;
+                run_config.newton_seed_reuse = seed_reuse;
+
+                const render_groups = [_]riley.RenderGroupSpec{
+                    .{ .io = io, .workers = 1 },
+                };
+
+                const result = try riley.raster(
+                    aa,
+                    &render_groups,
+                    &[_]CameraInput{cam_inp},
+                    &meshes,
+                    run_config,
+                    null,
+                );
+
+                const current_img = result orelse return error.NoResult;
+
+                if (baseline_slice_opt == null) {
+                    baseline_slice_opt = try baseline_arena.allocator().dupe(
+                        F,
+                        current_img.slice,
+                    );
+                    baseline_dims_opt = try baseline_arena.allocator().dupe(
+                        usize,
+                        current_img.dims,
+                    );
+                } else {
+                    try std.testing.expectEqualSlices(
+                        usize,
+                        baseline_dims_opt.?,
+                        current_img.dims,
+                    );
+                    for (baseline_slice_opt.?, current_img.slice) |base_val, curr_val| {
+                        try std.testing.expect(
+                            @abs(base_val - curr_val) <= 1.0e-3,
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+

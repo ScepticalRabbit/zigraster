@@ -359,4 +359,69 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
             }
         }
     }
+
+    try runNodalScalingTests(allocator, io, config);
 }
+
+fn runNodalScalingTests(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    config: rastcfg.RasterConfig,
+) !void {
+    var textures = try common_full.FullTextures.init(allocator, io);
+    defer textures.deinit(allocator);
+
+    var prep = try common_full.prepareScene0(allocator, io, .tri3);
+    defer prep.deinit(allocator);
+
+    const scaling_modes = [_]imageops.ScaleStrategy{
+        .{ .fixed = .{ 0.0, 100.0 } },
+        .{ .frac = .{ 0.1, 0.9 } },
+    };
+
+    for (scaling_modes) |scaling_mode| {
+        for ([_]bool{ false, true }) |is_rgb| {
+            var arena = std.heap.ArenaAllocator.init(allocator);
+            defer arena.deinit();
+            const aa = arena.allocator();
+
+            const meshes = gengold_shader.buildShaderCaseMeshes(
+                .tri3,
+                &prep,
+                &textures,
+                .{
+                    .nodal = .{
+                        .is_rgb = is_rgb,
+                        .scaling = scaling_mode,
+                        .scale_over = .within_frames,
+                        .normal_type = .none,
+                    },
+                },
+            );
+
+            var run_config = config;
+            run_config.save_strategy = .memory;
+
+            const render_groups = [_]riley.RenderGroupSpec{
+                .{ .io = io, .workers = 1 },
+            };
+
+            const result = try riley.raster(
+                aa,
+                &render_groups,
+                &[_]CameraInput{prep.camera_input},
+                &meshes,
+                run_config,
+                null,
+            );
+
+            const render_result = result orelse return error.NoResult;
+            try std.testing.expect(render_result.slice.len > 0);
+
+            for (render_result.slice) |pixel_val| {
+                try std.testing.expect(std.math.isFinite(pixel_val));
+            }
+        }
+    }
+}
+

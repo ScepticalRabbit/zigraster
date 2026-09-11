@@ -60,6 +60,112 @@ fn brownConradyDistortion(
     };
 }
 
+fn brownConradyExtDistortion(
+    k1: F,
+    k2: F,
+    k3: F,
+    k4: F,
+    k5: F,
+    k6: F,
+    p1: F,
+    p2: F,
+) cam.DistortionModel {
+    return .{
+        .brown_conrady_ext = .{
+            .k1 = k1,
+            .k2 = k2,
+            .k3 = k3,
+            .k4 = k4,
+            .k5 = k5,
+            .k6 = k6,
+            .p1 = p1,
+            .p2 = p2,
+        },
+    };
+}
+
+fn standalonePolynomialDistortion(
+    order: cam.PolynomialOrder,
+    coeffs_u: [10]F,
+    coeffs_v: [10]F,
+) cam.DistortionModel {
+    return .{
+        .polynomial = .{
+            .forward_map = .{
+                .order = order,
+                .coeffs_u = coeffs_u,
+                .coeffs_v = coeffs_v,
+            },
+        },
+    };
+}
+
+fn brownConradyPolynomialDistortion(
+    k1: F,
+    k2: F,
+    k3: F,
+    p1: F,
+    p2: F,
+    order: cam.PolynomialOrder,
+    coeffs_u: [10]F,
+    coeffs_v: [10]F,
+) cam.DistortionModel {
+    return .{
+        .brown_conrady_polynomial = .{
+            .brown_conrady = .{
+                .k1 = k1,
+                .k2 = k2,
+                .k3 = k3,
+                .p1 = p1,
+                .p2 = p2,
+            },
+            .polynomial = .{
+                .forward_map = .{
+                    .order = order,
+                    .coeffs_u = coeffs_u,
+                    .coeffs_v = coeffs_v,
+                },
+            },
+        },
+    };
+}
+
+fn brownConradyExtPolynomialDistortion(
+    k1: F,
+    k2: F,
+    k3: F,
+    k4: F,
+    k5: F,
+    k6: F,
+    p1: F,
+    p2: F,
+    order: cam.PolynomialOrder,
+    coeffs_u: [10]F,
+    coeffs_v: [10]F,
+) cam.DistortionModel {
+    return .{
+        .brown_conrady_ext_polynomial = .{
+            .brown_conrady_ext = .{
+                .k1 = k1,
+                .k2 = k2,
+                .k3 = k3,
+                .k4 = k4,
+                .k5 = k5,
+                .k6 = k6,
+                .p1 = p1,
+                .p2 = p2,
+            },
+            .polynomial = .{
+                .forward_map = .{
+                    .order = order,
+                    .coeffs_u = coeffs_u,
+                    .coeffs_v = coeffs_v,
+                },
+            },
+        },
+    };
+}
+
 pub const camera_distortion_cases = [_]CameraDistortionCase{
     .{
         .case_name = "none",
@@ -103,6 +209,64 @@ pub const camera_distortion_cases = [_]CameraDistortionCase{
             0.0,
             1.0e-3,
             -1.0e-3,
+        ),
+    },
+    .{
+        .case_name = "brown_conrady_ext",
+        .distortion = brownConradyExtDistortion(
+            -5.0e-2,
+            1.0e-2,
+            0.0,
+            2.0e-2,
+            -5.0e-3,
+            0.0,
+            1.0e-3,
+            -1.0e-3,
+        ),
+    },
+    .{
+        .case_name = "polynomial_quadratic",
+        .distortion = standalonePolynomialDistortion(
+            .quadratic,
+            [_]F{ 0.0, 0.01, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0 },
+            [_]F{ 0.0, 0.0, -0.01, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+        ),
+    },
+    .{
+        .case_name = "polynomial_cubic",
+        .distortion = standalonePolynomialDistortion(
+            .cubic,
+            [_]F{ 0.0, 0.01, 0.0, 0.0, 0.5, 0.0, 2.0, 0.0, 0.0, 0.0 },
+            [_]F{ 0.0, 0.0, -0.01, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, -2.0 },
+        ),
+    },
+    .{
+        .case_name = "brown_conrady_polynomial",
+        .distortion = brownConradyPolynomialDistortion(
+            -5.0e-2,
+            1.0e-2,
+            0.0,
+            1.0e-3,
+            -1.0e-3,
+            .quadratic,
+            [_]F{ 0.0, 0.01, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0 },
+            [_]F{ 0.0, 0.0, -0.01, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
+        ),
+    },
+    .{
+        .case_name = "brown_conrady_ext_polynomial",
+        .distortion = brownConradyExtPolynomialDistortion(
+            -5.0e-2,
+            1.0e-2,
+            0.0,
+            2.0e-2,
+            -5.0e-3,
+            0.0,
+            1.0e-3,
+            -1.0e-3,
+            .quadratic,
+            [_]F{ 0.0, 0.01, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0 },
+            [_]F{ 0.0, 0.0, -0.01, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 },
         ),
     },
 };
