@@ -81,7 +81,8 @@ The focused verification suite checks independent analytic and numerical contrac
 - inverse element-solver recovery from known parent coordinates;
 - undistorted silhouette area and centroid against Python-generated analytic references;
 - overlapping-rabbit depth ordering at four rear-surface separations;
-- camera-distortion forward/inverse recovery from known ideal raster points.
+- camera-distortion round trips plus independent OpenCV/NumPy forward, inverse,
+  stacked-model, SIMD, and Jacobian oracles.
 
 The suite is intentionally fixed to the production `f64` configuration with SIMD enabled:
 

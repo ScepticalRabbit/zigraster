@@ -10,7 +10,7 @@ const std = @import("std");
 const cam = @import("../riley/zig/camera.zig");
 const tcfg = @import("../dev_support/testconfig.zig");
 const vconst = @import("../dev_support/verifconstants.zig");
-const dist_verif = @import("../verif_5_dist_reproj.zig");
+const dist_verif = @import("../verif_5_dist_roundtrip.zig");
 
 pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
     _ = io;
@@ -47,9 +47,11 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
             );
             try std.testing.expect(record.converged);
             try std.testing.expect(record.in_bounds);
-            try std.testing.expect(record.err_dist <= tcfg.VERIF_TOL.distortion_abs_px);
             try std.testing.expect(
-                record.observed_reproj_err <= tcfg.VERIF_TOL.distortion_abs_px,
+                record.err_dist <= tcfg.DISTORTION_ROUNDTRIP_ABS_PX,
+            );
+            try std.testing.expect(
+                record.observed_reproj_err <= tcfg.DISTORTION_ROUNDTRIP_ABS_PX,
             );
         }
     }

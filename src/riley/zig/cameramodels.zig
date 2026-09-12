@@ -38,6 +38,7 @@ pub const BrownConradyExtPolynomial = common.BrownConradyExtPolynomial;
 // --------------------------------------------------------------------------------------
 
 pub const DistortionModel = common.DistortionModel;
+pub const prepareDistortionModel = common.prepareDistortionModel;
 pub const forwardDistortionModelScal = scal.forwardDistortionModel;
 pub const invDistortionModelScal = scal.invDistortionModel;
 pub const DistortionForwardJacSIMDResult = simd.DistortionForwardJacSIMDResult;

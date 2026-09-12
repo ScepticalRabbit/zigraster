@@ -81,6 +81,8 @@ typedef struct c_distortion {
     double distortion_k1, distortion_k2, distortion_k3;
     double distortion_k4, distortion_k5, distortion_k6;
     double distortion_p1, distortion_p2;
+    double distortion_s1, distortion_s2, distortion_s3, distortion_s4;
+    double distortion_tau_x, distortion_tau_y;
     uint32_t distortion_poly_order;
     uint8_t distortion_poly_has_forward, distortion_poly_has_inv;
     double distortion_poly_forward_u[10], distortion_poly_forward_v[10];

@@ -173,6 +173,13 @@ zig build test-full -Doptimize=ReleaseSafe
 - **Coverage** (240 test cases):
   - **SSAA Levels**: $1$ (direct pixel centers) and $4$ ($16$ subpixel samples/pixel).
   - **Distortion Models (10)**: Baseline `none`, light barrel/pincushion ($k_1 = \pm 1000.0$), extreme barrel/pincushion ($k_1 = \pm 2500.0, k_2 = 1.0\times 10^7$) with Brown-Conrady and Brown-Conrady-Ext, and quadratic polynomial distortion combinations.
+
+The focused verification suite keeps two distortion checks separate:
+`distortion_roundtrip` checks Riley's internal forward/inverse consistency,
+while `distortion_oracle` compares scalar and SIMD evaluation, inversion, and
+analytic Jacobians with compact OpenCV/NumPy gold data in `gold/verif/`. Oracle
+tolerances are centralized in `src/dev_support/testconfig.zig`; they do not
+change the production Newton solver tolerances.
   - **Point Spread Functions (4)**: Baseline pixel box (`off`), separable Gaussian ($\sigma = 1.5\text{ px}$), non-separable Gaussian ($\sigma = 1.5\text{ px}$), and anisotropic Gaussian ($\sigma_x = 1.5\text{ px}, \sigma_y = 0.1\text{ px}$).
   - **Buffer Architectures (3)**: Verified for identical bit-accurate output across `tile_local`, `global_subpx_full`, and `global_subpx_stripe`.
 

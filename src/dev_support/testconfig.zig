@@ -60,6 +60,26 @@ pub const VERIF_TOL = VerifTol{
     .depth_gap_rel = 1.0e-5,
 };
 
+pub const DistortionOracleTol = struct {
+    forward_abs_norm: F,
+    inverse_abs_norm: F,
+    jac_abs: F,
+    jac_rel: F,
+    backend_abs_norm: F,
+    compatibility_abs_norm: F,
+};
+
+pub const DISTORTION_ORACLE_TOL = DistortionOracleTol{
+    .forward_abs_norm = 5.0e-12,
+    .inverse_abs_norm = 2.0e-5,
+    .jac_abs = 2.0e-8,
+    .jac_rel = 2.0e-8,
+    .backend_abs_norm = 2.0e-5,
+    .compatibility_abs_norm = 1.0e-14,
+};
+
+pub const DISTORTION_ROUNDTRIP_ABS_PX: F = 1.0e-6;
+
 pub const RasterConfigMode = enum {
     gold_gen,
     preview,

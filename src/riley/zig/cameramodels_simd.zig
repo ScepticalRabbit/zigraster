@@ -122,23 +122,73 @@ pub fn forwardDistortionWithJacSIMD(
     const p1: VecSF = @splat(distortion.p1);
     const p2: VecSF = @splat(distortion.p2);
 
-    const x_d = x * radial_scale + @as(VecSF, @splat(2.0)) * p1 * x * y +
+    var x_d = x * radial_scale + @as(VecSF, @splat(2.0)) * p1 * x * y +
         p2 * (r2 + @as(VecSF, @splat(2.0)) * x * x);
-    const y_d = y * radial_scale + p1 * (r2 + @as(VecSF, @splat(2.0)) * y * y) +
+    var y_d = y * radial_scale + p1 * (r2 + @as(VecSF, @splat(2.0)) * y * y) +
         @as(VecSF, @splat(2.0)) * p2 * x * y;
 
-    const j11 = radial_scale + x * dradial_dx +
+    var j11 = radial_scale + x * dradial_dx +
         @as(VecSF, @splat(2.0)) * p1 * y +
         @as(VecSF, @splat(6.0)) * p2 * x;
-    const j12 = x * dradial_dy +
+    var j12 = x * dradial_dy +
         @as(VecSF, @splat(2.0)) * p1 * x +
         @as(VecSF, @splat(2.0)) * p2 * y;
-    const j21 = y * dradial_dx +
+    var j21 = y * dradial_dx +
         @as(VecSF, @splat(2.0)) * p1 * x +
         @as(VecSF, @splat(2.0)) * p2 * y;
-    const j22 = radial_scale + y * dradial_dy +
+    var j22 = radial_scale + y * dradial_dy +
         @as(VecSF, @splat(6.0)) * p1 * y +
         @as(VecSF, @splat(2.0)) * p2 * x;
+
+    if (@hasField(DistortionType, "s1")) {
+        const s1: VecSF = @splat(distortion.s1);
+        const s2: VecSF = @splat(distortion.s2);
+        const s3: VecSF = @splat(distortion.s3);
+        const s4: VecSF = @splat(distortion.s4);
+        x_d += s1 * r2 + s2 * r4;
+        y_d += s3 * r2 + s4 * r4;
+        j11 += @as(VecSF, @splat(2.0)) * x *
+            (s1 + @as(VecSF, @splat(2.0)) * s2 * r2);
+        j12 += @as(VecSF, @splat(2.0)) * y *
+            (s1 + @as(VecSF, @splat(2.0)) * s2 * r2);
+        j21 += @as(VecSF, @splat(2.0)) * x *
+            (s3 + @as(VecSF, @splat(2.0)) * s4 * r2);
+        j22 += @as(VecSF, @splat(2.0)) * y *
+            (s3 + @as(VecSF, @splat(2.0)) * s4 * r2);
+
+        if (distortion.preparedTiltActive()) {
+            const matrix = distortion.preparedTiltMatrix();
+            const numerator_x = @as(VecSF, @splat(matrix[0][0])) * x_d +
+                @as(VecSF, @splat(matrix[0][1])) * y_d +
+                @as(VecSF, @splat(matrix[0][2]));
+            const numerator_y = @as(VecSF, @splat(matrix[1][0])) * x_d +
+                @as(VecSF, @splat(matrix[1][1])) * y_d +
+                @as(VecSF, @splat(matrix[1][2]));
+            const denominator = @as(VecSF, @splat(matrix[2][0])) * x_d +
+                @as(VecSF, @splat(matrix[2][1])) * y_d +
+                @as(VecSF, @splat(matrix[2][2]));
+            const inv_denominator = @as(VecSF, @splat(1.0)) / denominator;
+            const inv_denominator_sq = inv_denominator * inv_denominator;
+            const tilt_j11 = (@as(VecSF, @splat(matrix[0][0])) * denominator -
+                numerator_x * @as(VecSF, @splat(matrix[2][0]))) * inv_denominator_sq;
+            const tilt_j12 = (@as(VecSF, @splat(matrix[0][1])) * denominator -
+                numerator_x * @as(VecSF, @splat(matrix[2][1]))) * inv_denominator_sq;
+            const tilt_j21 = (@as(VecSF, @splat(matrix[1][0])) * denominator -
+                numerator_y * @as(VecSF, @splat(matrix[2][0]))) * inv_denominator_sq;
+            const tilt_j22 = (@as(VecSF, @splat(matrix[1][1])) * denominator -
+                numerator_y * @as(VecSF, @splat(matrix[2][1]))) * inv_denominator_sq;
+            const lens_j11 = j11;
+            const lens_j12 = j12;
+            const lens_j21 = j21;
+            const lens_j22 = j22;
+            j11 = tilt_j11 * lens_j11 + tilt_j12 * lens_j21;
+            j12 = tilt_j11 * lens_j12 + tilt_j12 * lens_j22;
+            j21 = tilt_j21 * lens_j11 + tilt_j22 * lens_j21;
+            j22 = tilt_j21 * lens_j12 + tilt_j22 * lens_j22;
+            x_d = numerator_x * inv_denominator;
+            y_d = numerator_y * inv_denominator;
+        }
+    }
 
     return .{
         .x_d = x_d,

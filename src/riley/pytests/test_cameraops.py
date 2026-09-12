@@ -1,10 +1,35 @@
 """Tests for camera framing and positioning operations."""
 
 import math
+from pathlib import Path
 import numpy as np
 import pytest
 
 import riley
+
+
+def test_extended_distortion_camera_io_roundtrip(tmp_path: Path) -> None:
+    camera = riley.Camera(
+        pixels_num=(100, 80),
+        pixels_size=(1.0e-5, 1.1e-5),
+        focal_length=0.05,
+        distortion_model=2,
+        distortion_s1=1.1e-3,
+        distortion_s2=-1.2e-3,
+        distortion_s3=1.3e-3,
+        distortion_s4=-1.4e-3,
+        distortion_tau_x=0.021,
+        distortion_tau_y=-0.034,
+    )
+    riley.save_camera(str(tmp_path), "camera.csv", 0, camera)
+    loaded = riley.load_camera(str(tmp_path), "camera.csv")
+
+    assert loaded.distortion_s1 == pytest.approx(camera.distortion_s1)
+    assert loaded.distortion_s2 == pytest.approx(camera.distortion_s2)
+    assert loaded.distortion_s3 == pytest.approx(camera.distortion_s3)
+    assert loaded.distortion_s4 == pytest.approx(camera.distortion_s4)
+    assert loaded.distortion_tau_x == pytest.approx(camera.distortion_tau_x)
+    assert loaded.distortion_tau_y == pytest.approx(camera.distortion_tau_y)
 
 
 def test_coverage_and_fov_scale_roundtrip() -> None:

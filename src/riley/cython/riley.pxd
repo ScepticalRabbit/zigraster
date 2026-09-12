@@ -73,6 +73,12 @@ cdef extern from "riley.h":
         double distortion_k6
         double distortion_p1
         double distortion_p2
+        double distortion_s1
+        double distortion_s2
+        double distortion_s3
+        double distortion_s4
+        double distortion_tau_x
+        double distortion_tau_y
         uint32_t distortion_poly_order
         uint8_t distortion_poly_has_forward
         uint8_t distortion_poly_has_inv

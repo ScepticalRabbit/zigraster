@@ -215,6 +215,7 @@ pub const DistortionTol = struct {
     resid: Scal = 1e-10,
     delta: Scal = 1e-10,
     det: Scal = 1e-12,
+    tilt_identity: Scal = 1e-12,
 };
 
 pub const NewtonSeedTol = struct {
@@ -297,6 +298,7 @@ pub const tol_f32 = Tol{
         .resid = 1e-5,
         .delta = 1e-5,
         .det = 1e-7,
+        .tilt_identity = 1e-12,
     },
     .newton_seed = .{
         .det = 1e-7,

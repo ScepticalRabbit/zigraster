@@ -485,6 +485,28 @@ fn parseOptionalU8Value(
     return def;
 }
 
+fn parseOptionalFloatValue(
+    kv: *const std.StringHashMap([]const u8),
+    key: []const u8,
+    def: F,
+) !F {
+    if (kv.get(key)) |value| return std.fmt.parseFloat(F, value);
+    return def;
+}
+
+fn writeExtendedDistortion(
+    writer: *std.Io.Writer,
+    model: ?cam.BrownConradyExt,
+) !void {
+    const ext = model orelse cam.BrownConradyExt{};
+    try writer.print("{s},{d:.12}\n", .{ "s1", ext.s1 });
+    try writer.print("{s},{d:.12}\n", .{ "s2", ext.s2 });
+    try writer.print("{s},{d:.12}\n", .{ "s3", ext.s3 });
+    try writer.print("{s},{d:.12}\n", .{ "s4", ext.s4 });
+    try writer.print("{s},{d:.12}\n", .{ "tau_x", ext.tau_x });
+    try writer.print("{s},{d:.12}\n", .{ "tau_y", ext.tau_y });
+}
+
 fn parsePolynomialMap(
     kv: *const std.StringHashMap([]const u8),
     prefix: []const u8,
@@ -555,6 +577,7 @@ fn writeDistortion(
             try writer.print("{s},{d:.12}\n", .{ "k6", 0.0 });
             try writer.print("{s},{d:.12}\n", .{ "p1", 0.0 });
             try writer.print("{s},{d:.12}\n", .{ "p2", 0.0 });
+            try writeExtendedDistortion(writer, null);
             try writePolynomialMetadata(writer, null);
         },
         .brown_conrady => |model| {
@@ -570,6 +593,7 @@ fn writeDistortion(
             try writer.print("{s},{d:.12}\n", .{ "k6", 0.0 });
             try writer.print("{s},{d:.12}\n", .{ "p1", model.p1 });
             try writer.print("{s},{d:.12}\n", .{ "p2", model.p2 });
+            try writeExtendedDistortion(writer, null);
             try writePolynomialMetadata(writer, null);
         },
         .brown_conrady_ext => |model| {
@@ -585,6 +609,7 @@ fn writeDistortion(
             try writer.print("{s},{d:.12}\n", .{ "k6", model.k6 });
             try writer.print("{s},{d:.12}\n", .{ "p1", model.p1 });
             try writer.print("{s},{d:.12}\n", .{ "p2", model.p2 });
+            try writeExtendedDistortion(writer, model);
             try writePolynomialMetadata(writer, null);
         },
         .polynomial => |poly| {
@@ -597,6 +622,7 @@ fn writeDistortion(
             try writer.print("{s},{d:.12}\n", .{ "k6", 0.0 });
             try writer.print("{s},{d:.12}\n", .{ "p1", 0.0 });
             try writer.print("{s},{d:.12}\n", .{ "p2", 0.0 });
+            try writeExtendedDistortion(writer, null);
             try writePolynomialMetadata(writer, poly);
         },
         .brown_conrady_polynomial => |chain| {
@@ -612,6 +638,7 @@ fn writeDistortion(
             try writer.print("{s},{d:.12}\n", .{ "k6", 0.0 });
             try writer.print("{s},{d:.12}\n", .{ "p1", chain.brown_conrady.p1 });
             try writer.print("{s},{d:.12}\n", .{ "p2", chain.brown_conrady.p2 });
+            try writeExtendedDistortion(writer, null);
             try writePolynomialMetadata(writer, chain.polynomial);
         },
         .brown_conrady_ext_polynomial => |chain| {
@@ -651,6 +678,7 @@ fn writeDistortion(
                 "p2",
                 chain.brown_conrady_ext.p2,
             });
+            try writeExtendedDistortion(writer, chain.brown_conrady_ext);
             try writePolynomialMetadata(writer, chain.polynomial);
         },
     }
@@ -683,6 +711,12 @@ fn loadDistortion(
             .k6 = try std.fmt.parseFloat(F, try requireValue(kv, "k6")),
             .p1 = try std.fmt.parseFloat(F, try requireValue(kv, "p1")),
             .p2 = try std.fmt.parseFloat(F, try requireValue(kv, "p2")),
+            .s1 = try parseOptionalFloatValue(kv, "s1", 0.0),
+            .s2 = try parseOptionalFloatValue(kv, "s2", 0.0),
+            .s3 = try parseOptionalFloatValue(kv, "s3", 0.0),
+            .s4 = try parseOptionalFloatValue(kv, "s4", 0.0),
+            .tau_x = try parseOptionalFloatValue(kv, "tau_x", 0.0),
+            .tau_y = try parseOptionalFloatValue(kv, "tau_y", 0.0),
         } };
     }
     if (std.mem.eql(u8, model_name, "polynomial")) {
@@ -711,6 +745,12 @@ fn loadDistortion(
                 .k6 = try std.fmt.parseFloat(F, try requireValue(kv, "k6")),
                 .p1 = try std.fmt.parseFloat(F, try requireValue(kv, "p1")),
                 .p2 = try std.fmt.parseFloat(F, try requireValue(kv, "p2")),
+                .s1 = try parseOptionalFloatValue(kv, "s1", 0.0),
+                .s2 = try parseOptionalFloatValue(kv, "s2", 0.0),
+                .s3 = try parseOptionalFloatValue(kv, "s3", 0.0),
+                .s4 = try parseOptionalFloatValue(kv, "s4", 0.0),
+                .tau_x = try parseOptionalFloatValue(kv, "tau_x", 0.0),
+                .tau_y = try parseOptionalFloatValue(kv, "tau_y", 0.0),
             },
             .polynomial = polynomial orelse return error.MissingPolynomialMap,
         } };

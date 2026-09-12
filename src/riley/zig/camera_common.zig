@@ -230,7 +230,7 @@ pub fn CameraPreparedType(comptime CameraBackend: type) type {
                 .image_dist = image_dist,
                 .cam_to_world_mat = cam_to_world_mat,
                 .world_to_cam_mat = world_to_cam_mat,
-                .distortion = input.distortion,
+                .distortion = try cm.prepareDistortionModel(input.distortion),
                 .psf = input.psf,
                 .prep_psf = try cm.preparePSF(
                     allocator,

@@ -97,20 +97,55 @@ pub const BrownConradyExt = struct {
     k6: F = 0,
     p1: F = 0,
     p2: F = 0,
+    s1: F = 0,
+    s2: F = 0,
+    s3: F = 0,
+    s4: F = 0,
+    tau_x: F = 0,
+    tau_y: F = 0,
+    tilt_matrix: [3][3]F = identity_mat33,
+    tilt_matrix_inv: [3][3]F = identity_mat33,
+    tilt_prepared: bool = false,
+    tilt_active: bool = false,
+
+    pub fn prepare(self: BrownConradyExt) !BrownConradyExt {
+        var prepared = self;
+        prepared.tilt_active = @abs(self.tau_x) > tol.distortion.tilt_identity or
+            @abs(self.tau_y) > tol.distortion.tilt_identity;
+        if (prepared.tilt_active) {
+            prepared.tilt_matrix = calcTiltMatrix(self.tau_x, self.tau_y);
+            prepared.tilt_matrix_inv = invertMat33(prepared.tilt_matrix) orelse
+                return error.SingularTiltProjection;
+        } else {
+            prepared.tilt_matrix = identity_mat33;
+            prepared.tilt_matrix_inv = identity_mat33;
+        }
+        prepared.tilt_prepared = true;
+        return prepared;
+    }
+
+    pub fn preparedTiltActive(self: BrownConradyExt) bool {
+        return if (self.tilt_prepared)
+            self.tilt_active
+        else
+            @abs(self.tau_x) > tol.distortion.tilt_identity or
+                @abs(self.tau_y) > tol.distortion.tilt_identity;
+    }
+
+    pub fn preparedTiltMatrix(self: BrownConradyExt) [3][3]F {
+        return if (self.tilt_prepared)
+            self.tilt_matrix
+        else
+            calcTiltMatrix(self.tau_x, self.tau_y);
+    }
 
     pub fn forward(
         self: BrownConradyExt,
         x: F,
         y: F,
     ) [2]F {
-        const radial = self.calcRadialScaleAndDerivative(x, y);
-        return distortionForwardFromRadialScale(
-            x,
-            y,
-            radial.radial_scale,
-            self.p1,
-            self.p2,
-        );
+        const lens = self.forwardLensWithJac(x, y);
+        return self.applyTilt(lens.x_d, lens.y_d).coords;
     }
 
     pub fn forwardWithJac(
@@ -118,15 +153,13 @@ pub const BrownConradyExt = struct {
         x: F,
         y: F,
     ) DistortionForwardJacResult {
-        const radial = self.calcRadialScaleAndDerivative(x, y);
-        return distortionForwardWithJacFromRadialScale(
-            x,
-            y,
-            radial.radial_scale,
-            radial.dradial_dr2,
-            self.p1,
-            self.p2,
-        );
+        const lens = self.forwardLensWithJac(x, y);
+        const tilt = self.applyTilt(lens.x_d, lens.y_d);
+        return .{
+            .x_d = tilt.coords[0],
+            .y_d = tilt.coords[1],
+            .jac = mulJac22(tilt.jac, lens.jac),
+        };
     }
 
     pub fn inv(
@@ -134,7 +167,53 @@ pub const BrownConradyExt = struct {
         x_d: F,
         y_d: F,
     ) !DistortionInvResult {
-        return invFromForwardWithJac(BrownConradyExt, self, x_d, y_d);
+        const untilted = try self.removeTilt(x_d, y_d);
+        return invBrownConradyExtLens(self, untilted[0], untilted[1]);
+    }
+
+    fn applyTilt(self: BrownConradyExt, x: F, y: F) TiltResult {
+        if (!self.preparedTiltActive()) {
+            return .{
+                .coords = .{ x, y },
+                .jac = .{ .{ 1.0, 0.0 }, .{ 0.0, 1.0 } },
+            };
+        }
+        return applyHomography(self.preparedTiltMatrix(), x, y) catch unreachable;
+    }
+
+    fn removeTilt(self: BrownConradyExt, x: F, y: F) ![2]F {
+        if (!self.preparedTiltActive()) return .{ x, y };
+        const inverse = if (self.tilt_prepared)
+            self.tilt_matrix_inv
+        else
+            invertMat33(self.preparedTiltMatrix()) orelse
+                return error.SingularTiltProjection;
+        return (try applyHomography(inverse, x, y)).coords;
+    }
+
+    fn forwardLensWithJac(
+        self: BrownConradyExt,
+        x: F,
+        y: F,
+    ) DistortionForwardJacResult {
+        const radial = self.calcRadialScaleAndDerivative(x, y);
+        var result = distortionForwardWithJacFromRadialScale(
+            x,
+            y,
+            radial.radial_scale,
+            radial.dradial_dr2,
+            self.p1,
+            self.p2,
+        );
+        const r2 = x * x + y * y;
+        const r4 = r2 * r2;
+        result.x_d += self.s1 * r2 + self.s2 * r4;
+        result.y_d += self.s3 * r2 + self.s4 * r4;
+        result.jac[0][0] += 2.0 * x * (self.s1 + 2.0 * self.s2 * r2);
+        result.jac[0][1] += 2.0 * y * (self.s1 + 2.0 * self.s2 * r2);
+        result.jac[1][0] += 2.0 * x * (self.s3 + 2.0 * self.s4 * r2);
+        result.jac[1][1] += 2.0 * y * (self.s3 + 2.0 * self.s4 * r2);
+        return result;
     }
 
     pub fn calcRadialScaleAndDerivative(
@@ -159,6 +238,127 @@ pub const BrownConradyExt = struct {
         };
     }
 };
+
+const TiltResult = struct {
+    coords: [2]F,
+    jac: [2][2]F,
+};
+
+const identity_mat33 = [3][3]F{
+    .{ 1.0, 0.0, 0.0 },
+    .{ 0.0, 1.0, 0.0 },
+    .{ 0.0, 0.0, 1.0 },
+};
+
+pub fn calcTiltMatrix(tau_x: F, tau_y: F) [3][3]F {
+    const cos_x = @cos(tau_x);
+    const sin_x = @sin(tau_x);
+    const cos_y = @cos(tau_y);
+    const sin_y = @sin(tau_y);
+    const r02 = -sin_y * cos_x;
+    const r12 = sin_x;
+    const r22 = cos_y * cos_x;
+    return .{
+        .{ r22 * cos_y - r02 * sin_y, r22 * sin_y * sin_x + r02 * cos_y * sin_x, 0.0 },
+        .{ -r12 * sin_y, r22 * cos_x + r12 * cos_y * sin_x, 0.0 },
+        .{ sin_y, -cos_y * sin_x, r22 },
+    };
+}
+
+fn applyHomography(matrix: [3][3]F, x: F, y: F) !TiltResult {
+    const numerator_x = matrix[0][0] * x + matrix[0][1] * y + matrix[0][2];
+    const numerator_y = matrix[1][0] * x + matrix[1][1] * y + matrix[1][2];
+    const denominator = matrix[2][0] * x + matrix[2][1] * y + matrix[2][2];
+    if (!std.math.isFinite(denominator) or @abs(denominator) < tol.distortion.det) {
+        return error.SingularTiltProjection;
+    }
+    const inv_denominator = 1.0 / denominator;
+    const out_x = numerator_x * inv_denominator;
+    const out_y = numerator_y * inv_denominator;
+    const inv_denominator_sq = inv_denominator * inv_denominator;
+    return .{
+        .coords = .{ out_x, out_y },
+        .jac = .{
+            .{
+                (matrix[0][0] * denominator - numerator_x * matrix[2][0]) * inv_denominator_sq,
+                (matrix[0][1] * denominator - numerator_x * matrix[2][1]) * inv_denominator_sq,
+            },
+            .{
+                (matrix[1][0] * denominator - numerator_y * matrix[2][0]) * inv_denominator_sq,
+                (matrix[1][1] * denominator - numerator_y * matrix[2][1]) * inv_denominator_sq,
+            },
+        },
+    };
+}
+
+fn invertMat33(matrix: [3][3]F) ?[3][3]F {
+    const det = matrix[0][0] * (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) -
+        matrix[0][1] * (matrix[1][0] * matrix[2][2] - matrix[1][2] * matrix[2][0]) +
+        matrix[0][2] * (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]);
+    if (!std.math.isFinite(det) or @abs(det) < tol.distortion.det) return null;
+    const inv_det = 1.0 / det;
+    return .{
+        .{
+            (matrix[1][1] * matrix[2][2] - matrix[1][2] * matrix[2][1]) * inv_det,
+            (matrix[0][2] * matrix[2][1] - matrix[0][1] * matrix[2][2]) * inv_det,
+            (matrix[0][1] * matrix[1][2] - matrix[0][2] * matrix[1][1]) * inv_det,
+        },
+        .{
+            (matrix[1][2] * matrix[2][0] - matrix[1][0] * matrix[2][2]) * inv_det,
+            (matrix[0][0] * matrix[2][2] - matrix[0][2] * matrix[2][0]) * inv_det,
+            (matrix[0][2] * matrix[1][0] - matrix[0][0] * matrix[1][2]) * inv_det,
+        },
+        .{
+            (matrix[1][0] * matrix[2][1] - matrix[1][1] * matrix[2][0]) * inv_det,
+            (matrix[0][1] * matrix[2][0] - matrix[0][0] * matrix[2][1]) * inv_det,
+            (matrix[0][0] * matrix[1][1] - matrix[0][1] * matrix[1][0]) * inv_det,
+        },
+    };
+}
+
+fn mulJac22(lhs: [2][2]F, rhs: [2][2]F) [2][2]F {
+    return .{
+        .{
+            lhs[0][0] * rhs[0][0] + lhs[0][1] * rhs[1][0],
+            lhs[0][0] * rhs[0][1] + lhs[0][1] * rhs[1][1],
+        },
+        .{
+            lhs[1][0] * rhs[0][0] + lhs[1][1] * rhs[1][0],
+            lhs[1][0] * rhs[0][1] + lhs[1][1] * rhs[1][1],
+        },
+    };
+}
+
+fn invBrownConradyExtLens(
+    distortion: BrownConradyExt,
+    x_d: F,
+    y_d: F,
+) !DistortionInvResult {
+    var x = x_d;
+    var y = y_d;
+    for (0..cfg.distortion_newton_iter_max) |_| {
+        const fwd = distortion.forwardLensWithJac(x, y);
+        const f0 = fwd.x_d - x_d;
+        const f1 = fwd.y_d - y_d;
+        if (@max(@abs(f0), @abs(f1)) < tol.distortion.resid) {
+            return .{ .x = x, .y = y };
+        }
+        const a = fwd.jac[0][0];
+        const b = fwd.jac[0][1];
+        const c = fwd.jac[1][0];
+        const d = fwd.jac[1][1];
+        const det = a * d - b * c;
+        if (@abs(det) < tol.distortion.det) return error.SingularJac;
+        const delta_x = (-f0 * d + b * f1) / det;
+        const delta_y = (c * f0 - a * f1) / det;
+        x += delta_x;
+        y += delta_y;
+        if (@max(@abs(delta_x), @abs(delta_y)) < tol.distortion.delta) {
+            return .{ .x = x, .y = y };
+        }
+    }
+    return error.DistortionInvFailed;
+}
 
 // --------------------------------------------------------------------------------------
 // Polynomial Distortion
@@ -374,6 +574,46 @@ pub const DistortionModel = union(enum) {
     brown_conrady_polynomial: BrownConradyPolynomial,
     brown_conrady_ext_polynomial: BrownConradyExtPolynomial,
 };
+
+pub fn prepareDistortionModel(model: DistortionModel) !DistortionModel {
+    return switch (model) {
+        .brown_conrady_ext => |brown| .{
+            .brown_conrady_ext = try brown.prepare(),
+        },
+        .brown_conrady_ext_polynomial => |chain| .{
+            .brown_conrady_ext_polynomial = .{
+                .brown_conrady_ext = try chain.brown_conrady_ext.prepare(),
+                .polynomial = chain.polynomial,
+            },
+        },
+        else => model,
+    };
+}
+
+test "BrownConradyExt prepared tilt matches direct evaluation" {
+    const direct = BrownConradyExt{
+        .k1 = -0.08,
+        .s1 = 1.2e-3,
+        .tau_x = 0.023,
+        .tau_y = -0.031,
+    };
+    const prepared = try direct.prepare();
+    const expected = direct.forward(0.47, -0.29);
+    const actual = prepared.forward(0.47, -0.29);
+    try std.testing.expectApproxEqAbs(expected[0], actual[0], 1.0e-14);
+    try std.testing.expectApproxEqAbs(expected[1], actual[1], 1.0e-14);
+    const recovered = try prepared.inv(actual[0], actual[1]);
+    try std.testing.expectApproxEqAbs(@as(F, 0.47), recovered.x, 2.0e-5);
+    try std.testing.expectApproxEqAbs(@as(F, -0.29), recovered.y, 2.0e-5);
+}
+
+test "BrownConradyExt rejects singular prepared tilt" {
+    const singular = BrownConradyExt{ .tau_y = std.math.pi / 2.0 };
+    try std.testing.expectError(
+        error.SingularTiltProjection,
+        singular.prepare(),
+    );
+}
 
 // --------------------------------------------------------------------------------------
 // Point Spread Func

@@ -23,5 +23,17 @@ The Zig stage writes selected rendered images and projected boundary-node metada
 writes the compact comparison CSV here. Riley-rendered images are diagnostic inputs, not the
 analytic authority.
 
+The distortion oracle is generated independently with OpenCV and NumPy:
+
+- `distortion_oracle_cases.csv` is the compact model manifest;
+- `distortion_oracle_points.csv` stores ideal, distorted, and inverse results;
+- `distortion_oracle_jacobians.csv` stores sparse reference Jacobians.
+
+The deterministic field spans approximately $x\in[-0.8,0.8]$ and
+$y\in[-0.6,0.6]$. It exercises individual and mixed radial, tangential,
+thin-prism, and sensor-tilt coefficients; every polynomial monomial; both map
+directions; and Brown--Conrady/polynomial compositions. The files were generated
+with NumPy 2.4.6 and OpenCV 5.0.0.
+
 This directory remains ignored by Git until the focused suite is approved as a committed core
 test suite.

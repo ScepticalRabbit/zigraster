@@ -8,6 +8,8 @@ import importlib.util
 from pathlib import Path
 from types import ModuleType
 
+from distortion_oracle import generate_distortion_oracles
+
 
 def get_repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
@@ -33,7 +35,7 @@ def get_case_specs() -> list[tuple[str, str, int]]:
     ]
 
 
-def generate_oracles() -> Path:
+def generate_oracles() -> list[Path]:
     repo_root = get_repo_root()
     input_root = repo_root / "out" / "verif_oracle_inputs"
     gold_root = repo_root / "gold" / "verif"
@@ -62,12 +64,13 @@ def generate_oracles() -> Path:
     with out_path.open("w", newline="") as out_file:
         writer = csv.writer(out_file, lineterminator="\n")
         writer.writerows(rows)
-    return out_path
+    return [out_path, *generate_distortion_oracles(gold_root)]
 
 
 def main() -> int:
-    out_path = generate_oracles()
-    print(f"Wrote {out_path}")
+    out_paths = generate_oracles()
+    for out_path in out_paths:
+        print(f"Wrote {out_path}")
     return 0
 
 

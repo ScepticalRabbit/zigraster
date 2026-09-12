@@ -28,6 +28,7 @@ dev = [
   "twine",
   "ziglang",
   "cython",
+  "opencv-python-headless",
 ]
 
 [tool.setuptools.packages.find]
@@ -46,4 +47,3 @@ riley = [
 
 [tool.pytest.ini_options]
 testpaths = ["src/riley/pytests"]
-

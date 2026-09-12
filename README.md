@@ -3,6 +3,12 @@
 
 We chose Zig because it gives us explicit memory control, strong compile-time specialisation and direct SIMD support. `Riley` uses `comptime` to generate specialised raster paths for geometry, shader and build-policy combinations so the hot loop avoids runtime dispatch.
 
+Camera distortion supports polynomial and Brown--Conrady models, including the
+OpenCV-compatible rational, tangential, thin-prism, and sensor-tilt terms. A
+Brown--Conrady model can be stacked before an identity-plus-displacement
+polynomial map; all coefficients act on normalized camera coordinates, and
+tilt angles are in radians.
+
 ## Getting Started: Zig
 `Riley` currently targets Zig `0.16.0`, available [here](https://ziglang.org/download/).
 
