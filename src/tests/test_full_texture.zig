@@ -14,6 +14,7 @@ const common_test = @import("../dev_support/tests.zig");
 const fullcase_tex = @import("fullcase_texture.zig");
 const gk = @import("../riley/zig/geometrykernels.zig");
 const mo = @import("../riley/zig/meshpipeline.zig");
+const ndarray = @import("../riley/zig/ndarray.zig");
 const policy = @import("../dev_support/testpolicy.zig");
 const rastcfg = @import("../riley/zig/rasterconfig.zig");
 const riley = @import("../riley/zig/riley.zig");
@@ -217,6 +218,9 @@ pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
     }
 
     try runTexSampConfigContractTests();
+    try runUVBoundaryDirectSamplingTests(allocator);
+    try runSmallTextureFilterSupportTests(allocator);
+    try runUVBoundaryRasterPipelineTests(allocator, io);
 }
 
 fn runTexSampConfigContractTests() !void {
@@ -251,3 +255,328 @@ fn runTexSampConfigContractTests() !void {
         try std.testing.expectEqual(cfg_valid.sample, sanitized.sample);
     }
 }
+
+fn runUVBoundaryDirectSamplingTests(allocator: std.mem.Allocator) !void {
+    @setEvalBranchQuota(buildconfig.comptime_eval_branch_quota);
+
+    var tex_u8 = try texops.Tex(u8, 1).init(allocator, 4, 4);
+    defer tex_u8.deinit(allocator);
+    for (0..4) |rr| {
+        for (0..4) |cc| {
+            const pixel_val = @as(u8, @intCast((rr * 4 + cc + 1) * 15));
+            tex_u8.setVal(0, rr, cc, pixel_val);
+        }
+    }
+
+    var tex_f64 = try texops.Tex(F, 3).init(allocator, 4, 4);
+    defer tex_f64.deinit(allocator);
+    for (0..4) |rr| {
+        for (0..4) |cc| {
+            const base_val = @as(F, @floatFromInt(rr * 4 + cc + 1)) / 16.0;
+            tex_f64.setVal(0, rr, cc, base_val);
+            tex_f64.setVal(1, rr, cc, base_val * 0.5);
+            tex_f64.setVal(2, rr, cc, 1.0 - base_val);
+        }
+    }
+
+    const exact_uvs = [_][2]F{
+        .{ 0.0, 0.0 },
+        .{ 1.0, 0.0 },
+        .{ 0.0, 1.0 },
+        .{ 1.0, 1.0 },
+    };
+
+    const near_uvs = [_][2]F{
+        .{ 1.0e-6, 1.0e-6 },
+        .{ 1.0 - 1.0e-6, 1.0 - 1.0e-6 },
+        .{ 0.001, 0.999 },
+        .{ 0.999, 0.001 },
+    };
+
+    const edge_support_uvs = [_][2]F{
+        .{ 0.02, 0.02 },
+        .{ 0.98, 0.98 },
+        .{ 0.02, 0.98 },
+        .{ 0.98, 0.02 },
+    };
+
+    const out_of_range_uvs = [_][2]F{
+        .{ -0.5, 0.5 },
+        .{ 1.5, 0.5 },
+        .{ 0.5, -2.0 },
+        .{ 0.5, 3.0 },
+        .{ -10.0, -10.0 },
+        .{ 10.0, 10.0 },
+    };
+
+    inline for (all_tex_samp_configs) |samp_cfg| {
+        for (exact_uvs) |uv_coord| {
+            const sample_mono = texops.sampScal(
+                1,
+                samp_cfg,
+                tex_u8,
+                uv_coord[0],
+                uv_coord[1],
+            );
+            try std.testing.expect(std.math.isFinite(sample_mono[0]));
+            try std.testing.expect(sample_mono[0] >= 0.0 and sample_mono[0] <= 255.0);
+
+            const sample_rgb = texops.sampScal(
+                3,
+                samp_cfg,
+                tex_f64,
+                uv_coord[0],
+                uv_coord[1],
+            );
+            for (0..3) |ch| {
+                try std.testing.expect(std.math.isFinite(sample_rgb[ch]));
+            }
+        }
+
+        for (near_uvs) |uv_coord| {
+            const sample_mono = texops.sampScal(
+                1,
+                samp_cfg,
+                tex_u8,
+                uv_coord[0],
+                uv_coord[1],
+            );
+            try std.testing.expect(std.math.isFinite(sample_mono[0]));
+
+            const sample_rgb = texops.sampScal(
+                3,
+                samp_cfg,
+                tex_f64,
+                uv_coord[0],
+                uv_coord[1],
+            );
+            for (0..3) |ch| {
+                try std.testing.expect(std.math.isFinite(sample_rgb[ch]));
+            }
+        }
+
+        for (edge_support_uvs) |uv_coord| {
+            const sample_mono = texops.sampScal(
+                1,
+                samp_cfg,
+                tex_u8,
+                uv_coord[0],
+                uv_coord[1],
+            );
+            try std.testing.expect(std.math.isFinite(sample_mono[0]));
+
+            const sample_rgb = texops.sampScal(
+                3,
+                samp_cfg,
+                tex_f64,
+                uv_coord[0],
+                uv_coord[1],
+            );
+            for (0..3) |ch| {
+                try std.testing.expect(std.math.isFinite(sample_rgb[ch]));
+            }
+        }
+
+        for (out_of_range_uvs) |uv_coord| {
+            const sample_mono = texops.sampScal(
+                1,
+                samp_cfg,
+                tex_u8,
+                uv_coord[0],
+                uv_coord[1],
+            );
+            try std.testing.expect(std.math.isFinite(sample_mono[0]));
+            try std.testing.expect(
+                sample_mono[0] >= 0.0 and sample_mono[0] <= 255.0,
+            );
+
+            const sample_rgb = texops.sampScal(
+                3,
+                samp_cfg,
+                tex_f64,
+                uv_coord[0],
+                uv_coord[1],
+            );
+            for (0..3) |ch| {
+                try std.testing.expect(std.math.isFinite(sample_rgb[ch]));
+            }
+        }
+
+        const sample_far_top_left = texops.sampScal(
+            1,
+            samp_cfg,
+            tex_u8,
+            -10.0,
+            -10.0,
+        );
+        try std.testing.expectApproxEqAbs(
+            @as(F, 15.0),
+            sample_far_top_left[0],
+            1.0e-3,
+        );
+
+        const sample_far_bottom_right = texops.sampScal(
+            1,
+            samp_cfg,
+            tex_u8,
+            10.0,
+            10.0,
+        );
+        try std.testing.expectApproxEqAbs(
+            @as(F, 240.0),
+            sample_far_bottom_right[0],
+            1.0e-3,
+        );
+    }
+}
+
+fn runSmallTextureFilterSupportTests(allocator: std.mem.Allocator) !void {
+    @setEvalBranchQuota(buildconfig.comptime_eval_branch_quota);
+
+    var tex_1x1 = try texops.Tex(u8, 1).init(allocator, 1, 1);
+    defer tex_1x1.deinit(allocator);
+    tex_1x1.setVal(0, 0, 0, 180);
+
+    var tex_2x2 = try texops.Tex(u16, 1).init(allocator, 2, 2);
+    defer tex_2x2.deinit(allocator);
+    tex_2x2.setVal(0, 0, 0, 1000);
+    tex_2x2.setVal(0, 0, 1, 2000);
+    tex_2x2.setVal(0, 1, 0, 3000);
+    tex_2x2.setVal(0, 1, 1, 4000);
+
+    var tex_3x3 = try texops.Tex(F, 1).init(allocator, 3, 3);
+    defer tex_3x3.deinit(allocator);
+    for (0..3) |rr| {
+        for (0..3) |cc| {
+            tex_3x3.setVal(0, rr, cc, @as(F, @floatFromInt(rr * 3 + cc + 1)) * 0.1);
+        }
+    }
+
+    const uv_eval_points = [_][2]F{
+        .{ -0.5, -0.5 },
+        .{ 0.0, 0.0 },
+        .{ 0.25, 0.75 },
+        .{ 0.5, 0.5 },
+        .{ 1.0, 1.0 },
+        .{ 1.5, 1.5 },
+    };
+
+    inline for (all_tex_samp_configs) |samp_cfg| {
+        for (uv_eval_points) |uv_coord| {
+            const sample_1x1 = texops.sampScal(
+                1,
+                samp_cfg,
+                tex_1x1,
+                uv_coord[0],
+                uv_coord[1],
+            );
+            try std.testing.expect(std.math.isFinite(sample_1x1[0]));
+            try std.testing.expectApproxEqAbs(@as(F, 180.0), sample_1x1[0], 1.0e-3);
+
+            const sample_2x2 = texops.sampScal(
+                1,
+                samp_cfg,
+                tex_2x2,
+                uv_coord[0],
+                uv_coord[1],
+            );
+            try std.testing.expect(std.math.isFinite(sample_2x2[0]));
+
+            const sample_3x3 = texops.sampScal(
+                1,
+                samp_cfg,
+                tex_3x3,
+                uv_coord[0],
+                uv_coord[1],
+            );
+            try std.testing.expect(std.math.isFinite(sample_3x3[0]));
+        }
+    }
+}
+
+fn runUVBoundaryRasterPipelineTests(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+) !void {
+    var prep = try common_full.prepareScene0(allocator, io, .quad4);
+    defer prep.deinit(allocator);
+
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const aa = arena.allocator();
+
+    const nodes_num = prep.sphere_uvs.array.dims[0];
+    var out_of_range_uv_buff = try aa.alloc(F, nodes_num * 2);
+    for (0..nodes_num) |node_idx| {
+        const u_base = prep.sphere_uvs.getU(node_idx);
+        const v_base = prep.sphere_uvs.getV(node_idx);
+        out_of_range_uv_buff[node_idx * 2 + 0] = u_base * 2.0 - 0.5;
+        out_of_range_uv_buff[node_idx * 2 + 1] = v_base * 2.0 - 0.5;
+    }
+    const out_of_range_uvs = try ndarray.NDArray(F).init(
+        aa,
+        out_of_range_uv_buff,
+        &[_]usize{ nodes_num, 2 },
+    );
+
+    var tex_small = try texops.Tex(u8, 1).init(aa, 2, 2);
+    tex_small.setVal(0, 0, 0, 50);
+    tex_small.setVal(0, 0, 1, 120);
+    tex_small.setVal(0, 1, 0, 180);
+    tex_small.setVal(0, 1, 1, 240);
+
+    const test_configs = [_]texops.TexSampConfig{
+        .{ .sample = .cubic_catmull_rom, .mode = .direct },
+        .{ .sample = .lanczos3, .mode = .lut },
+        .{ .sample = .quintic_bspline, .mode = .lut_lerp },
+    };
+
+    for (test_configs) |samp_cfg| {
+        const meshes = [_]MeshInput{
+            .{
+                .mesh_type = .quad4,
+                .coords = prep.sphere_coords,
+                .connect = prep.sphere_connect,
+                .disp = prep.sphere_disp,
+                .shader = .{
+                    .tex_u8 = .{
+                        .uvs = out_of_range_uvs,
+                        .tex = tex_small,
+                        .samp_cfg = samp_cfg,
+                        .normal_type = .none,
+                    },
+                },
+            },
+        };
+
+        var run_config = tcfg.getRasterConfig(.testing);
+        run_config.save_strategy = .memory;
+
+        const render_groups = [_]riley.RenderGroupSpec{
+            .{ .io = io, .workers = 1 },
+        };
+
+        const result = try riley.raster(
+            aa,
+            &render_groups,
+            &[_]CameraInput{prep.camera_input},
+            &meshes,
+            run_config,
+            null,
+        );
+
+        const render_result = result orelse return error.NoResult;
+        defer aa.free(render_result.slice);
+
+        var has_nonzero: bool = false;
+        for (render_result.slice) |pixel_val| {
+            try std.testing.expect(!std.math.isNan(pixel_val));
+            try std.testing.expect(!std.math.isInf(pixel_val));
+            if (pixel_val > 0.0) {
+                has_nonzero = true;
+            }
+        }
+        try std.testing.expect(has_nonzero);
+    }
+}
+

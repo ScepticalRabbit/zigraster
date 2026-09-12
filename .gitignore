@@ -37,6 +37,7 @@ debug/
 examples/
 pyout/
 refs/
+maths/
 
 # Don't commit large mesh, simulation or image files to the repo unless we have to
 *.ppm
