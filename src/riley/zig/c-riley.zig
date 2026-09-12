@@ -1254,7 +1254,11 @@ fn buildMeshInput(
                 errdefer tex_array.deinit(allocator);
                 built.mesh_input.shader = .{ .tex_f = .{
                     .uvs = uvs_array,
-                    .tex = texops.Tex(F, 1){ .array = tex_array, .rows_num = in_shader.tex.dim1, .cols_num = in_shader.tex.dim2 },
+                    .tex = texops.Tex(F, 1){
+                        .array = tex_array,
+                        .rows_num = in_shader.tex.dim1,
+                        .cols_num = in_shader.tex.dim2,
+                    },
                     .samp_cfg = samp_cfg,
                     .bits = bits,
                     .scaling = scaling,
@@ -1330,7 +1334,11 @@ fn buildMeshInput(
                 errdefer tex_array.deinit(allocator);
                 built.mesh_input.shader = .{ .tex_rgb_f = .{
                     .uvs = uvs_array,
-                    .tex = texops.Tex(F, 3){ .array = tex_array, .rows_num = in_shader.tex.dim1, .cols_num = in_shader.tex.dim2 },
+                    .tex = texops.Tex(F, 3){
+                        .array = tex_array,
+                        .rows_num = in_shader.tex.dim1,
+                        .cols_num = in_shader.tex.dim2,
+                    },
                     .samp_cfg = samp_cfg,
                     .bits = bits,
                     .scaling = scaling,

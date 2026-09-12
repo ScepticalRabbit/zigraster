@@ -12,7 +12,11 @@ def test_extended_distortion_camera_io_roundtrip(tmp_path: Path) -> None:
     camera = riley.Camera(
         pixels_num=(100, 80),
         pixels_size=(1.0e-5, 1.1e-5),
+        pos_world=(0.0, 0.0, 0.2),
+        rot_world=(0.0, 0.0, 0.0),
+        roi_cent_world=(0.0, 0.0, 0.0),
         focal_length=0.05,
+        sub_sample=1,
         distortion_model=2,
         distortion_s1=1.1e-3,
         distortion_s2=-1.2e-3,

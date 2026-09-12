@@ -33,7 +33,7 @@ The deterministic field spans approximately $x\in[-0.8,0.8]$ and
 $y\in[-0.6,0.6]$. It exercises individual and mixed radial, tangential,
 thin-prism, and sensor-tilt coefficients; every polynomial monomial; both map
 directions; and Brown--Conrady/polynomial compositions. The files were generated
-with NumPy 2.4.6 and OpenCV 5.0.0.
+with NumPy 2.5.3 and OpenCV 5.0.0.
 
 This directory remains ignored by Git until the focused suite is approved as a committed core
 test suite.

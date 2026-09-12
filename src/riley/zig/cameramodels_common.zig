@@ -103,40 +103,36 @@ pub const BrownConradyExt = struct {
     s4: F = 0,
     tau_x: F = 0,
     tau_y: F = 0,
-    tilt_matrix: [3][3]F = identity_mat33,
-    tilt_matrix_inv: [3][3]F = identity_mat33,
-    tilt_prepared: bool = false,
-    tilt_active: bool = false,
+    tilt_projection: ?TiltProjection = null,
 
     pub fn prepare(self: BrownConradyExt) !BrownConradyExt {
         var prepared = self;
-        prepared.tilt_active = @abs(self.tau_x) > tol.distortion.tilt_identity or
-            @abs(self.tau_y) > tol.distortion.tilt_identity;
-        if (prepared.tilt_active) {
-            prepared.tilt_matrix = calcTiltMatrix(self.tau_x, self.tau_y);
-            prepared.tilt_matrix_inv = invertMat33(prepared.tilt_matrix) orelse
+        if (prepared.isTiltActive()) {
+            const forward_matrix = calcTiltMatrix(self.tau_x, self.tau_y);
+            const inverse_matrix = invertMat33(forward_matrix) orelse
                 return error.SingularTiltProjection;
-        } else {
-            prepared.tilt_matrix = identity_mat33;
-            prepared.tilt_matrix_inv = identity_mat33;
+            prepared.tilt_projection = .{
+                .forward_matrix = forward_matrix,
+                .inverse_matrix = inverse_matrix,
+            };
         }
-        prepared.tilt_prepared = true;
         return prepared;
     }
 
-    pub fn preparedTiltActive(self: BrownConradyExt) bool {
-        return if (self.tilt_prepared)
-            self.tilt_active
-        else
-            @abs(self.tau_x) > tol.distortion.tilt_identity or
-                @abs(self.tau_y) > tol.distortion.tilt_identity;
+    pub fn isTiltActive(self: BrownConradyExt) bool {
+        return @abs(self.tau_x) > tol.distortion.tilt_identity or
+            @abs(self.tau_y) > tol.distortion.tilt_identity;
     }
 
-    pub fn preparedTiltMatrix(self: BrownConradyExt) [3][3]F {
-        return if (self.tilt_prepared)
-            self.tilt_matrix
-        else
-            calcTiltMatrix(self.tau_x, self.tau_y);
+    pub fn getForwardTiltMatrix(self: BrownConradyExt) [3][3]F {
+        if (self.tilt_projection) |projection| return projection.forward_matrix;
+        return calcTiltMatrix(self.tau_x, self.tau_y);
+    }
+
+    pub fn getInverseTiltMatrix(self: BrownConradyExt) ![3][3]F {
+        if (self.tilt_projection) |projection| return projection.inverse_matrix;
+        return invertMat33(calcTiltMatrix(self.tau_x, self.tau_y)) orelse
+            error.SingularTiltProjection;
     }
 
     pub fn forward(
@@ -172,23 +168,24 @@ pub const BrownConradyExt = struct {
     }
 
     fn applyTilt(self: BrownConradyExt, x: F, y: F) TiltResult {
-        if (!self.preparedTiltActive()) {
+        if (!self.isTiltActive()) {
             return .{
                 .coords = .{ x, y },
                 .jac = .{ .{ 1.0, 0.0 }, .{ 0.0, 1.0 } },
             };
         }
-        return applyHomography(self.preparedTiltMatrix(), x, y) catch unreachable;
+        return applyHomography(self.getForwardTiltMatrix(), x, y) catch .{
+            .coords = .{ std.math.nan(F), std.math.nan(F) },
+            .jac = .{
+                .{ std.math.nan(F), std.math.nan(F) },
+                .{ std.math.nan(F), std.math.nan(F) },
+            },
+        };
     }
 
     fn removeTilt(self: BrownConradyExt, x: F, y: F) ![2]F {
-        if (!self.preparedTiltActive()) return .{ x, y };
-        const inverse = if (self.tilt_prepared)
-            self.tilt_matrix_inv
-        else
-            invertMat33(self.preparedTiltMatrix()) orelse
-                return error.SingularTiltProjection;
-        return (try applyHomography(inverse, x, y)).coords;
+        if (!self.isTiltActive()) return .{ x, y };
+        return (try applyHomography(try self.getInverseTiltMatrix(), x, y)).coords;
     }
 
     fn forwardLensWithJac(
@@ -244,10 +241,9 @@ const TiltResult = struct {
     jac: [2][2]F,
 };
 
-const identity_mat33 = [3][3]F{
-    .{ 1.0, 0.0, 0.0 },
-    .{ 0.0, 1.0, 0.0 },
-    .{ 0.0, 0.0, 1.0 },
+pub const TiltProjection = struct {
+    forward_matrix: [3][3]F,
+    inverse_matrix: [3][3]F,
 };
 
 pub fn calcTiltMatrix(tau_x: F, tau_y: F) [3][3]F {
@@ -613,6 +609,28 @@ test "BrownConradyExt rejects singular prepared tilt" {
         error.SingularTiltProjection,
         singular.prepare(),
     );
+}
+
+test "BrownConradyExt inverse rejects singular tilt projection" {
+    const singular = BrownConradyExt{ .tau_y = std.math.pi / 2.0 };
+    try std.testing.expectError(
+        error.SingularTiltProjection,
+        singular.inv(0.2, -0.3),
+    );
+}
+
+test "BrownConradyExt rational pole propagates non-finite forward value" {
+    const pole = BrownConradyExt{ .k4 = -1.0 };
+    const result = pole.forward(1.0, 0.0);
+    try std.testing.expect(!std.math.isFinite(result[0]));
+}
+
+test "PolynomialMap inverse rejects a singular Jacobian" {
+    const singular = PolynomialMap{
+        .order = .linear,
+        .coeffs_u = .{ 0.0, -1.0, 0.0 } ++ [_]F{0.0} ** 7,
+    };
+    try std.testing.expectError(error.SingularJac, singular.inv(0.3, -0.2));
 }
 
 // --------------------------------------------------------------------------------------

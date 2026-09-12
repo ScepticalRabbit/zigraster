@@ -363,6 +363,9 @@ def evaluate_case(case: OracleCase, points: np.ndarray) -> np.ndarray:
 def evaluate_inverse_case(case: OracleCase, observed: np.ndarray) -> np.ndarray:
     """Evaluate Riley's declared inverse-stage order using independent tools."""
 
+    if case.forward_u is None or case.inverse_u is None:
+        raise ValueError("declared inverse evaluation requires both polynomial maps")
+
     values = observed
     if case.model in (
         MODEL_POLYNOMIAL,
@@ -456,7 +459,11 @@ def generate_distortion_oracles(gold_root: Path) -> list[Path]:
         writer = csv.writer(out_file, lineterminator="\n")
         for case_id, case in enumerate(cases):
             observed = evaluate_case(case, points)
-            recovered = evaluate_inverse_case(case, observed)
+            recovered = (
+                evaluate_inverse_case(case, observed)
+                if case.forward_u is not None and case.inverse_u is not None
+                else points
+            )
             for point_id, (ideal, distorted, inverse) in enumerate(
                 zip(points, observed, recovered)
             ):

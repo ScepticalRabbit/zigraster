@@ -156,8 +156,8 @@ pub fn forwardDistortionWithJacSIMD(
         j22 += @as(VecSF, @splat(2.0)) * y *
             (s3 + @as(VecSF, @splat(2.0)) * s4 * r2);
 
-        if (distortion.preparedTiltActive()) {
-            const matrix = distortion.preparedTiltMatrix();
+        if (distortion.isTiltActive()) {
+            const matrix = distortion.getForwardTiltMatrix();
             const numerator_x = @as(VecSF, @splat(matrix[0][0])) * x_d +
                 @as(VecSF, @splat(matrix[0][1])) * y_d +
                 @as(VecSF, @splat(matrix[0][2]));
@@ -419,6 +419,55 @@ fn powSmallSIMD(
 
 pub const DistortionModel = common.DistortionModel;
 
+fn removeTiltSIMD(
+    distortion: common.BrownConradyExt,
+    x_d: VecSF,
+    y_d: VecSF,
+    lane_active: VecSB,
+) !struct { x: VecSF, y: VecSF } {
+    if (!distortion.isTiltActive()) return .{ .x = x_d, .y = y_d };
+
+    const matrix = try distortion.getInverseTiltMatrix();
+    const numerator_x = @as(VecSF, @splat(matrix[0][0])) * x_d +
+        @as(VecSF, @splat(matrix[0][1])) * y_d +
+        @as(VecSF, @splat(matrix[0][2]));
+    const numerator_y = @as(VecSF, @splat(matrix[1][0])) * x_d +
+        @as(VecSF, @splat(matrix[1][1])) * y_d +
+        @as(VecSF, @splat(matrix[1][2]));
+    const denominator = @as(VecSF, @splat(matrix[2][0])) * x_d +
+        @as(VecSF, @splat(matrix[2][1])) * y_d +
+        @as(VecSF, @splat(matrix[2][2]));
+    const singular = @abs(denominator) < @as(VecSF, @splat(tol.distortion.det));
+    if (@reduce(.Or, lane_active & singular)) {
+        return error.SingularTiltProjection;
+    }
+    const inv_denominator = @as(VecSF, @splat(1.0)) / denominator;
+    return .{
+        .x = numerator_x * inv_denominator,
+        .y = numerator_y * inv_denominator,
+    };
+}
+
+fn invBrownConradyExtSIMD(
+    distortion: common.BrownConradyExt,
+    x_d: VecSF,
+    y_d: VecSF,
+    lane_active: VecSB,
+) !DistortionInvSIMDResult {
+    const untilted = try removeTiltSIMD(distortion, x_d, y_d, lane_active);
+    var lens = distortion;
+    lens.tau_x = 0.0;
+    lens.tau_y = 0.0;
+    lens.tilt_projection = null;
+    return invDistortionSIMD(
+        common.BrownConradyExt,
+        lens,
+        untilted.x,
+        untilted.y,
+        lane_active,
+    );
+}
+
 pub fn invDistortionModelSIMD(
     distortion: DistortionModel,
     v_x_d: VecSF,
@@ -434,8 +483,7 @@ pub fn invDistortionModelSIMD(
             v_y_d,
             v_lane_active,
         ),
-        .brown_conrady_ext => |bc_ext| invDistortionSIMD(
-            common.BrownConradyExt,
+        .brown_conrady_ext => |bc_ext| invBrownConradyExtSIMD(
             bc_ext,
             v_x_d,
             v_y_d,
@@ -469,8 +517,7 @@ pub fn invDistortionModelSIMD(
                 v_y_d,
                 v_lane_active,
             );
-            break :blk try invDistortionSIMD(
-                common.BrownConradyExt,
+            break :blk try invBrownConradyExtSIMD(
                 chain.brown_conrady_ext,
                 poly_inv.x,
                 poly_inv.y,
