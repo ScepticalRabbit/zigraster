@@ -30,7 +30,7 @@ REPRESENTATIVE_SHADER_LABEL = "Catmull--Rom LUT-lerp"
 REPRESENTATIVE_CASE_SUFFIX = "tex8_grey_cubic_catmull_rom_lut_lerp"
 
 ELEMENT_CASES = [
-    ("quad4", "quad4newton"),
+    ("quad4", "quad4"),
     ("tri6", "tri6"),
     ("quad8", "quad8"),
     ("quad9", "quad9"),

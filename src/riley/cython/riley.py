@@ -140,6 +140,7 @@ class RasterConfig:
     hull_mode: int = 1
     newton_seed_mode: int = 0
     newton_seed_reuse: int = 0
+    validate_input: int = 1
     report: int = 1
     tile_size_min: int = 1
     tile_size_max: int = 256
@@ -178,8 +179,7 @@ class MeshType(IntEnum):
     tri3 = 0
     tri3opt = 1
     tri6 = 2
-    quad4ibi = 3
-    quad4newton = 4
+    quad4 = 4
     quad8 = 5
     quad9 = 6
 
@@ -309,6 +309,12 @@ class NewtonSeedMode(IntEnum):
 class NewtonSeedReuse(IntEnum):
     off = 0
     last_converged = 1
+
+
+class ValidateInput(IntEnum):
+    off = 0
+    fast = 1
+    full = 2
 
 
 class CameraCoordSys(IntEnum):
@@ -561,6 +567,7 @@ def _make_raster_config(config: Any) -> cr.CRasterConfig:
     config_out.hull_mode = int(config.hull_mode)
     config_out.newton_seed_mode = int(config.newton_seed_mode)
     config_out.newton_seed_reuse = int(config.newton_seed_reuse)
+    config_out.validate_input = int(config.validate_input)
     config_out.report = int(config.report)
     config_out.tile_size_min = int(config.tile_size_min)
     config_out.tile_size_max = int(config.tile_size_max)

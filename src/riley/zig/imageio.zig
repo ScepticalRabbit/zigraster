@@ -1160,7 +1160,7 @@ test "Verify hand-written TIFF loader" {
     try saveMatAsImage(
         io,
         out_dir,
-        temp_test_dir ++ "/speckle-simple",
+        temp_test_dir ++ "/speckle_mono",
         &mat,
         .{ .format = .tiff, .bits = 8, .scaling = .none },
     );
@@ -1170,7 +1170,7 @@ test "Verify hand-written TIFF loader" {
         1,
         allocator,
         io,
-        temp_test_dir ++ "/speckle-simple.tiff",
+        temp_test_dir ++ "/speckle_mono.tiff",
         .tiff,
     );
     defer tex_zig.deinit(allocator);

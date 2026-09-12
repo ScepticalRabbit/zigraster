@@ -14,26 +14,26 @@ from pathlib import Path
 _SHAPE_NAMES = (
     "cube",
     "cylinder",
+    "sphere",
     "platewithhole",
     "platehole",
-    "multishape",
     "platewithhole2d",
     "platehole2d",
+    "platewithhole_2d",
 )
 _SHAPE_ELEM_TYPES = ("hex8", "hex20", "hex27", "tet4", "tet10")
 _2D_SHAPE_ELEM_TYPES = ("quad4", "quad8", "quad9", "tri3", "tri6")
-_MULTISHAPE_CASE_NAMES = (
-    "hex8_tet4",
-    "hex20_tet10",
-    "hex27_tet10",
-    "tet4_hex8",
-    "tet10_hex20",
-    "tet10_hex27",
+_SURF_ELEM_TYPES = (
+    "tri3",
+    "tri6",
+    "quad4",
+    "quad8",
+    "quad9",
 )
 _SPHERE200_CASE_NAMES = (
     "tri3_sphere200",
     "tri6_sphere200",
-    "quad4newton_sphere200",
+    "quad4_sphere200",
     "quad8_sphere200",
     "quad9_sphere200",
 )
@@ -72,13 +72,15 @@ def _resolve_data_path(
 
 
 def speckle_texture_path() -> Path:
-    return _resolve_data_path("textures/speckle.bmp", "texture/speckle.bmp")
+    return _resolve_data_path(
+        "textures/speckle_mono.bmp", "texture/speckle_mono.bmp"
+    )
 
 
 def cal_target_texture_path() -> Path:
     return _resolve_data_path(
-        "textures/cal_target-simple.tiff",
-        "texture/cal_target-simple.tiff",
+        "textures/cal_target.tiff",
+        "texture/cal_target.tiff",
     )
 
 
@@ -86,8 +88,19 @@ def texture_dir_path() -> Path:
     return _resolve_data_path("textures", "texture")
 
 
-def feature_zoo_path() -> Path:
-    return _resolve_data_path("feature_zoo", "data/feature_zoo")
+def _normalize_shape_name(shape: str) -> str:
+    shape_norm = shape.lower()
+    if shape_norm in ("platehole", "platewithhole"):
+        return "platewithhole"
+    if shape_norm in ("platehole2d", "platewithhole2d", "platewithhole_2d"):
+        return "platewithhole_2d"
+    if shape_norm in ("cube", "cylinder", "sphere"):
+        return shape_norm
+    raise ValueError(
+        f"Unsupported shape: {shape!r}. Expected one of "
+        "('cube', 'cylinder', 'sphere', 'platewithhole', "
+        "'platewithhole_2d')."
+    )
 
 
 def _normalize_shape_and_prefix(
@@ -95,37 +108,14 @@ def _normalize_shape_and_prefix(
     elem_type: str,
     pure: bool = False,
 ) -> tuple[str, str]:
-    shape_norm = shape.lower()
-    if shape_norm == "platehole":
-        shape_norm = "platewithhole"
-    elif shape_norm == "platehole2d":
-        shape_norm = "platewithhole2d"
+    shape_norm = _normalize_shape_name(shape)
 
-    if shape_norm not in (
-        "cube",
-        "cylinder",
-        "platewithhole",
-        "multishape",
-        "platewithhole2d",
-    ):
-        raise ValueError(
-            f"Unsupported shape: {shape!r}. Expected one of "
-            "('cube', 'cylinder', 'platewithhole', "
-            "'multishape', 'platewithhole2d')."
+    if shape_norm == "platewithhole_2d":
+        elem_norm = (
+            elem_type.lower()
+            .removeprefix("platewithhole_2d_")
+            .removeprefix("platewithhole2d_")
         )
-
-    if shape_norm == "multishape":
-        elem_norm = elem_type.lower().removeprefix("multishape_")
-        if elem_norm not in _MULTISHAPE_CASE_NAMES:
-            raise ValueError(
-                f"Unsupported multishape case: {elem_type!r}. "
-                f"Expected one of {_MULTISHAPE_CASE_NAMES}."
-            )
-        prefix = f"multishape_{elem_norm}"
-        return shape_norm, prefix
-
-    if shape_norm == "platewithhole2d":
-        elem_norm = elem_type.lower().removeprefix("platewithhole2d_")
         if elem_norm not in _2D_SHAPE_ELEM_TYPES:
             raise ValueError(
                 f"Unsupported 2D element type: {elem_type!r}. "
@@ -156,28 +146,35 @@ def _normalize_shape_and_prefix(
     return shape_norm, prefix
 
 
-def shape_dir_path(shape: str) -> Path:
-    shape_norm = shape.lower()
-    if shape_norm == "platehole":
-        shape_norm = "platewithhole"
-    elif shape_norm == "platehole2d":
-        shape_norm = "platewithhole2d"
-
-    if shape_norm not in (
-        "cube",
-        "cylinder",
-        "platewithhole",
-        "multishape",
-        "platewithhole2d",
-    ):
-        raise ValueError(
-            f"Unsupported shape: {shape!r}. Expected one of "
-            "('cube', 'cylinder', 'platewithhole', "
-            "'multishape', 'platewithhole2d')."
+def shape_dir_path(shape: str, kind: str = "vol") -> Path:
+    shape_norm = _normalize_shape_name(shape)
+    if shape_norm == "platewithhole_2d":
+        candidates = ("shapes/platewithhole_2d", "shapes/platewithhole2d")
+    elif kind == "surf":
+        candidates = (f"shapes/{shape_norm}_surf",)
+    else:
+        candidates = (
+            f"shapes/{shape_norm}_vol",
+            f"shapes/{shape_norm}",
         )
 
-    rel_path = f"shapes/{shape_norm}"
-    return _resolve_data_path(rel_path, f"data/{rel_path}")
+    for rel_path in candidates:
+        try:
+            return _resolve_data_path(rel_path, f"data/{rel_path}")
+        except FileNotFoundError:
+            continue
+
+    raise FileNotFoundError(
+        f"Shape directory for {shape_norm} ({kind}) could not be found."
+    )
+
+
+def shape_vol_dir_path(shape: str) -> Path:
+    return shape_dir_path(shape, kind="vol")
+
+
+def shape_surf_dir_path(shape: str) -> Path:
+    return shape_dir_path(shape, kind="surf")
 
 
 def shape_case_path(
@@ -187,7 +184,36 @@ def shape_case_path(
 ) -> Path:
     if elem_type is not None:
         _normalize_shape_and_prefix(shape, elem_type, pure=pure)
-    return shape_dir_path(shape)
+    return shape_vol_dir_path(shape)
+
+
+def _find_shape_file(
+    shape_norm: str,
+    filename: str,
+    kind: str = "vol",
+) -> Path:
+    if shape_norm == "platewithhole_2d":
+        candidates = (
+            "shapes/platewithhole_2d",
+            "shapes/platewithhole2d",
+        )
+    elif kind == "surf":
+        candidates = (f"shapes/{shape_norm}_surf",)
+    else:
+        candidates = (
+            f"shapes/{shape_norm}_vol",
+            f"shapes/{shape_norm}",
+        )
+    for rel_path in candidates:
+        pkg_file = _package_data_root_path() / rel_path / filename
+        if pkg_file.is_file():
+            return pkg_file
+        repo_file = _fallback_repo_data_path(f"data/{rel_path}/{filename}")
+        if repo_file.is_file():
+            return repo_file
+    raise FileNotFoundError(
+        f"Shape file '{filename}' for shape '{shape_norm}' ({kind}) not found."
+    )
 
 
 def shape_exodus_path(
@@ -198,16 +224,10 @@ def shape_exodus_path(
     shape_norm, prefix = _normalize_shape_and_prefix(
         shape, elem_type, pure=pure
     )
-    dir_path = shape_dir_path(shape_norm)
-    candidate = dir_path / f"{prefix}_out.e"
-    if candidate.is_file():
-        return candidate
-
-    alt_cand = dir_path / f"{prefix}.e"
-    if alt_cand.is_file():
-        return alt_cand
-
-    raise FileNotFoundError(f"Exodus file not found: {candidate}")
+    try:
+        return _find_shape_file(shape_norm, f"{prefix}_out.e")
+    except FileNotFoundError:
+        return _find_shape_file(shape_norm, f"{prefix}.e")
 
 
 def shape_coords_path(
@@ -218,12 +238,7 @@ def shape_coords_path(
     shape_norm, prefix = _normalize_shape_and_prefix(
         shape, elem_type, pure=pure
     )
-    dir_path = shape_dir_path(shape_norm)
-    candidate = dir_path / f"{prefix}_coords.csv"
-    if candidate.is_file():
-        return candidate
-
-    raise FileNotFoundError(f"Coords file not found: {candidate}")
+    return _find_shape_file(shape_norm, f"{prefix}_coords.csv")
 
 
 def shape_connectivity_path(
@@ -235,22 +250,14 @@ def shape_connectivity_path(
     shape_norm, prefix = _normalize_shape_and_prefix(
         shape, elem_type, pure=pure
     )
-    dir_path = shape_dir_path(shape_norm)
     if block is not None:
-        cand_block = dir_path / f"{prefix}_{block}_connectivity.csv"
-        if cand_block.is_file():
-            return cand_block
-    candidate = dir_path / f"{prefix}_connectivity.csv"
-    if candidate.is_file():
-        return candidate
-    if block is None and shape_norm == "multishape":
-        cand_cube = dir_path / f"{prefix}_cube_connectivity.csv"
-        if cand_cube.is_file():
-            return cand_cube
-
-    raise FileNotFoundError(
-        f"Connectivity file not found: {prefix} (block={block})"
-    )
+        try:
+            return _find_shape_file(
+                shape_norm, f"{prefix}_{block}_connectivity.csv"
+            )
+        except FileNotFoundError:
+            pass
+    return _find_shape_file(shape_norm, f"{prefix}_connectivity.csv")
 
 
 def shape_field_path(
@@ -262,12 +269,7 @@ def shape_field_path(
     shape_norm, prefix = _normalize_shape_and_prefix(
         shape, elem_type, pure=pure
     )
-    dir_path = shape_dir_path(shape_norm)
-    candidate = dir_path / f"{prefix}_{field_name}.csv"
-    if candidate.is_file():
-        return candidate
-
-    raise FileNotFoundError(f"Field file not found: {candidate}")
+    return _find_shape_file(shape_norm, f"{prefix}_{field_name}.csv")
 
 
 def shape_disp_path(
@@ -305,11 +307,7 @@ def shape_msh_path(
     shape_norm, prefix = _normalize_shape_and_prefix(
         shape, elem_type, pure=False
     )
-    dir_path = shape_dir_path(shape_norm)
-    candidate = dir_path / f"{prefix}.msh"
-    if candidate.is_file():
-        return candidate
-    raise FileNotFoundError(f"Mesh file not found: {candidate}")
+    return _find_shape_file(shape_norm, f"{prefix}.msh")
 
 
 def shape_geo_path(
@@ -322,11 +320,7 @@ def shape_geo_path(
     shape_norm, prefix = _normalize_shape_and_prefix(
         shape, elem_type, pure=False
     )
-    dir_path = shape_dir_path(shape_norm)
-    candidate = dir_path / f"{prefix}.geo"
-    if candidate.is_file():
-        return candidate
-    raise FileNotFoundError(f"Geo file not found: {candidate}")
+    return _find_shape_file(shape_norm, f"{prefix}.geo")
 
 
 def shape_moose_input_path(
@@ -337,20 +331,29 @@ def shape_moose_input_path(
     shape_norm, prefix = _normalize_shape_and_prefix(
         shape, elem_type, pure=pure
     )
-    dir_path = shape_dir_path(shape_norm)
-    candidate = dir_path / f"{prefix}.i"
-    if candidate.is_file():
-        return candidate
-    raise FileNotFoundError(f"MOOSE input file not found: {candidate}")
+    return _find_shape_file(shape_norm, f"{prefix}.i")
 
 
+def shape_surface_dataset_path(shape: str, surf_type: str) -> Path:
+    surf_dir = shape_surf_dir_path(shape)
+    type_norm = surf_type.lower()
+    sub_dir = surf_dir / type_norm
+    if sub_dir.is_dir():
+        return sub_dir
+    raise FileNotFoundError(
+        f"Surface dataset directory not found for {shape}/{surf_type} "
+        f"at {sub_dir}"
+    )
+
+
+# --- Cube helpers ---
 def cube_case_path(
     case_name: str | None = None,
     pure: bool = False,
 ) -> Path:
     if case_name is not None:
         _normalize_shape_and_prefix("cube", case_name, pure=pure)
-    return shape_dir_path("cube")
+    return shape_vol_dir_path("cube")
 
 
 def cube_exodus_path(case_name: str, pure: bool = False) -> Path:
@@ -389,8 +392,9 @@ def cube_moose_input_path(case_name: str, pure: bool = False) -> Path:
     return shape_moose_input_path("cube", case_name, pure=pure)
 
 
+# --- Cylinder helpers ---
 def cylinder_case_path() -> Path:
-    return shape_dir_path("cylinder")
+    return shape_vol_dir_path("cylinder")
 
 
 def cylinder_exodus_path(elem_type: str) -> Path:
@@ -425,8 +429,46 @@ def cylinder_moose_input_path(elem_type: str) -> Path:
     return shape_moose_input_path("cylinder", elem_type, pure=False)
 
 
+# --- Sphere helpers ---
+def sphere_case_path() -> Path:
+    return shape_vol_dir_path("sphere")
+
+
+def sphere_exodus_path(elem_type: str) -> Path:
+    return shape_exodus_path("sphere", elem_type)
+
+
+def sphere_coords_path(elem_type: str) -> Path:
+    return shape_coords_path("sphere", elem_type)
+
+
+def sphere_connectivity_path(elem_type: str) -> Path:
+    return shape_connectivity_path("sphere", elem_type)
+
+
+def sphere_disp_path(elem_type: str, component: str = "x") -> Path:
+    return shape_disp_path("sphere", elem_type, component)
+
+
+def sphere_temperature_path(elem_type: str) -> Path:
+    return shape_temperature_path("sphere", elem_type)
+
+
+def sphere_msh_path(elem_type: str) -> Path:
+    return shape_msh_path("sphere", elem_type, pure=False)
+
+
+def sphere_geo_path(elem_type: str) -> Path:
+    return shape_geo_path("sphere", elem_type, pure=False)
+
+
+def sphere_moose_input_path(elem_type: str) -> Path:
+    return shape_moose_input_path("sphere", elem_type, pure=False)
+
+
+# --- Plate with hole helpers ---
 def platewithhole_case_path() -> Path:
-    return shape_dir_path("platewithhole")
+    return shape_vol_dir_path("platewithhole")
 
 
 def platewithhole_exodus_path(elem_type: str) -> Path:
@@ -461,86 +503,43 @@ def platewithhole_moose_input_path(elem_type: str) -> Path:
     return shape_moose_input_path("platewithhole", elem_type, pure=False)
 
 
+# --- 2D Plate with hole helpers ---
 def platewithhole2d_case_path() -> Path:
-    return shape_dir_path("platewithhole2d")
+    return shape_vol_dir_path("platewithhole_2d")
 
 
 def platewithhole2d_exodus_path(elem_type: str) -> Path:
-    return shape_exodus_path("platewithhole2d", elem_type)
+    return shape_exodus_path("platewithhole_2d", elem_type)
 
 
 def platewithhole2d_coords_path(elem_type: str) -> Path:
-    return shape_coords_path("platewithhole2d", elem_type)
+    return shape_coords_path("platewithhole_2d", elem_type)
 
 
 def platewithhole2d_connectivity_path(elem_type: str) -> Path:
-    return shape_connectivity_path("platewithhole2d", elem_type)
+    return shape_connectivity_path("platewithhole_2d", elem_type)
 
 
 def platewithhole2d_disp_path(
     elem_type: str, component: str = "x"
 ) -> Path:
-    return shape_disp_path("platewithhole2d", elem_type, component)
+    return shape_disp_path("platewithhole_2d", elem_type, component)
 
 
 def platewithhole2d_temperature_path(elem_type: str) -> Path:
-    return shape_temperature_path("platewithhole2d", elem_type)
+    return shape_temperature_path("platewithhole_2d", elem_type)
 
 
 def platewithhole2d_msh_path(elem_type: str) -> Path:
-    return shape_msh_path("platewithhole2d", elem_type, pure=False)
+    return shape_msh_path("platewithhole_2d", elem_type, pure=False)
 
 
 def platewithhole2d_geo_path(elem_type: str) -> Path:
-    return shape_geo_path("platewithhole2d", elem_type, pure=False)
+    return shape_geo_path("platewithhole_2d", elem_type, pure=False)
 
 
 def platewithhole2d_moose_input_path(elem_type: str) -> Path:
-    return shape_moose_input_path(
-        "platewithhole2d", elem_type, pure=False
-    )
-
-
-def multishape_case_path() -> Path:
-    return shape_dir_path("multishape")
-
-
-def multishape_exodus_path(case_name: str) -> Path:
-    return shape_exodus_path("multishape", case_name)
-
-
-def multishape_coords_path(case_name: str) -> Path:
-    return shape_coords_path("multishape", case_name)
-
-
-def multishape_connectivity_path(
-    case_name: str,
-    block: str = "cube",
-) -> Path:
-    return shape_connectivity_path("multishape", case_name, block=block)
-
-
-def multishape_disp_path(
-    case_name: str,
-    component: str = "x",
-) -> Path:
-    return shape_disp_path("multishape", case_name, component)
-
-
-def multishape_temperature_path(case_name: str) -> Path:
-    return shape_temperature_path("multishape", case_name)
-
-
-def multishape_msh_path(case_name: str) -> Path:
-    return shape_msh_path("multishape", case_name, pure=False)
-
-
-def multishape_geo_path(case_name: str) -> Path:
-    return shape_geo_path("multishape", case_name, pure=False)
-
-
-def multishape_moose_input_path(case_name: str) -> Path:
-    return shape_moose_input_path("multishape", case_name, pure=False)
+    return shape_moose_input_path("platewithhole_2d", elem_type, pure=False)
 
 
 def sphere200_case_path(case_name: str = "tri6_sphere200") -> Path:
@@ -612,16 +611,6 @@ __all__ = [
     "cylinder_moose_input_path",
     "cylinder_msh_path",
     "cylinder_temperature_path",
-    "feature_zoo_path",
-    "multishape_case_path",
-    "multishape_connectivity_path",
-    "multishape_coords_path",
-    "multishape_disp_path",
-    "multishape_exodus_path",
-    "multishape_geo_path",
-    "multishape_moose_input_path",
-    "multishape_msh_path",
-    "multishape_temperature_path",
     "platehole_csv_case_path",
     "platehole_exodus_path",
     "platewithhole2d_case_path",
@@ -654,9 +643,21 @@ __all__ = [
     "shape_geo_path",
     "shape_moose_input_path",
     "shape_msh_path",
+    "shape_surf_dir_path",
+    "shape_surface_dataset_path",
     "shape_temperature_path",
+    "shape_vol_dir_path",
     "speckle_texture_path",
     "sphere200_case_path",
+    "sphere_case_path",
+    "sphere_connectivity_path",
+    "sphere_coords_path",
+    "sphere_disp_path",
+    "sphere_exodus_path",
+    "sphere_geo_path",
+    "sphere_moose_input_path",
+    "sphere_msh_path",
+    "sphere_temperature_path",
     "stereocal_case_path",
     "texture_dir_path",
 ]

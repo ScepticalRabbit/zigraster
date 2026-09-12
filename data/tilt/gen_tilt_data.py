@@ -113,8 +113,7 @@ def generate_fullscreen_tilt(etype, out_dir):
     elem_type = {
         "tri3": meshconv.EElementType.TRI3,
         "tri6": meshconv.EElementType.TRI6,
-        "quad4ibi": meshconv.EElementType.QUAD4,
-        "quad4newton": meshconv.EElementType.QUAD4,
+        "quad4": meshconv.EElementType.QUAD4,
         "quad8": meshconv.EElementType.QUAD8,
         "quad9": meshconv.EElementType.QUAD9,
     }[etype]
@@ -133,14 +132,14 @@ def generate_fullscreen_tilt(etype, out_dir):
     save_csv(f"{out_dir}/field.csv", compute_rgb_fields(tilted_coords))
     save_csv(f"{out_dir}/uvs.csv", compute_uvs(tilted_coords))
 
+
 if __name__ == "__main__":
     elements = [
         "tri3",
         "tri6",
-        "quad4ibi",
-        "quad4newton",
+        "quad4",
         "quad8",
-        "quad9"
+        "quad9",
     ]
     for et in elements:
         print(f"Generating tilted data for {et}...")

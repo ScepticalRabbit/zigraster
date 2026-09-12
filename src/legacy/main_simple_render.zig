@@ -26,15 +26,14 @@ pub fn main(init: std.process.Init) !void {
         1,
         aa,
         io,
-        "texture/speckle-simple.tiff",
+        "texture/speckle_mono.tiff",
         .tiff,
     );
 
     const mesh_types = [_]gk.MeshType{
         .tri3,
         .tri6,
-        .quad4ibi,
-        .quad4newton,
+        .quad4,
         .quad8,
         .quad9,
     };

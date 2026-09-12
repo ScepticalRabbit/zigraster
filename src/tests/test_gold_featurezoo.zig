@@ -1,0 +1,299 @@
+// --------------------------------------------------------------------------
+// Riley: A High Performance Rasteriser for DIC UQ
+//
+// Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
+// Licensed under the MIT License (see LICENSE file for details)
+//
+// Authors: scepticalrabbit (Lloyd Fletcher)
+// --------------------------------------------------------------------------
+const std = @import("std");
+const buildconfig = @import("../riley/zig/buildconfig.zig");
+const camera = @import("../riley/zig/camera.zig");
+const common = @import("../dev_support/tests.zig");
+const gengold_zoo = @import("../gengold/gen_gold_featurezoo.zig");
+const gk = @import("../riley/zig/geometrykernels.zig");
+const iio = @import("../riley/zig/imageio.zig");
+const mo = @import("../riley/zig/meshpipeline.zig");
+const orch = @import("../dev_support/orchestration.zig");
+const policy = @import("../dev_support/testpolicy.zig");
+const rastcfg = @import("../riley/zig/rasterconfig.zig");
+const riley = @import("../riley/zig/riley.zig");
+const tcfg = @import("../dev_support/testconfig.zig");
+const texops = @import("../riley/zig/textureops.zig");
+
+const F = buildconfig.F;
+const CameraInput = camera.CameraInput;
+const MeshInput = mo.MeshInput;
+const Timestamp = std.Io.Clock.Timestamp;
+
+pub const ZooThreadingCase = struct {
+    name: []const u8,
+    render_mode: rastcfg.RenderMode = .in_order,
+    buffer_mode: rastcfg.BufferMode = .tile_local,
+    max_geom_workers_per_job: u16 = 1,
+    max_raster_workers_per_job: u16 = 1,
+    frame_batch_size_per_group: u16 = 1,
+    workers_per_group: []const u16,
+};
+
+pub const ZooColorMode = enum {
+    mono,
+    rgb,
+};
+
+pub const ZooInput = union(ZooColorMode) {
+    mono: texops.Tex(u8, 1),
+    rgb: texops.Tex(u8, 3),
+};
+
+pub const zoo_threading_cases = [_]ZooThreadingCase{
+    .{
+        .name = "1grp_1geom_1rast",
+        .workers_per_group = &.{1},
+        .max_geom_workers_per_job = 1,
+        .max_raster_workers_per_job = 1,
+        .buffer_mode = .tile_local,
+        .render_mode = .in_order,
+    },
+    .{
+        .name = "1grp_4geom_4rast",
+        .workers_per_group = &.{4},
+        .max_geom_workers_per_job = 4,
+        .max_raster_workers_per_job = 4,
+        .buffer_mode = .tile_local,
+        .render_mode = .in_order,
+    },
+    .{
+        .name = "1grp_1geom_4rast_tilelocal",
+        .workers_per_group = &.{4},
+        .max_geom_workers_per_job = 1,
+        .max_raster_workers_per_job = 4,
+        .buffer_mode = .tile_local,
+        .render_mode = .in_order,
+    },
+    .{
+        .name = "1grp_1geom_4rast_globalsubpx",
+        .workers_per_group = &.{4},
+        .max_geom_workers_per_job = 1,
+        .max_raster_workers_per_job = 4,
+        .buffer_mode = .global_subpx_full,
+        .render_mode = .in_order,
+    },
+    .{
+        .name = "1grp_1geom_4rast_stripe",
+        .workers_per_group = &.{4},
+        .max_geom_workers_per_job = 1,
+        .max_raster_workers_per_job = 4,
+        .buffer_mode = .global_subpx_stripe,
+        .render_mode = .in_order,
+    },
+    .{
+        .name = "2grp_1geom_2rast",
+        .workers_per_group = &.{ 2, 2 },
+        .max_geom_workers_per_job = 1,
+        .max_raster_workers_per_job = 2,
+        .frame_batch_size_per_group = 2,
+        .buffer_mode = .tile_local,
+        .render_mode = .in_order,
+    },
+    .{
+        .name = "4grp_1geom_1rast_inorder",
+        .workers_per_group = &.{ 1, 1, 1, 1 },
+        .max_geom_workers_per_job = 1,
+        .max_raster_workers_per_job = 1,
+        .frame_batch_size_per_group = 2,
+        .buffer_mode = .tile_local,
+        .render_mode = .in_order,
+    },
+    .{
+        .name = "4grp_1geom_1rast_offline",
+        .workers_per_group = &.{ 1, 1, 1, 1 },
+        .max_geom_workers_per_job = 1,
+        .max_raster_workers_per_job = 1,
+        .frame_batch_size_per_group = 2,
+        .buffer_mode = .tile_local,
+        .render_mode = .offline,
+    },
+};
+
+pub fn runZooCase(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    case: ZooThreadingCase,
+    zoo_inp: ZooInput,
+    gold_dir_root: []const u8,
+    config: rastcfg.RasterConfig,
+) !void {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const local_alloc = arena.allocator();
+
+    const meshes = switch (zoo_inp) {
+        .mono => |tex| try gengold_zoo.buildZooScene(u8, 1, 8, local_alloc, io, tex),
+        .rgb => |tex| try gengold_zoo.buildZooScene(u8, 3, 8, local_alloc, io, tex),
+    };
+    const all_cameras = gengold_zoo.buildAllZooCameras(meshes);
+
+    var rgb_cams_buf: [2]CameraInput = undefined;
+    const cameras: []const CameraInput = switch (zoo_inp) {
+        .mono => &all_cameras,
+        .rgb => blk: {
+            rgb_cams_buf = [_]CameraInput{ all_cameras[0], all_cameras[1] };
+            break :blk &rgb_cams_buf;
+        },
+    };
+
+    const suite_tag = switch (zoo_inp) {
+        .mono => "featurezoo_mono",
+        .rgb => "featurezoo_rgb",
+    };
+    const channels_num: usize = switch (zoo_inp) {
+        .mono => 1,
+        .rgb => 3,
+    };
+
+    const gold_dir = try std.fmt.allocPrint(
+        local_alloc,
+        "{s}/{s}",
+        .{ gold_dir_root, suite_tag },
+    );
+
+    var total_workers_count: u16 = 0;
+    for (case.workers_per_group) |workers_count| {
+        total_workers_count += workers_count;
+    }
+
+    var run_config = config;
+    run_config.save_strategy = .memory;
+    run_config.background_value = 127.5;
+    run_config.render_mode = case.render_mode;
+    run_config.buffer_mode = case.buffer_mode;
+    run_config.total_threads = total_workers_count;
+    run_config.max_geom_workers_per_job = case.max_geom_workers_per_job;
+    run_config.max_raster_workers_per_job = case.max_raster_workers_per_job;
+    run_config.frame_batch_size_per_group = case.frame_batch_size_per_group;
+
+    var render_groups_buf: [8]riley.RenderGroupSpec = undefined;
+    for (case.workers_per_group, 0..) |workers_count, ii| {
+        render_groups_buf[ii] = .{ .io = io, .workers = workers_count };
+    }
+    const render_groups = render_groups_buf[0..case.workers_per_group.len];
+
+    const start_time = Timestamp.now(io, .awake);
+    const result = try riley.raster(
+        local_alloc,
+        render_groups,
+        cameras,
+        meshes,
+        run_config,
+        null,
+    );
+
+    var render_result = result orelse return error.NoResult;
+    defer local_alloc.free(render_result.slice);
+
+    const end_time = Timestamp.now(io, .awake);
+    const duration_ms = @as(
+        F,
+        @floatFromInt(start_time.durationTo(end_time).raw.nanoseconds),
+    ) / 1e6;
+
+    const cameras_num = render_result.dims[0];
+    const frames_num = render_result.dims[1];
+
+    for (0..cameras_num) |cc| {
+        for (0..frames_num) |ff| {
+            for (0..channels_num) |ch| {
+                const gold_path = try common.findGoldPath(
+                    local_alloc,
+                    io,
+                    gold_dir,
+                    cc,
+                    ff,
+                    ch,
+                    false,
+                );
+
+                common.compareNDArrayToGold(
+                    local_alloc,
+                    io,
+                    &render_result,
+                    cc,
+                    ff,
+                    ch,
+                    1,
+                    gold_path,
+                    tcfg.REL_TOL,
+                    tcfg.ABS_TOL,
+                ) catch |err| {
+                    if (tcfg.TEST_CASE_VERBOSE) {
+                        std.debug.print(
+                            "FAIL {s} {s} cam {d} frame {d} ch {d} ({d:.2} ms)\n",
+                            .{ suite_tag, case.name, cc, ff, ch, duration_ms },
+                        );
+                    }
+                    return err;
+                };
+            }
+        }
+    }
+
+    if (tcfg.TEST_CASE_VERBOSE) {
+        std.debug.print(
+            "PASS {s} {s} ({d:.2} ms, {d} cams x {d} frames)\n",
+            .{ suite_tag, case.name, duration_ms, cameras_num, frames_num },
+        );
+    }
+}
+
+pub fn runZooMonoTest(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    texture_grey: texops.Tex(u8, 1),
+    gold_dir_root: []const u8,
+    config: rastcfg.RasterConfig,
+) !void {
+    for (zoo_threading_cases) |case| {
+        try runZooCase(allocator, io, case, .{ .mono = texture_grey }, gold_dir_root, config);
+    }
+}
+
+pub fn runZooRgbTest(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    texture_rgb: texops.Tex(u8, 3),
+    gold_dir_root: []const u8,
+    config: rastcfg.RasterConfig,
+) !void {
+    for (zoo_threading_cases) |case| {
+        try runZooCase(allocator, io, case, .{ .rgb = texture_rgb }, gold_dir_root, config);
+    }
+}
+
+pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
+    const config = tcfg.getRasterConfig(.testing);
+    const gold_dir_root = policy.goldRoot(.basic);
+
+    const texture_grey = try iio.loadImage(
+        u8,
+        1,
+        allocator,
+        io,
+        "texture/speck128_mono_u8.bmp",
+        .bmp,
+    );
+    defer texture_grey.deinit(allocator);
+
+    const texture_rgb = try iio.loadImage(
+        u8,
+        3,
+        allocator,
+        io,
+        "texture/speck128_rgb_u8.bmp",
+        .bmp,
+    );
+    defer texture_rgb.deinit(allocator);
+
+    try runZooMonoTest(allocator, io, texture_grey, gold_dir_root, config);
+    try runZooRgbTest(allocator, io, texture_rgb, gold_dir_root, config);
+}

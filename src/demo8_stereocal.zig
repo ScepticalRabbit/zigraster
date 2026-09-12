@@ -27,11 +27,12 @@ const Rotation = @import("riley/zig/rotation.zig").Rotation;
 const DistortionModel = camera_mod.DistortionModel;
 const BrownConrady = camera_mod.BrownConrady;
 const BrownConradyExt = camera_mod.BrownConradyExt;
+const CameraInput = camera_mod.CameraInput;
 const StereoPairInput = camera_mod.StereoPairInput;
 const F = buildconfig.F;
 
 const DATA_DIR = "data/calplate/tri3_calplate3d/";
-const TEXTURE_PATH = "texture/cal_target-simple.tiff";
+const TEXTURE_PATH = "texture/cal_target.tiff";
 const OUT_DIR_ROOT = "./out/demo8_stereocal";
 const PIXELS_NUM = [2]u32{ 2464, 2056 };
 const PIXELS_SIZE = [2]F{

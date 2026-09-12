@@ -101,7 +101,7 @@ pub fn forwardMapWorld(
     node_y: []const F,
     node_z: []const F,
 ) Vec3 {
-    shapefun.shapeFunctions(
+    shapefun.shapeFunc(
         N,
         xi,
         eta,
@@ -128,28 +128,6 @@ pub fn forwardMapWorld(
     };
 }
 
-fn forwardMapQuad4Ibi(
-    xi: F,
-    eta: F,
-    node_x: []const F,
-    node_y: []const F,
-    node_z: []const F,
-) Vec3 {
-    const weight_0 = (1.0 - xi) * (1.0 - eta);
-    const weight_1 = xi * (1.0 - eta);
-    const weight_2 = xi * eta;
-    const weight_3 = (1.0 - xi) * eta;
-
-    return .{
-        .x = weight_0 * node_x[0] + weight_1 * node_x[1] +
-            weight_2 * node_x[2] + weight_3 * node_x[3],
-        .y = weight_0 * node_y[0] + weight_1 * node_y[1] +
-            weight_2 * node_y[2] + weight_3 * node_y[3],
-        .z = weight_0 * node_z[0] + weight_1 * node_z[1] +
-            weight_2 * node_z[2] + weight_3 * node_z[3],
-    };
-}
-
 pub fn forwardMapWorldForMeshType(
     comptime mesh_type: gk.MeshType,
     xi: F,
@@ -159,17 +137,6 @@ pub fn forwardMapWorldForMeshType(
     node_z: []const F,
 ) Vec3 {
     const N = comptime mesh_type.getNodesNum();
-
-    if (mesh_type == .quad4ibi) {
-        return forwardMapQuad4Ibi(
-            xi,
-            eta,
-            node_x,
-            node_y,
-            node_z,
-        );
-    }
-
     var node_values: [N]F = undefined;
     var deriv_xi: [N]F = undefined;
     var deriv_eta: [N]F = undefined;
@@ -241,7 +208,7 @@ pub fn observedToIdealRaster(
     const x_dist = (observed_xy[0] - offsets.x_off) / focal_px.fx;
     const y_dist = (observed_xy[1] - offsets.y_off) / focal_px.fy;
 
-    const solved = try cam.inverseDistortionModelScalar(
+    const solved = try cam.invDistortionModelScal(
         camera.distortion,
         x_dist,
         y_dist,
@@ -364,25 +331,8 @@ pub fn solveParentFromIdealRaster(
                 .iters = result.iters,
             };
         },
-        .quad4ibi => blk: {
-            const GK = gk.Quad4IBIKernel();
-            const params = GK.getBilinearParams(nodes);
-            const result = GK.solveWeightsInvBi(
-                ideal_x,
-                ideal_y,
-                offsets.x_off,
-                offsets.y_off,
-                params,
-            );
-            break :blk .{
-                .converged = result.weights != null,
-                .xi_rec = result.xi_out,
-                .eta_rec = result.eta_out,
-                .iters = result.iters,
-            };
-        },
-        .quad4newton => blk: {
-            const GK = gk.Quad4NewtonKernel();
+        .quad4 => blk: {
+            const GK = gk.Quad4Kernel();
             const seed = GK.initSeed(.centroid, null);
             const result = GK.solveWeightsNewton(
                 nodes,
@@ -449,9 +399,7 @@ pub fn isInParametricDomain(
     const eps = 1.0e-8;
     return switch (mesh_type) {
         .tri3, .tri3opt, .tri6 => xi >= -eps and eta >= -eps and xi + eta <= 1.0 + eps,
-        .quad4ibi => xi >= -eps and xi <= 1.0 + eps and eta >= -eps and
-            eta <= 1.0 + eps,
-        .quad4newton, .quad8, .quad9 => @abs(xi) <= 1.0 + eps and
+        .quad4, .quad8, .quad9 => @abs(xi) <= 1.0 + eps and
             @abs(eta) <= 1.0 + eps,
     };
 }
@@ -488,9 +436,9 @@ pub fn appendStructuredSamples(
             }
         }
     } else {
-        const xi_min = if (mesh_type == .quad4ibi) 0.0 else -1.0;
+        const xi_min = -1.0;
         const xi_max = 1.0;
-        const eta_min = if (mesh_type == .quad4ibi) 0.0 else -1.0;
+        const eta_min = -1.0;
         const eta_max = 1.0;
         for (0..grid_num) |rr| {
             const eta = eta_min +

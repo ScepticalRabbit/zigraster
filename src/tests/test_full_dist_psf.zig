@@ -1,0 +1,409 @@
+// --------------------------------------------------------------------------
+// Riley: A High Performance Rasteriser for DIC UQ
+//
+// Copyright (c) 2025-2026 scepticalrabbit (Lloyd Fletcher)
+// Licensed under the MIT License (see LICENSE file for details)
+//
+// Authors: scepticalrabbit (Lloyd Fletcher)
+// --------------------------------------------------------------------------
+const std = @import("std");
+const buildconfig = @import("../riley/zig/buildconfig.zig");
+const camera = @import("../riley/zig/camera.zig");
+const common_full = @import("../dev_support/fullfixtures.zig");
+const common_test = @import("../dev_support/tests.zig");
+const fullcase_dist_psf = @import("fullcase_dist_psf.zig");
+const mo = @import("../riley/zig/meshpipeline.zig");
+const policy = @import("../dev_support/testpolicy.zig");
+const rastcfg = @import("../riley/zig/rasterconfig.zig");
+const riley = @import("../riley/zig/riley.zig");
+const tcfg = @import("../dev_support/testconfig.zig");
+
+const F = buildconfig.F;
+const CameraInput = camera.CameraInput;
+const MeshInput = mo.MeshInput;
+const Timestamp = std.Io.Clock.Timestamp;
+
+pub const BufferModeCase = struct {
+    tag: []const u8,
+    mode: rastcfg.BufferMode,
+};
+
+pub const buffer_mode_cases = [_]BufferModeCase{
+    .{ .tag = "tile_local", .mode = .tile_local },
+    .{ .tag = "global_subpx", .mode = .global_subpx_full },
+    .{ .tag = "global_stripe", .mode = .global_subpx_stripe },
+};
+
+pub fn runFullDistPsfCaseTest(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    prep: *const common_full.Scene1Prepared,
+    ssaa: u32,
+    dist_case: fullcase_dist_psf.DistCase,
+    psf_case: fullcase_dist_psf.PsfCase,
+    buf_case: BufferModeCase,
+    gold_dir_root: []const u8,
+    config: rastcfg.RasterConfig,
+) !void {
+    var arena = std.heap.ArenaAllocator.init(allocator);
+    defer arena.deinit();
+    const aa = arena.allocator();
+
+    const case_name = try fullcase_dist_psf.formatDistPsfCaseName(
+        aa,
+        ssaa,
+        dist_case.tag,
+        psf_case.tag,
+    );
+    const gold_dir = try std.fmt.allocPrint(
+        aa,
+        "{s}/{s}",
+        .{ gold_dir_root, case_name },
+    );
+
+    const mesh = fullcase_dist_psf.buildScene1Mesh(prep);
+    const meshes = [_]MeshInput{mesh};
+
+    var camera_input = prep.camera_input;
+    camera_input.sub_sample = ssaa;
+    camera_input.distortion = dist_case.distortion;
+    camera_input.psf = psf_case.psf;
+
+    var run_config = config;
+    run_config.save_strategy = .memory;
+    run_config.buffer_mode = buf_case.mode;
+    run_config.background_value = common_full.grey_background_scene1;
+
+    const start_time = Timestamp.now(io, .awake);
+    const render_groups = [_]riley.RenderGroupSpec{
+        .{ .io = io, .workers = @max(@as(u16, 1), run_config.total_threads) },
+    };
+
+    const result = try riley.raster(
+        aa,
+        &render_groups,
+        &[_]CameraInput{camera_input},
+        &meshes,
+        run_config,
+        null,
+    );
+
+    var render_result = result orelse return error.NoResult;
+    defer aa.free(render_result.slice);
+
+    const end_time = Timestamp.now(io, .awake);
+    const duration_ms = @as(
+        F,
+        @floatFromInt(start_time.durationTo(end_time).raw.nanoseconds),
+    ) / 1.0e6;
+
+    const gold_path = try common_test.findGoldPath(
+        aa,
+        io,
+        gold_dir,
+        0,
+        0,
+        0,
+        false,
+    );
+
+    common_test.compareNDArrayToGold(
+        aa,
+        io,
+        &render_result,
+        0,
+        0,
+        0,
+        1,
+        gold_path,
+        tcfg.FULL_GOLD_REL_TOL,
+        tcfg.FULL_GOLD_ABS_TOL,
+    ) catch |err| {
+        const fail_dir_name = try std.fmt.allocPrint(
+            aa,
+            "full_dist_psf/{s}_{s}",
+            .{ case_name, buf_case.tag },
+        );
+        try common_test.saveComparisonArtifactsFromResult(
+            aa,
+            io,
+            common_test.default_fails_root,
+            fail_dir_name,
+            &render_result,
+            0,
+            0,
+            0,
+            gold_path,
+            1,
+        );
+        if (tcfg.TEST_CASE_VERBOSE) {
+            std.debug.print(
+                "FAIL {s} ({s}) ({d:.2} ms)\n",
+                .{ case_name, buf_case.tag, duration_ms },
+            );
+        }
+        return err;
+    };
+
+    // Verify that distortion and PSF cases differ from the base (none/box) reference
+    const is_base_case = std.mem.eql(u8, dist_case.tag, "dist_none") and
+        std.mem.eql(u8, psf_case.tag, "psf_box");
+    if (!is_base_case) {
+        const base_case_name = try fullcase_dist_psf.formatDistPsfCaseName(
+            aa,
+            ssaa,
+            "dist_none",
+            "psf_box",
+        );
+        const base_gold_dir = try std.fmt.allocPrint(
+            aa,
+            "{s}/{s}",
+            .{ gold_dir_root, base_case_name },
+        );
+        const base_gold_path = try common_test.findGoldPath(
+            aa,
+            io,
+            base_gold_dir,
+            0,
+            0,
+            0,
+            false,
+        );
+        var base_gold = if (std.mem.endsWith(u8, base_gold_path, ".fimg"))
+            try @import("../riley/zig/imageio.zig").loadFIMG(aa, io, base_gold_path)
+        else
+            try @import("../riley/zig/csvio.zig").loadScalarCsv2D(aa, io, base_gold_path);
+        defer {
+            aa.free(base_gold.slice);
+            base_gold.deinit(aa);
+        }
+
+        const rows_n = render_result.dims[3];
+        const cols_n = render_result.dims[4];
+        var max_base_diff: F = 0.0;
+        for (0..rows_n) |rr| {
+            for (0..cols_n) |cc| {
+                const v_curr = render_result.get(&[_]usize{ 0, 0, 0, rr, cc });
+                const v_base = if (base_gold.dims.len == 3)
+                    base_gold.get(&[_]usize{ 0, rr, cc })
+                else
+                    base_gold.get(&[_]usize{ rr, cc });
+                const diff = @abs(v_curr - v_base);
+                if (diff > max_base_diff) {
+                    max_base_diff = diff;
+                }
+            }
+        }
+        if (max_base_diff < 1.0e-3) {
+            return error.DistortionOrPsfHadNoEffect;
+        }
+    }
+
+    if (tcfg.TEST_CASE_VERBOSE) {
+        std.debug.print(
+            "PASS {s} ({s}) ({d:.2} ms)\n",
+            .{ case_name, buf_case.tag, duration_ms },
+        );
+    }
+}
+
+pub fn run(allocator: std.mem.Allocator, io: std.Io) !void {
+    const config = tcfg.getRasterConfig(.testing);
+    const gold_dir_root = policy.goldRoot(.full_dist_psf);
+
+    var prep = try common_full.prepareScene1(allocator, io);
+    defer prep.deinit(allocator);
+
+    for (fullcase_dist_psf.ssaa_levels) |ssaa| {
+        for (fullcase_dist_psf.dist_cases) |dist_case| {
+            for (fullcase_dist_psf.psf_cases) |psf_case| {
+                for (buffer_mode_cases) |buf_case| {
+                    try runFullDistPsfCaseTest(
+                        allocator,
+                        io,
+                        &prep,
+                        ssaa,
+                        dist_case,
+                        psf_case,
+                        buf_case,
+                        gold_dir_root,
+                        config,
+                    );
+                }
+            }
+        }
+    }
+
+    try runAdditionalDistPsfTests(allocator, io, &prep, config);
+}
+
+fn runAdditionalDistPsfTests(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    prep: *const common_full.Scene1Prepared,
+    config: rastcfg.RasterConfig,
+) !void {
+    const mesh = fullcase_dist_psf.buildScene1Mesh(prep);
+    const meshes = [_]MeshInput{mesh};
+
+    const extra_dist_cases = [_]struct {
+        tag: []const u8,
+        distortion: camera.DistortionModel,
+    }{
+        .{
+            .tag = "standalone_polynomial",
+            .distortion = .{
+                .polynomial = .{
+                    .forward_map = common_full.getRepresentativePolynomialMap(),
+                },
+            },
+        },
+        .{
+            .tag = "brown_conrady_ext_polynomial",
+            .distortion = .{
+                .brown_conrady_ext_polynomial = .{
+                    .brown_conrady_ext = .{
+                        .k1 = -1000.0,
+                        .k4 = 200.0,
+                    },
+                    .polynomial = .{
+                        .forward_map = common_full.getRepresentativePolynomialMap(),
+                    },
+                },
+            },
+        },
+        .{
+            .tag = "mixed_tangential_bc",
+            .distortion = .{
+                .brown_conrady = .{
+                    .k1 = -1000.0,
+                    .p1 = 0.02,
+                    .p2 = -0.02,
+                },
+            },
+        },
+    };
+
+    const extra_psf_cases = [_]struct {
+        tag: []const u8,
+        psf: camera.PointSpreadFunc,
+    }{
+        .{
+            .tag = "rotated_anisotropic_gaussian",
+            .psf = .{
+                .anisotropic_gaussian = .{
+                    .sigma_x_px = 1.5,
+                    .sigma_y_px = 0.8,
+                    .theta_rad = std.math.pi / 6.0,
+                    .supp_rad_px = 3.5,
+                },
+            },
+        },
+        .{
+            .tag = "filtered_pixel_box",
+            .psf = .{
+                .pixel_box = .{
+                    .supp_rad_px = 0.75,
+                },
+            },
+        },
+    };
+
+    // Test distortion cases with in-memory buffer mode equivalence
+    for (extra_dist_cases) |dist_case| {
+        var cam_tile = prep.camera_input;
+        cam_tile.sub_sample = 2;
+        cam_tile.distortion = dist_case.distortion;
+        cam_tile.psf = .{ .pixel_box = .{} };
+
+        var config_tile = config;
+        config_tile.save_strategy = .memory;
+        config_tile.buffer_mode = .tile_local;
+        config_tile.background_value = common_full.grey_background_scene1;
+
+        var config_global = config_tile;
+        config_global.buffer_mode = .global_subpx_full;
+
+        const render_groups = [_]riley.RenderGroupSpec{
+            .{ .io = io, .workers = 1 },
+        };
+
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        const aa = arena.allocator();
+
+        const result_tile = try riley.raster(
+            aa,
+            &render_groups,
+            &[_]CameraInput{cam_tile},
+            &meshes,
+            config_tile,
+            null,
+        );
+        const img_tile = result_tile orelse return error.NoResult;
+
+        const result_global = try riley.raster(
+            aa,
+            &render_groups,
+            &[_]CameraInput{cam_tile},
+            &meshes,
+            config_global,
+            null,
+        );
+        const img_global = result_global orelse return error.NoResult;
+
+        try std.testing.expectEqualSlices(usize, img_tile.dims, img_global.dims);
+        for (img_tile.slice, img_global.slice) |val_tile, val_global| {
+            try std.testing.expect(@abs(val_tile - val_global) <= tcfg.FULL_GOLD_ABS_TOL);
+        }
+    }
+
+    // Test PSF cases with in-memory buffer mode equivalence
+    for (extra_psf_cases) |psf_case| {
+        var cam_tile = prep.camera_input;
+        cam_tile.sub_sample = 2;
+        cam_tile.distortion = .none;
+        cam_tile.psf = psf_case.psf;
+
+        var config_tile = config;
+        config_tile.save_strategy = .memory;
+        config_tile.buffer_mode = .tile_local;
+        config_tile.background_value = common_full.grey_background_scene1;
+
+        var config_global = config_tile;
+        config_global.buffer_mode = .global_subpx_full;
+
+        const render_groups = [_]riley.RenderGroupSpec{
+            .{ .io = io, .workers = 1 },
+        };
+
+        var arena = std.heap.ArenaAllocator.init(allocator);
+        defer arena.deinit();
+        const aa = arena.allocator();
+
+        const result_tile = try riley.raster(
+            aa,
+            &render_groups,
+            &[_]CameraInput{cam_tile},
+            &meshes,
+            config_tile,
+            null,
+        );
+        const img_tile = result_tile orelse return error.NoResult;
+
+        const result_global = try riley.raster(
+            aa,
+            &render_groups,
+            &[_]CameraInput{cam_tile},
+            &meshes,
+            config_global,
+            null,
+        );
+        const img_global = result_global orelse return error.NoResult;
+
+        try std.testing.expectEqualSlices(usize, img_tile.dims, img_global.dims);
+        for (img_tile.slice, img_global.slice) |val_tile, val_global| {
+            try std.testing.expect(@abs(val_tile - val_global) <= tcfg.FULL_GOLD_ABS_TOL);
+        }
+    }
+}

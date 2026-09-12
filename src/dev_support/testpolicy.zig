@@ -19,21 +19,15 @@ pub const GoldModePolicy = enum {
 };
 
 pub const GoldSuite = enum {
-    min,
-    small,
-    simple,
-    edge,
-    multimesh,
-    hull,
-    fullscreen,
-    fullscreen_ssaa1,
-    texfunc,
-    ssaa,
-    psf,
-    sphere2000,
-    sphere2000_ssaa1,
-    sphere2000zoom,
-    sphere200multicam,
+    basic,
+    full_shader,
+    full_texture,
+    full_dist_psf,
+    full_ssaa_pxmap,
+    full_hull,
+    full_tiling,
+    full_scene_camera_threads,
+    full_image_output,
 };
 
 pub const MeshNameContext = enum {
@@ -44,89 +38,59 @@ pub const MeshNameContext = enum {
 };
 
 pub fn goldModePolicy(comptime suite: GoldSuite) GoldModePolicy {
-    return switch (suite) {
-        .sphere2000,
-        .sphere2000_ssaa1,
-        .sphere2000zoom,
-        .sphere200multicam,
-        => .split_by_precision_and_simd,
-        else => .shared_by_precision,
-    };
+    _ = suite;
+    return .shared_by_precision;
 }
 
 pub fn suiteDirName(comptime suite: GoldSuite) []const u8 {
     return switch (suite) {
-        .min => "min",
-        .small => "small",
-        .simple => "simple",
-        .edge => "edge",
-        .multimesh => "multimesh",
-        .hull => "hull",
-        .fullscreen => "fullscreen",
-        .fullscreen_ssaa1 => "fullscreen_ssaa1",
-        .texfunc => "texfunc",
-        .ssaa => "ssaa",
-        .psf => "psf",
-        .sphere2000 => "sphere2000",
-        .sphere2000_ssaa1 => "sphere2000_ssaa1",
-        .sphere2000zoom => "sphere2000zoom",
-        .sphere200multicam => "sphere200multicam",
+        .basic => "basic",
+        .full_shader => "full_shader",
+        .full_texture => "full_texture",
+        .full_dist_psf => "full_dist_psf",
+        .full_ssaa_pxmap => "full_ssaa_pxmap",
+        .full_hull => "full_hull",
+        .full_tiling => "full_tiling",
+        .full_scene_camera_threads => "full_scene_camera_threads",
+        .full_image_output => "full_image_output",
     };
 }
 
 pub fn goldRoot(comptime suite: GoldSuite) []const u8 {
     return switch (suite) {
-        .min => if (F == f64) "gold/min" else "gold/min_f32",
-        .small => if (F == f64) "gold/small" else "gold/small_f32",
-        .simple => if (F == f64) "gold/simple" else "gold/simple_f32",
-        .edge => if (F == f64) "gold/edge" else "gold/edge_f32",
-        .multimesh => if (F == f64) "gold/multimesh" else "gold/multimesh_f32",
-        .hull => if (F == f64) "gold/hull" else "gold/hull_f32",
-        .fullscreen => if (F == f64) "gold/fullscreen" else "gold/fullscreen_f32",
-        .fullscreen_ssaa1 => if (F == f64)
-            "gold/fullscreen_ssaa1"
+        .basic => if (F == f64) "gold/basic" else "gold/basic_f32",
+        .full_shader => if (F == f64)
+            "gold/full_shader"
         else
-            "gold/fullscreen_f32_ssaa1",
-        .texfunc => if (F == f64) "gold/texfunc" else "gold/texfunc_f32",
-        .ssaa => if (F == f64) "gold/ssaa" else "gold/ssaa_f32",
-        .psf => if (F == f64) "gold/psf" else "gold/psf_f32",
-        .sphere2000 => if (F == f64)
-            (if (cfg.simd == .on) "gold/sphere2000-simd" else "gold/sphere2000")
+            "gold/full_shader_f32",
+        .full_texture => if (F == f64)
+            "gold/full_texture"
         else
-            (if (cfg.simd == .on)
-                "gold/sphere2000_f32_simd"
-            else
-                "gold/sphere2000_f32_scalar"),
-        .sphere2000_ssaa1 => if (F == f64)
-            (if (cfg.simd == .on)
-                "gold/sphere2000_ssaa1-simd"
-            else
-                "gold/sphere2000_ssaa1")
+            "gold/full_texture_f32",
+        .full_dist_psf => if (F == f64)
+            "gold/full_dist_psf"
         else
-            (if (cfg.simd == .on)
-                "gold/sphere2000_f32_ssaa1_simd"
-            else
-                "gold/sphere2000_f32_ssaa1_scalar"),
-        .sphere2000zoom => if (F == f64)
-            (if (cfg.simd == .on)
-                "gold/sphere2000zoom-simd"
-            else
-                "gold/sphere2000zoom")
+            "gold/full_dist_psf_f32",
+        .full_ssaa_pxmap => if (F == f64)
+            "gold/full_ssaa_pxmap"
         else
-            (if (cfg.simd == .on)
-                "gold/sphere2000zoom_f32_simd"
-            else
-                "gold/sphere2000zoom_f32_scalar"),
-        .sphere200multicam => if (F == f64)
-            (if (cfg.simd == .on)
-                "gold/sphere200multicam-simd"
-            else
-                "gold/sphere200multicam")
+            "gold/full_ssaa_pxmap_f32",
+        .full_hull => if (F == f64)
+            "gold/full_hull"
         else
-            (if (cfg.simd == .on)
-                "gold/sphere200multicam_f32_simd"
-            else
-                "gold/sphere200multicam_f32_scalar"),
+            "gold/full_hull_f32",
+        .full_tiling => if (F == f64)
+            "gold/full_tiling"
+        else
+            "gold/full_tiling_f32",
+        .full_scene_camera_threads => if (F == f64)
+            "gold/full_scene_camera_threads"
+        else
+            "gold/full_scene_camera_threads_f32",
+        .full_image_output => if (F == f64)
+            "gold/full_image_output"
+        else
+            "gold/full_image_output_f32",
     };
 }
 
@@ -135,10 +99,7 @@ pub fn canonicalCaseMeshType(mesh_type: gk.MeshType) gk.MeshType {
 }
 
 pub fn sphereGoldCaseMeshType(mesh_type: gk.MeshType) gk.MeshType {
-    return switch (mesh_type) {
-        .quad4ibi => .quad4newton,
-        else => mesh_type,
-    };
+    return mesh_type;
 }
 
 pub fn meshName(
@@ -148,7 +109,6 @@ pub fn meshName(
     return switch (context) {
         .fixture_case => switch (mesh_type) {
             .tri3opt => "tri3",
-            .quad4ibi, .quad4newton => "quad4",
             else => @tagName(mesh_type),
         },
         .benchmark_data => switch (mesh_type) {

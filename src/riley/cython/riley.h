@@ -221,6 +221,12 @@ typedef struct c_mesh_input {
     CShaderInput shader;
 } CMeshInput;
 
+typedef enum {
+    RILEY_VALIDATE_INPUT_OFF = 0,
+    RILEY_VALIDATE_INPUT_FAST = 1,
+    RILEY_VALIDATE_INPUT_FULL = 2,
+} RileyValidateInput;
+
 typedef struct c_raster_config {
     uint32_t render_mode;
     uint16_t total_threads;
@@ -234,6 +240,7 @@ typedef struct c_raster_config {
     uint32_t hull_mode;
     uint32_t newton_seed_mode;
     uint32_t newton_seed_reuse;
+    uint32_t validate_input;
     uint32_t report;
     uint16_t tile_size_min;
     uint16_t tile_size_max;

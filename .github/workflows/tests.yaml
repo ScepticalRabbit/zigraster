@@ -35,8 +35,8 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: zig build docs
 
-      - name: Run Zig tests
-        run: zig test -O ReleaseSafe ./src/test_min.zig
+      - name: Run Zig Verification and Basic Tests
+        run: zig build test-verif-basic -Doptimize=ReleaseSafe
 
   python_tests:
     runs-on: ubuntu-latest

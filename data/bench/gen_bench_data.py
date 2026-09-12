@@ -7,8 +7,7 @@ from riley.python import meshconv
 ELEMENT_TYPES = {
     "tri3": meshconv.EElementType.TRI3,
     "tri6": meshconv.EElementType.TRI6,
-    "quad4ibi": meshconv.EElementType.QUAD4,
-    "quad4newton": meshconv.EElementType.QUAD4,
+    "quad4": meshconv.EElementType.QUAD4,
     "quad8": meshconv.EElementType.QUAD8,
     "quad9": meshconv.EElementType.QUAD9,
 }
@@ -215,18 +214,18 @@ def generate_sphere(etype, out_dir, N_target):
             if etype == "tri3":
                 conn.append([i0, i3, i2])
                 conn.append([i0, i2, i1])
-            elif etype in ["quad4ibi", "quad4newton"]:
+            elif etype == "quad4":
                 conn.append([i0, i3, i2, i1])
             elif etype == "tri6":
                 # Tri 1 (i0, i3, i2): m03, m32, m20(diag)
                 v0, v1, v2 = i0, i3, i2
                 m01 = (r + 1) * cols + c
                 m12 = (r + 2) * cols + (c + 1)
-                m20 = (r + 1) * cols + (c + 1) # diagonal
+                m20 = (r + 1) * cols + (c + 1)  # diagonal
                 conn.append([v0, v1, v2, m01, m12, m20])
                 # Tri 2 (i0, i2, i1): m02(diag), m21, m10
                 v0, v1, v2 = i0, i2, i1
-                m01 = (r + 1) * cols + (c + 1) # diagonal
+                m01 = (r + 1) * cols + (c + 1)  # diagonal
                 m12 = (r + 1) * cols + (c + 2)
                 m20 = r * cols + (c + 1)
                 conn.append([v0, v1, v2, m01, m12, m20])
@@ -241,7 +240,7 @@ def generate_sphere(etype, out_dir, N_target):
                 if etype == "quad9":
                     q.append((r + 1) * cols + (c + 1))
                 conn.append(q)
-                
+
     connect = np.asarray(conn, dtype=np.int64)
     elem_type = ELEMENT_TYPES[etype]
     verify_sphere_orientation(coords, connect, elem_type)
@@ -255,12 +254,12 @@ def generate_sphere(etype, out_dir, N_target):
     save_csv(f"{out_dir}/uvs.csv", uvs)
     save_csv(f"{out_dir}/field.csv", fields)
 
+
 if __name__ == "__main__":
     elements = [
         "tri3",
         "tri6",
-        "quad4ibi",
-        "quad4newton",
+        "quad4",
         "quad8",
         "quad9",
     ]
@@ -280,6 +279,5 @@ if __name__ == "__main__":
                 N = int(round(np.sqrt(target_elems)))
             generate_grid(et, f"data/bench/{et}_geom_{size_str}", N=N)
 
-        if et != "quad4ibi":
-            generate_sphere(et, f"data/bench/{et}_sphere200", 200)
-            generate_sphere(et, f"data/bench/{et}_sphere2000", 2000)
+        generate_sphere(et, f"data/bench/{et}_sphere200", 200)
+        generate_sphere(et, f"data/bench/{et}_sphere2000", 2000)

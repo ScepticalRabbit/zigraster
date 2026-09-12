@@ -312,23 +312,6 @@ pub fn RasterEngineFor(
                     shader_buf,
                     subpx_scratch,
                 )
-            else if (Geom.solver_kind == .inv_bi)
-                // NOTE: SIMD is very inefficient for highly branched inv bilinear
-                // solve fallback to scalar
-                try rasterDirect(
-                    report_mode,
-                    ctx_rast,
-                    ctx_report,
-                    tile,
-                    overlap,
-                    raster_hull,
-                    subpx_dom,
-                    rast_bounds,
-                    nodes_coords,
-                    shader,
-                    shader_buf,
-                    subpx_scratch,
-                )
             else if (Geom.solver_kind == .newton)
                 try rasterNewtonSIMD(
                     report_mode,
@@ -414,42 +397,6 @@ pub fn RasterEngineFor(
                 subpx_dom,
                 rast_bounds,
                 orig_start_x_u,
-                nodes_coords,
-                shader,
-                shader_buf,
-                subpx_scratch,
-            );
-        }
-
-        /// Scalar fallback for the quad4ibi kernel which didn't work well in SIMD due to
-        /// the large amount of branching logic required to handle all cases.
-        fn rasterDirect(
-            comptime report_mode: ReportMode,
-            ctx_rast: rops.RasterContext,
-            ctx_report: report.ReportContext(report_mode),
-            tile: rops.ActiveTile,
-            overlap: rops.OverlapBBox,
-            raster_hull: ?*const NDArray(F),
-            subpx_dom: SubpxDom,
-            rast_bounds: RasterBounds,
-            nodes_coords: Vec3Slices(F),
-            shader: *const ShaderData,
-            shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-            subpx_scratch: *ScratchBuffs,
-        ) !u64 {
-            return rasterDirectImpl(
-                ScratchBuffs,
-                Geom,
-                ShaderKern,
-                ShaderData,
-                report_mode,
-                ctx_rast,
-                ctx_report,
-                tile,
-                overlap,
-                raster_hull,
-                subpx_dom,
-                rast_bounds,
                 nodes_coords,
                 shader,
                 shader_buf,
@@ -1024,46 +971,6 @@ fn rasterNewtonSIMDImpl(
     }
 
     return shaded_px;
-}
-
-fn rasterDirectImpl(
-    comptime ScratchBuffs: type,
-    comptime Geom: type,
-    comptime ShaderKern: type,
-    comptime ShaderData: type,
-    comptime report_mode: ReportMode,
-    ctx_rast: rops.RasterContext,
-    ctx_report: report.ReportContext(report_mode),
-    tile: rops.ActiveTile,
-    overlap: rops.OverlapBBox,
-    _: ?*const NDArray(F),
-    subpx_dom: SubpxDom,
-    rast_bounds: RasterBounds,
-    nodes_coords: Vec3Slices(F),
-    shader: *const ShaderData,
-    shader_buf: *const shaderops.LocalShaderBuff(Geom.nodes_num),
-    subpx_scratch: *ScratchBuffs,
-) !u64 {
-    std.debug.assert(subpx_scratch.image.rows_num <= std.math.maxInt(u8));
-    const fields_num: u8 = @intCast(subpx_scratch.image.rows_num);
-    return comm.rasterDirectScalComm(
-        Geom,
-        ShaderKern,
-        ShaderData,
-        report_mode,
-        ScratchBuffs,
-        ctx_rast,
-        ctx_report,
-        tile,
-        overlap,
-        subpx_dom,
-        rast_bounds,
-        fields_num,
-        nodes_coords,
-        shader,
-        shader_buf,
-        subpx_scratch,
-    );
 }
 
 fn rasterSteppedSIMD(

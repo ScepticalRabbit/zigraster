@@ -27,6 +27,13 @@ const sceneops = @import("riley/zig/sceneops.zig");
 const CameraPrepared = cammod.CameraPrepared;
 const MeshInput = mo.MeshInput;
 
+const Separation = enum {
+    far,
+    close,
+    very_close,
+    twice_tol,
+};
+
 const OVERLAP_X: F = 0.85;
 const OVERLAP_Y: F = 0.8;
 pub const BEHIND_FACT: F = 1.05;
@@ -38,7 +45,7 @@ const out_root = "verif/verif_4";
 const mesh_types = [_]gk.MeshType{
     .tri3,
     .tri6,
-    .quad4ibi,
+    .quad4,
     .quad8,
     .quad9,
 };
@@ -56,11 +63,10 @@ const DataCase = struct {
 
 fn pairedBackMeshType(front_mesh_type: gk.MeshType) gk.MeshType {
     return switch (front_mesh_type) {
-        .tri3 => .tri6,
+        .tri3, .tri3opt => .tri6,
         .tri6 => .tri3,
-        .quad4ibi => .quad8,
-        .quad4newton => .quad8,
-        .quad8, .quad9 => .quad4ibi,
+        .quad4 => .quad8,
+        .quad8, .quad9 => .quad4,
     };
 }
 
@@ -145,11 +151,20 @@ fn calcDiffImage(
 }
 
 fn renderSingle(
-    allocator: std.mem.Allocator,
+    outer_alloc: std.mem.Allocator,
     io: std.Io,
     camera_input: cammod.CameraInput,
     meshes: []const MeshInput,
 ) !NDArray(F) {
+    var arena = std.heap.ArenaAllocator.init(outer_alloc);
+    defer arena.deinit();
+    const local_alloc = arena.allocator();
+    const mesh_copies = try local_alloc.alloc(MeshInput, meshes.len);
+    for (meshes, mesh_copies) |mesh, *mesh_copy| {
+        mesh_copy.* = mesh;
+        mesh_copy.coords = try sceneops.duplicateCoords(local_alloc, mesh.coords);
+    }
+
     var config = tcfg.getRasterConfig(.preview);
     config.save_strategy = .memory;
     config.image_save_opts = &[_]iio.ImageSaveOpts{
@@ -160,20 +175,14 @@ fn renderSingle(
         .{ .io = io, .workers = @max(@as(u16, 1), config.total_threads) },
     };
     const result = (try riley.raster(
-        allocator,
+        local_alloc,
         &render_groups,
         &[_]cammod.CameraInput{camera_input},
-        meshes,
+        mesh_copies,
         config,
         null,
     )) orelse return error.NoResult;
-    defer {
-        allocator.free(result.slice);
-        var res_mut = result;
-        res_mut.deinit(allocator);
-    }
-
-    return try benchcommon.extractFirstFrameImage(allocator, &result);
+    return try benchcommon.extractFirstFrameImage(outer_alloc, &result);
 }
 
 fn buildCaseSpec(
@@ -199,19 +208,12 @@ fn buildCaseSpec(
             ),
             .front_connect_name = "connectivity.csv",
             .back_connect_name = "connectivity.csv",
-            .rot = Rotation.init(0.0, std.math.pi, 0.0),
+            .rot = Rotation.init(0.0, 0.0, 0.0),
         };
     }
 
-    // Sphere case - need to handle quad4 variants differently than rabbit/simple
-    const front_data_name = if (mesh_type == .quad4ibi)
-        "quad4ibi"
-    else
-        orch.meshDataName(mesh_type);
-    const back_data_name = if (back_mesh_type == .quad4ibi)
-        "quad4ibi"
-    else
-        orch.meshDataName(back_mesh_type);
+    const front_data_name = orch.meshDataName(mesh_type);
+    const back_data_name = orch.meshDataName(back_mesh_type);
     return .{
         .case_name = case_name,
         .front_mesh_type = mesh_type,
@@ -236,6 +238,8 @@ fn runCase(
     allocator: std.mem.Allocator,
     io: std.Io,
     case_spec: DataCase,
+    separation: Separation,
+    save_artifacts: bool,
 ) !void {
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
@@ -368,7 +372,22 @@ fn runCase(
             cam_axis_unit[1] +
         (camera_input.pos_world.slice[2] - front_centroid[2]) *
             cam_axis_unit[2];
-    const behind_extra = (BEHIND_FACT - 1.0) * front_dist;
+    const largest_span = @max(width, height);
+    const depth_tol = buildconfig.config.tol.geometry.depth_buff_inv_z_cmp;
+    const behind_extra = switch (separation) {
+        .far => largest_span,
+        .close => largest_span * 1.0e-2,
+        .very_close => largest_span * 1.0e-3,
+        .twice_tol => 1.0 / (1.0 / front_dist - 2.0 * depth_tol) - front_dist,
+    };
+    if (separation == .twice_tol) {
+        const achieved_gap = 1.0 / front_dist - 1.0 / (front_dist + behind_extra);
+        try std.testing.expectApproxEqRel(
+            2.0 * depth_tol,
+            achieved_gap,
+            tcfg.VERIF_TOL.depth_gap_rel,
+        );
+    }
     translateCoords(&back_mesh.coords, .{
         -cam_axis_unit[0] * behind_extra,
         -cam_axis_unit[1] * behind_extra,
@@ -397,12 +416,95 @@ fn runCase(
         var front_mut = frontonly_image;
         front_mut.deinit(allocator);
     }
+    const backonly_image = try renderSingle(
+        allocator,
+        io,
+        camera_input,
+        &[_]MeshInput{back_mesh},
+    );
+    defer {
+        allocator.free(backonly_image.slice);
+        var back_mut = backonly_image;
+        back_mut.deinit(allocator);
+    }
+    const reverse_image = try renderSingle(
+        allocator,
+        io,
+        camera_input,
+        &[_]MeshInput{ back_mesh, front_mesh },
+    );
+    defer {
+        allocator.free(reverse_image.slice);
+        var reverse_mut = reverse_image;
+        reverse_mut.deinit(allocator);
+    }
+
+    var front_count: usize = 0;
+    var overlap_count: usize = 0;
+    for (frontonly_image.slice) |front_val| {
+        if (front_val > 0.0) front_count += 1;
+    }
+    try std.testing.expectEqual(frontonly_image.slice.len, backonly_image.slice.len);
+    try std.testing.expectEqual(frontonly_image.slice.len, both_image.slice.len);
+    try std.testing.expectEqual(frontonly_image.slice.len, reverse_image.slice.len);
+    for (frontonly_image.slice, backonly_image.slice, both_image.slice, reverse_image.slice) |
+        front_val,
+        back_val,
+        both_val,
+        reverse_val,
+    | {
+        const front_occupied = front_val > 0.0;
+        const back_occupied = back_val > 0.0;
+        const expected = if (front_occupied) front_val else back_val;
+        try std.testing.expectApproxEqAbs(
+            expected,
+            both_val,
+            tcfg.VERIF_TOL.depth_value_abs,
+        );
+        try std.testing.expectApproxEqAbs(
+            expected,
+            reverse_val,
+            tcfg.VERIF_TOL.depth_value_abs,
+        );
+        if (front_occupied and back_occupied) {
+            overlap_count += 1;
+        }
+    }
+    if (front_count == 0) {
+        const front_min = std.mem.min(F, frontonly_image.slice);
+        const front_max = std.mem.max(F, frontonly_image.slice);
+        std.debug.print(
+            "No front coverage for {s}/{s}/{s}: len={d}, min={d}, max={d}\n",
+            .{
+                @tagName(case_spec.front_mesh_type),
+                @tagName(case_spec.back_mesh_type),
+                @tagName(separation),
+                frontonly_image.slice.len,
+                front_min,
+                front_max,
+            },
+        );
+        return error.NoFrontCoverage;
+    }
+    if (overlap_count == 0) {
+        std.debug.print(
+            "No overlap for {s}/{s}/{s}\n",
+            .{
+                @tagName(case_spec.front_mesh_type),
+                @tagName(case_spec.back_mesh_type),
+                @tagName(separation),
+            },
+        );
+        return error.NoDepthOverlap;
+    }
     const diff_image = try calcDiffImage(allocator, &both_image, &frontonly_image);
     defer {
         allocator.free(diff_image.slice);
         var diff_mut = diff_image;
         diff_mut.deinit(allocator);
     }
+
+    if (!save_artifacts) return;
 
     const out_dir_path = try std.fmt.allocPrint(
         aa,
@@ -437,9 +539,20 @@ pub fn main(init: std.process.Init) !void {
     for (case_names) |case_name| {
         for (mesh_types) |mesh_type| {
             const case_spec = try buildCaseSpec(case_name, mesh_type);
-            try runCase(allocator, io, case_spec);
+            try runCase(allocator, io, case_spec, .far, true);
         }
     }
 
     std.debug.print("Done.\n", .{});
+}
+
+pub fn runFocusedTests(allocator: std.mem.Allocator, io: std.Io) !void {
+    const focused_mesh_types = [_]gk.MeshType{ .tri3, .tri6, .quad4, .quad8, .quad9 };
+    const separations = [_]Separation{ .far, .close, .very_close, .twice_tol };
+    for (focused_mesh_types) |mesh_type| {
+        const case_spec = try buildCaseSpec("rabbit", mesh_type);
+        for (separations) |separation| {
+            try runCase(allocator, io, case_spec, separation, false);
+        }
+    }
 }

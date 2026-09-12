@@ -43,7 +43,7 @@ def visualize_case(case_name):
     mesh = pv.UnstructuredGrid(cells, cell_types, coords)
     mesh.active_texture_coordinates = uvs
 
-    tex_path = Path("texture/speckle.tiff")
+    tex_path = Path("texture/speckle_mono.tiff")
     if not tex_path.exists():
         print(f"Error: Texture {tex_path} not found.")
         return

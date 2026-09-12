@@ -503,11 +503,18 @@ pub inline fn evalFuncShaderRGBNormSIMD(
             const v_2: VecSI = @splat(2);
 
             const v_parity = @as(VecSB, @mod(v_cell_x + v_cell_y, v_2) == v_0);
-            const v_p0 = @as(VecSF, @splat(p.levels[0]));
-            const v_p1 = @as(VecSF, @splat(p.levels[1]));
+            const v_r0 = @as(VecSF, @splat(p.levels_rgb[0][0]));
+            const v_r1 = @as(VecSF, @splat(p.levels_rgb[1][0]));
+            const v_g0 = @as(VecSF, @splat(p.levels_rgb[0][1]));
+            const v_g1 = @as(VecSF, @splat(p.levels_rgb[1][1]));
+            const v_b0 = @as(VecSF, @splat(p.levels_rgb[0][2]));
+            const v_b1 = @as(VecSF, @splat(p.levels_rgb[1][2]));
 
-            const v_value = @select(F, v_parity, v_p0, v_p1);
-            break :blk .{ v_value, v_value, v_value };
+            break :blk .{
+                @select(F, v_parity, v_r0, v_r1),
+                @select(F, v_parity, v_g0, v_g1),
+                @select(F, v_parity, v_b0, v_b1),
+            };
         },
         .checker_smooth => blk: {
             const p = params.settings.checker_smooth;

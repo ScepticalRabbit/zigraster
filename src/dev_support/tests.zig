@@ -53,6 +53,104 @@ pub fn isApproxEqual(v1: F, v2: F, rel_tol: F, abs_tol: F) bool {
     return (diff / largest) <= rel_tol;
 }
 
+pub fn calculateMaxAbsDifference(arr_a: *const NDArray(F), arr_b: *const NDArray(F)) !F {
+    if (arr_a.slice.len != arr_b.slice.len) return error.ArrayDimensionMismatch;
+    if (arr_a.dims.len != arr_b.dims.len) return error.ArrayDimensionMismatch;
+    for (arr_a.dims, arr_b.dims) |dim_a, dim_b| {
+        if (dim_a != dim_b) return error.ArrayDimensionMismatch;
+    }
+
+    var max_diff: F = 0.0;
+    for (arr_a.slice, arr_b.slice) |val_a, val_b| {
+        const diff = @abs(val_a - val_b);
+        if (diff > max_diff) {
+            max_diff = diff;
+        }
+    }
+    return max_diff;
+}
+
+pub fn expectImagesEquivalent(
+    arr_a: *const NDArray(F),
+    arr_b: *const NDArray(F),
+    rel_tol: F,
+    abs_tol: F,
+) !void {
+    if (arr_a.slice.len != arr_b.slice.len) return error.ArrayDimensionMismatch;
+    if (arr_a.dims.len != arr_b.dims.len) return error.ArrayDimensionMismatch;
+    for (arr_a.dims, arr_b.dims) |dim_a, dim_b| {
+        if (dim_a != dim_b) return error.ArrayDimensionMismatch;
+    }
+
+    for (arr_a.slice, arr_b.slice, 0..) |val_a, val_b, flat_idx| {
+        if (!isApproxEqual(val_a, val_b, rel_tol, abs_tol)) {
+            const diff = @abs(val_a - val_b);
+            std.debug.print(
+                "\nImage equivalence mismatch at flat index {d}: val_a={d}, val_b={d}, " ++
+                    "diff={e} (tol={e})\n",
+                .{ flat_idx, val_a, val_b, diff, abs_tol },
+            );
+            return error.PixelMismatch;
+        }
+    }
+}
+
+pub fn expectImagesDifferent(
+    arr_a: *const NDArray(F),
+    arr_b: *const NDArray(F),
+    min_abs_diff: F,
+) !void {
+    if (arr_a.slice.len != arr_b.slice.len) return error.ArrayDimensionMismatch;
+    if (arr_a.dims.len != arr_b.dims.len) return error.ArrayDimensionMismatch;
+    for (arr_a.dims, arr_b.dims) |dim_a, dim_b| {
+        if (dim_a != dim_b) return error.ArrayDimensionMismatch;
+    }
+
+    var max_diff: F = 0.0;
+    for (arr_a.slice, arr_b.slice) |val_a, val_b| {
+        const diff = @abs(val_a - val_b);
+        if (diff > max_diff) {
+            max_diff = diff;
+        }
+    }
+
+    if (max_diff < min_abs_diff) {
+        std.debug.print(
+            "\nExpected images to differ by at least {e}, but max diff was only {e}\n",
+            .{ min_abs_diff, max_diff },
+        );
+        return error.ImagesTooSimilar;
+    }
+}
+
+pub fn renderMemoryCase(
+    allocator: std.mem.Allocator,
+    io: std.Io,
+    cam_inps: []const CameraInput,
+    mesh_inps: []const MeshInput,
+    config: rastcfg.RasterConfig,
+) !NDArray(F) {
+    var mem_config = config;
+    mem_config.save_strategy = .memory;
+
+    const render_groups = [_]riley.RenderGroupSpec{.{
+        .io = io,
+        .workers = mem_config.total_threads,
+    }};
+
+    const result = try riley.rasterReport(
+        allocator,
+        &render_groups,
+        cam_inps,
+        mesh_inps,
+        mem_config,
+        null,
+        null,
+    );
+
+    return result orelse error.RenderReturnedNull;
+}
+
 fn getGoldValue(
     gold: *const NDArray(F),
     path_is_fimg: bool,
@@ -142,18 +240,29 @@ pub fn compareNDArrayToGold(
         else => array.dims[2],
     };
 
-    if (gold_rows != rows) {
-        std.debug.print(
-            "Row count mismatch: Gold has {d}, array expects {d} (path: {s})\n",
-            .{ gold_rows, rows, path },
-        );
-        return error.GoldRowsMismatch;
+    if (array.dims.len == 5) {
+        if (gold_rows > rows or gold_cols > cols) {
+            std.debug.print(
+                "Dimension mismatch: Gold ({d}x{d}) exceeds array buffer " ++
+                    "({d}x{d}) (path: {s})\n",
+                .{ gold_rows, gold_cols, rows, cols, path },
+            );
+            return error.GoldRowsMismatch;
+        }
+    } else {
+        if (gold_rows != rows) {
+            std.debug.print(
+                "Row count mismatch: Gold has {d}, array expects {d} (path: {s})\n",
+                .{ gold_rows, rows, path },
+            );
+            return error.GoldRowsMismatch;
+        }
+
+        if (gold_cols != cols) return error.GoldColsMismatch;
     }
 
-    if (gold_cols != cols) return error.GoldColsMismatch;
-
-    for (0..rows) |r| {
-        for (0..cols) |c| {
+    for (0..gold_rows) |r| {
+        for (0..gold_cols) |c| {
             for (0..channels) |ch| {
                 const gold_val = getGoldValue(
                     &gold,
@@ -204,20 +313,18 @@ pub fn compareNDArrayToGold(
 }
 
 fn openFailsSubDir(
+    allocator: std.mem.Allocator,
     io: std.Io,
     fails_root: []const u8,
     dir_name: []const u8,
 ) !std.Io.Dir {
-    const cwd = std.Io.Dir.cwd();
-    cwd.createDir(io, fails_root, .default_dir) catch |err| {
-        if (err != error.PathAlreadyExists) return err;
-    };
-    var fails_dir = try cwd.openDir(io, fails_root, .{});
-    defer fails_dir.close(io);
-    fails_dir.createDir(io, dir_name, .default_dir) catch |err| {
-        if (err != error.PathAlreadyExists) return err;
-    };
-    return try fails_dir.openDir(io, dir_name, .{});
+    const full_path = try std.fmt.allocPrint(
+        allocator,
+        "{s}/{s}",
+        .{ fails_root, dir_name },
+    );
+    defer allocator.free(full_path);
+    return orch.openDirEnsured(io, full_path);
 }
 
 fn saveResultToFails(
@@ -227,8 +334,7 @@ fn saveResultToFails(
     array: *const NDArray(F),
     dir_name: []const u8,
 ) !void {
-    _ = allocator;
-    var out_dir = try openFailsSubDir(io, fails_root, dir_name);
+    var out_dir = try openFailsSubDir(allocator, io, fails_root, dir_name);
     defer out_dir.close(io);
 
     const cameras_num = if (array.dims.len == 5) array.dims[0] else 1;
@@ -278,7 +384,7 @@ fn saveResultToFails(
     }
 }
 
-fn extractFrameImage(
+pub fn extractFrameImage(
     allocator: std.mem.Allocator,
     array: *const NDArray(F),
     camera_idx: usize,
@@ -561,7 +667,7 @@ pub fn saveComparisonArtifactsFromResult(
     );
     defer allocator.free(prepended_dir);
 
-    var out_dir = try openFailsSubDir(io, fails_root, prepended_dir);
+    var out_dir = try openFailsSubDir(allocator, io, fails_root, prepended_dir);
     defer out_dir.close(io);
 
     var actual = try extractFrameImage(
@@ -624,7 +730,7 @@ pub fn saveComparisonArtifactsFromImages(
     );
     defer allocator.free(prepended_dir);
 
-    var out_dir = try openFailsSubDir(io, fails_root, prepended_dir);
+    var out_dir = try openFailsSubDir(allocator, io, fails_root, prepended_dir);
     defer out_dir.close(io);
 
     var diff = try calculateDiffImage(allocator, actual, gold);
@@ -756,7 +862,10 @@ pub fn runSingleMeshSuiteDriver(
                 var render_result = result orelse return error.NoResult;
                 defer aa.free(render_result.slice);
                 const time_end = Timestamp.now(io, .awake);
-                const duration_ms = @as(F, @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds)) / 1e6;
+                const duration_ms = @as(
+                    F,
+                    @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds),
+                ) / 1e6;
 
                 const frames_num = if (render_result.dims.len == 5)
                     render_result.dims[1]
@@ -781,11 +890,17 @@ pub fn runSingleMeshSuiteDriver(
                         if (first_err == null) {
                             if (err == error.PixelMismatch) {
                                 if (tcfg.TEST_CASE_VERBOSE) {
-                                    std.debug.print("MISMATCH! ({d:.2} ms)\n", .{duration_ms});
+                                    std.debug.print(
+                                        "MISMATCH! ({d:.2} ms)\n",
+                                        .{duration_ms},
+                                    );
                                 }
                             } else {
                                 if (tcfg.TEST_CASE_VERBOSE) {
-                                    std.debug.print("ERROR! ({d:.2} ms)\n", .{duration_ms});
+                                    std.debug.print(
+                                        "ERROR! ({d:.2} ms)\n",
+                                        .{duration_ms},
+                                    );
                                 }
                             }
                             first_err = err;
@@ -822,7 +937,13 @@ pub fn runSingleMeshSuiteDriver(
                 const case_dir_name = try std.fmt.allocPrint(
                     aa,
                     "{s}_{s}_{s}_tex_{s}_{s}",
-                    .{ test_type, @tagName(mesh_type), d_str, @tagName(sc.sample), @tagName(sc.mode) },
+                    .{
+                        test_type,
+                        @tagName(mesh_type),
+                        d_str,
+                        @tagName(sc.sample),
+                        @tagName(sc.mode),
+                    },
                 );
                 const tex_dir = try std.fmt.allocPrint(
                     aa,
@@ -893,7 +1014,10 @@ pub fn runSingleMeshSuiteDriver(
                     var render_result = result orelse return error.NoResult;
                     defer aa.free(render_result.slice);
                     const time_end = Timestamp.now(io, .awake);
-                    const duration_ms = @as(F, @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds)) / 1e6;
+                    const duration_ms = @as(
+                        F,
+                        @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds),
+                    ) / 1e6;
 
                     const frames_num = if (render_result.dims.len == 5)
                         render_result.dims[1]
@@ -918,11 +1042,17 @@ pub fn runSingleMeshSuiteDriver(
                             if (first_err == null) {
                                 if (err == error.PixelMismatch) {
                                     if (tcfg.TEST_CASE_VERBOSE) {
-                                        std.debug.print("MISMATCH! ({d:.2} ms)\n", .{duration_ms});
+                                        std.debug.print(
+                                            "MISMATCH! ({d:.2} ms)\n",
+                                            .{duration_ms},
+                                        );
                                     }
                                 } else {
                                     if (tcfg.TEST_CASE_VERBOSE) {
-                                        std.debug.print("ERROR! ({d:.2} ms)\n", .{duration_ms});
+                                        std.debug.print(
+                                            "ERROR! ({d:.2} ms)\n",
+                                            .{duration_ms},
+                                        );
                                     }
                                 }
                                 first_err = err;
@@ -1120,14 +1250,20 @@ pub fn runMultimeshTestExt(
             null,
         )) orelse return error.NoResult;
         const time_end = Timestamp.now(io, .awake);
-        const duration_ms = @as(F, @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds)) / 1e6;
+        const duration_ms = @as(
+            F,
+            @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds),
+        ) / 1e6;
 
         const gold_dir = if (mode == .nodal)
             try std.fmt.allocPrint(aa, "{s}/allelem_nodal", .{gold_dir_root})
         else
             try std.fmt.allocPrint(aa, "{s}/allelem_tex_cubic_lut_lerp", .{gold_dir_root});
 
-        const frames_num = if (result.dims.len == 5) result.dims[1] else result.dims[0];
+        const frames_num = if (result.dims.len == 5)
+            result.dims[1]
+        else
+            result.dims[0];
         for (0..frames_num) |f| {
             const fname = try findGoldPath(aa, io, gold_dir, 0, f, 0, false);
             compareNDArrayToGold(
@@ -1216,7 +1352,7 @@ pub fn runMultimeshMixedTestExt(
         1,
         aa,
         io,
-        "texture/speckle-simple.tiff",
+        "texture/speckle_mono.tiff",
         .tiff,
     );
 
@@ -1266,9 +1402,15 @@ pub fn runMultimeshMixedTestExt(
         null,
     )) orelse return error.NoResult;
     const time_end = Timestamp.now(io, .awake);
-    const duration_ms = @as(F, @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds)) / 1e6;
+    const duration_ms = @as(
+        F,
+        @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds),
+    ) / 1e6;
 
-    const frames_num = if (result.dims.len == 5) result.dims[1] else result.dims[0];
+    const frames_num = if (result.dims.len == 5)
+        result.dims[1]
+    else
+        result.dims[0];
     for (0..frames_num) |f| {
         const fname = try findGoldPath(aa, io, gold_dir, 0, f, 0, false);
         compareNDArrayToGold(
@@ -1399,9 +1541,15 @@ pub fn runMultimeshMixedRGBTestExt(
         null,
     )) orelse return error.NoResult;
     const time_end = Timestamp.now(io, .awake);
-    const duration_ms = @as(F, @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds)) / 1e6;
+    const duration_ms = @as(
+        F,
+        @floatFromInt(time_start.durationTo(time_end).raw.nanoseconds),
+    ) / 1e6;
 
-    const frames_num = if (result.dims.len == 5) result.dims[1] else result.dims[0];
+    const frames_num = if (result.dims.len == 5)
+        result.dims[1]
+    else
+        result.dims[0];
     for (0..frames_num) |f| {
         const fname = try findGoldPath(aa, io, gold_dir, 0, f, 0, true);
         compareNDArrayToGold(
@@ -1454,7 +1602,7 @@ fn supportsMidsideDistortMesh(mesh_type: gk.MeshType) bool {
 
 fn supportsAnyDistortMesh(mesh_type: gk.MeshType) bool {
     return switch (mesh_type) {
-        .tri3, .tri6, .quad4ibi, .quad4newton, .quad8, .quad9 => true,
+        .tri3, .tri6, .quad4, .quad8, .quad9 => true,
         .tri3opt => false,
     };
 }
@@ -1574,7 +1722,10 @@ pub fn runEdgeTexFuncConstantSuiteDriver(
             @floatFromInt(start_time.durationTo(end_time).raw.nanoseconds),
         ) / 1e6;
 
-        const frames_num = if (render_result.dims.len == 5) render_result.dims[1] else render_result.dims[0];
+        const frames_num = if (render_result.dims.len == 5)
+            render_result.dims[1]
+        else
+            render_result.dims[0];
         var first_err: ?anyerror = null;
         for (0..frames_num) |frame_idx| {
             const gold_path = try findGoldPath(

@@ -28,7 +28,7 @@ const DEFAULT_PIXELS_SIZE = [2]F{
 };
 const DEFAULT_FOV_SCALE: F = @floatCast(0.65);
 const DEFAULT_STEREO_ANG: F = 20.0;
-const DEFAULT_TEX_PATH = "texture/speckle.bmp";
+const DEFAULT_TEX_PATH = "texture/speckle_mono.bmp";
 const DEFAULT_RENDER_MODE = rastcfg.RenderMode.offline;
 const DEFAULT_SAVE_STRATEGY = rastcfg.SaveStrategy.disk;
 const DEFAULT_RUNS: usize = 1;

@@ -224,9 +224,6 @@ pub const NewtonSeedTol = struct {
 };
 
 pub const GeometryTol = struct {
-    bilinear_para_dom: Scal = 1e-8,
-    bilinear_denom: Scal = 1e-12,
-    quadratic_area: Scal = 1e-12,
     depth_buff_inv_z_cmp: Scal = 1e-12,
 };
 
@@ -307,9 +304,6 @@ pub const tol_f32 = Tol{
         .resid_sq = 5e-3,
     },
     .geometry = .{
-        .bilinear_para_dom = 5e-5,
-        .bilinear_denom = 1e-7,
-        .quadratic_area = 1e-8,
         .depth_buff_inv_z_cmp = 1e-8,
     },
     .tex = .{

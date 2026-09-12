@@ -34,7 +34,7 @@ const F = buildconfig.F;
 const rabbit_mesh_types = [_]gk.MeshType{
     .tri3,
     .tri6,
-    .quad4newton,
+    .quad4,
     .quad8,
     .quad9,
 };
@@ -168,6 +168,7 @@ fn makeRgbMeshInput(
                     checker_squares_per_axis,
                     checker_squares_per_axis,
                 },
+                .settings = .{ .checker = .{} },
             },
             .bits = 8,
             .scaling = .auto,

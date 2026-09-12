@@ -25,6 +25,7 @@ const imageops = @import("imageops.zig");
 const pce = @import("parachunkexec.zig");
 const saveoverlap = @import("saveoverlap.zig");
 const scalingpolicy = @import("scalingpolicy.zig");
+const valarr = @import("validatearrays.zig");
 const valinp = @import("validateinput.zig");
 
 const geomkerns = @import("geometrykernels.zig");
@@ -41,6 +42,7 @@ pub const ImageSaveMode = rastcfg.ImageSaveMode;
 pub const SaveStrategy = rastcfg.SaveStrategy;
 pub const RenderMode = rastcfg.RenderMode;
 pub const ReportMode = rastcfg.ReportMode;
+pub const ValidateInput = rastcfg.ValidateInput;
 pub const FullStatsOpts = rastcfg.FullStatsOpts;
 
 const report = @import("report.zig");
@@ -101,6 +103,46 @@ pub fn rasterInto(
     );
 }
 
+fn validateAndSummarise(
+    render_groups: []const RenderGroupSpec,
+    cam_inps: []const cam.CameraInput,
+    meshes: []const mo.MeshInput,
+    config: RasterConfig,
+    imgs_arr: ?*ndarray.NDArray(F),
+    require_out_buff: bool,
+    bench_capt: ?[]report.FrameBenchCapture,
+) !valinp.ValidSummary {
+    return switch (config.validate_input) {
+        .off => valinp.summariseRenderInpsAssumeValid(
+            cam_inps,
+            meshes,
+            config,
+        ),
+        .fast => try valinp.checkRenderInps(
+            render_groups,
+            cam_inps,
+            meshes,
+            config,
+            imgs_arr,
+            require_out_buff,
+            bench_capt,
+        ),
+        .full => blk: {
+            const summary = try valinp.checkRenderInps(
+                render_groups,
+                cam_inps,
+                meshes,
+                config,
+                imgs_arr,
+                require_out_buff,
+                bench_capt,
+            );
+            try valarr.checkRenderArrs(meshes);
+            break :blk summary;
+        },
+    };
+}
+
 pub fn rasterReport(
     outer_alloc: std.mem.Allocator,
     render_groups: []const RenderGroupSpec,
@@ -110,7 +152,13 @@ pub fn rasterReport(
     out_dir_path: ?[]const u8,
     bench_capt: ?[]report.FrameBenchCapture,
 ) !?ndarray.NDArray(F) {
-    const valid_summary = try valinp.checkRenderInpsErr(
+    if (render_groups.len == 0) {
+        return error.NoRenderGroups;
+    }
+    const summary_io = render_groups[0].io;
+    const time_start_render = Timestamp.now(summary_io, .awake);
+
+    const valid_summary = try validateAndSummarise(
         render_groups,
         cam_inps,
         meshes,
@@ -132,7 +180,7 @@ pub fn rasterReport(
         images_arr.deinit(outer_alloc);
     };
 
-    try rasterReportInto(
+    try rasterReportIntoValidated(
         outer_alloc,
         render_groups,
         cam_inps,
@@ -141,6 +189,8 @@ pub fn rasterReport(
         out_dir_path,
         if (images_arr_opt) |*images_arr| images_arr else null,
         bench_capt,
+        valid_summary,
+        time_start_render,
     );
     return images_arr_opt;
 }
@@ -155,10 +205,13 @@ pub fn rasterReportInto(
     images_arr: ?*ndarray.NDArray(F),
     bench_capt: ?[]report.FrameBenchCapture,
 ) !void {
+    if (render_groups.len == 0) {
+        return error.NoRenderGroups;
+    }
     const summary_io = render_groups[0].io;
     const time_start_render = Timestamp.now(summary_io, .awake);
 
-    const valid_summary = try valinp.checkRenderInpsErr(
+    const valid_summary = try validateAndSummarise(
         render_groups,
         cam_inps,
         meshes,
@@ -167,6 +220,34 @@ pub fn rasterReportInto(
         true,
         bench_capt,
     );
+
+    try rasterReportIntoValidated(
+        outer_alloc,
+        render_groups,
+        cam_inps,
+        meshes,
+        config,
+        out_dir_path,
+        images_arr,
+        bench_capt,
+        valid_summary,
+        time_start_render,
+    );
+}
+
+fn rasterReportIntoValidated(
+    outer_alloc: std.mem.Allocator,
+    render_groups: []const RenderGroupSpec,
+    cam_inps: []const cam.CameraInput,
+    meshes: []const mo.MeshInput,
+    config: RasterConfig,
+    out_dir_path: ?[]const u8,
+    images_arr: ?*ndarray.NDArray(F),
+    bench_capt: ?[]report.FrameBenchCapture,
+    valid_summary: valinp.ValidSummary,
+    time_start_render: Timestamp,
+) !void {
+    const summary_io = render_groups[0].io;
 
     var out_dir: ?std.Io.Dir = null;
     if (out_dir_path) |path| {

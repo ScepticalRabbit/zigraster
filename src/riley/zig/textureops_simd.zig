@@ -28,7 +28,7 @@ const common = @import("textureops_common.zig");
 // PIPELINE ENTRY POINTS (Dispatched by Shader/Kernel):
 // │
 // ├── PATH 1: sampScal (Purely Scal)
-// │   "Used when .simd = .off or as fallback for complex elems (quad4ibi)"
+// │   "Used when .simd = .off"
 // │   ├── getPx()           (Scalar Load)
 // │   ├── sampLinear()      (Scalar Linear)
 // │   └── sampConvo()       (Scalar Convolution)

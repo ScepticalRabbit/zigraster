@@ -39,15 +39,14 @@ const DEFAULT_PIXELS_SIZE = [2]F{
     @floatCast(5.3e-6),
 };
 const DEFAULT_FOV_SCALE: F = 1.0;
-const DEFAULT_TEX_GREY_PATH = "texture/speckle.bmp";
+const DEFAULT_TEX_GREY_PATH = "texture/speckle_mono.bmp";
 const DEFAULT_TEX_RGB_PATH = "texture/speckle_rgb.bmp";
 const DEFAULT_ROT = Rotation.init(0, 0, 0);
 
 const EVAL_ELEMENTS = [_]gk.MeshType{
     .tri3,
     .tri6,
-    .quad4ibi,
-    .quad4newton,
+    .quad4,
     .quad8,
     .quad9,
 };
@@ -312,10 +311,8 @@ pub fn main(init: std.process.Init) !void {
                 element_filter = .tri3;
             } else if (std.mem.eql(u8, val, "tri6")) {
                 element_filter = .tri6;
-            } else if (std.mem.eql(u8, val, "quad4ibi")) {
-                element_filter = .quad4ibi;
-            } else if (std.mem.eql(u8, val, "quad4newton")) {
-                element_filter = .quad4newton;
+            } else if (std.mem.eql(u8, val, "quad4")) {
+                element_filter = .quad4;
             } else if (std.mem.eql(u8, val, "quad8")) {
                 element_filter = .quad8;
             } else if (std.mem.eql(u8, val, "quad9")) {

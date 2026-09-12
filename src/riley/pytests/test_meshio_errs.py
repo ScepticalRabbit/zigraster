@@ -587,7 +587,7 @@ def test_load_csv_rejects_fractional_for_integer_dtype(tmp_path: Path) -> None:
     ("source", "target"),
     (
         (riley.EElemType.TRI3, riley.MeshType.tri6),
-        (riley.EElemType.TRI6, riley.MeshType.quad4ibi),
+        (riley.EElemType.TRI6, riley.MeshType.quad4),
         (riley.EElemType.QUAD4, riley.MeshType.tri6),
         (riley.EElemType.QUAD8, riley.MeshType.tri6),
         (riley.EElemType.TET10, riley.MeshType.quad8),

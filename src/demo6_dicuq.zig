@@ -33,7 +33,7 @@ const MatSlice = @import("riley/zig/matslice.zig").MatSlice;
 const F = buildconfig.F;
 
 const DATA_DIR = "data/FE/platehole3d_2mr_63f/";
-const TEXTURE_PATH = "texture/speckle.bmp";
+const TEXTURE_PATH = "texture/speckle_mono.bmp";
 const OUT_DIR_ROOT = "./out/demo6_dicuq";
 
 const PIXELS_NUM = [2]u32{ 2464, 2056 };

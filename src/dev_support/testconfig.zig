@@ -14,6 +14,19 @@ const HullMode = rastcfg.HullMode;
 
 pub const REL_TOL: F = if (F == f32) 1.0e-3 else 1e-6;
 pub const ABS_TOL: F = if (F == f32) 1.0e-3 else 1e-6;
+
+// Full-suite gold comparison tolerances
+pub const FULL_GOLD_REL_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
+pub const FULL_GOLD_ABS_TOL: F = if (F == f32) 1.0e-3 else 1.0e-5;
+
+// tri3opt parity tolerances against baseline tri3
+pub const TRI3OPT_PARITY_REL_TOL: F = 1.0e-3;
+pub const TRI3OPT_PARITY_ABS_TOL: F = 1.0e-3;
+
+// Equivalence comparison tolerances (multi-threading / multi-camera / buffer modes)
+pub const EQUIV_REL_TOL: F = if (F == f32) 1.0e-4 else 1.0e-6;
+pub const EQUIV_ABS_TOL: F = if (F == f32) 1.0e-4 else 1.0e-6;
+
 pub const RENDER_MODE: RenderMode = .in_order;
 pub const HULL_MODE: HullMode = .on_no_fallback;
 // Includes the caller thread. TOTAL_THREADS = 3 means caller + 2 helpers.
@@ -24,6 +37,28 @@ pub const MAX_GEOM_WORKERS_PER_JOB: u16 = 1;
 pub const MAX_RASTER_WORKERS_PER_JOB: u16 = 3;
 pub const GEOM_SCHEDULING_MODE: rastcfg.GeometrySchedulingMode = .auto;
 pub const TEST_CASE_VERBOSE: bool = false;
+
+pub const VerifTol = struct {
+    para_abs: F,
+    reproj_abs_px: F,
+    distortion_abs_px: F,
+    silhouette_area_abs_px2: F,
+    silhouette_cent_abs_px: F,
+    silhouette_mask_diff_pct: F,
+    depth_value_abs: F,
+    depth_gap_rel: F,
+};
+
+pub const VERIF_TOL = VerifTol{
+    .para_abs = 1.0e-7,
+    .reproj_abs_px = 1.0e-6,
+    .distortion_abs_px = 1.0e-6,
+    .silhouette_area_abs_px2 = 16.0,
+    .silhouette_cent_abs_px = 5.0e-2,
+    .silhouette_mask_diff_pct = 1.0e-3,
+    .depth_value_abs = 1.0e-12,
+    .depth_gap_rel = 1.0e-5,
+};
 
 pub const RasterConfigMode = enum {
     gold_gen,

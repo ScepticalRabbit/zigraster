@@ -100,9 +100,6 @@ pub fn rasterDirectScalComm(
         nodes_inv_z[nn] = 1.0 / nodes_coords.z[nn];
     }
 
-    const bilinear_params = if (comptime Geom.solver_kind == .inv_bi)
-        Geom.getBilinearParams(nodes_coords)
-    else {};
     const inv_elem_area = if (comptime Geom.solver_kind == .hyperb)
         Geom.getInvElemArea(nodes_coords)
     else {};
@@ -149,13 +146,6 @@ pub fn rasterDirectScalComm(
                     ideal_x_pix,
                     ideal_y_pix,
                     inv_elem_area,
-                ),
-                .inv_bi => Geom.solveWeightsInvBi(
-                    ideal_x_pix,
-                    ideal_y_pix,
-                    subpx_dom.x_off,
-                    subpx_dom.y_off,
-                    bilinear_params,
                 ),
                 else => unreachable,
             };
@@ -814,8 +804,7 @@ fn rasterTileComm(
                     .tri3 => geomkerns.Tri3Kernel(),
                     .tri3opt => geomkerns.Tri3OptKernel(),
                     .tri6 => geomkerns.Tri6Kernel(),
-                    .quad4ibi => geomkerns.Quad4IBIKernel(),
-                    .quad4newton => geomkerns.Quad4NewtonKernel(),
+                    .quad4 => geomkerns.Quad4Kernel(),
                     .quad8 => geomkerns.Quad89Kernel(8),
                     .quad9 => geomkerns.Quad89Kernel(9),
                 };

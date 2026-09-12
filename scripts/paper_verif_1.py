@@ -105,8 +105,6 @@ def load_solver_rows(stats_path: pathlib.Path) -> list[dict[str, str]]:
 
 
 def mesh_label(mesh_name: str) -> str:
-    if mesh_name == "quad4ibi" or mesh_name == "quad4newton":
-        return "quad4"
     return mesh_name
 
 
@@ -223,8 +221,8 @@ def make_table_row(
 
 def build_case_rows_for_table() -> list[tuple[str, str, str, int, str]]:
     return [
-        ("quad4", "quad4newton", "shear", SHEAR_REGULAR, "regular"),
-        ("quad4", "quad4newton", "shear", SHEAR_SHEAR, "shear"),
+        ("quad4", "quad4", "shear", SHEAR_REGULAR, "regular"),
+        ("quad4", "quad4", "shear", SHEAR_SHEAR, "shear"),
         ("tri6", "tri6", "shear", SHEAR_REGULAR, "regular"),
         ("tri6", "tri6", "shear", SHEAR_SHEAR, "shear"),
         ("tri6", "tri6", "bulge", bulge_in_frame("tri6"), "bulge inward"),
@@ -315,7 +313,7 @@ def save_png_figure(
     ax.set_xlabel(r"$\xi$", fontsize=PLOT_AXIS_FONT_SIZE)
     ax.set_ylabel(r"$\eta$", fontsize=PLOT_AXIS_FONT_SIZE)
     ax.tick_params(labelsize=PLOT_TICK_FONT_SIZE)
-    if mesh_name in {"quad4newton", "quad8", "quad9"}:
+    if mesh_name in {"quad4", "quad8", "quad9"}:
         tick_vals = [-1.0, 0.0, 1.0]
         tick_labels = ["-1.0", "0.0", "1.0"]
     else:
@@ -486,7 +484,7 @@ def generate_all_figures(style: PlotStyle) -> None:
 
     print("Generating shear RMSE figures...")
     for elem_label, mesh_name in [
-        ("quad4", "quad4newton"),
+        ("quad4", "quad4"),
         ("tri6", "tri6"),
         ("quad8", "quad8"),
         ("quad9", "quad9"),
